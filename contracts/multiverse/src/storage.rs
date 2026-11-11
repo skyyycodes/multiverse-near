@@ -219,6 +219,20 @@ impl Contract {
         self.balances.flush();
         self.supply.flush();
         self.real.flush();
+        self.pools.flush();
+        self.within.flush();
+        self.between.flush();
+        self.positions.flush();
+        self.impact.flush();
+        self.orders.flush();
+        self.open_by_world.flush();
+        self.markets.flush();
+        self.supply_shares.flush();
+        self.supply_principal.flush();
+        self.borrow_shares.flush();
+        self.collateral.flush();
+        self.vaults.flush();
+        self.lp_shares.flush();
         self.storage.flush();
     }
 
@@ -291,6 +305,10 @@ impl Contract {
             || self
                 .verse_keys()
                 .any(|k| self.verse_balance(account_id, &k) > 0)
+            || self.has_pool_positions(account_id)
+            || self.has_open_orders(account_id)
+            || self.has_lending_position(account_id)
+            || self.has_lp_shares(account_id)
     }
 
     /// Every verse key that can exist, in a fixed order: scenario, then asset,

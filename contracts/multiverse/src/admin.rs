@@ -6,10 +6,11 @@ use near_sdk::{assert_one_yocto, env, near, AccountId, IntoStorageKey};
 
 use crate::errors::fail;
 use crate::types::AssetCfg;
-use crate::{Contract, ContractExt, StorageKey};
+use crate::{orders, rootlp, Contract, ContractExt, StorageKey};
 
-/// What the app needs once at start-up. `demo` stays null until the owner
-/// records it.
+/// What the app needs once at start-up. `order_book` and
+/// `root_lp` say whether those features are live yet; `spot_pool_id` stays
+/// null until the spot pool exists, and `demo` until the owner records it.
 #[near(serializers = [json])]
 #[derive(Clone, Debug, PartialEq)]
 pub struct AppConfig {
@@ -25,6 +26,9 @@ pub struct AppConfig {
     pub min_pool_depth: U128,
     pub fee_base_pips: u32,
     pub fee_cap_pips: u32,
+    pub order_book: bool,
+    pub root_lp: bool,
+    pub spot_pool_id: Option<u64>,
     pub event_count: u64,
     pub scenario_count: u64,
     /// The owner-set demo record (event and scenario ids, seeded odds).
@@ -79,6 +83,9 @@ impl Contract {
             min_pool_depth: U128(p.min_pool_depth),
             fee_base_pips: p.fee_base_pips,
             fee_cap_pips: p.fee_cap_pips,
+            order_book: orders::ENABLED,
+            root_lp: rootlp::ENABLED,
+            spot_pool_id: self.spot_pool,
             event_count: self.event_count,
             scenario_count: self.scenario_count,
             demo: env::storage_read(&StorageKey::DemoRecord.into_storage_key())

@@ -12,21 +12,31 @@
 #[macro_use]
 pub mod errors;
 pub mod admin;
+pub mod amm;
 pub mod core;
 pub mod events;
 pub mod ledger;
+pub mod lending;
 pub mod masks;
 pub mod nep245;
 pub mod oracle;
+pub mod orders;
 pub mod payout;
+pub mod receiver;
+pub mod rootlp;
+pub mod router;
 pub mod storage;
 pub mod types;
 
 use near_sdk::store::{LookupMap, LookupSet};
 use near_sdk::{env, near, AccountId, BorshStorageKey, PanicOnDefault};
 
+use crate::amm::{ImpactRing, Pool, Position};
 use crate::errors::fail;
 use crate::events::{DisputeWindowSet, MultiverseEvent};
+use crate::lending::{CollateralKey, Market};
+use crate::orders::Order;
+use crate::rootlp::Vault;
 use crate::storage::StorageAccount;
 use crate::types::{Asset, AssetCfg, EventData, Params, Scenario, VerseKey};
 
@@ -43,6 +53,20 @@ pub(crate) enum StorageKey {
     Supply,
     Created,
     Real,
+    Pools,
+    Within,
+    Between,
+    Positions,
+    Impact,
+    Orders,
+    OpenByWorld,
+    Markets,
+    SupplyShares,
+    SupplyPrincipal,
+    BorrowShares,
+    Collateral,
+    Vaults,
+    LpShares,
     Storage,
     /// The owner-set demo record (a JSON string), stored under this key alone.
     DemoRecord,
@@ -80,6 +104,34 @@ pub struct Contract {
     created: LookupSet<VerseKey>,
     /// Internal real WETH/USDC balances: deposits, failed payouts, dust.
     real: LookupMap<(AccountId, Asset), u128>,
+
+    // amm
+    pools: LookupMap<u64, Pool>,
+    pool_count: u64,
+    within: LookupMap<(u64, u8), u64>,
+    between: LookupMap<(u64, u8, u8), u64>,
+    spot_pool: Option<u64>,
+    positions: LookupMap<(u64, AccountId), Position>,
+    /// Last 64 post-swap price points per scenario, for the Impact Meter.
+    impact: LookupMap<u64, ImpactRing>,
+
+    // orders
+    orders: LookupMap<u64, Order>,
+    order_count: u64,
+    /// Open single-world orders per (scenario, world), for the views.
+    open_by_world: LookupMap<(u64, u8), Vec<u64>>,
+
+    // lending
+    markets: LookupMap<u64, Market>,
+    supply_shares: LookupMap<(u64, AccountId), u128>,
+    supply_principal: LookupMap<(u64, AccountId), u128>,
+    borrow_shares: LookupMap<(u64, AccountId), u128>,
+    /// At most 16 pieces per (market, account).
+    collateral: LookupMap<(u64, AccountId), Vec<(CollateralKey, u128)>>,
+
+    // rootlp
+    vaults: LookupMap<u64, Vault>,
+    lp_shares: LookupMap<(u64, AccountId), u128>,
 
     // NEP-145
     storage: LookupMap<AccountId, StorageAccount>,
@@ -129,6 +181,23 @@ impl Contract {
             supply: LookupMap::new(StorageKey::Supply),
             created: LookupSet::new(StorageKey::Created),
             real: LookupMap::new(StorageKey::Real),
+            pools: LookupMap::new(StorageKey::Pools),
+            pool_count: 0,
+            within: LookupMap::new(StorageKey::Within),
+            between: LookupMap::new(StorageKey::Between),
+            spot_pool: None,
+            positions: LookupMap::new(StorageKey::Positions),
+            impact: LookupMap::new(StorageKey::Impact),
+            orders: LookupMap::new(StorageKey::Orders),
+            order_count: 0,
+            open_by_world: LookupMap::new(StorageKey::OpenByWorld),
+            markets: LookupMap::new(StorageKey::Markets),
+            supply_shares: LookupMap::new(StorageKey::SupplyShares),
+            supply_principal: LookupMap::new(StorageKey::SupplyPrincipal),
+            borrow_shares: LookupMap::new(StorageKey::BorrowShares),
+            collateral: LookupMap::new(StorageKey::Collateral),
+            vaults: LookupMap::new(StorageKey::Vaults),
+            lp_shares: LookupMap::new(StorageKey::LpShares),
             storage: LookupMap::new(StorageKey::Storage),
         }
     }
@@ -145,6 +214,13 @@ impl Contract {
     /// Token units to internal units: 10^(18 - decimals).
     pub(crate) fn scale(&self, asset: Asset) -> u128 {
         self.asset_cfg(asset).scale()
+    }
+
+    /// The asset whose NEP-141 contract is `token`, if it is one of ours.
+    pub(crate) fn asset_by_token(&self, token: &AccountId) -> Option<Asset> {
+        Asset::ALL
+            .into_iter()
+            .find(|a| &self.asset_cfg(*a).token_id == token)
     }
 }
 
