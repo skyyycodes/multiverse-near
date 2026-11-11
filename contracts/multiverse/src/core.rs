@@ -20,6 +20,10 @@ use crate::masks::{self, MAX_EVENTS, MAX_WORLDS};
 use crate::types::{Asset, BackingView, Scenario, ScenarioInfo, VerseKey, WorldBacking};
 use crate::{Contract, ContractExt};
 
+/// Finalizing an event logs one line per scenario that uses it, and a receipt
+/// may log at most 100 lines, so the fan-out is bounded well below that.
+pub const MAX_SCENARIOS_PER_EVENT: usize = 16;
+
 #[near]
 impl Contract {
     /// Owner only; the attached deposit (or the owner's storage balance) pays
@@ -47,6 +51,9 @@ impl Contract {
             worlds *= u64::from(outcomes);
             if worlds > u64::from(MAX_WORLDS) {
                 fail!("TooManyWorlds({worlds})");
+            }
+            if self.scenarios_of_event.get(id).map_or(0, Vec::len) >= MAX_SCENARIOS_PER_EVENT {
+                fail!("TooManyScenarios({id})");
             }
             outcome_counts.push(outcomes);
         }

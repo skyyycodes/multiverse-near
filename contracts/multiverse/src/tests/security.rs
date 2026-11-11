@@ -6,6 +6,7 @@ use near_sdk::json_types::U128;
 
 use super::amm::pool_world;
 use super::harness::*;
+use crate::core::MAX_SCENARIOS_PER_EVENT;
 use crate::types::Asset::{Usdc, Weth};
 
 /// RT-1: with nothing attached, an owner function-call key could move the
@@ -59,4 +60,26 @@ fn owner_creation_methods_need_an_attached_deposit() {
     .unwrap();
     assert!(w.storage_used(OWNER) > used);
     assert!(w.last.near_transfers().is_empty());
+}
+
+/// RT-3: finalizing logs one line per scenario using the event; without a
+/// cap, enough scenarios push finalize and admin_resolve past the receipt's
+/// log limit and the event can never resolve.
+#[test]
+fn scenarios_per_event_are_capped_so_resolution_always_fits() {
+    let mut w = World::new();
+    let glam = w.glam;
+    let used = w.view(|c| c.scenarios_of_event(glam).len());
+    for _ in used..MAX_SCENARIOS_PER_EVENT {
+        w.create_scenario(&[glam]).unwrap();
+    }
+    fails(
+        w.create_scenario(&[glam]),
+        &format!("TooManyScenarios({glam})"),
+    );
+    w.report(glam, OUT_SHIPS).unwrap();
+    w.warp(DISPUTE_WINDOW + 1);
+    w.finalize(CAROL, glam).unwrap();
+    assert!(w.last.logs.len() <= 100);
+    assert!(!w.view(|c| c.is_halted(1)));
 }
