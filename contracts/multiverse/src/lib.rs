@@ -11,9 +11,13 @@
 
 #[macro_use]
 pub mod errors;
+pub mod admin;
+pub mod core;
 pub mod events;
 pub mod ledger;
 pub mod masks;
+pub mod oracle;
+pub mod payout;
 pub mod storage;
 pub mod types;
 
@@ -141,4 +145,9 @@ impl Contract {
     pub(crate) fn scale(&self, asset: Asset) -> u128 {
         self.asset_cfg(asset).scale()
     }
+}
+
+/// Block time in whole seconds, the unit every stored time uses.
+pub(crate) fn now_sec() -> u64 {
+    env::block_timestamp() / 1_000_000_000
 }
