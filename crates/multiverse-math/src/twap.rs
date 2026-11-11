@@ -8,6 +8,11 @@
 //! The mean over `window` seconds exists once an observation at or before `now - window` is still kept: from
 //! `window` seconds after the first observation, for as long as fewer than `CAPACITY` distinct seconds with swaps
 //! fall inside the window. With a 60 second window and one observation per second it cannot be overrun.
+//!
+//! [`TwapOracle::write_spaced`] keeps longer windows covered: it moves the newest observation forward instead of
+//! adding one until `spacing` seconds have passed since the one before it. Cumulatives stay exact at every kept
+//! observation; only a read that falls between the last two is interpolated with the older tick, so a mean is off
+//! by at most `spacing` seconds of tick movement. Spacing a ring of `CAPACITY` at `window / 64` covers two windows.
 
 use borsh::{BorshDeserialize, BorshSerialize};
 
@@ -64,6 +69,14 @@ impl TwapOracle {
     /// `TimeWentBackwards` if `time` is older than the newest observation, `Overflow` if the sum overflows `i64`.
     #[track_caller]
     pub fn write(&mut self, time: u64, tick: i32) {
+        self.write_spaced(time, tick, 1);
+    }
+
+    /// [`TwapOracle::write`], keeping kept observations at least `spacing` seconds apart (except the newest): while
+    /// the observation before the newest is younger than `spacing`, the newest moves to `time` instead. A spacing of
+    /// 0 or 1 is plain `write`.
+    #[track_caller]
+    pub fn write_spaced(&mut self, time: u64, tick: i32, spacing: u64) {
         let newest = usize::from(self.newest);
         let last = *self
             .observations
@@ -82,6 +95,14 @@ impl TwapOracle {
             tick_cumulative,
             tick,
         };
+        let count = self.observations.len();
+        if count >= 2 {
+            let previous = self.observations[(newest + count - 1) % count];
+            if time - previous.timestamp < spacing {
+                self.observations[newest] = observation;
+                return;
+            }
+        }
         let next = (newest + 1) % CAPACITY;
         if self.observations.len() < CAPACITY {
             self.observations.push(observation);
@@ -220,5 +241,36 @@ mod tests {
         assert_eq!(oracle.mean_tick(100, 0), None);
         assert_eq!(oracle.mean_tick(50, 60), None);
         assert_eq!(oracle.mean_tick(60, 60), Some(7));
+    }
+
+    #[test]
+    fn spaced_writes_keep_cumulatives_exact() {
+        let (mut every, mut spaced) = (TwapOracle::new(1_000, 0), TwapOracle::new(1_000, 0));
+        for t in 1_001..=1_120u64 {
+            let tick = ((t * 7_919) % 2_001) as i32 - 1_000;
+            every.write(t, tick);
+            spaced.write_spaced(t, tick, 28);
+        }
+        assert!(spaced.count() <= 6);
+        assert_eq!(spaced.cumulative_at(1_200), every.cumulative_at(1_200));
+        assert_eq!(spaced.mean_tick(1_200, 200), every.mean_tick(1_200, 200));
+        // Between kept observations the older tick is assumed, so a mean is off by at most one spacing's worth.
+        let (a, b) = (spaced.mean_tick(1_200, 150).unwrap(), every.mean_tick(1_200, 150).unwrap());
+        assert!((a - b).abs() <= 2_000 * 28 / 150 + 1, "{a} vs {b}");
+    }
+
+    #[test]
+    fn spaced_writes_cover_two_windows() {
+        let mut oracle = TwapOracle::new(0, 0);
+        for t in 1..=3_600u64 {
+            oracle.write_spaced(t, (t % 50) as i32, 1_800 / 64);
+        }
+        assert!(oracle.mean_tick(3_600, 1_800).is_some());
+        // Plain writes, one per second, keep only the last 128 seconds.
+        let mut plain = TwapOracle::new(0, 0);
+        for t in 1..=3_600u64 {
+            plain.write(t, (t % 50) as i32);
+        }
+        assert!(plain.mean_tick(3_600, 1_800).is_none());
     }
 }
