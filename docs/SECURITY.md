@@ -33,18 +33,18 @@ The web app is out of scope except where it relies on a contract view (`trade_vi
 
 ## Findings
 
-| ID | Severity | Title | Status |
-|---|---|---|---|
-| ECON-1 | High | One root USDC split pumps every world pool; held for one 60 s TWAP window, it over-borrows the whole USDC market | Mitigated in `0c9112d`; residual risk accepted (see below) |
-| ECON-2 | High | Dumping one world pool for one TWAP window makes a healthy borrower liquidatable at the dumped price | Mitigated in `0c9112d`; residual risk accepted (see below) |
-| RT-1 | Medium | Owner pool creation with no deposit lets a function-call key move the owner's balances into a mispriced pool | Fixed in `fab48e9` |
-| RT-2 | Medium | Orders are never removed from the scans; dust bids hide real orders from `trade_view`, and closed orders slow `trade_view` and `storage_unregister` without limit | Fixed in `153d70e` |
-| RT-3 | Medium | With about 97 or more scenarios on one event, finalize and `admin_resolve` exceed the 100-log limit and the event can never resolve | Fixed in `fab48e9` |
-| STD-1 | Medium | The `mt_resolve_transfer` refund re-creates the sender's entry unpaid; looping it drives `used_bytes` to zero | Fixed in `fab48e9` |
-| RT-4 | Low | A failed payout re-creates the real-balance entry unpaid; looping withdraw-and-fail drives `used_bytes` to zero | Fixed in `fab48e9` |
-| STD-2 | Low | `storage_unregister` and `orders_by_maker` read every order ever posted | Fixed in `153d70e` (same change as RT-2) |
-| STD-3 | Low | The resolver maps answers to outcomes by a fixed index, so a misconfigured demo record proposes the opposite outcome | Fixed in `96bb344` |
-| STD-4 | Low | The faucet registers any number of fresh accounts at the token contract's expense | Fixed in `208bec2` |
+| ID | Severity | Title | Status | Regression test |
+|---|---|---|---|---|
+| ECON-1 | High | One root USDC split pumps every world pool; held for one 60 s TWAP window, it over-borrows the whole USDC market | Mitigated; residual risk accepted (see below) | `pumping_every_world_for_a_minute_does_not_unlock_borrowing` |
+| ECON-2 | High | Dumping one world pool for one TWAP window makes a healthy borrower liquidatable at the dumped price | Mitigated; residual risk accepted (see below) | `dumping_one_world_for_a_minute_does_not_liquidate_a_healthy_borrower` |
+| RT-1 | Medium | Owner pool creation with no deposit lets a function-call key move the owner's balances into a mispriced pool | Fixed | `owner_creation_methods_need_an_attached_deposit` |
+| RT-2 | Medium | Orders are never removed from the scans; dust bids hide real orders from `trade_view`, and closed orders slow `trade_view` and `storage_unregister` without limit | Fixed | `dust_orders_cannot_hide_the_book_from_trade_view`, `closed_orders_do_not_grow_unregister_or_trade_view_gas` |
+| RT-3 | Medium | With about 97 or more scenarios on one event, finalize and `admin_resolve` exceed the 100-log limit and the event can never resolve | Fixed | `scenarios_per_event_are_capped_so_resolution_always_fits` |
+| STD-1 | Medium | The `mt_resolve_transfer` refund re-creates the sender's entry unpaid; looping it drives `used_bytes` to zero | Fixed | `resolve_refund_is_charged_to_the_sender` |
+| RT-4 | Low | A failed payout re-creates the real-balance entry unpaid; looping withdraw-and-fail drives `used_bytes` to zero | Fixed | `failed_payout_recredit_is_charged_to_the_account` |
+| STD-2 | Low | `storage_unregister` and `orders_by_maker` read every order ever posted | Fixed (same change as RT-2) | `closed_orders_do_not_grow_unregister_or_trade_view_gas` |
+| STD-3 | Low | The resolver maps answers to outcomes by a fixed index, so a misconfigured demo record proposes the opposite outcome | Fixed | `scripts/lib/resolver.test.ts`: "maps a source's answer by outcome name" |
+| STD-4 | Low | The faucet registers any number of fresh accounts at the token contract's expense | Fixed | `mint_does_not_sponsor_accounts_for_strangers` in `contracts/mock-ft/src/lib.rs` |
 
 ### ECON-1 and ECON-2: lending prices from in-protocol pools
 
