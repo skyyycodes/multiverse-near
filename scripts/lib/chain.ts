@@ -11,6 +11,22 @@ export async function chainNowSec(): Promise<number> {
   return Number(BigInt(block.header.timestamp_nanosec) / 1_000_000_000n);
 }
 
+/**
+ * `chainNowSec` for long waits. A public RPC can refuse an address for minutes (429), longer than
+ * near-api-js keeps retrying one request, and a half-hour wait should not die of it.
+ */
+async function chainNowSecPatient(): Promise<number> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await chainNowSec();
+    } catch (err) {
+      if (attempt >= 20) throw err;
+      console.log(`    reading the latest block failed (${String(err).slice(0, 120)}); retrying in 30 s`);
+      await sleep(30_000);
+    }
+  }
+}
+
 export async function chainHeight(): Promise<number> {
   return (await provider.viewBlock({ finality: "final" })).header.height;
 }
@@ -43,7 +59,7 @@ export async function fastForward(blocks: number): Promise<void> {
  * how far each batch moved the clock; elsewhere it sleeps.
  */
 export async function waitForChainTime(targetSec: number, label = "chain time"): Promise<number> {
-  let now = await chainNowSec();
+  let now = await chainNowSecPatient();
   if (now >= targetSec) return now;
   console.log(`  waiting for ${label}: ${targetSec - now} s of block time`);
   let secPerBlock = 0.5;
@@ -55,8 +71,8 @@ export async function waitForChainTime(targetSec: number, label = "chain time"):
       now = await chainNowSec();
       if (now > before) secPerBlock = Math.max(0.05, (now - before) / blocks);
     } else {
-      await sleep(Math.min(10_000, (targetSec - now) * 1_000 + 1_500));
-      now = await chainNowSec();
+      await sleep(Math.min(30_000, (targetSec - now) * 1_000 + 1_500));
+      now = await chainNowSecPatient();
     }
   }
   return now;
