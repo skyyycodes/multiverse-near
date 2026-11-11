@@ -99,7 +99,9 @@ impl Contract {
             let caller = env::predecessor_account_id();
             require!(
                 caller == account_id || caller == self.owner_id,
-                format!("{account_id} is not registered: call storage_deposit, or mint to yourself")
+                format!(
+                    "{account_id} is not registered: call storage_deposit, or mint to yourself"
+                )
             );
             self.token.internal_register_account(&account_id);
             self.sponsored.insert(account_id.clone());
@@ -593,7 +595,10 @@ mod tests {
     #[should_panic(expected = "is not registered: call storage_deposit, or mint to yourself")]
     fn mint_does_not_sponsor_accounts_for_strangers() {
         let mut contract = setup();
-        as_caller("griefer.testnet".parse().unwrap(), NearToken::from_yoctonear(0));
+        as_caller(
+            "griefer.testnet".parse().unwrap(),
+            NearToken::from_yoctonear(0),
+        );
         contract.mint("x0.griefer.testnet".parse().unwrap(), U128(1));
     }
 

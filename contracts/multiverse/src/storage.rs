@@ -8,6 +8,8 @@
 //! without checking its deposit, so the contract never pays for user growth;
 //! it only absorbs callback writes for accounts that are not registered.
 
+use std::cmp::Ordering;
+
 use near_sdk::json_types::U128;
 use near_sdk::{assert_one_yocto, env, near, AccountId, NearToken, Promise};
 
@@ -312,13 +314,11 @@ impl Contract {
         let Some(mut account) = self.storage.get(account_id).cloned() else {
             return;
         };
-        if after > before {
-            account.used_bytes = account.used_bytes.saturating_add(after - before);
-        } else if after < before {
-            account.used_bytes = account.used_bytes.saturating_sub(before - after);
-        } else {
-            return;
-        }
+        account.used_bytes = match after.cmp(&before) {
+            Ordering::Greater => account.used_bytes.saturating_add(after - before),
+            Ordering::Less => account.used_bytes.saturating_sub(before - after),
+            Ordering::Equal => return,
+        };
         self.storage.insert(account_id.clone(), account);
     }
 

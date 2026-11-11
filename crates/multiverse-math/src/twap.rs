@@ -255,7 +255,10 @@ mod tests {
         assert_eq!(spaced.cumulative_at(1_200), every.cumulative_at(1_200));
         assert_eq!(spaced.mean_tick(1_200, 200), every.mean_tick(1_200, 200));
         // Between kept observations the older tick is assumed, so a mean is off by at most one spacing's worth.
-        let (a, b) = (spaced.mean_tick(1_200, 150).unwrap(), every.mean_tick(1_200, 150).unwrap());
+        let (a, b) = (
+            spaced.mean_tick(1_200, 150).unwrap(),
+            every.mean_tick(1_200, 150).unwrap(),
+        );
         assert!((a - b).abs() <= 2_000 * 28 / 150 + 1, "{a} vs {b}");
     }
 

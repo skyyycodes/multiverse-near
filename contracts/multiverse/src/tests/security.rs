@@ -178,20 +178,58 @@ fn dust_orders_cannot_hide_the_book_from_trade_view() {
     w.register(BOB, NearToken::from_near(2));
     give(&mut w, BOB, sid, Usdc, SHIPS_CUTS, 1_000 * E18);
     fails(
-        post(&mut w, BOB, sid, SHIPS_CUTS, Side::Bid, 1, MIN_ORDER_AMOUNT, expiry),
+        post(
+            &mut w,
+            BOB,
+            sid,
+            SHIPS_CUTS,
+            Side::Bid,
+            1,
+            MIN_ORDER_AMOUNT,
+            expiry,
+        ),
         &format!("OrderValueTooSmall(1, {MIN_ORDER_VALUE})"),
     );
     // The cheapest order allowed, as many times as one maker may.
     let floor = MIN_ORDER_VALUE * E18 / MIN_ORDER_AMOUNT;
     for _ in 0..MAX_OPEN_ORDERS_PER_MAKER {
-        post(&mut w, BOB, sid, SHIPS_CUTS, Side::Bid, floor, MIN_ORDER_AMOUNT, expiry).unwrap();
+        post(
+            &mut w,
+            BOB,
+            sid,
+            SHIPS_CUTS,
+            Side::Bid,
+            floor,
+            MIN_ORDER_AMOUNT,
+            expiry,
+        )
+        .unwrap();
     }
     fails(
-        post(&mut w, BOB, sid, SHIPS_CUTS, Side::Bid, floor, MIN_ORDER_AMOUNT, expiry),
+        post(
+            &mut w,
+            BOB,
+            sid,
+            SHIPS_CUTS,
+            Side::Bid,
+            floor,
+            MIN_ORDER_AMOUNT,
+            expiry,
+        ),
         &format!("TooManyOpenOrders({MAX_OPEN_ORDERS_PER_MAKER})"),
     );
     give(&mut w, RAVI, sid, Usdc, SHIPS_CUTS, 2_450 * E18);
-    let real = post(&mut w, RAVI, sid, SHIPS_CUTS, Side::Bid, 2_450 * E18, E18, expiry).unwrap();
+    let real = post(
+        &mut w,
+        RAVI,
+        sid,
+        SHIPS_CUTS,
+        Side::Bid,
+        2_450 * E18,
+        E18,
+        expiry,
+    )
+    .unwrap();
     let orders = w.view(|c| c.trade_view(sid, None)).orders;
     assert_eq!(orders.first().map(|o| o.id.0), Some(real));
     // A maker always sees their own orders, also the ones outside the top.
@@ -225,9 +263,21 @@ fn closed_orders_do_not_grow_unregister_or_trade_view_gas() {
     };
     let (unreg0, view0) = gas(&mut w);
     for _ in 0..300 {
-        let id = post(&mut w, RAVI, sid, DELAYED_HOLDS, Side::Ask, 2_000 * E18, MIN_ORDER_AMOUNT, expiry).unwrap();
-        w.call(RAVI, ONE_YOCTO, |c| c.cancel_order(near_sdk::json_types::U64(id)))
-            .unwrap();
+        let id = post(
+            &mut w,
+            RAVI,
+            sid,
+            DELAYED_HOLDS,
+            Side::Ask,
+            2_000 * E18,
+            MIN_ORDER_AMOUNT,
+            expiry,
+        )
+        .unwrap();
+        w.call(RAVI, ONE_YOCTO, |c| {
+            c.cancel_order(near_sdk::json_types::U64(id))
+        })
+        .unwrap();
     }
     let (unreg1, view1) = gas(&mut w);
     // 300 closed orders used to add about 21 Tgas to each.

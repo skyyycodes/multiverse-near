@@ -56,7 +56,6 @@ pub const TWAP_MIN_AGE_SEC: u64 = 60;
 /// mispriced pool against arbitrage for a whole window.
 pub const MAX_SPOT_TWAP_TICKS: i32 = 953;
 
-
 /// What a pool trades. Token0 is WETH-if-w in a within-world pool and the
 /// lower mask in a between-world pool, so the fee window and the TWAP always
 /// measure token0 and a within-world price is USDC per WETH, rounded down.
