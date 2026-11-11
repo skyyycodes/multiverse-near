@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { DEMO_EVENTS } from "./demo.ts";
 import { CUTS, HOLDS, NO_RESULT, type FomcOutcome } from "./fred.ts";
 import type { DemoRecord, EventView } from "./protocol.ts";
 import { parseTarget, resolveOnce, resolverEvents, teamOutcome, type ResolverDeps } from "./resolver.ts";
@@ -23,10 +24,13 @@ const DEMO: DemoRecord = {
 
 const TEAM_FILE = { note: "", outcomes: { "fed-december-2026": "HOLDS", "glamsterdam-2026": "DELAYED" } };
 
+// The fixture's ids: 7 Glamsterdam, 8 the December Fed meeting, 9 the past one.
+const QUESTIONS = new Map([7, 8, 9].map((id, i) => [id, DEMO_EVENTS[i]!.question]));
+
 function event(id: number, names: string[], patch: Partial<EventView> = {}): EventView {
   return {
     id,
-    question: "",
+    question: QUESTIONS.get(id) ?? "",
     rule: "",
     outcome_names: names,
     deadline_sec: 0,
@@ -146,5 +150,29 @@ describe("resolver", () => {
     const broken = fake(allOpen(), new Error("GET answered HTTP 503"));
     await assert.rejects(resolveOnce(resolverEvents(DEMO, "all"), broken.deps, false), /HTTP 503/);
     assert.deepEqual(broken.reports, []);
+  });
+  it("maps a source's answer by outcome name, so a reordered event cannot flip it", async () => {
+    const events = new Map([
+      [7, event(7, ["DELAYED", "SHIPS"])],
+      [8, event(8, ["HOLDS", "CUTS"])],
+      [9, event(9, ["HOLDS", "CUTS"])],
+    ]);
+    const f = fake(events, CUTS);
+    await resolveOnce(resolverEvents(DEMO, "all"), f.deps, false);
+    const named = f.reports.map(([id, o]) => [id, events.get(id)!.outcome_names[o]]);
+    assert.deepEqual(named, [[9, "CUTS"], [8, "HOLDS"], [7, "DELAYED"]]);
+  });
+
+  it("writes nothing for an event that asks another question or lacks the outcome", async () => {
+    const events = new Map([
+      [7, event(7, ["SHIPS", "DELAYED"], { question: DEMO_EVENTS[1]!.question })],
+      [8, event(8, ["YES", "NO"])],
+      [9, event(9, ["CUTS", "HOLDS"])],
+    ]);
+    const f = fake(events, HOLDS);
+    await resolveOnce(resolverEvents(DEMO, "all"), f.deps, false);
+    assert.deepEqual(f.reports.map(([id, o]) => [id, o]), [[9, HOLDS]]);
+    assert.ok(f.lines.some((l) => l.includes("not an outcome of this event")));
+    assert.ok(f.lines.some((l) => l.includes("the event on chain asks")));
   });
 });
