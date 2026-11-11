@@ -10,8 +10,14 @@ publish = false
 [lib]
 name = "multiverse_math"
 
+[features]
+default = []
+# Serialize/Deserialize for the stored types; big integers are written as decimal strings.
+serde = ["dep:serde"]
+
 [dependencies]
 borsh = { version = "1", features = ["derive"] }
+serde = { version = "1", features = ["derive"], optional = true }
 uint = { version = "0.10", default-features = false }
 
 # BorshSchema is only needed where near-sdk builds the ABI (a host build), never in the wasm.
@@ -20,3 +26,4 @@ borsh = { version = "1", features = ["derive", "unstable__schema"] }
 
 [dev-dependencies]
 proptest = "1.11"
+serde_json = "1"

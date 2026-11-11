@@ -88,24 +88,34 @@ impl std::error::Error for CpmmError {}
 /// Reserves, total liquidity and fee accounting of one pool.
 #[derive(Clone, Debug, Default, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(not(target_arch = "wasm32"), derive(borsh::BorshSchema))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Pool {
+    #[cfg_attr(feature = "serde", serde(with = "crate::serde_impls::u128_string"))]
     reserve0: u128,
+    #[cfg_attr(feature = "serde", serde(with = "crate::serde_impls::u128_string"))]
     reserve1: u128,
+    #[cfg_attr(feature = "serde", serde(with = "crate::serde_impls::u128_string"))]
     liquidity: u128,
     fee_growth0_x128: U256,
     fee_growth1_x128: U256,
+    #[cfg_attr(feature = "serde", serde(with = "crate::serde_impls::u128_string"))]
     fees0: u128,
+    #[cfg_attr(feature = "serde", serde(with = "crate::serde_impls::u128_string"))]
     fees1: u128,
 }
 
 /// One owner's share of a pool: liquidity units, fee checkpoints and fees credited but not collected.
 #[derive(Clone, Debug, Default, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(not(target_arch = "wasm32"), derive(borsh::BorshSchema))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Position {
+    #[cfg_attr(feature = "serde", serde(with = "crate::serde_impls::u128_string"))]
     liquidity: u128,
     fee_growth0_last_x128: U256,
     fee_growth1_last_x128: U256,
+    #[cfg_attr(feature = "serde", serde(with = "crate::serde_impls::u128_string"))]
     tokens_owed0: u128,
+    #[cfg_attr(feature = "serde", serde(with = "crate::serde_impls::u128_string"))]
     tokens_owed1: u128,
 }
 

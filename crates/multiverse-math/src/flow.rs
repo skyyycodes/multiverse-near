@@ -18,7 +18,9 @@ pub const WINDOW: usize = 8;
 /// Ring buffer of the last [`WINDOW`] non-zero volumes of one pool.
 #[derive(Clone, Debug, Default, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(not(target_arch = "wasm32"), derive(borsh::BorshSchema))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SwapFlow {
+    #[cfg_attr(feature = "serde", serde(with = "crate::serde_impls::i128_window"))]
     volumes: [i128; WINDOW],
     count: u64,
 }

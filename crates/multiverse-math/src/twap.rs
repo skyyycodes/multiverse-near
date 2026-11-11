@@ -17,10 +17,12 @@ pub const CAPACITY: usize = 128;
 /// One point of the cumulative tick curve.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(not(target_arch = "wasm32"), derive(borsh::BorshSchema))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Observation {
     /// Seconds.
     pub timestamp: u64,
     /// Sum of tick * seconds up to `timestamp`.
+    #[cfg_attr(feature = "serde", serde(with = "crate::serde_impls::i64_string"))]
     pub tick_cumulative: i64,
     /// Tick in force from `timestamp` until the next observation.
     pub tick: i32,
@@ -29,6 +31,7 @@ pub struct Observation {
 /// Ring buffer of observations.
 #[derive(Clone, Debug, Default, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(not(target_arch = "wasm32"), derive(borsh::BorshSchema))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TwapOracle {
     newest: u16,
     observations: Vec<Observation>,

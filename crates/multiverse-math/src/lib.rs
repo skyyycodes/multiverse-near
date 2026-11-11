@@ -5,19 +5,20 @@
 //! WAD-scaled (`1e18` = 1.0), fees are in pips (`1_000_000` = 100%) and time is whole seconds.
 //!
 //! Every formula is a port of the Solidity version in the EVM project (OpenZeppelin `mulDiv`, Uniswap v4 `TickMath`,
-//! the protocol's `SharesMath`, `OrderMath`, `PriceMath`, `SwapFlow`, `TwapOracle` and `OddsTree`) or, for the
-//! pools, the constant-product equivalent of a v4 full-range position. Rounding always favours the protocol: what
-//! users receive rounds down, what they pay rounds up.
+//! the protocol's `SharesMath`, `OrderMath`, `PriceMath`, `SwapFlow`, `TwapOracle` and `OddsTree`) or, for the pools,
+//! the constant-product equivalent of a v4 full-range position. Rounding always favours the protocol: what users
+//! receive rounds down, what they pay rounds up.
 //!
-//! Failure model. Functions that mirror a Solidity revert panic with the Solidity error name
-//! (`InvalidTick(-887273)`, `MulDivOverflow`), the same way checked arithmetic reverts on the EVM; near-sdk turns
-//! the panic into a readable failure that rolls the receipt back. Where a caller has to carry on instead (quotes and
-//! views), there is a `checked_*` variant returning `Option`, and pool operations return [`cpmm::CpmmError`].
+//! Failure model. Functions that mirror a Solidity revert panic with the Solidity error name (`InvalidTick(-887273)`,
+//! `MulDivOverflow`), the same way checked arithmetic reverts on the EVM; near-sdk turns the panic into a readable
+//! failure that rolls the receipt back. Where a caller has to carry on instead (quotes and views), there is a
+//! `checked_*` variant returning `Option`, and pool operations return [`cpmm::CpmmError`].
 //!
 //! Storage. The stateful types ([`cpmm::Pool`], [`cpmm::Position`], [`flow::SwapFlow`], [`twap::TwapOracle`] and
 //! [`U256`]) derive borsh 1.x, the version near-sdk 5.14 uses, so they can live inside `near_sdk::store`
 //! collections. On non-wasm builds they also derive `BorshSchema`, which near-sdk needs when it builds the ABI of a
-//! `#[near(serializers = [borsh])]` type that holds them.
+//! `#[near(serializers = [borsh])]` type that holds them. With the `serde` feature they also serialize to JSON, with
+//! big integers as decimal strings.
 
 #![forbid(unsafe_code)]
 
@@ -28,6 +29,8 @@ pub mod odds;
 pub mod orders;
 pub mod price;
 pub mod risk;
+#[cfg(feature = "serde")]
+mod serde_impls;
 pub mod shares;
 pub mod tick;
 pub mod twap;
