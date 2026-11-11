@@ -10,6 +10,7 @@
 mod harness;
 
 mod amm;
+mod amm_lens;
 mod core;
 mod events;
 mod invariants;
