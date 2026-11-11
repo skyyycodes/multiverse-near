@@ -3,17 +3,18 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
-import { IconFutures, IconHelp, IconMore, IconOrders } from "@/components/brand/Icons";
+import { IconBorrow, IconFutures, IconHelp, IconLend, IconMore, IconOrders } from "@/components/brand/Icons";
 import { Mark } from "@/components/brand/Mark";
 import { Dialog } from "@/components/ui/Dialog";
 import { samePath } from "./nav";
 
 const MORE = [
   { href: "/orders/", title: "Order book", sub: "Bids and asks in each world", icon: <IconOrders />, demo: "more-orders" },
+  { href: "/lend/", title: "Lend", sub: "Supply USDC; underwrite every world", icon: <IconLend />, demo: "more-lend" },
   { href: "/welcome/", title: "How it works", sub: "Futures, splits and redemption in one page", icon: <IconHelp />, demo: "more-help" },
 ];
 
-/** The phone's floating navigation pill: Trade, Sell, More. */
+/** The phone's floating navigation pill: Trade, Sell, Borrow, More. */
 export function BottomNav() {
   const path = usePathname();
   const [more, setMore] = useState(false);
@@ -29,6 +30,9 @@ export function BottomNav() {
         </Item>
         <Item href="/sell/" label="Sell" active={samePath(path, "/sell/")} demo="nav-sell">
           <Mark size={22} bright={samePath(path, "/sell/") ? 3 : undefined} />
+        </Item>
+        <Item href="/borrow/" label="Borrow" active={samePath(path, "/borrow/")} demo="nav-borrow">
+          <IconBorrow size={21} />
         </Item>
         <button
           type="button"
