@@ -2,8 +2,9 @@
 //!
 //! NEP-141 core and events, NEP-145 storage management and NEP-148 metadata come from
 //! near-contract-standards. On top of that, `mint` is an open faucet: anyone may mint up to
-//! `max_mint_per_call` base units to any account, and a receiver that is not registered yet is
-//! registered on the spot with this contract paying the storage stake. Testnet only.
+//! `max_mint_per_call` base units to any registered account. An account minting to itself, or the
+//! owner minting to anyone, also registers an unregistered receiver on the spot, with this
+//! contract paying the storage stake. Testnet only.
 
 use near_contract_standards::fungible_token::events::{FtBurn, FtMint};
 use near_contract_standards::fungible_token::metadata::{
@@ -93,6 +94,13 @@ impl Contract {
             )
         );
         if !self.token.accounts.contains_key(&account_id) {
+            // Sponsoring any account id would let one caller register thousands of names
+            // at this contract's expense; a fresh account must ask for itself.
+            let caller = env::predecessor_account_id();
+            require!(
+                caller == account_id || caller == self.owner_id,
+                format!("{account_id} is not registered: call storage_deposit, or mint to yourself")
+            );
             self.token.internal_register_account(&account_id);
             self.sponsored.insert(account_id.clone());
         }
@@ -321,11 +329,11 @@ mod tests {
     }
 
     #[test]
-    fn anyone_can_mint_and_the_receiver_is_registered() {
+    fn the_owner_can_mint_to_a_new_account_and_it_is_registered() {
         let mut contract = setup();
         assert!(contract.storage_balance_of(accounts(2)).is_none());
 
-        as_caller(accounts(1), NearToken::from_yoctonear(0));
+        as_caller(owner(), NearToken::from_yoctonear(0));
         contract.mint(accounts(2), U128(2_500_000));
 
         assert_eq!(contract.ft_balance_of(accounts(2)).0, 2_500_000);
@@ -382,7 +390,7 @@ mod tests {
     #[test]
     fn ft_transfer_moves_tokens_between_registered_accounts() {
         let mut contract = setup();
-        as_caller(accounts(1), NearToken::from_yoctonear(0));
+        as_caller(owner(), NearToken::from_yoctonear(0));
         contract.mint(accounts(1), U128(1_000));
         contract.mint(accounts(2), U128(1));
 
@@ -398,7 +406,7 @@ mod tests {
     #[should_panic(expected = "Requires attached deposit of exactly 1 yoctoNEAR")]
     fn ft_transfer_requires_one_yocto() {
         let mut contract = setup();
-        as_caller(accounts(1), NearToken::from_yoctonear(0));
+        as_caller(owner(), NearToken::from_yoctonear(0));
         contract.mint(accounts(1), U128(1_000));
         contract.mint(accounts(2), U128(1));
         contract.ft_transfer(accounts(2), U128(400), None);
@@ -408,7 +416,7 @@ mod tests {
     // receiver reports as unused. The scripts rely on the returned "used" amount to spot a refund.
     fn transfer_call_then_resolve(receiver_answer: PromiseResult) -> (Contract, U128) {
         let mut contract = setup();
-        as_caller(accounts(2), NearToken::from_yoctonear(0));
+        as_caller(owner(), NearToken::from_yoctonear(0));
         contract.mint(accounts(1), U128(1_000));
         contract.mint(accounts(3), U128(1));
 
@@ -497,7 +505,7 @@ mod tests {
         as_caller(accounts(1), min);
         contract.storage_deposit(None, None);
         // A later faucet mint must not turn the account into a sponsored one.
-        as_caller(accounts(2), NearToken::from_yoctonear(0));
+        as_caller(owner(), NearToken::from_yoctonear(0));
         contract.mint(accounts(1), U128(5));
 
         as_caller(accounts(1), one_yocto());
@@ -513,7 +521,7 @@ mod tests {
     #[test]
     fn unregistering_a_faucet_account_refunds_nothing() {
         let mut contract = setup();
-        as_caller(accounts(2), NearToken::from_yoctonear(0));
+        as_caller(owner(), NearToken::from_yoctonear(0));
         contract.mint(accounts(1), U128(7));
 
         as_caller(accounts(1), one_yocto());
@@ -533,7 +541,7 @@ mod tests {
         );
 
         // Registering again through the faucet works and is sponsored again.
-        as_caller(accounts(2), NearToken::from_yoctonear(0));
+        as_caller(owner(), NearToken::from_yoctonear(0));
         contract.mint(accounts(1), U128(1));
         assert_eq!(contract.ft_balance_of(accounts(1)).0, 1);
     }
@@ -544,7 +552,7 @@ mod tests {
     )]
     fn unregistering_with_a_balance_needs_force() {
         let mut contract = setup();
-        as_caller(accounts(2), NearToken::from_yoctonear(0));
+        as_caller(owner(), NearToken::from_yoctonear(0));
         contract.mint(accounts(1), U128(7));
         as_caller(accounts(1), one_yocto());
         contract.storage_unregister(None);
@@ -579,5 +587,27 @@ mod tests {
         let mut contract = setup();
         as_caller(owner(), NearToken::from_yoctonear(0));
         contract.set_max_mint_per_call(U128(10));
+    }
+
+    #[test]
+    #[should_panic(expected = "is not registered: call storage_deposit, or mint to yourself")]
+    fn mint_does_not_sponsor_accounts_for_strangers() {
+        let mut contract = setup();
+        as_caller("griefer.testnet".parse().unwrap(), NearToken::from_yoctonear(0));
+        contract.mint("x0.griefer.testnet".parse().unwrap(), U128(1));
+    }
+
+    #[test]
+    fn mint_sponsors_the_caller_itself_and_the_owners_recipients() {
+        let mut contract = setup();
+        as_caller(accounts(1), NearToken::from_yoctonear(0));
+        contract.mint(accounts(1), U128(5));
+        as_caller(owner(), NearToken::from_yoctonear(0));
+        contract.mint(accounts(2), U128(5));
+        // Both are registered now, so anyone may top them up.
+        as_caller(accounts(3), NearToken::from_yoctonear(0));
+        contract.mint(accounts(2), U128(5));
+        assert_eq!(contract.ft_balance_of(accounts(2)).0, 10);
+        assert!(contract.storage_balance_of(accounts(1)).is_some());
     }
 }
