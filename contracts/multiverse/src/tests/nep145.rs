@@ -329,18 +329,25 @@ fn owner_methods_can_pay_with_the_attached_deposit() {
     assert_eq!(w.storage_used(OWNER), owner_used);
 
     fails_starting(
-        w.call(OWNER, ONE_YOCTO, |c| {
+        w.call(OWNER, NearToken::from_yoctonear(2), |c| {
             c.create_event("q".into(), names(), "r".into(), 0)
         }),
         "InsufficientStorage(",
     );
-    // with nothing attached the owner's NEP-145 balance pays
-    w.call(OWNER, NO_DEPOSIT, |c| {
+    // with exactly 1 yoctoNEAR the owner's NEP-145 balance pays
+    w.call(OWNER, ONE_YOCTO, |c| {
         c.create_event("q".into(), names(), "r".into(), 0)
     })
     .unwrap();
     assert!(w.storage_used(OWNER) > owner_used);
     assert!(w.last.near_transfers().is_empty());
+    // with nothing attached it fails: a function-call key cannot do this
+    fails_starting(
+        w.call(OWNER, NO_DEPOSIT, |c| {
+            c.create_event("q".into(), names(), "r".into(), 0)
+        }),
+        "DepositRequired",
+    );
 }
 
 #[test]

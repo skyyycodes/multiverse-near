@@ -275,12 +275,16 @@ impl Contract {
         self.storage.insert(payer.clone(), account);
     }
 
-    /// For owner methods marked S: with a deposit attached, the deposit pays
-    /// for the growth and the excess is refunded; without one, the owner's
-    /// NEP-145 balance pays.
+    /// For owner methods marked S. They move the owner's balances, so a
+    /// deposit is required: a function-call access key cannot attach one.
+    /// Exactly 1 yoctoNEAR means the owner's NEP-145 balance pays; more pays
+    /// for the growth and the excess is refunded.
     pub(crate) fn charge_storage_or_deposit(&mut self, payer: &AccountId, before: u64) {
         let attached = env::attached_deposit();
         if attached.is_zero() {
+            fail("DepositRequired");
+        }
+        if attached == NearToken::from_yoctonear(1) {
             return self.charge_storage(payer, before);
         }
         self.flush_state();
