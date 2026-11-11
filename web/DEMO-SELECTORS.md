@@ -95,6 +95,7 @@ proposal with a countdown comes from the resolver's `report_outcome`.
 | `scenario-switch` | Scenario pill; opens a list with `scenario-2x2` ("Glamsterdam × Fed (4 worlds)") and `scenario-binary` ("Glamsterdam only (2 worlds)") |
 | `connect`, `account` | Connect button / signed-in account button (`aria-label="Account <id>"`); `account` opens `account-sheet` |
 | `account-sheet`, `account-id`, `disconnect`, `withdraw-inner-weth`, `withdraw-inner-usdc` | Account sheet: id, balances, internal "In Multiverse" balance and its withdrawal |
+| `test-tokens`, `get-test-tokens`, `faucet-progress` | Account sheet, testnet builds without design data: "Get test tokens" (mints 2 WETH and 5,000 USDC to the account itself, then registers it with Multiverse if needed) and one line per finished step |
 | `status-bell` | Link to Resolve; shows a pulsing dot while a result is in its dispute window |
 | `help` | Link to `/welcome/` |
 | `fixture-picker`, `persona-<name>` | Design fixtures only: the "Sign in as" list |
@@ -109,6 +110,7 @@ proposal with a countdown comes from the resolver's `report_outcome`.
 | `trade` / `sell` / `orders` | The screen's `main` |
 | `hero-spot` | "ETH SPOT" numeral and "implied by the four futures: $3,037.86 ✓" (or the difference) |
 | `balance-chips` | Wallet WETH, USDC, and "In Multiverse" when non-zero |
+| `empty-wallet-hint`, `hint-test-tokens` | Testnet, connected wallet with no WETH and no USDC: the same "Get test tokens" button under the balances |
 | `scenario-status` | "scenario {id} · {n} resolved", plus " · paused: resolution pending" while halted |
 | `futures-strip`, `world-thumb` | Phone: small world cards (link to `/world/`) |
 | `action-tiles`, `tile-protect`, `tile-back`, `tile-borrow`, `tile-lend` | Phone: Protect (sell), Back (buy), Borrow, Lend |

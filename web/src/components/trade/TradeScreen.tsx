@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Landing, useLandingVisible } from "@/components/landing/Landing";
 import { Screen } from "@/components/shell/Screen";
+import { EmptyWalletHint } from "@/components/shell/TestTokens";
 import { Segmented } from "@/components/ui/Bits";
 import { ChainWait } from "@/components/ui/Notice";
 import { Block, Sheet } from "@/components/ui/Surface";
@@ -129,6 +130,7 @@ function Trade({ config, focus }: { config: AppConfig; focus?: Focus }) {
               <BalanceChips balances={balances.data} loading={balances.isLoading} hideConnect />
               {status}
             </div>
+            <EmptyWalletHint balances={balances.data} />
             <SpotHero scenario={s} />
           </div>
         }
@@ -188,6 +190,7 @@ function Trade({ config, focus }: { config: AppConfig; focus?: Focus }) {
       hero={
         <div className="flex flex-col gap-6">
           <BalanceChips balances={balances.data} loading={balances.isLoading} />
+          <EmptyWalletHint balances={balances.data} />
           <SpotHero scenario={s} />
           {s && <FuturesStrip scenario={s} />}
           {s && <ActionTiles scenario={s} sellMask={picks.sellMask} />}

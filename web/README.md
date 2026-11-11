@@ -59,7 +59,7 @@ build time, so a plain `pnpm build` contains neither.
 pnpm typecheck     # next typegen + tsc --noEmit
 pnpm lint          # eslint (next core-web-vitals + typescript)
 pnpm test          # vitest: formatting, units, order book and sale planner, settlement, lending, spot maths,
-                   # transaction encoding, outcome parsing, and the seeded demo's golden numbers
+                   # transaction encoding, outcome parsing, the testnet faucet, and the seeded demo's golden numbers
 pnpm build:fixtures && pnpm build:demo && pnpm build && pnpm e2e
                    # Playwright: the acceptance flow on a phone and a desktop (design data), the real build
                    # against testnet, and the demo-wallet build signing against a stand-in RPC

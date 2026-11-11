@@ -18,6 +18,12 @@ const MIN_CONTRACT_DEPOSIT = nearToYocto("0.1");
 
 export type Step = (label: string) => void;
 
+/** The first NEP-145 deposit on Multiverse: the contract's minimum, and never less than 0.1 NEAR. */
+export function registerTx(bounds: StorageBounds): Tx {
+  const min = BigInt(bounds.min);
+  return storageDeposit(CONTRACT_ID, min > MIN_CONTRACT_DEPOSIT ? min : MIN_CONTRACT_DEPOSIT, false);
+}
+
 /**
  * Sends one transaction and checks it did what was asked (see assertSuccess), then refreshes every query. Returns
  * the transaction hash.
@@ -56,9 +62,8 @@ export function useEnsureRegistered(config: AppConfig | undefined) {
         const bal = await src.view<StorageBalance | null>(CONTRACT_ID, "storage_balance_of", { account_id: account });
         if (!bal) {
           const bounds = await src.view<StorageBounds>(CONTRACT_ID, "storage_balance_bounds");
-          const min = BigInt(bounds.min);
           step("Registering with Multiverse…");
-          await submit(storageDeposit(CONTRACT_ID, min > MIN_CONTRACT_DEPOSIT ? min : MIN_CONTRACT_DEPOSIT, false));
+          await submit(registerTx(bounds));
         }
       }
       for (const asset of needs.tokens ?? []) {

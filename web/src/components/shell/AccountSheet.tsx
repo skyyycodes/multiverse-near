@@ -12,6 +12,7 @@ import { useAppConfig, useBalances, useRegistration } from "@/lib/hooks/useData"
 import { useSubmit } from "@/lib/hooks/useTx";
 import { call } from "@/lib/near/tx";
 import { useWallet } from "@/lib/near/wallet";
+import { FAUCET_ON, GetTestTokens } from "./TestTokens";
 import { fmtNear, scaleOf } from "@/lib/units";
 
 const FixtureControls =
@@ -65,6 +66,13 @@ export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => 
         <Balance label="Wallet WETH" value={b ? fmtWeth(b.weth) : "—"} />
         <Balance label="Wallet USDC" value={b ? fmt(b.usdc) : "—"} />
       </div>
+
+      {FAUCET_ON && !wallet.fixtures && id && (
+        <div className="flex flex-col gap-2" data-demo="test-tokens">
+          <div className="label text-mute">Test tokens</div>
+          <GetTestTokens />
+        </div>
+      )}
 
       <div className="flex flex-col gap-2">
         <div className="label text-mute">In Multiverse</div>
