@@ -26,6 +26,9 @@ pub struct StorageAccount {
     pub deposit: NearToken,
     /// Net bytes this account's calls have added, its own record included.
     pub used_bytes: u64,
+    /// Orders this account has open. Kept here so `storage_unregister` and
+    /// the per-maker cap never scan the book.
+    pub open_orders: u32,
 }
 
 impl StorageAccount {
@@ -104,6 +107,7 @@ impl Contract {
                     StorageAccount {
                         deposit,
                         used_bytes: 0,
+                        open_orders: 0,
                     },
                 );
                 self.storage.flush();
@@ -112,6 +116,7 @@ impl Contract {
                 let account = StorageAccount {
                     deposit,
                     used_bytes: env::storage_usage() - before,
+                    open_orders: 0,
                 };
                 self.storage.insert(account_id, account.clone());
                 (account, attached.saturating_sub(deposit))
@@ -230,6 +235,7 @@ impl Contract {
         self.impact.flush();
         self.orders.flush();
         self.open_by_world.flush();
+        self.open_by_scenario.flush();
         self.markets.flush();
         self.supply_shares.flush();
         self.supply_principal.flush();
@@ -274,6 +280,24 @@ impl Contract {
             account.used_bytes = account.used_bytes.saturating_sub(before - after);
         }
         self.storage.insert(payer.clone(), account);
+    }
+
+    pub(crate) fn open_order_count(&self, account_id: &AccountId) -> usize {
+        self.storage
+            .get(account_id)
+            .map_or(0, |a| a.open_orders as usize)
+    }
+
+    /// Makers are always registered: posting charges them storage.
+    pub(crate) fn count_open_order(&mut self, maker: &AccountId, opened: bool) {
+        let Some(account) = self.storage.get_mut(maker) else {
+            fail!("NotRegistered({maker})");
+        };
+        account.open_orders = if opened {
+            account.open_orders.saturating_add(1)
+        } else {
+            account.open_orders.saturating_sub(1)
+        };
     }
 
     /// `charge_storage` for callbacks, which must never panic: growth is

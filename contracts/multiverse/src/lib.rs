@@ -74,6 +74,7 @@ pub(crate) enum StorageKey {
     Storage,
     /// The owner-set demo record (a JSON string), stored under this key alone.
     DemoRecord,
+    OpenByScenario,
 }
 
 #[near(contract_state)]
@@ -124,6 +125,9 @@ pub struct Contract {
     order_count: u64,
     /// Open single-world orders per (scenario, world), for the views.
     open_by_world: LookupMap<(u64, u8), Vec<u64>>,
+    /// Open order ids per scenario, ascending, so no read walks closed
+    /// orders.
+    open_by_scenario: LookupMap<u64, Vec<u64>>,
 
     // lending
     markets: LookupMap<u64, Market>,
@@ -195,6 +199,7 @@ impl Contract {
             orders: LookupMap::new(StorageKey::Orders),
             order_count: 0,
             open_by_world: LookupMap::new(StorageKey::OpenByWorld),
+            open_by_scenario: LookupMap::new(StorageKey::OpenByScenario),
             markets: LookupMap::new(StorageKey::Markets),
             supply_shares: LookupMap::new(StorageKey::SupplyShares),
             supply_principal: LookupMap::new(StorageKey::SupplyPrincipal),

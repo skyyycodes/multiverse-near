@@ -16,8 +16,8 @@ use crate::orders::OrderView;
 use crate::types::{Asset, EventView, VerseKey};
 use crate::{now_sec, Contract, ContractExt};
 
-/// Most orders a trade snapshot carries.
-pub const SNAPSHOT_ORDERS: u32 = 200;
+/// Best bids and best asks per world in a trade snapshot.
+pub const SNAPSHOT_ORDERS_PER_SIDE: u32 = 25;
 
 #[near(serializers = [json])]
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -184,7 +184,7 @@ impl Contract {
         TradeView {
             scenario: self.scenario_snapshot(scenario_id, account_id.as_ref()),
             events: self.events_of(scenario_id),
-            orders: self.open_orders(scenario_id, None, Some(SNAPSHOT_ORDERS)),
+            orders: self.snapshot_orders(scenario_id, account_id.as_ref()),
             impact: self.impact(scenario_id),
             now_sec: now_sec(),
         }
@@ -240,6 +240,29 @@ impl Contract {
 }
 
 impl Contract {
+    /// The book a trade snapshot carries: each possible world's best
+    /// fillable bids and asks, then whatever else the viewer has open in the
+    /// scenario (expired and stale orders too, so they can cancel them).
+    /// Built from the open-order indexes, never by order id, so old or dust
+    /// orders cannot push live ones out.
+    fn snapshot_orders(&self, scenario_id: u64, viewer: Option<&AccountId>) -> Vec<OrderView> {
+        let world_count = self.scenario(scenario_id).world_count;
+        let mut orders = Vec::new();
+        for w in 0..world_count {
+            let book = self.orders_for_world(scenario_id, w, Some(SNAPSHOT_ORDERS_PER_SIDE));
+            orders.extend(book.bids);
+            orders.extend(book.asks);
+        }
+        if let Some(viewer) = viewer {
+            for o in self.orders_by_maker(viewer.clone(), scenario_id) {
+                if !orders.iter().any(|seen| seen.id == o.id) {
+                    orders.push(o);
+                }
+            }
+        }
+        orders
+    }
+
     pub(crate) fn scenario_snapshot(
         &self,
         scenario_id: u64,

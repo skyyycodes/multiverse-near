@@ -164,3 +164,73 @@ fn resolve_refund_is_charged_to_the_sender() {
     }
     assert_eq!(w.bal(ALICE, 1, Weth, SHIPS), 10 * E18 - 1);
 }
+
+/// RT-2 (a): price-1 bids escrowed one wei each, and `trade_view` showed
+/// the first 200 open ids, so dust posted early hid every later order.
+#[test]
+fn dust_orders_cannot_hide_the_book_from_trade_view() {
+    use super::orders::{book, give, post, RAVI};
+    use crate::orders::{Side, MAX_OPEN_ORDERS_PER_MAKER, MIN_ORDER_AMOUNT, MIN_ORDER_VALUE};
+
+    let mut w = book();
+    let sid = w.s2x2;
+    let expiry = T0 + 365 * DAY;
+    w.register(BOB, NearToken::from_near(2));
+    give(&mut w, BOB, sid, Usdc, SHIPS_CUTS, 1_000 * E18);
+    fails(
+        post(&mut w, BOB, sid, SHIPS_CUTS, Side::Bid, 1, MIN_ORDER_AMOUNT, expiry),
+        &format!("OrderValueTooSmall(1, {MIN_ORDER_VALUE})"),
+    );
+    // The cheapest order allowed, as many times as one maker may.
+    let floor = MIN_ORDER_VALUE * E18 / MIN_ORDER_AMOUNT;
+    for _ in 0..MAX_OPEN_ORDERS_PER_MAKER {
+        post(&mut w, BOB, sid, SHIPS_CUTS, Side::Bid, floor, MIN_ORDER_AMOUNT, expiry).unwrap();
+    }
+    fails(
+        post(&mut w, BOB, sid, SHIPS_CUTS, Side::Bid, floor, MIN_ORDER_AMOUNT, expiry),
+        &format!("TooManyOpenOrders({MAX_OPEN_ORDERS_PER_MAKER})"),
+    );
+    give(&mut w, RAVI, sid, Usdc, SHIPS_CUTS, 2_450 * E18);
+    let real = post(&mut w, RAVI, sid, SHIPS_CUTS, Side::Bid, 2_450 * E18, E18, expiry).unwrap();
+    let orders = w.view(|c| c.trade_view(sid, None)).orders;
+    assert_eq!(orders.first().map(|o| o.id.0), Some(real));
+    // A maker always sees their own orders, also the ones outside the top.
+    let mine = w.view(|c| c.trade_view(sid, Some(acc(BOB)))).orders;
+    let bobs = mine.iter().filter(|o| o.maker == acc(BOB)).count();
+    assert_eq!(bobs, MAX_OPEN_ORDERS_PER_MAKER);
+}
+
+/// RT-2 (b), STD-2: closed orders stayed in the scans behind
+/// `storage_unregister` and `trade_view`, so their gas grew with every
+/// order ever posted.
+#[test]
+fn closed_orders_do_not_grow_unregister_or_trade_view_gas() {
+    use super::orders::{book, give, post, RAVI};
+    use crate::orders::{Side, MIN_ORDER_AMOUNT};
+    use near_sdk::env;
+
+    let mut w = book();
+    let sid = w.s2x2;
+    let expiry = T0 + 365 * DAY;
+    w.register(RAVI, NearToken::from_near(5));
+    give(&mut w, RAVI, sid, Weth, DELAYED_HOLDS, MIN_ORDER_AMOUNT);
+    let gas = |w: &mut World| -> (u64, u64) {
+        w.view(|c| {
+            let g0 = env::used_gas().as_gas();
+            assert!(!c.holds_anything(&acc(BOB)));
+            let g1 = env::used_gas().as_gas();
+            let _ = c.trade_view(sid, None);
+            (g1 - g0, env::used_gas().as_gas() - g1)
+        })
+    };
+    let (unreg0, view0) = gas(&mut w);
+    for _ in 0..300 {
+        let id = post(&mut w, RAVI, sid, DELAYED_HOLDS, Side::Ask, 2_000 * E18, MIN_ORDER_AMOUNT, expiry).unwrap();
+        w.call(RAVI, ONE_YOCTO, |c| c.cancel_order(near_sdk::json_types::U64(id)))
+            .unwrap();
+    }
+    let (unreg1, view1) = gas(&mut w);
+    // 300 closed orders used to add about 21 Tgas to each.
+    assert!(unreg1 < unreg0 + 1_000_000_000_000, "{unreg0} -> {unreg1}");
+    assert!(view1 < view0 + 1_000_000_000_000, "{view0} -> {view1}");
+}

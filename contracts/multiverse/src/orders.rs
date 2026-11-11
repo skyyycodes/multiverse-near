@@ -10,11 +10,14 @@
 //! An order fills only in the epoch it was posted in (the scenario's
 //! resolution count), before its expiry, while its verse is live and while no
 //! proposal is open on the scenario. Posting and cancelling work at any time.
-//! Closed orders stay stored with `remaining` and `escrow` at zero.
+//! Closed orders stay stored with `remaining` and `escrow` at zero, for
+//! `get_order`; every other read goes through the open-order indexes.
 
 use multiverse_math::orders::{cost, proceeds};
 use near_sdk::json_types::{U128, U64};
 use near_sdk::serde::Serialize;
+use near_sdk::borsh::BorshSerialize;
+use near_sdk::store::LookupMap;
 use near_sdk::{assert_one_yocto, env, near, AccountId};
 
 use crate::errors::{fail, sub};
@@ -29,6 +32,14 @@ pub const ENABLED: bool = true;
 /// 0.001 WETH. Every order costs its maker storage, and dust orders would
 /// only clutter the book.
 pub const MIN_ORDER_AMOUNT: u128 = 1_000_000_000_000_000;
+
+/// Smallest order notional, 0.0001 USDC. It rules out bids that escrow a
+/// few wei; the EVM rounding cases (0.5 USDC per WETH on the smallest
+/// order) stay valid.
+pub const MIN_ORDER_VALUE: u128 = 100_000_000_000_000;
+
+/// Open orders one maker may have across all scenarios.
+pub const MAX_OPEN_ORDERS_PER_MAKER: usize = 64;
 
 const DEFAULT_LIMIT: u32 = 100;
 const MAX_LIMIT: u32 = 200;
@@ -260,11 +271,12 @@ impl Contract {
         self.scenario(scenario_id);
         let from = from_index.map_or(1, |i| i.0.max(1));
         let limit = page_limit(limit);
-        (from..=self.order_count)
-            .filter_map(|id| self.orders.get(&id).map(|o| (id, o)))
-            .filter(|(_, o)| o.scenario_id == scenario_id && o.is_open())
+        let ids = self.open_by_scenario.get(&scenario_id);
+        ids.into_iter()
+            .flatten()
+            .filter(|id| **id >= from)
             .take(limit)
-            .map(|(id, o)| o.view(id))
+            .filter_map(|id| self.orders.get(id).map(|o| o.view(*id)))
             .collect()
     }
 
@@ -313,9 +325,14 @@ impl Contract {
 
     /// The account's open orders in the scenario, by id.
     pub fn orders_by_maker(&self, account_id: AccountId, scenario_id: u64) -> Vec<OrderView> {
-        (1..=self.order_count)
-            .filter_map(|id| self.orders.get(&id).map(|o| (id, o)))
-            .filter(|(_, o)| o.scenario_id == scenario_id && o.is_open() && o.maker == account_id)
+        if !self.has_open_orders(&account_id) {
+            return Vec::new();
+        }
+        let ids = self.open_by_scenario.get(&scenario_id);
+        ids.into_iter()
+            .flatten()
+            .filter_map(|id| self.orders.get(id).map(|o| (*id, o)))
+            .filter(|(_, o)| o.maker == account_id)
             .map(|(id, o)| o.view(id))
             .collect()
     }
@@ -344,6 +361,10 @@ impl Contract {
         if price == 0 {
             fail("ZeroPrice");
         }
+        let notional = cost(amount, price);
+        if notional < MIN_ORDER_VALUE {
+            fail!("OrderValueTooSmall({notional}, {MIN_ORDER_VALUE})");
+        }
         if expiry_sec <= now_sec() {
             fail!("ExpiryInPast({expiry_sec})");
         }
@@ -357,9 +378,13 @@ impl Contract {
         }
         let epoch = s.resolution_count;
 
+        if self.open_order_count(maker) >= MAX_OPEN_ORDERS_PER_MAKER {
+            fail!("TooManyOpenOrders({MAX_OPEN_ORDERS_PER_MAKER})");
+        }
+
         let escrow = match side {
             Side::Ask => amount,
-            Side::Bid => cost(amount, price),
+            Side::Bid => notional,
         };
         self.order_count += 1;
         let id = self.order_count;
@@ -383,6 +408,11 @@ impl Contract {
                 .or_default()
                 .push(id);
         }
+        self.open_by_scenario
+            .entry(scenario_id)
+            .or_default()
+            .push(id);
+        self.count_open_order(maker, true);
         OrderPosted {
             order_id: U64(id),
             scenario_id,
@@ -538,27 +568,18 @@ impl Contract {
     }
 
     fn unindex(&mut self, order_id: u64, o: &Order) {
-        if !masks::is_single_world(o.mask) {
-            return;
+        if masks::is_single_world(o.mask) {
+            let k = (o.scenario_id, masks::lowest_world(o.mask));
+            remove_id(&mut self.open_by_world, &k, order_id);
         }
-        let k = (o.scenario_id, masks::lowest_world(o.mask));
-        let Some(ids) = self.open_by_world.get_mut(&k) else {
-            return;
-        };
-        ids.retain(|id| *id != order_id);
-        if ids.is_empty() {
-            self.open_by_world.remove(&k);
-        }
+        remove_id(&mut self.open_by_scenario, &o.scenario_id, order_id);
+        self.count_open_order(&o.maker, false);
     }
 
     /// Must be true while `account_id` is the maker of an open order; it
     /// blocks `storage_unregister`.
     pub(crate) fn has_open_orders(&self, account_id: &AccountId) -> bool {
-        (1..=self.order_count).any(|id| {
-            self.orders
-                .get(&id)
-                .is_some_and(|o| o.is_open() && &o.maker == account_id)
-        })
+        self.open_order_count(account_id) > 0
     }
 
     /// Verse tokens of `key` held in order escrow, for the conservation check
@@ -570,6 +591,20 @@ impl Contract {
             .filter(|o| o.is_open() && &o.escrow_key() == key)
             .map(|o| o.escrow)
             .sum()
+    }
+}
+
+/// Drops `id` from an index entry, and the entry once it is empty.
+fn remove_id<K>(index: &mut LookupMap<K, Vec<u64>>, key: &K, id: u64)
+where
+    K: BorshSerialize + Ord + Clone,
+{
+    let Some(ids) = index.get_mut(key) else {
+        return;
+    };
+    ids.retain(|i| *i != id);
+    if ids.is_empty() {
+        index.remove(key);
     }
 }
 
