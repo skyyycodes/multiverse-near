@@ -1,0 +1,22 @@
+[package]
+name = "multiverse-math"
+version = "0.1.0"
+description = "Integer maths for Multiverse Lending on NEAR: fixed point, share and order maths, TickMath, constant-product pools, dynamic fees, TWAP, odds and worst-world risk"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+name = "multiverse_math"
+
+[dependencies]
+borsh = { version = "1", features = ["derive"] }
+uint = { version = "0.10", default-features = false }
+
+# BorshSchema is only needed where near-sdk builds the ABI (a host build), never in the wasm.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+borsh = { version = "1", features = ["derive", "unstable__schema"] }
+
+[dev-dependencies]
+proptest = "1.11"
