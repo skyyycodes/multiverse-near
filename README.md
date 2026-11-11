@@ -57,8 +57,11 @@ follow on the local sandbox (see "Verify it yourself").
 - A NEAR testnet account in a wallet that NEAR Connect lists on testnet: Meteor, Intear or Nightly. NEAR Connect
   shows only wallets that declare testnet support.
 - Some testnet NEAR for gas and the 0.1 NEAR storage registration (https://near-faucet.io).
-- Test WETH and USDC. The mock tokens have an open `mint` capped at 1,000 WETH and 10,000,000 USDC per call. An
-  account that is not registered with the token yet can only mint to itself. With NEAR CLI (`near-cli-rs`):
+- Test WETH and USDC. Once your wallet is connected, click "Get test tokens" in the account sheet (or under the
+  balances on the Trade screen while your wallet is empty). It mints 2 WETH and 5,000 USDC to your own account, then
+  adds the 0.1 NEAR Multiverse storage deposit if you have none; each is one wallet prompt. The mock tokens have an
+  open `mint` capped at 1,000 WETH and 10,000,000 USDC per call, and an account that is not registered with the
+  token yet can only mint to itself, which registers it. Without the app, NEAR CLI (`near-cli-rs`) does the same:
 
 ```bash
 near contract call-function as-transaction weth.multiverse-lending.testnet mint \
@@ -72,8 +75,8 @@ near contract call-function as-transaction usdc.multiverse-lending.testnet mint 
   sign-as <you>.testnet network-config testnet sign-with-keychain send
 ```
 
-That is 5 WETH (18 decimals) and 10,000 USDC (6 decimals). The app's Admin screen also has a "Mint test WETH to my
-wallet" button, but it is enabled only for the owner account.
+That is 5 WETH (18 decimals) and 10,000 USDC (6 decimals). The Admin screen's "Mint test WETH to my wallet" button
+is a separate tool for the owner account's price pushes.
 
 ### Run the app
 
@@ -91,7 +94,8 @@ wallet (see `web/README.md`).
    world (on a phone, a strip of small cards) with its pool price, "Actual spot" and "Implied spot" (odds times world prices), and "Every world
    balances: ✓ all backed".
 2. Click "Connect NEAR wallet" and pick Meteor, Intear or Nightly. See your wallet's WETH and USDC on the Trade
-   screen. Before the first action that stores something, the app asks for a one-time NEP-145 storage deposit.
+   screen; if both are zero, click "Get test tokens" there. Before the first action that stores something, the app
+   asks for a one-time NEP-145 storage deposit.
 3. Select the worlds DELAYED·CUTS, SHIPS·HOLDS and DELAYED·HOLDS (or open http://localhost:3040/sell/?sel=14).
    Enter an amount of ETH. See, per world, the fair price, what you get and the cost per ETH; resting bids that pay
    more than the pool are filled first. Leave "Keep the result as loan collateral" ticked and click "Sell in 3
@@ -118,7 +122,7 @@ All commands run from the repository root. Rust 1.86.0 is pinned by `rust-toolch
 cargo test --workspace
 ```
 
-Measured on 2026-11-11 at commit `c37e468`: 542 tests pass, 0 fail, 0 ignored.
+Measured on 2026-11-11 at commit `1ad9891`: 542 tests pass, 0 fail, 0 ignored.
 
 | Test binary | Passed |
 |---|---|
@@ -153,7 +157,8 @@ NEAR_NETWORK=sandbox pnpm -C scripts e2e          # seeds a fresh demo and runs 
 pnpm -C scripts sandbox stop
 ```
 
-Expected lines (from a run on 2026-11-11 against a clean clone of `c37e468`):
+Expected lines (from a run on 2026-11-11 against a clean clone of `1ad9891`; the TWAP prices depend on how many
+blocks the sandbox skips and can differ by a few dollars between runs, the other numbers do not):
 
 ```
 seed:
@@ -193,7 +198,7 @@ on every run.
 ```bash
 pnpm -C scripts test       # 78 tests: 77 pass, 1 skipped (the live FRED query)
 pnpm -C scripts test:live  # 18 tests including the live FRED query: all pass
-pnpm -C web install && pnpm -C web test   # vitest: 84 tests in 13 files
+pnpm -C web install && pnpm -C web test   # vitest: 95 tests in 15 files
 ```
 
 The browser acceptance flow (Playwright, against fixtures, testnet and the sandbox) is described in `web/README.md`.
@@ -205,18 +210,20 @@ pnpm -C scripts build:wasm
 ```
 
 It builds both contracts with `cargo near build non-reproducible-wasm --locked`, rewrites local paths out of the
-binaries, checks that none is left and prints the sha256 of each. Two builds from clean clones of `c37e468` at
+binaries, checks that none is left and prints the sha256 of each. Two builds from clean clones of `1ad9891` at
 different paths printed:
 
 ```
-fc00c83989c01a857b42dc34fb7ff315c5cc9e7f23da2a111b4a2b03078090c3  multiverse_contract.wasm
+e4cada8cdc1090b8c1688034c6b5e0f88dc34cf3e7c5349fcb8f165ed7f01f30  multiverse_contract.wasm
 70a12a7f3432df1f59f176cb756ff4431c59f382ed7f10923bcd831542b3c0a1  mock_ft.wasm
 ```
 
 The mock token's hash is the code hash of both token accounts on testnet (base58
-`8afCVgFKDom2fYt5BZatMXPLXMiJ1vWHBiUTpN6AyggY`). The contract deployed on testnet was built from the same sources,
-but its code hash (`E5z5z6...`, sha256 `c26eccf1...`) differs: the near-sdk ABI embedded in the wasm describes one
-of two view types named `RootLpHolding`, and that build picked the other one. See "Limitations".
+`8afCVgFKDom2fYt5BZatMXPLXMiJ1vWHBiUTpN6AyggY`). The contract on testnet (`E5z5z6...`, sha256 `c26eccf1...`) was
+built before `1ad9891`, when two view types were both named `RootLpHolding` and the near-sdk ABI embedded in the
+wasm described whichever one the build picked. `1ad9891` renames the lend view's copy to `RootLpHoldingView` (the
+JSON is unchanged), so clean builds now agree. Until the testnet contract is redeployed from this build, its hash
+differs from the one above.
 
 ## Real-data resolution
 
@@ -355,18 +362,17 @@ world while a pool sits far from its TWAP.
 - Lending reads a 30-minute TWAP, so on testnet a price move reaches borrowing limits and liquidations gradually,
   over up to 30 minutes.
 - The OutLayer path is not configured on testnet.
-- The testnet contract's code hash does not match a clean build, because two view types share the name
-  `RootLpHolding` and the embedded ABI depends on which one the ABI build picks. A clean clone gave the same hash
-  twice; other machines may not.
+- The testnet contract was built before the ABI fix in `1ad9891`, so its code hash does not match a clean build
+  until it is redeployed (see "The wasm build").
 - No hosted web app; run it locally.
 - The contract has no state migration; a change to its layout needs a fresh deployment.
 
 ## History and disclosure
 
-Multiverse Lending first existed as an EVM prototype built at ETHGlobal Mumbai (6-7 Nov 2026):
-https://github.com/skyyycodes/Multiverse-ETH. This repository is the NEAR implementation, written from scratch
-during NEAR HACKATHON: the Rust contract, the NEAR integration, a new web app and the scripts. The market design and
-the demo scenario come from the EVM version.
+Multiverse Lending first existed as an EVM prototype built at ETHGlobal Mumbai (6-7 Nov 2026); that repository is
+private. This repository is the NEAR implementation, written from scratch during NEAR HACKATHON: the Rust
+contract, the NEAR integration, a new web app and the scripts. The market design and the demo scenario come from
+the EVM version.
 
 ## Built with
 
