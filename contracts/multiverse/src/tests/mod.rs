@@ -9,6 +9,7 @@
 
 mod harness;
 
+mod amm;
 mod core;
 mod events;
 mod invariants;

@@ -276,10 +276,12 @@ fn actions_not_built_yet_fail_and_refund() {
     let mut w = World::new();
     let built = ["supply", "repay", "deposit_collateral", "liquidate"];
     for (action, msg) in DESIGN_MESSAGES.iter().filter(|(a, _)| !built.contains(a)) {
-        fails(
-            w.ft_transfer_call(ALICE, Usdc, 1_000_000, msg),
-            &format!("NotImplemented({action})"),
-        );
+        let expected = match *action {
+            // built, but there is no spot pool in this fixture
+            "spot_swap" => "NoSpotPool".to_string(),
+            _ => format!("NotImplemented({action})"),
+        };
+        fails(w.ft_transfer_call(ALICE, Usdc, 1_000_000, msg), &expected);
     }
     assert_eq!(w.wallet(ALICE, Usdc), FUND);
     assert_eq!(w.real(ALICE, Usdc), 0);
