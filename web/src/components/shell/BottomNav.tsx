@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
-import { IconBorrow, IconFutures, IconHelp, IconLend, IconMore, IconOrders } from "@/components/brand/Icons";
+import { IconAdmin, IconBorrow, IconFutures, IconHelp, IconLend, IconMore, IconOrders, IconResolve } from "@/components/brand/Icons";
 import { Mark } from "@/components/brand/Mark";
 import { Dialog } from "@/components/ui/Dialog";
 import { samePath } from "./nav";
@@ -11,6 +11,8 @@ import { samePath } from "./nav";
 const MORE = [
   { href: "/orders/", title: "Order book", sub: "Bids and asks in each world", icon: <IconOrders />, demo: "more-orders" },
   { href: "/lend/", title: "Lend", sub: "Supply USDC; underwrite every world", icon: <IconLend />, demo: "more-lend" },
+  { href: "/resolve/", title: "Resolve", sub: "Results, dispute windows, close and redeem", icon: <IconResolve />, demo: "more-resolve" },
+  { href: "/admin/", title: "Admin", sub: "Resolve now, dispute, price push", icon: <IconAdmin />, demo: "more-admin" },
   { href: "/welcome/", title: "How it works", sub: "Futures, splits and redemption in one page", icon: <IconHelp />, demo: "more-help" },
 ];
 

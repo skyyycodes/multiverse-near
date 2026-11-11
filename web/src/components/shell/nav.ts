@@ -2,6 +2,8 @@ export const NAV = [
   { href: "/", label: "Trade" },
   { href: "/borrow/", label: "Borrow" },
   { href: "/lend/", label: "Lend" },
+  { href: "/resolve/", label: "Resolve" },
+  { href: "/admin/", label: "Admin" },
 ] as const;
 
 /** usePathname with or without the trailing slash the static export adds. */
