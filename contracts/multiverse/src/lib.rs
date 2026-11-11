@@ -28,6 +28,9 @@ pub mod router;
 pub mod storage;
 pub mod types;
 
+#[cfg(test)]
+mod tests;
+
 use near_sdk::store::{LookupMap, LookupSet};
 use near_sdk::{env, near, AccountId, BorshStorageKey, PanicOnDefault};
 
