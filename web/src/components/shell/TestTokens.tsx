@@ -19,6 +19,12 @@ export const FAUCET_ON = ENV.network === "testnet" && process.env.NEXT_PUBLIC_FI
 /** True for a connected wallet that holds no WETH and no USDC at all. */
 export const walletEmpty = (b: Balances | undefined): boolean => Boolean(b && b.weth === 0n && b.usdc === 0n);
 
+/**
+ * The home hint shows for an empty wallet, and stays once its button was pressed: the first mint fills the wallet,
+ * and the remaining steps, their progress and the result must not vanish with it.
+ */
+export const hintShown = (b: Balances | undefined, started: boolean): boolean => started || walletEmpty(b);
+
 /** What the faucet did so far, one line per finished transaction. */
 export function FaucetProgress({ done, dark }: { done: readonly string[]; dark?: boolean }) {
   if (done.length === 0) return null;
@@ -41,7 +47,19 @@ export function FaucetProgress({ done, dark }: { done: readonly string[]; dark?:
  * (so the token registers it), then registers the account with Multiverse if it is not yet. Each is one transaction
  * the wallet asks to approve; a retry after a failure skips what already landed.
  */
-export function GetTestTokens({ tone = "secondary", size = "md", dark, demo = "get-test-tokens" }: { tone?: Tone; size?: "lg" | "md" | "sm"; dark?: boolean; demo?: string }) {
+export function GetTestTokens({
+  tone = "secondary",
+  size = "md",
+  dark,
+  demo = "get-test-tokens",
+  onStart,
+}: {
+  tone?: Tone;
+  size?: "lg" | "md" | "sm";
+  dark?: boolean;
+  demo?: string;
+  onStart?: () => void;
+}) {
   const wallet = useWallet();
   const config = useAppConfig();
   const cfg = config.data;
@@ -68,6 +86,7 @@ export function GetTestTokens({ tone = "secondary", size = "md", dark, demo = "g
         busyLabel="Getting test tokens…"
         blocker={blocker}
         run={async (step) => {
+          onStart?.();
           setDone([]);
           return getTestTokens(cfg!, wallet.accountId!, step, submit, (line) => setDone((d) => [...d, line]));
         }}
@@ -75,8 +94,8 @@ export function GetTestTokens({ tone = "secondary", size = "md", dark, demo = "g
       <FaucetProgress done={done} dark={dark} />
       {cfg && (
         <p className={`text-[12px] leading-relaxed ${dark ? "text-white/60" : "text-mute"}`}>
-          {dropLabel(cfg)} from the mock tokens&apos; open mint, plus Multiverse&apos;s 0.1 NEAR storage deposit if you have none. Testnet
-          only; they have no value.
+          Mints {dropLabel(cfg)} to your wallet, then pays Multiverse&apos;s 0.1 NEAR storage deposit if you have none: up to three
+          wallet approvals. Testnet only; the tokens have no value.
         </p>
       )}
     </div>
@@ -120,13 +139,17 @@ async function getTestTokens(
 /** Home: a connected wallet with no WETH and no USDC is offered the faucet right under its balances. */
 export function EmptyWalletHint({ balances }: { balances: Balances | undefined }) {
   const wallet = useWallet();
-  if (!FAUCET_ON || wallet.fixtures || !wallet.accountId || !walletEmpty(balances)) return null;
+  const [startedBy, setStartedBy] = useState<string>();
+  const started = Boolean(wallet.accountId) && startedBy === wallet.accountId;
+  if (!FAUCET_ON || wallet.fixtures || !wallet.accountId || !hintShown(balances, started)) return null;
   return (
     <div className="flex flex-col gap-3 rounded-[20px] border border-white/10 bg-white/8 p-4" data-demo="empty-wallet-hint">
-      <p className="text-[13px] leading-relaxed text-white/85">
-        Your wallet has no WETH or USDC yet. On testnet you can mint the demo tokens yourself.
-      </p>
-      <GetTestTokens tone="light" size="md" dark demo="hint-test-tokens" />
+      {walletEmpty(balances) && (
+        <p className="text-[13px] leading-relaxed text-white/85">
+          Your wallet has no WETH or USDC yet. On testnet you can mint the demo tokens yourself.
+        </p>
+      )}
+      <GetTestTokens tone="light" size="md" dark demo="hint-test-tokens" onStart={() => setStartedBy(wallet.accountId ?? undefined)} />
     </div>
   );
 }

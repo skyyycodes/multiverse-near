@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { Balances } from "@/lib/hooks/useData";
 import { WalletContext, type WalletApi } from "@/lib/near/wallet";
-import { EmptyWalletHint, FAUCET_ON, FaucetProgress, walletEmpty } from "./TestTokens";
+import { EmptyWalletHint, FAUCET_ON, FaucetProgress, hintShown, walletEmpty } from "./TestTokens";
 
 const E18 = 10n ** 18n;
 const empty: Balances = { weth: 0n, usdc: 0n, innerWeth: 0n, innerUsdc: 0n };
@@ -41,6 +41,13 @@ describe("get test tokens", () => {
     expect(walletEmpty({ ...empty, innerUsdc: E18 })).toBe(true);
     expect(walletEmpty({ ...empty, weth: 1n })).toBe(false);
     expect(walletEmpty({ ...empty, usdc: 1n })).toBe(false);
+  });
+
+  it("keeps the home hint once pressed, though the first mint already filled the wallet", () => {
+    expect(hintShown(empty, false)).toBe(true);
+    expect(hintShown({ ...empty, weth: 2n * E18 }, false)).toBe(false);
+    expect(hintShown({ ...empty, weth: 2n * E18 }, true)).toBe(true);
+    expect(hintShown(undefined, true)).toBe(true);
   });
 
   it("offers the faucet on the home screen to a connected, empty wallet", () => {
