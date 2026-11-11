@@ -1,0 +1,11 @@
+target/
+node_modules/
+.next/
+out/
+.env
+.env.*
+!.env.example
+.keys/
+*.log
+.DS_Store
+.vercel
