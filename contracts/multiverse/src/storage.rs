@@ -4,8 +4,9 @@
 //!
 //! Accounting is per payer, not per owner of an entry: if alice's transfer
 //! creates bob's balance entry, alice pays for it, and whoever's call later
-//! removes it gets the credit. The contract never pays for user growth, except
-//! the small, bounded writes of callbacks.
+//! removes it gets the credit. Callbacks charge the account they write for
+//! without checking its deposit, so the contract never pays for user growth;
+//! it only absorbs callback writes for accounts that are not registered.
 
 use near_sdk::json_types::U128;
 use near_sdk::{assert_one_yocto, env, near, AccountId, NearToken, Promise};
@@ -273,6 +274,28 @@ impl Contract {
             account.used_bytes = account.used_bytes.saturating_sub(before - after);
         }
         self.storage.insert(payer.clone(), account);
+    }
+
+    /// `charge_storage` for callbacks, which must never panic: growth is
+    /// added to a registered account's bytes even past its deposit (it then
+    /// has nothing available to withdraw until it frees bytes). Without this,
+    /// an entry a callback re-creates for free would be credited to the
+    /// account again when it is next removed. Unregistered accounts' growth
+    /// stays with the contract.
+    pub(crate) fn charge_storage_in_callback(&mut self, account_id: &AccountId, before: u64) {
+        self.flush_state();
+        let after = env::storage_usage();
+        let Some(mut account) = self.storage.get(account_id).cloned() else {
+            return;
+        };
+        if after > before {
+            account.used_bytes = account.used_bytes.saturating_add(after - before);
+        } else if after < before {
+            account.used_bytes = account.used_bytes.saturating_sub(before - after);
+        } else {
+            return;
+        }
+        self.storage.insert(account_id.clone(), account);
     }
 
     /// For owner methods marked S. They move the owner's balances, so a

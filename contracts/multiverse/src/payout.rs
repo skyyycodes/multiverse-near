@@ -52,6 +52,7 @@ impl Contract {
         match env::promise_result(0) {
             PromiseResult::Successful(_) => true,
             PromiseResult::Failed => {
+                let before = env::storage_usage();
                 // amount * scale cannot overflow: it came from an internal amount / scale.
                 let credited = amount.0.saturating_mul(self.scale(asset));
                 let balance = self
@@ -65,6 +66,7 @@ impl Contract {
                     credited: U128(credited),
                 }
                 .emit();
+                self.charge_storage_in_callback(&account_id, before);
                 false
             }
         }

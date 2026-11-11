@@ -229,7 +229,9 @@ impl Contract {
             };
             used.push(U128(amount.0 - refund));
         }
+        let before = env::storage_usage();
         self.transfer_verse(&receiver_id, &sender_id, &refunds, Some("refund"));
+        self.charge_storage_in_callback(&sender_id, before);
         used
     }
 
