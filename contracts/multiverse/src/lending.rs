@@ -783,8 +783,7 @@ impl Contract {
     /// Takes every piece back to the account (verse tokens to the ledger,
     /// real assets to the internal real balance) and returns them in list
     /// order. With debt this fails `Unhealthy`; nothing posted is a no-op.
-    // `pub` until the router uses it, so the crate builds without dead code.
-    pub fn withdraw_all_collateral_for(
+    pub(crate) fn withdraw_all_collateral_for(
         &mut self,
         account: &AccountId,
         scenario_id: u64,

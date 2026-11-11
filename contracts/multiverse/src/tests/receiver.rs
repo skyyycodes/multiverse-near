@@ -274,7 +274,17 @@ const DESIGN_MESSAGES: [(&str, &str); 11] = [
 #[test]
 fn actions_not_built_yet_fail_and_refund() {
     let mut w = World::new();
-    let built = ["supply", "repay", "deposit_collateral", "liquidate"];
+    let built = [
+        "supply",
+        "repay",
+        "deposit_collateral",
+        "liquidate",
+        "conditional_sell",
+        "conditional_buy",
+        "sell_and_borrow",
+        "post_order",
+        "close_after_resolution",
+    ];
     for (action, msg) in DESIGN_MESSAGES.iter().filter(|(a, _)| !built.contains(a)) {
         let expected = match *action {
             // built, but there is no spot pool in this fixture

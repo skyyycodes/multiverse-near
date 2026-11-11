@@ -7,6 +7,13 @@
 //! `balances` but stay in `supply`; the custody helpers log those moves as
 //! transfers to and from the contract's own account, so indexers balance.
 //! Zero balances are removed so they stop costing storage.
+//!
+//! A router trade can move tokens dozens of times (every order fill, swap and
+//! deposit), and a receipt may log at most 100 lines and 16 KiB, so it opens
+//! a `TransferBatch`: its transfers are summed per (from, to, token) and
+//! logged as one `mt_transfer` line when the batch finishes.
+
+use std::cell::RefCell;
 
 use near_sdk::json_types::U128;
 use near_sdk::{env, AccountId};
@@ -242,7 +249,7 @@ fn log_burn(owner: &AccountId, items: &[(VerseKey, u128)], memo: Option<&str>) {
 }
 
 fn log_transfer(from: &AccountId, to: &AccountId, items: &[(VerseKey, u128)], memo: Option<&str>) {
-    if items.is_empty() {
+    if items.is_empty() || (memo.is_none() && TransferBatch::absorb(from, to, items)) {
         return;
     }
     let (token_ids, amounts) = ids_and_amounts(items);
@@ -255,4 +262,76 @@ fn log_transfer(from: &AccountId, to: &AccountId, items: &[(VerseKey, u128)], me
         memo,
     }])
     .emit();
+}
+
+type PendingTransfer = (AccountId, AccountId, Vec<(VerseKey, u128)>);
+
+thread_local! {
+    static BATCH: RefCell<Option<Vec<PendingTransfer>>> = const { RefCell::new(None) };
+}
+
+/// Collects the NEP-245 transfers logged while it lives. `finish` logs them
+/// as one line; dropping it unfinished (a failed call) discards them.
+pub(crate) struct TransferBatch(());
+
+impl TransferBatch {
+    pub(crate) fn start() -> Self {
+        BATCH.with(|b| *b.borrow_mut() = Some(Vec::new()));
+        TransferBatch(())
+    }
+
+    pub(crate) fn finish(self) {
+        let entries = BATCH.with(|b| b.borrow_mut().take()).unwrap_or_default();
+        if entries.is_empty() {
+            return;
+        }
+        let ids: Vec<(Vec<String>, Vec<U128>)> = entries
+            .iter()
+            .map(|(_, _, items)| ids_and_amounts(items))
+            .collect();
+        let logs: Vec<MtTransferLog> = entries
+            .iter()
+            .zip(&ids)
+            .map(|((from, to, _), (token_ids, amounts))| MtTransferLog {
+                authorized_id: None,
+                old_owner_id: from,
+                new_owner_id: to,
+                token_ids,
+                amounts,
+                memo: None,
+            })
+            .collect();
+        MtEvent::MtTransfer(&logs).emit();
+    }
+
+    /// Adds the transfer to an open batch; false when there is none.
+    fn absorb(from: &AccountId, to: &AccountId, items: &[(VerseKey, u128)]) -> bool {
+        BATCH.with(|b| {
+            let mut batch = b.borrow_mut();
+            let Some(entries) = batch.as_mut() else {
+                return false;
+            };
+            let i = match entries.iter().position(|(f, t, _)| f == from && t == to) {
+                Some(i) => i,
+                None => {
+                    entries.push((from.clone(), to.clone(), Vec::new()));
+                    entries.len() - 1
+                }
+            };
+            let moved = &mut entries[i].2;
+            for (key, amount) in items {
+                match moved.iter_mut().find(|(k, _)| k == key) {
+                    Some((_, total)) => *total = add(*total, *amount),
+                    None => moved.push((*key, *amount)),
+                }
+            }
+            true
+        })
+    }
+}
+
+impl Drop for TransferBatch {
+    fn drop(&mut self) {
+        BATCH.with(|b| *b.borrow_mut() = None);
+    }
 }
