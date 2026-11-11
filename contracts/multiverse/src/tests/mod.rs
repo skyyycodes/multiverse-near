@@ -27,3 +27,4 @@ mod payout;
 mod probes;
 mod receiver;
 mod router;
+mod views;

@@ -27,6 +27,7 @@ pub mod rootlp;
 pub mod router;
 pub mod storage;
 pub mod types;
+pub mod views;
 
 #[cfg(test)]
 mod tests;

@@ -88,8 +88,7 @@ impl Contract {
             spot_pool_id: self.spot_pool,
             event_count: self.event_count,
             scenario_count: self.scenario_count,
-            demo: env::storage_read(&StorageKey::DemoRecord.into_storage_key())
-                .and_then(|bytes| serde_json::from_slice(&bytes).ok()),
+            demo: self.demo_record(),
         }
     }
 
@@ -99,6 +98,11 @@ impl Contract {
 }
 
 impl Contract {
+    pub(crate) fn demo_record(&self) -> Option<Value> {
+        env::storage_read(&StorageKey::DemoRecord.into_storage_key())
+            .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+    }
+
     pub(crate) fn assert_owner(&self) {
         let caller = env::predecessor_account_id();
         if caller != self.owner_id {
