@@ -44,8 +44,8 @@ covers the debt in whichever world comes true.
 | Leo (lender, liquidator) | `leo.multiverse-lending.testnet` | https://testnet.nearblocks.io/address/leo.multiverse-lending.testnet |
 
 The same ids are in `deployments/testnet.json`. The contract's code hash on testnet is
-`E5z5z6Q47fku8A5GM23BkXH8hxwuPvexQWoi3rA7BvXA`; both tokens run `8afCVgFKDom2fYt5BZatMXPLXMiJ1vWHBiUTpN6AyggY`
-(the mock token built by `scripts/build-wasm.sh`, see "Verify it yourself").
+`GQ7Msqk6VmecysgY3rdakk69YiFEwGVs3FuGBER8kdSF`; both tokens run `8afCVgFKDom2fYt5BZatMXPLXMiJ1vWHBiUTpN6AyggY`.
+Both are what `scripts/build-wasm.sh` builds from a clean clone (see "The wasm build").
 
 The testnet demo is shared. What you see is the state the last seeding, sale or test run left. The Trade screen
 shows `scenario {id} · {n} resolved`; if the demo's events are already resolved there, the full story is easiest to
@@ -210,20 +210,28 @@ pnpm -C scripts build:wasm
 ```
 
 It builds both contracts with `cargo near build non-reproducible-wasm --locked`, rewrites local paths out of the
-binaries, checks that none is left and prints the sha256 of each. Two builds from clean clones of `1ad9891` at
-different paths printed:
+binaries, checks that none is left and prints the sha256 of each. Three builds from clean clones at different
+paths (two of `1ad9891`, one of a later commit with the same contract code) printed:
 
 ```
 e4cada8cdc1090b8c1688034c6b5e0f88dc34cf3e7c5349fcb8f165ed7f01f30  multiverse_contract.wasm
 70a12a7f3432df1f59f176cb756ff4431c59f382ed7f10923bcd831542b3c0a1  mock_ft.wasm
 ```
 
-The mock token's hash is the code hash of both token accounts on testnet (base58
-`8afCVgFKDom2fYt5BZatMXPLXMiJ1vWHBiUTpN6AyggY`). The contract on testnet (`E5z5z6...`, sha256 `c26eccf1...`) was
-built before `1ad9891`, when two view types were both named `RootLpHolding` and the near-sdk ABI embedded in the
-wasm described whichever one the build picked. `1ad9891` renames the lend view's copy to `RootLpHoldingView` (the
-JSON is unchanged), so clean builds now agree. Until the testnet contract is redeployed from this build, its hash
-differs from the one above.
+In base58 these are the code hashes on testnet: `GQ7Msqk6VmecysgY3rdakk69YiFEwGVs3FuGBER8kdSF` on
+`app.multiverse-lending.testnet` (this build, deployed in place on 2026-11-11 at 20:08 UTC by
+`pnpm -C scripts deploy:contract`, transaction `3YT8tt4Jht94j6RKFa4eAcKzyrJtQDaF1Tw6vv5mXYEt`) and
+`8afCVgFKDom2fYt5BZatMXPLXMiJ1vWHBiUTpN6AyggY` on both token accounts. To read one:
+
+```bash
+curl -s https://test.rpc.fastnear.com -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"query","params":{"request_type":"view_account","finality":"final","account_id":"app.multiverse-lending.testnet"}}' \
+  | grep -o '"code_hash":"[^"]*"'
+```
+
+Before `1ad9891`, two view types were both named `RootLpHolding` and the near-sdk ABI embedded in the wasm
+described whichever one the build picked, so clean builds could differ. `1ad9891` renames the lend view's copy to
+`RootLpHoldingView` (the JSON is unchanged).
 
 ## Real-data resolution
 
@@ -362,8 +370,6 @@ world while a pool sits far from its TWAP.
 - Lending reads a 30-minute TWAP, so on testnet a price move reaches borrowing limits and liquidations gradually,
   over up to 30 minutes.
 - The OutLayer path is not configured on testnet.
-- The testnet contract was built before the ABI fix in `1ad9891`, so its code hash does not match a clean build
-  until it is redeployed (see "The wasm build").
 - No hosted web app; run it locally.
 - The contract has no state migration; a change to its layout needs a fresh deployment.
 
