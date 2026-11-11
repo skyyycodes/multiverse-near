@@ -14,7 +14,7 @@ pass/fail result should not.
 | OutLayer guest | `cd oracle/fred-guest && cargo test --locked` | 12 passed |
 | Scripts | `pnpm -C scripts test` | 78 tests: 77 passed, 1 skipped (live FRED) |
 | Scripts with live FRED | `pnpm -C scripts test:live` | 18 passed |
-| Web unit tests | `pnpm -C web test` | 95 passed in 15 files |
+| Web unit tests | `pnpm -C web test` | 98 passed in 16 files |
 | End-to-end on a sandbox node | see "Sandbox end to end" below | all 13 steps ok |
 | Browser flows (Playwright) | see `web/README.md` | not re-run for this document |
 
@@ -107,7 +107,7 @@ the resolver (it maps an answer to an outcome by name, and writes nothing for an
 
 Vitest: number formatting, units, the order book and sale planner, settlement, lending maths, spot maths,
 transaction encoding, reading a refunded `ft_transfer_call` as a failure, the RPC fallbacks, the testnet faucet
-(which mints it sends, within the cap, and when the home screen offers it), and the design fixtures' golden numbers. `decode.live.test.ts` decodes view answers captured from a freshly seeded sandbox node, so a
+(which mints it sends, within the cap, and when the home screen offers it), when the home screen shows an "In Multiverse" balance, and the design fixtures' golden numbers. `decode.live.test.ts` decodes view answers captured from a freshly seeded sandbox node, so a
 renamed field fails here instead of as a blank screen.
 
 Playwright (`web/e2e`) covers the browser: the acceptance flow on a phone and a desktop against design fixtures, the

@@ -198,7 +198,7 @@ on every run.
 ```bash
 pnpm -C scripts test       # 78 tests: 77 pass, 1 skipped (the live FRED query)
 pnpm -C scripts test:live  # 18 tests including the live FRED query: all pass
-pnpm -C web install && pnpm -C web test   # vitest: 95 tests in 15 files
+pnpm -C web install && pnpm -C web test   # vitest: 98 tests in 16 files
 ```
 
 The browser acceptance flow (Playwright, against fixtures, testnet and the sandbox) is described in `web/README.md`.
