@@ -37,11 +37,11 @@ const { values: opts, positionals } = parseArgs({
     wasm: {
       type: "string",
       default:
-        process.env.MULTIVERSE_WASM || join(REPO_ROOT, "target", "near", "multiverse_contract", "multiverse_contract.wasm"),
+        process.env.MULTIVERSE_WASM || join(REPO_ROOT, "target", "deploy", "multiverse_contract.wasm"),
     },
     "mock-ft-wasm": {
       type: "string",
-      default: process.env.MOCK_FT_WASM || join(REPO_ROOT, "target", "near", "mock_ft", "mock_ft.wasm"),
+      default: process.env.MOCK_FT_WASM || join(REPO_ROOT, "target", "deploy", "mock_ft.wasm"),
     },
   },
 });
@@ -149,7 +149,7 @@ function runScript(script: string, args: string[]): void {
 
 async function start(): Promise<void> {
   for (const [what, path] of [["contract", opts.wasm], ["mock-ft", opts["mock-ft-wasm"]]] as const) {
-    if (!existsSync(path)) throw new Error(`${what} wasm not found at ${path}; build it with cargo near or pass its path`);
+    if (!existsSync(path)) throw new Error(`${what} wasm not found at ${path}; build both with scripts/build-wasm.sh or pass its path`);
   }
   if (opts.fresh) await stop();
   const pid = await runningPid();

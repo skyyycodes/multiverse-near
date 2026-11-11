@@ -1,7 +1,7 @@
 // Deploys the Multiverse contract to app.<root> and wires it up. Safe to re-run: each step checks
 // the chain first.
 //
-//   pnpm deploy:contract [--wasm ../target/near/multiverse_contract/multiverse_contract.wasm]
+//   pnpm deploy:contract [--wasm ../target/deploy/multiverse_contract.wasm]
 //                        [--dispute-window 30]
 //
 // 1. top up app.<root> so it can stake storage for its code;
@@ -55,7 +55,7 @@ const { values: opts } = parseArgs({
     wasm: {
       type: "string",
       default:
-        process.env.MULTIVERSE_WASM || join(REPO_ROOT, "target", "near", "multiverse_contract", "multiverse_contract.wasm"),
+        process.env.MULTIVERSE_WASM || join(REPO_ROOT, "target", "deploy", "multiverse_contract.wasm"),
     },
     "dispute-window": { type: "string", default: process.env.DISPUTE_WINDOW_SEC || "30" },
   },
@@ -208,7 +208,7 @@ async function main(): Promise<void> {
   const disputeWindowSec = Number(opts["dispute-window"]);
   if (!Number.isInteger(disputeWindowSec) || disputeWindowSec <= 0) throw new Error("--dispute-window must be a positive integer");
   if (!existsSync(opts.wasm)) {
-    throw new Error(`contract wasm not found at ${opts.wasm}; run \`cargo near build non-reproducible-wasm\` in contracts/multiverse or pass --wasm`);
+    throw new Error(`contract wasm not found at ${opts.wasm}; build it with scripts/build-wasm.sh or pass --wasm`);
   }
   for (const id of [d.root, d.contractId, d.weth, d.usdc, d.reporter]) {
     if (!(await accountExists(id))) throw new Error(`${id} does not exist; run \`pnpm accounts\` first`);

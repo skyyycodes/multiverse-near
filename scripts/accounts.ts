@@ -5,7 +5,7 @@
 //   pnpm accounts [--root multiverse-lending.testnet] [--root-keep 12] [--max-faucet 4]
 //                 [--faucet-request 5] [--max-faucet-requests 8]
 //                 [--sponsor <account.testnet> --sponsor-key <key.json> --sponsor-amount 5]
-//                 [--wasm ../target/near/mock_ft/mock_ft.wasm] [--upgrade-tokens]
+//                 [--wasm ../target/deploy/mock_ft.wasm] [--upgrade-tokens]
 //
 // The root asks for what the sub-accounts are missing from their full amounts plus `--root-keep`
 // NEAR for itself (deploy top-ups, storage deposits); about 35 NEAR from scratch. Funding uses
@@ -111,7 +111,7 @@ const { values: opts } = parseArgs({
     sponsor: { type: "string" },
     "sponsor-key": { type: "string" },
     "sponsor-amount": { type: "string", default: "5" },
-    wasm: { type: "string", default: process.env.MOCK_FT_WASM || join(REPO_ROOT, "target", "near", "mock_ft", "mock_ft.wasm") },
+    wasm: { type: "string", default: process.env.MOCK_FT_WASM || join(REPO_ROOT, "target", "deploy", "mock_ft.wasm") },
     "upgrade-tokens": { type: "boolean", default: false },
   },
 });
@@ -376,7 +376,7 @@ async function main(): Promise<void> {
   console.log(`${NETWORK} via ${RPC_URL}; root ${root}; keys in ${KEYS_DIR}`);
 
   if (!existsSync(opts.wasm)) {
-    throw new Error(`mock-ft wasm not found at ${opts.wasm}; build it with \`cargo near build non-reproducible-wasm\` in contracts/mock-ft or pass --wasm`);
+    throw new Error(`mock-ft wasm not found at ${opts.wasm}; build it with scripts/build-wasm.sh or pass --wasm`);
   }
   const wasm = new Uint8Array(await readFile(opts.wasm));
   const sponsor = await prepareSponsor();
