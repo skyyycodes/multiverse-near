@@ -264,7 +264,9 @@ async function main(): Promise<void> {
     console.log(`    utilization ${fmt2(u128(market.utilization) * 100n)}%, supplied ${fmt2(u128(market.total_supply))}`);
     await p.call1y(leo, "withdraw_supply", { scenario_id: s, amount: null }, "leo: withdraw_supply all");
     check(u128(await p.view<string>("supply_balance_of", { scenario_id: s, account_id: leo })) === 0n, "nothing left supplied");
-    check((await p.walletBalance("usdc", leo)) >= wallet, "the wallet got the USDC back");
+    // Shares round down and the 18-decimal amount is floored to USDC's 6, so without interest in between the
+    // withdrawal can come back one base unit short.
+    check((await p.walletBalance("usdc", leo)) + 1n >= wallet, "the wallet got the USDC back, less at most one base unit");
     await assertBacked(p, record);
   });
 
