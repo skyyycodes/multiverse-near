@@ -1,0 +1,23 @@
+[package]
+name = "fred-guest"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.86"
+license = "MIT"
+publish = false
+description = "OutLayer guest that resolves a FOMC event from FRED's federal funds target range"
+
+# Built on its own for wasm32-wasip2, so it is not part of the contract workspace.
+[workspace]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+wasi-http-client = "0.2.1"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
