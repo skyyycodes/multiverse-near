@@ -37,9 +37,9 @@
   },
   "contract": {
     "accountId": "app.multiverse-lending.testnet",
-    "codeHash": "E5z5z6Q47fku8A5GM23BkXH8hxwuPvexQWoi3rA7BvXA",
-    "deployedAt": "2026-11-11T12:56:32.778Z",
+    "codeHash": "GQ7Msqk6VmecysgY3rdakk69YiFEwGVs3FuGBER8kdSF",
+    "deployedAt": "2026-11-11T20:08:18.358Z",
     "disputeWindowSec": 30
   },
-  "updatedAt": "2026-11-11T12:56:32.779Z"
+  "updatedAt": "2026-11-11T20:08:18.360Z"
 }
