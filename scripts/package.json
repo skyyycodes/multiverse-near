@@ -12,10 +12,12 @@
   "scripts": {
     "typecheck": "tsc --noEmit -p .",
     "test": "node --import tsx --test \"lib/**/*.test.ts\"",
+    "test:live": "FRED_LIVE=1 node --import tsx --test lib/fred.test.ts",
     "accounts": "tsx accounts.ts",
     "deploy:contract": "tsx deploy.ts",
     "sandbox": "tsx sandbox.ts",
-    "seed": "tsx seed-demo.ts"
+    "seed": "tsx seed-demo.ts",
+    "resolver": "tsx resolver.ts"
   },
   "dependencies": {
     "near-api-js": "7.4.0"
