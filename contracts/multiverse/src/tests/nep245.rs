@@ -512,6 +512,33 @@ fn enumeration_paginates_in_key_order() {
 }
 
 #[test]
+fn base_metadata_enumeration_follows_mt_tokens() {
+    let mut w = world();
+    w.split_ft(ALICE, 2, Weth, &[BIN_SHIPS, BIN_DELAYED], E18)
+        .unwrap();
+    let all = w.view(|c| c.mt_tokens_base_metadata_all(None, None));
+    let ids: Vec<_> = all.iter().map(|m| m.id.as_str()).collect();
+    assert_eq!(ids, vec!["1:weth:5", "1:weth:10", "2:weth:1", "2:weth:2"]);
+    let tokens = w.view(|c| c.mt_tokens(None, None));
+    for (meta, token) in all.iter().zip(&tokens) {
+        assert_eq!(meta.id, token.base_metadata_id);
+    }
+    assert_eq!(
+        all[1],
+        w.view(|c| c.mt_metadata_base_by_token_id(vec!["1:weth:10".into()]))
+            .remove(0)
+    );
+    let page = w.view(|c| c.mt_tokens_base_metadata_all(Some(U128(1)), Some(2)));
+    assert_eq!(page, all[1..3].to_vec());
+    assert!(w
+        .view(|c| c.mt_tokens_base_metadata_all(Some(U128(4)), None))
+        .is_empty());
+    assert!(World::new()
+        .view(|c| c.mt_tokens_base_metadata_all(None, None))
+        .is_empty());
+}
+
+#[test]
 fn metadata_views() {
     let mut w = World::new();
     let contract = w.view(|c| c.mt_metadata_contract());

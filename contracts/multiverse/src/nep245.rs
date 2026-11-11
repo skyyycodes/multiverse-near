@@ -268,6 +268,8 @@ impl Contract {
     pub fn mt_tokens(&self, from_index: Option<U128>, limit: Option<u32>) -> Vec<Token> {
         let keys = self.verse_keys().filter(|k| self.is_created(k));
         page(keys, from_index, limit)
+            .map(|k| token_of(&k))
+            .collect()
     }
 
     /// Enumeration: the tokens `account_id` holds a non-zero balance of, in
@@ -282,6 +284,21 @@ impl Contract {
             .verse_keys()
             .filter(|k| self.verse_balance(&account_id, k) > 0);
         page(keys, from_index, limit)
+            .map(|k| token_of(&k))
+            .collect()
+    }
+
+    /// Enumeration with the metadata extension: base metadata of every token
+    /// that exists, in the same order and with the same paging as `mt_tokens`.
+    pub fn mt_tokens_base_metadata_all(
+        &self,
+        from_index: Option<U128>,
+        limit: Option<u32>,
+    ) -> Vec<MtBaseTokenMetadata> {
+        let keys = self.verse_keys().filter(|k| self.is_created(k));
+        page(keys, from_index, limit)
+            .map(|k| self.base_metadata(&k))
+            .collect()
     }
 
     pub fn mt_metadata_contract(&self) -> MtContractMetadata {
@@ -495,12 +512,12 @@ fn check_no_approvals(approvals: &Option<Vec<Option<Approval>>>, n: usize) {
     }
 }
 
-fn page(
-    keys: impl Iterator<Item = VerseKey>,
+fn page<I: Iterator<Item = VerseKey>>(
+    keys: I,
     from_index: Option<U128>,
     limit: Option<u32>,
-) -> Vec<Token> {
+) -> std::iter::Take<std::iter::Skip<I>> {
     let skip = from_index.map_or(0, |i| usize::try_from(i.0).unwrap_or(usize::MAX));
     let take = limit.map_or(usize::MAX, |l| l as usize);
-    keys.skip(skip).take(take).map(|k| token_of(&k)).collect()
+    keys.skip(skip).take(take)
 }
