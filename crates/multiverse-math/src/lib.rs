@@ -27,6 +27,7 @@ pub mod flow;
 pub mod odds;
 pub mod orders;
 pub mod price;
+pub mod risk;
 pub mod shares;
 pub mod tick;
 pub mod twap;
