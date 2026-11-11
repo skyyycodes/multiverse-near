@@ -16,6 +16,7 @@ pub mod core;
 pub mod events;
 pub mod ledger;
 pub mod masks;
+pub mod nep245;
 pub mod oracle;
 pub mod payout;
 pub mod storage;
