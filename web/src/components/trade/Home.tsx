@@ -53,20 +53,27 @@ export function BalanceChips({ balances, loading, hideConnect }: { balances?: Ba
     );
   }
   const b = balances;
-  const hasInner = Boolean(b && (b.innerUsdc > 0n || b.innerWeth > 0n));
+  const inner = innerChipText(b);
   return (
     <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 lg:mx-0 lg:px-0" data-demo="balance-chips">
       <BalanceChip glyph={<EthGlyph />} label="WETH" value={b ? fmtWeth(b.weth) : undefined} loading={loading} />
       <BalanceChip glyph={<UsdGlyph />} label="USDC" value={b ? fmt(b.usdc) : undefined} loading={loading} />
-      {hasInner && b && (
-        <BalanceChip
-          glyph={<Mark size={20} />}
-          label="In Multiverse"
-          value={`${fmt(b.innerUsdc)} USDC${b.innerWeth > 0n ? ` + ${fmtWeth(b.innerWeth)} WETH` : ""}`}
-        />
-      )}
+      {inner && <BalanceChip glyph={<Mark size={20} />} label="In Multiverse" value={inner} />}
     </div>
   );
+}
+
+/**
+ * The "In Multiverse" chip's text, or nothing when the amount rounds to zero at the chip's precision: a withdrawal can
+ * leave a few billionths of a USDC of rounding behind, and a chip reading 0.00 looks like money left over.
+ */
+export function innerChipText(b: Balances | undefined): string | undefined {
+  if (!b) return undefined;
+  const parts = [
+    b.innerUsdc >= 10n ** 16n ? `${fmt(b.innerUsdc)} USDC` : undefined,
+    b.innerWeth >= 10n ** 14n ? `${fmtWeth(b.innerWeth)} WETH` : undefined,
+  ].filter((p) => p !== undefined);
+  return parts.length > 0 ? parts.join(" + ") : undefined;
 }
 
 function BalanceChip({ glyph, label, value, loading }: { glyph: ReactNode; label: string; value?: string; loading?: boolean }) {
