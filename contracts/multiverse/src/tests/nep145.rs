@@ -8,10 +8,12 @@ use near_sdk::NearToken;
 use super::harness::*;
 use crate::storage::StorageBalance;
 use crate::types::Asset::{Usdc, Weth};
+use crate::types::VerseKey;
 
 const BYTE: u128 = 10_000_000_000_000_000_000; // 1e19 yoctoNEAR
 const TENTH: u128 = 100_000_000_000_000_000_000_000; // 0.1 NEAR
 const ONE_NEAR: u128 = 10 * TENTH;
+const USDC_UNIT: u128 = 1_000_000_000_000; // one micro-USDC in internal units
 
 fn balance(w: &mut World, who: &str) -> Option<StorageBalance> {
     let who = acc(who);
@@ -260,6 +262,53 @@ fn storage_unregister() {
     // itself is gone and refunded)
     assert!(kept > 0 && kept < used, "kept {kept} of {used} bytes");
     assert_eq!(balance(&mut w, ALICE), None);
+}
+
+#[test]
+fn storage_unregister_sweeps_sub_unit_dust() {
+    let mut w = World::new();
+    w.split_ft(ALICE, 1, Usdc, &[SHIPS, DELAYED], 3 * E18)
+        .unwrap();
+    w.admin_resolve(w.glam, OUT_SHIPS).unwrap();
+    // 1.5 USDC goes out, 123 internal units stay behind as dust
+    w.redeem(ALICE, 1, Usdc, SHIPS, 15 * E18 / 10 + 123)
+        .unwrap();
+    // the rest of her verse tokens go to bob
+    for mask in [SHIPS, DELAYED] {
+        let key = VerseKey::new(1, Usdc, mask);
+        let held = w.view(|c| c.verse_balance(&acc(ALICE), &key));
+        w.mt_transfer(ALICE, BOB, &key.token_id(), held).unwrap();
+    }
+    assert_eq!(w.real(ALICE, Usdc), 123);
+
+    // one whole unit still blocks it
+    w.deposit(ALICE, Usdc, USDC_UNIT).unwrap();
+    fails(
+        w.call(ALICE, ONE_YOCTO, |c| c.storage_unregister(None)),
+        "AccountNotEmpty(alice.near)",
+    );
+    w.withdraw(ALICE, Usdc, USDC_UNIT).unwrap();
+    assert_eq!(w.real(ALICE, Usdc), 123);
+
+    let books = w.reserves(1, Usdc) + 123;
+    assert!(w
+        .call(ALICE, ONE_YOCTO, |c| c.storage_unregister(None))
+        .unwrap());
+    assert_eq!(balance(&mut w, ALICE), None);
+    assert_eq!(w.real(ALICE, Usdc), 0);
+    assert_eq!(w.real(CONTRACT, Usdc), 123);
+    assert_eq!(w.held_by_contract(Usdc), books);
+    let swept: Vec<_> = w
+        .last
+        .events()
+        .into_iter()
+        .filter(|e| e["event"] == "dust_swept")
+        .collect();
+    assert_eq!(swept.len(), 1);
+    assert_eq!(
+        swept[0]["data"][0],
+        near_sdk::serde_json::json!({"account_id": "alice.near", "asset": "usdc", "amount": "123"})
+    );
 }
 
 #[test]

@@ -201,6 +201,17 @@ pub struct PayoutFailed<'a> {
 }
 named!(PayoutFailed<'_>, "payout_failed");
 
+/// Sub-unit dust left in a leaving account's internal balance. It cannot be
+/// paid out, so `storage_unregister` moves it to the contract's own balance.
+#[derive(Serialize, Debug)]
+#[serde(crate = "near_sdk::serde")]
+pub struct DustSwept<'a> {
+    pub account_id: &'a AccountId,
+    pub asset: Asset,
+    pub amount: U128,
+}
+named!(DustSwept<'_>, "dust_swept");
+
 // NEP-245 events, standard "nep245" version "1.0.0". Optional fields are left
 // out of the JSON when absent, as the standard's interfaces mark them `?`.
 

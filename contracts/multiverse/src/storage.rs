@@ -11,6 +11,7 @@ use near_sdk::json_types::U128;
 use near_sdk::{assert_one_yocto, env, near, AccountId, NearToken, Promise};
 
 use crate::errors::fail;
+use crate::events::{DustSwept, MultiverseEvent};
 use crate::types::{Asset, VerseKey};
 use crate::{Contract, ContractExt};
 
@@ -146,8 +147,9 @@ impl Contract {
     }
 
     /// Closes the caller's registration and refunds the deposit. Only an
-    /// account that holds nothing here may leave; `force` is not supported.
-    /// Returns false if the caller was not registered.
+    /// account that holds nothing here may leave, apart from internal balances
+    /// below one token unit, which are swept to the contract; `force` is not
+    /// supported. Returns false if the caller was not registered.
     #[payable]
     pub fn storage_unregister(&mut self, force: Option<bool>) -> bool {
         assert_one_yocto();
@@ -163,8 +165,9 @@ impl Contract {
         }
         self.flush_state();
         let before = env::storage_usage();
+        self.sweep_dust(&account_id);
         self.storage.remove(&account_id);
-        self.storage.flush();
+        self.flush_state();
         let freed = before.saturating_sub(env::storage_usage());
         // Entries this account paid for that still exist (another account's
         // balance it created, say) keep their bytes paid for.
@@ -297,11 +300,12 @@ impl Contract {
     }
 
     /// Whether `account_id` still has anything in the contract, which blocks
-    /// `storage_unregister`.
+    /// `storage_unregister`. Real balances below one token unit do not count:
+    /// no payout could ever send them.
     pub(crate) fn holds_anything(&self, account_id: &AccountId) -> bool {
         Asset::ALL
             .into_iter()
-            .any(|a| self.real_balance(account_id, a) > 0)
+            .any(|a| self.real_balance(account_id, a) >= self.scale(a))
             || self
                 .verse_keys()
                 .any(|k| self.verse_balance(account_id, &k) > 0)
@@ -309,6 +313,26 @@ impl Contract {
             || self.has_open_orders(account_id)
             || self.has_lending_position(account_id)
             || self.has_lp_shares(account_id)
+    }
+
+    /// Keeps the books whole: the dust stays backed by tokens the contract
+    /// holds, so it moves to the contract's own internal balance.
+    fn sweep_dust(&mut self, account_id: &AccountId) {
+        let contract = env::current_account_id();
+        for asset in Asset::ALL {
+            let dust = self.real_balance(account_id, asset);
+            if dust == 0 {
+                continue;
+            }
+            self.real_debit(account_id, asset, dust);
+            self.real_credit(&contract, asset, dust);
+            DustSwept {
+                account_id,
+                asset,
+                amount: U128(dust),
+            }
+            .emit();
+        }
     }
 
     /// Every verse key that can exist, in a fixed order: scenario, then asset,
