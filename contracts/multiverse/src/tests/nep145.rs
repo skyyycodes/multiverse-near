@@ -395,8 +395,7 @@ fn app_config_reports_the_configuration() {
     assert_eq!(cfg.min_pool_depth, U128(10_000 * E18));
     assert_eq!((cfg.fee_base_pips, cfg.fee_cap_pips), (3_000, 15_000));
     assert!(cfg.order_book);
-    // not built yet
-    assert!(!cfg.root_lp);
+    assert!(cfg.root_lp);
     assert_eq!(cfg.spot_pool_id, None);
     assert_eq!((cfg.event_count, cfg.scenario_count), (2, 2));
     assert_eq!(w.view(|c| c.owner_id()), acc(OWNER));

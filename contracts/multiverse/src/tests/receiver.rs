@@ -284,6 +284,7 @@ fn actions_not_built_yet_fail_and_refund() {
         "sell_and_borrow",
         "post_order",
         "close_after_resolution",
+        "lp_deposit",
     ];
     for (action, msg) in DESIGN_MESSAGES.iter().filter(|(a, _)| !built.contains(a)) {
         let expected = match *action {

@@ -148,6 +148,77 @@ impl Contract {
 }
 
 impl Contract {
+    /// Adds `liquidity` units to a position whose tokens are already in the
+    /// contract's custody (the Root LP vault): only the pool record and
+    /// `position` change, no ledger balance does, so the caller books what
+    /// went in. Collects the position's fees like every change does; zero
+    /// liquidity only collects.
+    pub(crate) fn add_liquidity_held(
+        &mut self,
+        pool_id: u64,
+        position: &mut cpmm::Position,
+        liquidity: u128,
+    ) -> LiquidityResult {
+        self.change_held(pool_id, position, liquidity, true)
+    }
+
+    /// The counterpart of `add_liquidity_held`: what comes out (rounded
+    /// down) plus the fees stays in custody for the caller to book.
+    pub(crate) fn remove_liquidity_held(
+        &mut self,
+        pool_id: u64,
+        position: &mut cpmm::Position,
+        liquidity: u128,
+    ) -> LiquidityResult {
+        self.change_held(pool_id, position, liquidity, false)
+    }
+
+    fn change_held(
+        &mut self,
+        pool_id: u64,
+        position: &mut cpmm::Position,
+        liquidity: u128,
+        adding: bool,
+    ) -> LiquidityResult {
+        let mut pool = self.pool(pool_id).clone();
+        let (amount0, amount1, action) = if liquidity == 0 {
+            (0, 0, "collect")
+        } else if adding {
+            let (a0, a1) = pool
+                .amm
+                .add_liquidity(position, liquidity)
+                .unwrap_or_else(|e| fail!("{e}"));
+            (a0, a1, "add")
+        } else {
+            let (a0, a1) = pool
+                .amm
+                .remove_liquidity(position, liquidity)
+                .unwrap_or_else(|e| fail!("{e}"));
+            (a0, a1, "remove")
+        };
+        let fees = pool.amm.collect(position);
+        self.pools.insert(pool_id, pool);
+        let result = LiquidityResult {
+            liquidity: U128(liquidity),
+            amount0: U128(amount0),
+            amount1: U128(amount1),
+            fees0: U128(fees.0),
+            fees1: U128(fees.1),
+        };
+        Liquidity {
+            pool_id,
+            account_id: &env::current_account_id(),
+            action,
+            liquidity: result.liquidity,
+            amount0: result.amount0,
+            amount1: result.amount1,
+            fees0: result.fees0,
+            fees1: result.fees1,
+        }
+        .emit();
+        result
+    }
+
     /// The account's position in the pool; empty if it has none.
     pub(crate) fn position(&self, pool_id: u64, account: &AccountId) -> cpmm::Position {
         self.positions

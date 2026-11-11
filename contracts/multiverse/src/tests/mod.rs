@@ -26,5 +26,6 @@ mod orders;
 mod payout;
 mod probes;
 mod receiver;
+mod rootlp;
 mod router;
 mod views;

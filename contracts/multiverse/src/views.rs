@@ -373,13 +373,36 @@ impl Contract {
         view
     }
 
-    /// The Root LP panel's numbers; null until the vault is live.
+    /// The Root LP panel's numbers; null while the vault is switched off.
     pub(crate) fn root_lp_snapshot(
         &self,
-        _scenario_id: u64,
-        _account: Option<&AccountId>,
+        scenario_id: u64,
+        account: Option<&AccountId>,
     ) -> Option<RootLpView> {
-        None
+        if !crate::rootlp::ENABLED {
+            return None;
+        }
+        let v = self.root_lp_view(scenario_id, account)?;
+        Some(RootLpView {
+            share_supply: v.share_supply,
+            your_shares: v.your_shares,
+            share_decimals: v.share_decimals,
+            preview_withdraw: v.preview_withdraw.map(|p| RootLpWithdrawPreview {
+                weth: p.weth,
+                usdc: p.usdc,
+            }),
+            holdings: v
+                .holdings
+                .into_iter()
+                .map(|h| RootLpHolding {
+                    world: h.world,
+                    weth_idle: h.weth_idle,
+                    usdc_idle: h.usdc_idle,
+                    weth_fees: h.weth_fees,
+                    usdc_fees: h.usdc_fees,
+                })
+                .collect(),
+        })
     }
 
     fn events_of(&self, scenario_id: u64) -> Vec<EventView> {
