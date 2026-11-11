@@ -5,7 +5,8 @@
 //! WAD-scaled (`1e18` = 1.0), fees are in pips (`1_000_000` = 100%) and time is whole seconds.
 //!
 //! Every formula is a port of the Solidity version in the EVM project (OpenZeppelin `mulDiv`, the protocol's
-//! `SharesMath`). Rounding always favours the protocol: what users receive rounds down, what they pay rounds up.
+//! `SharesMath`, `OrderMath` and `OddsTree`). Rounding always favours the protocol: what users receive rounds down,
+//! what they pay rounds up.
 //!
 //! Failure model. Functions that mirror a Solidity revert panic with the Solidity error name (`MulDivOverflow`), the
 //! same way checked arithmetic reverts on the EVM; near-sdk turns the panic into a readable failure that rolls the
@@ -19,6 +20,8 @@
 #![forbid(unsafe_code)]
 
 pub mod fixed;
+pub mod odds;
+pub mod orders;
 pub mod shares;
 
 pub use fixed::{
