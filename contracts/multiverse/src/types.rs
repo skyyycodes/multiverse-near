@@ -139,6 +139,7 @@ impl VerseKey {
 pub enum Source {
     Admin,
     Reporter,
+    OutLayer,
 }
 
 /// `Source` as stored. A plain enum rather than an `Option` so that a first
@@ -150,6 +151,7 @@ pub enum ProposedBy {
     Nobody,
     Admin,
     Reporter,
+    OutLayer,
 }
 
 impl ProposedBy {
@@ -158,6 +160,7 @@ impl ProposedBy {
             ProposedBy::Nobody => None,
             ProposedBy::Admin => Some(Source::Admin),
             ProposedBy::Reporter => Some(Source::Reporter),
+            ProposedBy::OutLayer => Some(Source::OutLayer),
         }
     }
 }
@@ -167,6 +170,7 @@ impl From<Source> for ProposedBy {
         match source {
             Source::Admin => ProposedBy::Admin,
             Source::Reporter => ProposedBy::Reporter,
+            Source::OutLayer => ProposedBy::OutLayer,
         }
     }
 }

@@ -23,6 +23,7 @@ mod nep245;
 mod oracle;
 mod order_invariants;
 mod orders;
+mod outlayer;
 mod payout;
 mod probes;
 mod receiver;

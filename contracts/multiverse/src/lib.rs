@@ -21,6 +21,7 @@ pub mod masks;
 pub mod nep245;
 pub mod oracle;
 pub mod orders;
+pub mod outlayer;
 pub mod payout;
 pub mod receiver;
 pub mod rootlp;
@@ -40,6 +41,7 @@ use crate::errors::fail;
 use crate::events::{DisputeWindowSet, MultiverseEvent};
 use crate::lending::{CollateralKey, Market};
 use crate::orders::Order;
+use crate::outlayer::OutLayerState;
 use crate::rootlp::Vault;
 use crate::storage::StorageAccount;
 use crate::types::{Asset, AssetCfg, EventData, Params, Scenario, VerseKey};
@@ -75,6 +77,8 @@ pub(crate) enum StorageKey {
     /// The owner-set demo record (a JSON string), stored under this key alone.
     DemoRecord,
     OpenByScenario,
+    OutLayerConfig,
+    OutLayerDates,
 }
 
 #[near(contract_state)]
@@ -143,6 +147,9 @@ pub struct Contract {
 
     // NEP-145
     storage: LookupMap<AccountId, StorageAccount>,
+
+    // outlayer
+    outlayer: OutLayerState,
 }
 
 #[near]
@@ -208,6 +215,7 @@ impl Contract {
             vaults: LookupMap::new(StorageKey::Vaults),
             lp_shares: LookupMap::new(StorageKey::LpShares),
             storage: LookupMap::new(StorageKey::Storage),
+            outlayer: OutLayerState::new(),
         }
     }
 }

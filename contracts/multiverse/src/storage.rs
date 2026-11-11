@@ -246,6 +246,7 @@ impl Contract {
         self.vaults.flush();
         self.lp_shares.flush();
         self.storage.flush();
+        self.outlayer.flush();
     }
 
     /// Charges what the call grew storage by (since `before`) to `payer`'s
