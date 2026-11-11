@@ -11,7 +11,9 @@
   "packageManager": "pnpm@10.28.0",
   "scripts": {
     "typecheck": "tsc --noEmit -p .",
-    "test": "node --import tsx --test \"lib/**/*.test.ts\""
+    "test": "node --import tsx --test \"lib/**/*.test.ts\"",
+    "accounts": "tsx accounts.ts",
+    "deploy:contract": "tsx deploy.ts"
   },
   "dependencies": {
     "near-api-js": "7.4.0"
