@@ -37,10 +37,17 @@ export async function plan2x2(p: Protocol, record: DemoRecord): Promise<PlanFill
   return plans;
 }
 
-/** Waits until every world pool of both scenarios is old enough for lending to use its TWAP. */
+/**
+ * Waits until every world pool of both scenarios is old enough for lending to use its TWAP. Both
+ * lengths come from get_app_config. Nothing has traded in the pools since seeding, so their whole
+ * history, which is what the TWAP averages until a full window has passed, is the seeded price.
+ */
 export async function waitForTwap(p: Protocol, record: DemoRecord): Promise<void> {
-  const { twap_min_age_sec } = await p.appConfig();
-  await waitForChainTime(record.seeded_at_sec + twap_min_age_sec + 1, "the pools to be old enough to price lending");
+  const { twap_min_age_sec, twap_window_sec } = await p.appConfig();
+  await waitForChainTime(
+    record.seeded_at_sec + Math.min(twap_min_age_sec, twap_window_sec) + 1,
+    `the pools to be old enough to price lending (TWAP window ${twap_window_sec} s, priced after ${twap_min_age_sec} s)`,
+  );
 }
 
 export async function sellAndBorrow(p: Protocol, record: DemoRecord): Promise<void> {

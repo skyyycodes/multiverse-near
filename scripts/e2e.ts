@@ -127,6 +127,32 @@ async function perWorld(p: Protocol, sid: number, account: string): Promise<{ we
   });
 }
 
+interface LiquidateEvent {
+  account_id: string;
+  liquidator_id: string;
+  repaid: string;
+  pieces: string[];
+  seized: string[];
+}
+
+/** The data of the one `liquidate` event among `logs`. */
+function liquidateEvent(logs: string[]): LiquidateEvent {
+  const found = logs
+    .filter((l) => l.startsWith("EVENT_JSON:"))
+    .map((l) => JSON.parse(l.slice("EVENT_JSON:".length)) as { event: string; data: LiquidateEvent[] })
+    .filter((e) => e.event === "liquidate");
+  const data = found[0]?.data[0];
+  if (found.length !== 1 || !data) throw new Error(`expected one liquidate event, found ${found.length}`);
+  return data;
+}
+
+/** What `account` holds of a collateral piece outside lending: verse pieces in the ledger, real ones internally. */
+async function pieceHolding(p: Protocol, sid: number, account: string, piece: string): Promise<bigint> {
+  const { asset } = pieceCovers(piece, 0);
+  if (piece === asset) return p.realBalance(account, asset);
+  return p.verseBalance(account, sid, asset, Number(piece.split(":")[2]));
+}
+
 async function postOrder(p: Protocol, maker: string, sid: number, mask: number, side: "bid" | "ask", price: bigint, amount: bigint): Promise<string> {
   const expiry = (await chainNowSec()) + 24 * 3600;
   const r = await p.call1y<string>(maker, "post_order", {
@@ -305,6 +331,48 @@ async function main(): Promise<void> {
     await assertBacked(p, record);
   });
 
+  await flow.step("9b. Leo liquidates Carl (repay max, half the debt at most)", ["9. admin pushes DELAYED·HOLDS down with 3 WETH; Carl's unhedged loan"], async () => {
+    const hfBefore = (await p.health(s, carl)).hf;
+    const debtBefore = await p.debt(s, carl);
+    const pieces = (await p.collateral(s, carl)).map((c) => c.piece);
+    // half the debt in whole USDC, with room for interest accrued until the transaction runs; the rest comes back
+    const scale = 10n ** 12n;
+    const send = ((debtBefore / 2n + debtBefore / 1000n + scale - 1n) / scale) * scale;
+    await p.ensureStorage(owner, leo);
+    await p.mint(owner, "usdc", leo, send);
+    const held = await Promise.all(pieces.map((piece) => pieceHolding(p, s, leo, piece)));
+    const r = await p.send(leo, "usdc", send, { action: "liquidate", scenario_id: s, account_id: carl, repay_amount: "max" }, {
+      allowRefund: true,
+      label: `leo: liquidate ${carl} with up to ${fmt2(send)} USDC`,
+    });
+    const ev = liquidateEvent(r.logs);
+    check(ev.account_id === carl && ev.liquidator_id === leo, "the liquidate event names Carl and Leo");
+    const repaid = u128(ev.repaid);
+    const debtAfter = await p.debt(s, carl);
+    const hfAfter = (await p.health(s, carl)).hf;
+    console.log(`    Carl: HF ${fmtHf(hfBefore)} -> ${fmtHf(hfAfter)}, debt ${fmt2(debtBefore)} -> ${fmt2(debtAfter)}`);
+    console.log(`    repaid ${fmt2(repaid)} USDC (Leo sent ${fmt2(send)}, ${fmt2(send - r.used * scale)} came back)`);
+    // the debt when the liquidation ran is what it repaid plus what is left, give or take the rounding up of each
+    check(repaid > 0n && 2n * repaid <= repaid + debtAfter + 2n, "repaid is at most 50% of the debt");
+    check(r.used * scale >= repaid && r.used * scale - repaid < scale, "Leo paid the repaid amount, rounded up to a whole USDC unit");
+    let seizedAny = false;
+    for (const [i, piece] of ev.pieces.entries()) {
+      const seized = u128(ev.seized[i] ?? "0");
+      const at = pieces.indexOf(piece);
+      if (at < 0) throw new Error(`liquidate event names ${piece}, not one of Carl's pieces`);
+      const gained = (await pieceHolding(p, s, leo, piece)) - (held[at] ?? 0n);
+      const where = piece.includes(":") ? "in Leo's ledger" : "in Leo's internal balance";
+      console.log(`    seized ${fmt2(seized)} of ${piece}, ${where}`);
+      // a real USDC piece shares Leo's balance with the dust of his payment
+      const dust = piece === "usdc" ? r.used * scale - repaid : 0n;
+      check(gained === seized + dust, `${piece}: the seized amount is credited ${where}`);
+      seizedAny ||= seized > 0n;
+    }
+    check(seizedAny, "Leo seized collateral");
+    check(hfBefore !== null && hfAfter !== null && hfAfter > hfBefore, "Carl's HF rose");
+    await assertBacked(p, record);
+  });
+
   await flow.step("10. resolution: the reporter proposes Fed HOLDS, Glamsterdam resolves DELAYED", [], async () => {
     const deps = reporterDeps(p, join(REPO_ROOT, "deployments", "demo-outcomes.json"));
     const fed = resolverEvents(record, "team").filter((e) => e.eventId === record.fed_event);
@@ -320,7 +388,15 @@ async function main(): Promise<void> {
       "trading pauses while a resolution is pending",
     );
     const carlStatus = await p.view<{ status: string }>("liquidation_status", { scenario_id: s, account_id: carl });
-    check(carlStatus.status === "paused_halted", "liquidation paused");
+    const carlHf = (await p.health(s, carl)).hf;
+    const carlUnder = carlHf !== null && carlHf < WAD;
+    check(carlStatus.status === (carlUnder ? "paused_halted" : "none"), `liquidation paused (Carl's HF ${fmtHf(carlHf)}: ${carlStatus.status})`);
+    await p.mint(owner, "usdc", leo, e18(1n));
+    await expectFailure(
+      p.send(leo, "usdc", e18(1n), { action: "liquidate", scenario_id: s, account_id: carl, repay_amount: "max" }, { label: "leo: liquidate while halted" }),
+      /ScenarioHalted\(\d+\)/,
+      "a liquidation is refused while a resolution is pending",
+    );
     await expectFailure(call(sam, d.contractId, "finalize", { event_id: record.fed_event }, { gas: tgas(100) }), /DisputeWindowNotOver\(\d+, \d+\)/, "finalize waits for the window");
     await waitForChainTime(proposed.finalizable_at_sec, "the dispute window");
     await call(sam, d.contractId, "finalize", { event_id: record.fed_event }, { gas: tgas(100), label: "sam: finalize the Fed event" });
