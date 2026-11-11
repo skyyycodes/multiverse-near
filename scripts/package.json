@@ -1,0 +1,29 @@
+{
+  "name": "multiverse-near-scripts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Testnet accounts, deployment and resolver tooling for Multiverse Lending on NEAR",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.22.2"
+  },
+  "packageManager": "pnpm@10.28.0",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p .",
+    "test": "node --import tsx --test \"lib/**/*.test.ts\""
+  },
+  "dependencies": {
+    "near-api-js": "7.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}
