@@ -274,7 +274,8 @@ const DESIGN_MESSAGES: [(&str, &str); 11] = [
 #[test]
 fn actions_not_built_yet_fail_and_refund() {
     let mut w = World::new();
-    for (action, msg) in DESIGN_MESSAGES {
+    let built = ["supply", "repay", "deposit_collateral", "liquidate"];
+    for (action, msg) in DESIGN_MESSAGES.iter().filter(|(a, _)| !built.contains(a)) {
         fails(
             w.ft_transfer_call(ALICE, Usdc, 1_000_000, msg),
             &format!("NotImplemented({action})"),
