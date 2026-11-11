@@ -104,7 +104,7 @@ pub struct RootLpWithdrawPreview {
 
 #[near(serializers = [json])]
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct RootLpHolding {
+pub struct RootLpHoldingView {
     pub world: u8,
     pub weth_idle: U128,
     pub usdc_idle: U128,
@@ -119,7 +119,7 @@ pub struct RootLpView {
     pub your_shares: U128,
     pub share_decimals: u8,
     pub preview_withdraw: Option<RootLpWithdrawPreview>,
-    pub holdings: Vec<RootLpHolding>,
+    pub holdings: Vec<RootLpHoldingView>,
 }
 
 #[near(serializers = [json])]
@@ -417,7 +417,7 @@ impl Contract {
             holdings: v
                 .holdings
                 .into_iter()
-                .map(|h| RootLpHolding {
+                .map(|h| RootLpHoldingView {
                     world: h.world,
                     weth_idle: h.weth_idle,
                     usdc_idle: h.usdc_idle,
