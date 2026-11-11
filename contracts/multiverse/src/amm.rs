@@ -46,6 +46,17 @@ pub const SPOT_FEE_PIPS: u32 = 3_000;
 /// Price points the Impact Meter keeps per scenario.
 pub const IMPACT_POINTS: usize = 64;
 
+/// A pool prices lending only once its history is this long. Until it is a
+/// full TWAP window old, the mean runs over the whole history.
+pub const TWAP_MIN_AGE_SEC: u64 = 60;
+
+/// Lending refuses a world's price while the pool's current tick is more
+/// than this far from its TWAP (about 10%). Moving a pool and acting before
+/// the TWAP catches up is the manipulation; waiting it out means holding the
+/// mispriced pool against arbitrage for a whole window.
+pub const MAX_SPOT_TWAP_TICKS: i32 = 953;
+
+
 /// What a pool trades. Token0 is WETH-if-w in a within-world pool and the
 /// lower mask in a between-world pool, so the fee window and the TWAP always
 /// measure token0 and a within-world price is USDC per WETH, rounded down.
@@ -166,8 +177,9 @@ thread_local! {
 }
 
 impl Contract {
-    /// WETH price in `world` of `scenario_id` for lending: the world pool's 60 s
-    /// tick TWAP behind the depth gate, or `(0, false)` when there is no valid price.
+    /// WETH price in `world` of `scenario_id` for lending: the world pool's
+    /// tick TWAP behind the depth gate and the spot-to-TWAP band, or
+    /// `(0, false)` when there is no valid price.
     pub(crate) fn world_price(&self, scenario_id: u64, world: u8) -> (u128, bool) {
         #[cfg(test)]
         if let Some(p) = TEST_WORLD_PRICES.with(|m| m.borrow().get(&(scenario_id, world)).copied())
@@ -180,10 +192,15 @@ impl Contract {
         else {
             return (0, false);
         };
-        // Valid only with an observation at or before now - window.
-        let Some(tick) = pool.twap.mean_tick(now_sec(), self.params.twap_window_sec) else {
+        let Some(tick) = self.pool_mean_tick(pool) else {
             return (0, false);
         };
+        let Some(spot) = pool.twap.latest().map(|o| o.tick) else {
+            return (0, false);
+        };
+        if (i64::from(spot) - i64::from(tick)).abs() > i64::from(MAX_SPOT_TWAP_TICKS) {
+            return (0, false);
+        }
         // The depth gate reads the USDC side as it is now, not time-weighted.
         if pool.amm.reserve1() < self.params.min_pool_depth {
             return (0, false);
@@ -193,6 +210,24 @@ impl Contract {
             Some(p) => (p, true),
             None => (0, false),
         }
+    }
+
+    /// Mean tick over the TWAP window, or over the pool's whole history while
+    /// it is younger than the window; None before `TWAP_MIN_AGE_SEC`.
+    pub(crate) fn pool_mean_tick(&self, pool: &Pool) -> Option<i32> {
+        let now = now_sec();
+        let first = pool.twap.observations().next()?.timestamp;
+        let window = self.params.twap_window_sec.min(now.saturating_sub(first));
+        if window < TWAP_MIN_AGE_SEC {
+            return None;
+        }
+        pool.twap.mean_tick(now, window)
+    }
+
+    /// Observations at most every window / 64 seconds, so the 128 kept
+    /// always span two windows however often the pool trades.
+    pub(crate) fn twap_spacing(&self) -> u64 {
+        (self.params.twap_window_sec / 64).max(1)
     }
 
     /// `ft_on_transfer` action `spot_swap`: `amount` (internal units) of
@@ -322,7 +357,7 @@ impl Contract {
         self.pay_out(account, &[(token_out, swap.amount_out)]);
         if !pool.is_spot() {
             if let Some(tick) = pool.amm.tick() {
-                pool.twap.write(now_sec(), tick);
+                pool.twap.write_spaced(now_sec(), tick, self.twap_spacing());
             }
             pool.flow
                 .record_swap(swap.zero_for_one, swap.amount_in, swap.amount_out);

@@ -97,6 +97,7 @@ export interface AppConfig {
   lltv: string;
   dispute_window_sec: number;
   twap_window_sec: number;
+  twap_min_age_sec: number;
   min_pool_depth: string;
   order_book: boolean;
   root_lp: boolean;

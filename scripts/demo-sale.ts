@@ -1,5 +1,5 @@
 // Alice's sell-and-borrow on the seeded demo, then her per-world holdings, the worst world and HF.
-// Waits for a full TWAP window after seeding first (on the sandbox it skips blocks instead).
+// Waits until the pools are old enough to price lending first (on the sandbox it skips blocks instead).
 //
 //   NEAR_NETWORK=sandbox|testnet pnpm demo-sale [--report-only]
 

@@ -398,7 +398,8 @@ fn app_config_reports_the_configuration() {
     assert_eq!(cfg.liquidation_bonus, U128(50_000_000_000_000_000));
     assert_eq!(cfg.borrow_rate_per_sec, U128(1_585_489_599));
     assert_eq!(cfg.dispute_window_sec, DISPUTE_WINDOW);
-    assert_eq!(cfg.twap_window_sec, 60);
+    assert_eq!(cfg.twap_window_sec, 1_800);
+    assert_eq!(cfg.twap_min_age_sec, 60);
     assert_eq!(cfg.min_pool_depth, U128(10_000 * E18));
     assert_eq!((cfg.fee_base_pips, cfg.fee_cap_pips), (3_000, 15_000));
     assert!(cfg.order_book);

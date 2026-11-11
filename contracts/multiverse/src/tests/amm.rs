@@ -833,8 +833,11 @@ fn fee_dust_swaps_do_not_reset_the_window() {
     }
     assert_eq!(flow_of(&mut w, pools[3]), (8 * E18 as i128, 8 * E18, 8));
     assert_eq!(fee_of(&mut w, pools[3]), 15000);
-    // they still write TWAP observations
-    assert_eq!(w.view(|c| c.pool(pools[3]).twap.count()), twap_before + 8);
+    // they still write the TWAP: with observations spaced for a 30 minute
+    // window, eight seconds move the newest one forward rather than add more
+    let twap = w.view(|c| c.pool(pools[3]).twap.clone());
+    assert!(twap.count() <= twap_before + 1);
+    assert_eq!(twap.latest().unwrap().timestamp, w.now);
 }
 
 // PoolSeeder.t.sol: moving the spot pool
@@ -1229,17 +1232,26 @@ fn twap_follows_the_price_over_time() {
     let s = w.s2x2;
     give_world_tokens(&mut w, ALICE, s, 10 * E18, 0);
     w.warp(120);
-    let seeded = w.view(|c| c.world_price(s, 3)).0;
+    let twap = |w: &mut World| w.view(|c| c.get_pool(pools[3]).unwrap().twap_price.unwrap().0);
+    let seeded = twap(&mut w);
+    assert!(w.view(|c| c.world_price(s, 3)).1);
     sell(&mut w, ALICE, pools[3], 2 * E18);
     let after = price_of(&mut w, pools[3]);
     // the sale's tick has no weight in its own second
-    assert_eq!(w.view(|c| c.world_price(s, 3)).0, seeded);
+    assert_eq!(twap(&mut w), seeded);
+    // but the pool now sits more than 953 ticks (a factor 1.1) under its
+    // TWAP, so lending refuses the world's price until the TWAP catches up
+    assert!(after * 11 < seeded * 10);
+    assert_eq!(w.view(|c| c.world_price(s, 3)), (0, false));
     w.warp(30);
-    let half = w.view(|c| c.world_price(s, 3)).0;
+    let half = twap(&mut w);
     assert!(half < seeded && half > after);
-    w.warp(30);
-    let full = w.view(|c| c.world_price(s, 3)).0;
+    // a pool younger than the window averages its whole history; a full
+    // window after the sale the TWAP is the new price
+    w.warp(1_800);
+    let full = twap(&mut w);
     assert!(full < half && within_rel(full, after, 10_000));
+    assert!(w.view(|c| c.world_price(s, 3)).1);
 }
 
 #[test]

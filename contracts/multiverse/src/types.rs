@@ -79,7 +79,7 @@ impl Params {
     pub fn new(dispute_window_sec: u64) -> Self {
         Self {
             dispute_window_sec,
-            twap_window_sec: 60,
+            twap_window_sec: 1_800,
             min_pool_depth: 10_000 * WAD,
             lltv: 750_000_000_000_000_000,
             liquidation_bonus: 50_000_000_000_000_000,

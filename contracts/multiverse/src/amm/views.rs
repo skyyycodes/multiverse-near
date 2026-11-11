@@ -8,7 +8,7 @@ use near_sdk::json_types::U128;
 use near_sdk::{near, AccountId};
 
 use super::{Pool, PoolKind, PoolToken};
-use crate::{now_sec, Contract, ContractExt};
+use crate::{Contract, ContractExt};
 
 #[near(serializers = [json])]
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -245,9 +245,7 @@ impl Contract {
         let twap_price = if pool.is_spot() {
             None
         } else {
-            pool.twap
-                .mean_tick(now_sec(), self.params.twap_window_sec)
-                .and_then(price::from_tick)
+            self.pool_mean_tick(pool).and_then(price::from_tick)
         };
         let twap_ok = match pool.kind {
             PoolKind::Within { world } => self.world_price(pool.scenario_id, world).1,

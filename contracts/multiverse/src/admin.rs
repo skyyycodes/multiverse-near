@@ -23,6 +23,8 @@ pub struct AppConfig {
     pub borrow_rate_per_sec: U128,
     pub dispute_window_sec: u64,
     pub twap_window_sec: u64,
+    /// How old a pool must be before lending uses its price.
+    pub twap_min_age_sec: u64,
     pub min_pool_depth: U128,
     pub fee_base_pips: u32,
     pub fee_cap_pips: u32,
@@ -80,6 +82,7 @@ impl Contract {
             borrow_rate_per_sec: U128(p.borrow_rate_per_sec),
             dispute_window_sec: p.dispute_window_sec,
             twap_window_sec: p.twap_window_sec,
+            twap_min_age_sec: crate::amm::TWAP_MIN_AGE_SEC,
             min_pool_depth: U128(p.min_pool_depth),
             fee_base_pips: p.fee_base_pips,
             fee_cap_pips: p.fee_cap_pips,

@@ -1,7 +1,7 @@
 // Resets the demo for a new take: fresh events and scenarios (ids keep growing), every pool seeded
 // again, the existing spot pool moved to the new implied spot, Bob's supply, Ravi's bid, Alice's
-// wallet and the on-chain record; then, unless --no-sale, Alice's sale once a TWAP window has
-// passed. The old scenarios stay on chain untouched.
+// wallet and the on-chain record; then, unless --no-sale, Alice's sale once the pools are old
+// enough to price lending. The old scenarios stay on chain untouched.
 //
 //   NEAR_NETWORK=sandbox|testnet pnpm reset [--spot-from 2x2|binary] [--no-sale] [--no-ravi]
 

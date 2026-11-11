@@ -234,3 +234,74 @@ fn closed_orders_do_not_grow_unregister_or_trade_view_gas() {
     assert!(unreg1 < unreg0 + 1_000_000_000_000, "{unreg0} -> {unreg1}");
     assert!(view1 < view0 + 1_000_000_000_000, "{view0} -> {view1}");
 }
+
+const P0: u128 = 3_400 * E18;
+const P1: u128 = 2_800 * E18;
+
+/// The binary scenario with the demo's world pools and Bob's 100,000 USDC
+/// supply, one minute after seeding.
+fn lending_world() -> (World, u64, Vec<u64>) {
+    use super::amm::seed_worlds;
+    let mut w = pool_world();
+    let s = w.s_bin;
+    let pools = seed_worlds(&mut w, s, &[P0, P1], &[100 * E18, 100 * E18]);
+    let msg = format!(r#"{{"action":"supply","scenario_id":{s}}}"#);
+    w.ft_transfer_call(BOB, Usdc, 100_000 * E18 / scale(Usdc), &msg)
+        .unwrap();
+    w.warp(61);
+    (w, s, pools)
+}
+
+fn post_weth(w: &mut World, who: &str, s: u64, amount: u128) {
+    let msg = format!(r#"{{"action":"deposit_collateral","scenario_id":{s}}}"#);
+    w.ft_transfer_call(who, Weth, amount, &msg).unwrap();
+}
+
+/// ECON-1: one root USDC split pumps every world's pool; held for one 60 s
+/// window, the TWAP followed and 24 WETH borrowed the whole market.
+#[test]
+fn pumping_every_world_for_a_minute_does_not_unlock_borrowing() {
+    let (mut w, s, pools) = lending_world();
+    w.split_ft(CAROL, s, Usdc, &[1, 2], 142_000 * E18).unwrap();
+    for (i, y) in [(0usize, 100 * P0), (1, 100 * P1)] {
+        // y * (sqrt 2 - 1) into the curve doubles the price.
+        let amount_in = y * 414_213_562 / 1_000_000_000 * 1_000_000 / 997_000;
+        w.call(CAROL, ONE_YOCTO, |c| {
+            c.swap(pools[i], false, U128(amount_in), U128(0))
+        })
+        .unwrap();
+    }
+    w.warp(61);
+    post_weth(&mut w, CAROL, s, 24 * E18);
+    let borrowed = w.call(CAROL, ONE_YOCTO, |c| c.borrow(s, U128(100_000 * E18)));
+    assert!(borrowed.is_err(), "{borrowed:?}");
+    // While the pools sit this far from their TWAP the worlds are unpriced,
+    // so nothing borrows against WETH there.
+    w.call(CAROL, ONE_YOCTO, |c| c.borrow(s, U128(10_000 * E18)))
+        .unwrap_err();
+    for i in 0..2 {
+        assert!(!w.view(|c| c.world_price(s, i)).1);
+    }
+}
+
+/// ECON-2: dumping one world's pool for one 60 s window made a borrower
+/// who was healthy at every honest price liquidatable.
+#[test]
+fn dumping_one_world_for_a_minute_does_not_liquidate_a_healthy_borrower() {
+    let (mut w, s, pools) = lending_world();
+    post_weth(&mut w, ALICE, s, 10 * E18);
+    w.call(ALICE, ONE_YOCTO, |c| c.borrow(s, U128(18_000 * E18)))
+        .unwrap();
+    w.split_ft(CAROL, s, Weth, &[1, 2], 19 * E18).unwrap();
+    w.call(CAROL, ONE_YOCTO, |c| {
+        c.swap(pools[1], true, U128(18_380_000_000_000_000_000), U128(0))
+    })
+    .unwrap();
+    w.warp(61);
+    let msg = format!(
+        r#"{{"action":"liquidate","scenario_id":{s},"account_id":"{ALICE}","repay_amount":"max"}}"#
+    );
+    let liquidated = w.ft_transfer_call(CAROL, Usdc, 9_001 * E18 / scale(Usdc), &msg);
+    assert!(liquidated.is_err(), "{liquidated:?}");
+    assert_eq!(w.real(CAROL, Weth), 0);
+}

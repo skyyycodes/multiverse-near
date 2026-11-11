@@ -58,7 +58,7 @@ impl Contract {
         // know, or it would keep weighting the old tick.
         if was_empty && !pool.is_spot() {
             if let Some(tick) = pool.amm.tick() {
-                pool.twap.write(now_sec(), tick);
+                pool.twap.write_spaced(now_sec(), tick, self.twap_spacing());
             }
         }
         let fees = pool.amm.collect(&mut position);

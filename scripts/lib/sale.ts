@@ -1,7 +1,7 @@
 // Alice's demo sale: 2 WETH sold in the L-shape of the 2x2 (DELAYED or HOLDS) through Ravi's bid
 // and the pools, and 2 WETH-if-DELAYED in the binary, each with a 3,000 USDC loan, one
-// ft_transfer_call per scenario. Run once a full TWAP window has passed since seeding: lending
-// prices worlds by their TWAP.
+// ft_transfer_call per scenario. Run once the pools are old enough to price lending
+// (twap_min_age_sec after seeding); until a full window has passed the TWAP is their whole history.
 
 import { chainNowSec, waitForChainTime } from "./chain.ts";
 import {
@@ -37,10 +37,10 @@ export async function plan2x2(p: Protocol, record: DemoRecord): Promise<PlanFill
   return plans;
 }
 
-/** Waits until every world pool of both scenarios has a TWAP window of history. */
+/** Waits until every world pool of both scenarios is old enough for lending to use its TWAP. */
 export async function waitForTwap(p: Protocol, record: DemoRecord): Promise<void> {
-  const { twap_window_sec } = await p.appConfig();
-  await waitForChainTime(record.seeded_at_sec + twap_window_sec + 1, "a full TWAP window after seeding");
+  const { twap_min_age_sec } = await p.appConfig();
+  await waitForChainTime(record.seeded_at_sec + twap_min_age_sec + 1, "the pools to be old enough to price lending");
 }
 
 export async function sellAndBorrow(p: Protocol, record: DemoRecord): Promise<void> {
