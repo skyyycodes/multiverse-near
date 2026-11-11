@@ -24,6 +24,7 @@ import {
   AccessKeyDoesNotExistError,
   AccountDoesNotExistError,
   InvalidNonceError,
+  TransactionExpiredError,
   TransactionTimeoutError,
 } from "near-api-js/rpc-errors";
 
@@ -335,8 +336,9 @@ export async function sendTransaction(
       try {
         return await provider.sendTransactionUntil(signed, waitUntil);
       } catch (err) {
-        if (err instanceof InvalidNonceError && attempt < 3) {
-          // Someone else used this key; forget the cached nonce and sign again.
+        if ((err instanceof InvalidNonceError || err instanceof TransactionExpiredError) && attempt < 3) {
+          // Someone else used this key, or the block it references is too old (the sandbox can
+          // skip blocks): forget the cached nonce and sign again over a fresh block hash.
           signers.delete(key);
           continue;
         }

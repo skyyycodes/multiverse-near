@@ -15,9 +15,15 @@ export async function chainHeight(): Promise<number> {
   return (await provider.viewBlock({ finality: "final" })).header.height;
 }
 
-/** Sandbox only: produces `blocks` blocks at once, each moving block time forward. */
+/**
+ * Sandbox only: produces `blocks` blocks at once, each moving block time forward. Returns once the
+ * final block is past the jump. The node answers before it has made the jump, and a transaction
+ * that references a block from before it is already older than the validity period (100 blocks)
+ * when it arrives: "Transaction expired".
+ */
 export async function fastForward(blocks: number): Promise<void> {
   if (NETWORK !== "sandbox") throw new Error("fast-forward exists only on the sandbox");
+  const target = (await provider.viewBlock({ finality: "optimistic" })).header.height + blocks;
   const res = await fetch(RPC_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -25,6 +31,11 @@ export async function fastForward(blocks: number): Promise<void> {
   });
   const body = (await res.json()) as { error?: unknown };
   if (body.error) throw new Error(`sandbox_fast_forward failed: ${JSON.stringify(body.error)}`);
+  const deadline = Date.now() + 60_000;
+  while ((await chainHeight()) < target) {
+    if (Date.now() > deadline) throw new Error(`sandbox_fast_forward: no final block at height ${target} after 60 s`);
+    await sleep(100);
+  }
 }
 
 /**
