@@ -41,6 +41,33 @@ fn create_event_reverts() {
 }
 
 #[test]
+fn create_event_caps_text_lengths() {
+    let mut w = World::new();
+    let (q, r, n) = ("q".repeat(280), "r".repeat(1024), "N".repeat(32));
+    // byte lengths, not characters: "·" is two bytes
+    fails(
+        w.create_event(&"·".repeat(141), &["A", "B"], "r", 0),
+        "TextTooLong(question)",
+    );
+    fails(
+        w.create_event(&format!("{q}x"), &["A", "B"], "r", 0),
+        "TextTooLong(question)",
+    );
+    fails(
+        w.create_event("q", &["A", "B"], &format!("{r}x"), 0),
+        "TextTooLong(rule)",
+    );
+    fails(
+        w.create_event("q", &["A", &format!("{n}x")], "r", 0),
+        "TextTooLong(outcome_names)",
+    );
+    let id = w.create_event(&q, &[&n, "B"], &r, 0).unwrap();
+    let e = w.view(|c| c.get_event(id));
+    assert_eq!((e.question.len(), e.rule.len()), (280, 1024));
+    assert_eq!(e.outcome_names[0], n);
+}
+
+#[test]
 fn unknown_event_views() {
     let mut w = World::new();
     assert_eq!(w.view(|c| c.outcome_count(42)), 0);

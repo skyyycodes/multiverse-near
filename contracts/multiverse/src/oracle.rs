@@ -21,6 +21,12 @@ use crate::{now_sec, Contract, ContractExt};
 /// Longest evidence string `report_outcome` accepts, in bytes.
 pub const MAX_EVIDENCE_BYTES: usize = 512;
 
+/// Owner text is logged in full by `event_created`; these caps keep that log
+/// far below the 16 KiB a receipt may emit.
+pub const MAX_QUESTION_BYTES: usize = 280;
+pub const MAX_RULE_BYTES: usize = 1024;
+pub const MAX_OUTCOME_NAME_BYTES: usize = 32;
+
 #[near]
 impl Contract {
     /// Owner only; the attached deposit (or the owner's storage balance) pays
@@ -42,6 +48,18 @@ impl Contract {
         }
         if outcome_names.iter().any(String::is_empty) {
             fail("EmptyText");
+        }
+        if question.len() > MAX_QUESTION_BYTES {
+            fail("TextTooLong(question)");
+        }
+        if rule.len() > MAX_RULE_BYTES {
+            fail("TextTooLong(rule)");
+        }
+        if outcome_names
+            .iter()
+            .any(|n| n.len() > MAX_OUTCOME_NAME_BYTES)
+        {
+            fail("TextTooLong(outcome_names)");
         }
         let before = env::storage_usage();
         self.event_count += 1;
