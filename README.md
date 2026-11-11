@@ -193,6 +193,14 @@ The sandbox skips blocks instead of waiting for the TWAP window, so `e2e` took 1
 checks the contract's views and that every world of both scenarios is still fully backed. Transaction hashes differ
 on every run.
 
+The same flow runs on testnet with `NEAR_NETWORK=testnet pnpm -C scripts e2e` (it needs the owner and persona keys
+in `.keys/testnet/`, so only the team can run it). On 2026-11-11 from 20:49 to 21:27 UTC it ran against the
+deployed code `GQ7Msqk6...` and printed the same 13 `ok` lines: 77 transactions, each printed with its nearblocks link,
+and real waits instead of skipped blocks (56 s for the new pools, 30 minutes for the TWAP to take the pushed-down
+DELAYED·HOLDS price, 12 s of dispute window). Alice's DELAYED·HOLDS proceeds were 4881.88 and her HF
+1.22, as on the sandbox; Leo's liquidation took Carl from HF 0.86 to 0.95. The testnet demo was seeded again
+afterwards (see "Try it on NEAR testnet").
+
 ### Script and web tests
 
 ```bash
