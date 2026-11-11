@@ -1,0 +1,117 @@
+// The order book in the browser: the contract's rounding, which orders can still fill, each cell's book, and the
+// sale planner. Amounts are bigint in 18-decimal units (WETH and USDC alike); nothing here uses floating point.
+
+const ONE = 10n ** 18n;
+
+export type Side = "bid" | "ask";
+
+export type Order = {
+  id: bigint;
+  maker: string;
+  scenarioId: number;
+  mask: number;
+  side: Side;
+  price: bigint; // USDC per WETH, 18 decimals
+  amount: bigint; // WETH when posted
+  remaining: bigint; // WETH left; 0 once filled or cancelled
+  expiry: bigint; // unix seconds; fills fail from this second on
+  epoch: number; // the scenario's resolution count when posted
+  cancelled: boolean;
+};
+
+/** USDC a buyer pays for `amount` WETH at `price`, rounded up: a bid's escrow, or the cost of filling an ask. */
+export function cost(amount: bigint, price: bigint): bigint {
+  const p = amount * price;
+  return p === 0n ? 0n : (p - 1n) / ONE + 1n;
+}
+
+/** USDC a seller receives for `amount` WETH at `price`, rounded down: what filling a bid pays. */
+export function proceeds(amount: bigint, price: bigint): bigint {
+  return (amount * price) / ONE;
+}
+
+export type ScenarioState = { scenarioId: number; possible: number; resolutionCount: number };
+
+/** Why an order can no longer be filled (the contract's checks, in its order), or undefined if it can. */
+export function closedReason(o: Order, s: ScenarioState, nowSec: bigint): string | undefined {
+  if (o.cancelled) return "cancelled";
+  if (o.remaining === 0n) return "filled";
+  if (nowSec >= o.expiry) return "expired";
+  if ((o.mask & s.possible) === 0) return "world resolved away";
+  if (o.epoch !== s.resolutionCount) return "stale: a resolution came after it";
+  return undefined;
+}
+
+export function isOpen(o: Order, s: ScenarioState, nowSec: bigint): boolean {
+  return o.scenarioId === s.scenarioId && closedReason(o, s, nowSec) === undefined;
+}
+
+export type CellBook = { bids: Order[]; asks: Order[] };
+
+/** Open bids (highest first) and asks (lowest first) of one grid cell; equal prices keep the older order first. */
+export function cellBook(orders: readonly Order[], s: ScenarioState, mask: number, nowSec: bigint): CellBook {
+  const open = orders.filter((o) => o.mask === mask && isOpen(o, s, nowSec));
+  const byId = (a: Order, b: Order) => (a.id < b.id ? -1 : 1);
+  return {
+    bids: open.filter((o) => o.side === "bid").sort((a, b) => (a.price === b.price ? byId(a, b) : a.price > b.price ? -1 : 1)),
+    asks: open.filter((o) => o.side === "ask").sort((a, b) => (a.price === b.price ? byId(a, b) : a.price < b.price ? -1 : 1)),
+  };
+}
+
+export const nowSeconds = () => BigInt(Math.floor(Date.now() / 1000));
+
+/** How many resting orders the planner looks at per world (the order panel shows the same top 5). */
+export const MAX_PLAN_ORDERS = 5;
+
+export type Fill = { order: Order; amount: bigint; out: bigint };
+export type Candidate = { fills: Fill[]; poolAmount: bigint };
+export type WorldPlan = Candidate & { poolOut: bigint; total: bigint };
+
+/**
+ * Candidate k fills the best k bids in turn (the last one only in part if the sale runs out) and sends the rest to the
+ * pool. Candidate 0 is the pool alone. A bid that would pay nothing for its part ends the list: the book rejects such
+ * fills.
+ */
+export function saleCandidates(bids: readonly Order[], amount: bigint): Candidate[] {
+  const out: Candidate[] = [{ fills: [], poolAmount: amount }];
+  const fills: Fill[] = [];
+  let left = amount;
+  for (const order of bids.slice(0, MAX_PLAN_ORDERS)) {
+    if (left === 0n) break;
+    const take = order.remaining < left ? order.remaining : left;
+    const got = proceeds(take, order.price);
+    if (got === 0n) break;
+    fills.push({ order, amount: take, out: got });
+    left -= take;
+    out.push({ fills: [...fills], poolAmount: left });
+  }
+  return out;
+}
+
+/**
+ * The candidate that pays the most, given what the pool pays for each candidate's pool part. A missing quote means
+ * no plan yet; a pool part quoted at 0 (the view's answer when a swap would fail) skips that candidate. The comparison
+ * is strict, so a tie keeps the plan with fewer orders, ultimately the pool alone.
+ */
+export function bestPlan(candidates: readonly Candidate[], poolOut: (amount: bigint) => bigint | undefined): WorldPlan | undefined {
+  let best: WorldPlan | undefined;
+  for (const c of candidates) {
+    const fromPool = c.poolAmount === 0n ? 0n : poolOut(c.poolAmount);
+    if (fromPool === undefined) return undefined;
+    if (c.poolAmount !== 0n && fromPool === 0n) continue;
+    const total = c.fills.reduce((sum, f) => sum + f.out, fromPool);
+    if (!best || total > best.total) best = { ...c, poolOut: fromPool, total };
+  }
+  return best;
+}
+
+/** Each world must pay at least its plan, less 0.5% on the pool part: listed orders pay exactly their price. */
+export const SLIPPAGE_BPS = 50n;
+export const minOutOf = (plan: WorldPlan | undefined): bigint => (plan ? plan.total - (plan.poolOut * SLIPPAGE_BPS) / 10_000n : 0n);
+
+/** Where a sold world's ETH goes, for the preview line. */
+export function via(plan: WorldPlan | undefined): string {
+  if (!plan?.fills.length) return "sell via pool → ";
+  const orders = plan.fills.length === 1 ? "a bid" : `${plan.fills.length} bids`;
+  return `sell via ${orders}${plan.poolAmount > 0n ? " + pool" : ""} → `;
+}

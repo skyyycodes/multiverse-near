@@ -14,7 +14,8 @@
     "build:live": "NEXT_PUBLIC_NETWORK=sandbox NEXT_PUBLIC_DEMO_WALLET=1 next build && rm -rf out-live && mv out out-live",
     "build:demo": "NEXT_PUBLIC_NETWORK=testnet NEXT_PUBLIC_DEMO_WALLET=1 next build && rm -rf out-demo && mv out out-demo",
     "lint": "eslint",
-    "typecheck": "next typegen && tsc --noEmit"
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@hot-labs/near-connect": "0.12.0",
