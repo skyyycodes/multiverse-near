@@ -51,7 +51,7 @@ export interface EventView {
   finalized: boolean;
   outcome: number;
   finalizable_at_sec: number;
-  proposed_by: "admin" | "reporter" | null;
+  proposed_by: "admin" | "reporter" | "outlayer" | null;
 }
 
 export interface OrderView {
