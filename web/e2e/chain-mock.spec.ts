@@ -71,13 +71,13 @@ function ftOutcome(tx: Signed, panic?: string) {
   };
 }
 
-test("the sale is one ft_transfer_call of 2 WETH carrying the plan, and the app reports it done", async ({ page }) => {
+test("the sale is one ft_transfer_call of 2,000 wNEAR carrying the plan, and the app reports it done", async ({ page }) => {
   const signed: Signed[] = [];
   await serveChain(page);
   await demoWallet(page, signed, (tx) => ftOutcome(tx));
   await page.goto("/");
   await expect(page.locator('[data-demo="account"]')).toHaveAttribute("aria-label", `Account ${ALICE}`);
-  await expect(page.locator('[data-demo="sell-wallet"]')).toHaveText("wallet: 2.0000 WETH");
+  await expect(page.locator('[data-demo="sell-wallet"]')).toHaveText("wallet: 2,000.00 wNEAR");
   for (const w of ["DELAYED·CUTS", "SHIPS·HOLDS", "DELAYED·HOLDS"]) await page.locator(`[data-demo="world-card"][data-world="${w}"]`).click();
   await expect(page.locator('[data-demo="sell-confirm"]')).toHaveText("Sell in 3 worlds");
   await page.locator('[data-demo="sell-confirm"]').click();
@@ -88,10 +88,11 @@ test("the sale is one ft_transfer_call of 2 WETH carrying the plan, and the app 
   expect(tx.receiverId).toBe("wnear.multiverse-lending.testnet");
   const call = tx.actions[0].params;
   expect(call).toMatchObject({ methodName: "ft_transfer_call", deposit: "1", gas: "300000000000000" });
-  expect(call.args).toMatchObject({ receiver_id: CONTRACT, amount: "2000000000000000000", memo: null });
+  // wNEAR has 24 decimals: 2,000 of them, while the plan below speaks the contract's 18-decimal units.
+  expect(call.args).toMatchObject({ receiver_id: CONTRACT, amount: (2_000n * 10n ** 24n).toString(), memo: null });
   const msg = JSON.parse(call.args.msg as string);
   expect(msg).toMatchObject({ action: "conditional_sell", scenario_id: 1, sell_mask: 14, to_lending: true });
-  expect(msg.plans).toEqual([[], [], [], [{ order_id: "1", amount: "1000000000000000000" }]]);
+  expect(msg.plans).toEqual([[], [], [], [{ order_id: "1", amount: (1_000n * 10n ** 18n).toString() }]]);
   // Each sold world must pay at least its plan less 0.5% of its pool part; the unsold world asks for nothing.
   expect(msg.min_out[0]).toBe("0");
   expect(BigInt(msg.min_out[3])).toBeGreaterThan(4_850n * 10n ** 18n);

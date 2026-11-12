@@ -35,8 +35,8 @@ const SHOTS = [
     name: "09-orders-crossing",
     path: "/orders/?w=0&fx=book&as=alice",
     steps: async (page) => {
-      await page.locator('[data-demo="post-price"]').fill("3800");
-      await page.locator('[data-demo="post-amount"]').fill("0.2");
+      await page.locator('[data-demo="post-price"]').fill("3.80");
+      await page.locator('[data-demo="post-amount"]').fill("200");
     },
   },
   { name: "10-borrow-alice", path: "/borrow/?fx=borrowed&as=alice" },

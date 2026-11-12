@@ -161,5 +161,12 @@ export function usd(wad: string | bigint): string {
   return `${whole}.${(cents % 100n).toString().padStart(2, "0")}`;
 }
 
+/** As the app prints a NEAR price where cents would hide a difference: four decimals, truncated. */
+export function price4(wad: string | bigint): string {
+  const v = BigInt(wad);
+  const units = (v * 10_000n) / WAD;
+  return `${(units / 10_000n).toLocaleString("en-US")}.${(units % 10_000n).toString().padStart(4, "0")}`;
+}
+
 /** A WAD ratio (a health factor) as two decimals, truncated. */
 export const ratio = (wad: string | bigint): string => usd(wad);

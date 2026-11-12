@@ -4,7 +4,7 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test, type Browser, type Page } from "@playwright/test";
-import { chainNowSec, demoWallet, fastForwardTo, fund, persona, ratio, report, usd, view } from "./live/chain";
+import { chainNowSec, demoWallet, fastForwardTo, fund, persona, price4, ratio, report, usd, view } from "./live/chain";
 
 test.describe.configure({ mode: "serial" });
 
@@ -55,8 +55,8 @@ test("the grid, signed out: four backed worlds, prices and spot as the contract 
     await expect(page.locator(`[data-demo="world-card"][data-world="${w.label}"]`)).toContainText(`$${usd(w.wnear_price)}`);
   }
   await expect(page.locator('[data-demo="stat-backing"]')).toContainText("✓ all backed");
-  await expect(page.locator('[data-demo="stat-actual-spot"]')).toContainText(`$${usd(t.scenario.spot_price)}`);
-  await expect(page.locator('[data-demo="stat-implied-spot"]')).toContainText(`$${usd(t.scenario.implied_spot)}`);
+  await expect(page.locator('[data-demo="stat-actual-spot"]')).toContainText(`$${price4(t.scenario.spot_price)}`);
+  await expect(page.locator('[data-demo="stat-implied-spot"]')).toContainText(`$${price4(t.scenario.implied_spot)}`);
   await shoot(page, "02-grid", "/?welcome=0");
   await page.locator('[data-demo="scenario-switch"]').click();
   await page.locator('[data-demo="scenario-binary"]').click();
@@ -68,18 +68,18 @@ test("the grid, signed out: four backed worlds, prices and spot as the contract 
   await page.context().close();
 });
 
-test("Alice sells 2 WETH in the L-shape: Ravi's bid in the preview, one transaction, collateral lands", async ({ browser }) => {
+test("Alice sells 2,000 NEAR in the L-shape: Ravi's bid in the preview, one transaction, collateral lands", async ({ browser }) => {
   const page = await as(browser, "alice");
   await page.goto("/");
   await connected(page, "alice");
-  await expect(page.locator('[data-demo="sell-wallet"]')).toHaveText("wallet: 2.0000 WETH");
+  await expect(page.locator('[data-demo="sell-wallet"]')).toHaveText("wallet: 2,000.00 wNEAR");
   for (const label of ["DELAYED·CUTS", "SHIPS·HOLDS", "DELAYED·HOLDS"]) await page.locator(`[data-demo="world-card"][data-world="${label}"]`).click();
   const confirm = page.locator('[data-demo="sell-confirm"]');
   await expect(confirm).toHaveText("Sell in 3 worlds");
 
-  // the pool quotes from the chain, and Ravi's bid at 2,450 for the first ETH in DELAYED·HOLDS
-  const pool = await view<string[]>("quote_sell", { scenario_id: S, wnear_amount: (2n * 10n ** 18n).toString(), sell_mask: 14 });
-  const [dhPool] = await view<string[]>("quote_sell_parts", { scenario_id: S, parts: [{ world: 3, wnear_amount: (10n ** 18n).toString() }] });
+  // the pool quotes from the chain, and Ravi's bid at 2.45 for the first 1,000 NEAR in DELAYED·HOLDS
+  const pool = await view<string[]>("quote_sell", { scenario_id: S, wnear_amount: (2_000n * 10n ** 18n).toString(), sell_mask: 14 });
+  const [dhPool] = await view<string[]>("quote_sell_parts", { scenario_id: S, parts: [{ world: 3, wnear_amount: (1_000n * 10n ** 18n).toString() }] });
   const dh = 2450n * 10n ** 18n + BigInt(dhPool);
   expect(usd(pool[1])).toBe("5,865.05");
   expect(usd(pool[2])).toBe("6,451.55");
@@ -88,10 +88,10 @@ test("Alice sells 2 WETH in the L-shape: Ravi's bid in the preview, one transact
   await expect(page.locator('[data-demo="sell-row"][data-world="SHIPS·HOLDS"]')).toContainText(`${usd(pool[2])} USDC`);
   const dhRow = page.locator('[data-demo="sell-row"][data-world="DELAYED·HOLDS"]');
   await expect(dhRow).toContainText(`sell via a bid + pool → ${usd(dh)} USDC`);
-  await expect(dhRow.locator('[data-demo="plan-legs"]')).toContainText("bid #1 · 1.0000 ETH @ $2,450.00");
-  await expect(dhRow.locator('[data-demo="plan-legs"]')).toContainText(`pool · 1.0000 ETH`);
+  await expect(dhRow.locator('[data-demo="plan-legs"]')).toContainText("bid #1 · 1,000.00 NEAR @ $2.4500");
+  await expect(dhRow.locator('[data-demo="plan-legs"]')).toContainText("pool · 1,000.00 NEAR");
   await expect(dhRow.locator('[data-demo="plan-legs"]')).toContainText(`${usd(dhPool)} USDC`);
-  await expect(page.locator('[data-demo="sell-row"][data-world="SHIPS·CUTS"]')).toContainText("keep → 2.0000 WETH");
+  await expect(page.locator('[data-demo="sell-row"][data-world="SHIPS·CUTS"]')).toContainText("keep → 2,000.00 NEAR");
   await shoot(page, "04-sell-preview", "/sell/?sel=14");
 
   await page.goto("/?sel=14");
@@ -101,7 +101,7 @@ test("Alice sells 2 WETH in the L-shape: Ravi's bid in the preview, one transact
   const t = await view<{ scenario: { worlds: World[] }; orders: unknown[] }>("trade_view", { scenario_id: S, account_id: persona("alice") });
   expect(t.orders).toHaveLength(0);
   expect(usd(t.scenario.worlds[3].collateral_usdc)).toBe("4,881.88");
-  await expect(page.locator('[data-demo="world-card"][data-world="SHIPS·CUTS"]')).toContainText("You hold 2.0000 WETH here · loan collateral");
+  await expect(page.locator('[data-demo="world-card"][data-world="SHIPS·CUTS"]')).toContainText("You hold 2,000.00 NEAR here · loan collateral");
   for (const w of t.scenario.worlds.slice(1)) {
     await expect(page.locator(`[data-demo="world-card"][data-world="${w.label}"]`)).toContainText(`You hold ${usd(w.collateral_usdc)} USDC here · loan collateral`);
   }
@@ -152,81 +152,82 @@ test("Bob's lending screen matches the market", async ({ browser }) => {
   await page.context().close();
 });
 
-const ETH = 10n ** 18n;
+/** Token units: wNEAR has 24 decimals, USDC 6. */
+const NEAR = 10n ** 24n;
 const USDC = 10n ** 6n;
 
 test("Ravi quotes SHIPS·CUTS, Sam accepts the ask", async ({ browser }) => {
-  await fund(persona("ravi"), { wnear: 2n * ETH, usdc: 5_000n * USDC });
+  await fund(persona("ravi"), { wnear: 2_000n * NEAR, usdc: 5_000n * USDC });
   await fund(persona("sam"), { usdc: 5_000n * USDC });
   const ravi = await as(browser, "ravi");
   await ravi.goto("/orders/?w=0");
   await connected(ravi, "ravi");
   await expect(ravi.locator("main")).toContainText("Order book · SHIPS·CUTS");
   await ravi.locator('[data-demo="post-ask-tab"]').click();
-  await ravi.locator('[data-demo="post-price"]').fill("3750");
-  await ravi.locator('[data-demo="post-amount"]').fill("0.5");
+  await ravi.locator('[data-demo="post-price"]').fill("3.75");
+  await ravi.locator('[data-demo="post-amount"]').fill("1000");
   await ravi.locator('[data-demo="post-ask"]').click();
   await expect(ravi.locator('[data-demo="post-ask-result"]')).toContainText("Done · ", { timeout: 60_000 });
   await ravi.locator('[data-demo="post-bid-tab"]').click();
-  await ravi.locator('[data-demo="post-price"]').fill("3600");
-  await ravi.locator('[data-demo="post-amount"]').fill("0.5");
+  await ravi.locator('[data-demo="post-price"]').fill("3.60");
+  await ravi.locator('[data-demo="post-amount"]').fill("1000");
   await ravi.locator('[data-demo="post-bid"]').click();
   await expect(ravi.locator('[data-demo="post-bid-result"]')).toContainText("Done · ", { timeout: 60_000 });
   const ladder = ravi.locator('[data-demo="ladder"]');
-  await expect(ladder.locator('[data-demo="ladder-row"][data-side="ask"]')).toContainText("$3,750.00");
-  await expect(ladder.locator('[data-demo="ladder-row"][data-side="bid"]')).toContainText("$3,600.00");
-  await expect(ravi.locator('[data-demo="my-orders"]')).toContainText("$3,750.00");
+  await expect(ladder.locator('[data-demo="ladder-row"][data-side="ask"]')).toContainText("$3.7500");
+  await expect(ladder.locator('[data-demo="ladder-row"][data-side="bid"]')).toContainText("$3.6000");
+  await expect(ravi.locator('[data-demo="my-orders"]')).toContainText("$3.7500");
   await shoot(ravi, "09-book-ravi", "/orders/?w=0");
   await ravi.context().close();
 
   const orders = (await view<{ orders: { id: string; side: string; price: string; maker: string }[] }>("trade_view", { scenario_id: S })).orders;
-  const ask = orders.find((o) => o.side === "ask" && o.price === (3750n * 10n ** 18n).toString())!;
+  const ask = orders.find((o) => o.side === "ask" && o.price === (375n * 10n ** 16n).toString())!;
   expect(ask.maker).toBe(persona("ravi"));
 
   const sam = await as(browser, "sam");
   await sam.goto("/orders/?w=0");
   await connected(sam, "sam");
-  const row = sam.locator('[data-demo="ladder-row"][data-side="ask"]', { hasText: "$3,750.00" });
+  const row = sam.locator('[data-demo="ladder-row"][data-side="ask"]', { hasText: "$3.7500" });
   await expect(row).toContainText(persona("ravi"));
   await row.locator('[data-demo="accept"]').click();
   const box = sam.locator('[data-demo="accept-box"]');
-  await expect(box).toContainText(`Buy from ask #${ask.id} at $3,750.00`);
-  await expect(box).toContainText("Pay 1,875.00 USDC; get 0.5000 WETH-if-SHIPS·CUTS");
-  await sam.locator('[data-demo="post-price"]').fill("3800");
-  await sam.locator('[data-demo="post-amount"]').fill("0.1");
-  await expect(sam.locator('[data-demo="post-form"]')).toContainText(`This bid crosses ask #${ask.id} at $3,750.00, which is already there.`);
+  await expect(box).toContainText(`Buy from ask #${ask.id} at $3.7500`);
+  await expect(box).toContainText("Pay 3,750.00 USDC; get 1,000.00 NEAR-if-SHIPS·CUTS");
+  await sam.locator('[data-demo="post-price"]').fill("3.80");
+  await sam.locator('[data-demo="post-amount"]').fill("100");
+  await expect(sam.locator('[data-demo="post-form"]')).toContainText(`This bid crosses ask #${ask.id} at $3.7500, which is already there.`);
   await shoot(sam, "10-accept-ask", "/orders/?w=0&buy=1");
-  await sam.locator('[data-demo="ladder-row"][data-side="ask"]', { hasText: "$3,750.00" }).locator('[data-demo="accept"]').click();
-  await expect(box).toContainText(`Buy from ask #${ask.id} at $3,750.00`);
+  await sam.locator('[data-demo="ladder-row"][data-side="ask"]', { hasText: "$3.7500" }).locator('[data-demo="accept"]').click();
+  await expect(box).toContainText(`Buy from ask #${ask.id} at $3.7500`);
   await sam.locator('[data-demo="accept-confirm"]').click();
   await expect(sam.locator('[data-demo="accept-confirm-result"]')).toContainText("Done · ", { timeout: 60_000 });
   const after = await view<{ scenario: { worlds: World[] }; orders: { id: string }[] }>("trade_view", { scenario_id: S, account_id: persona("sam") });
   expect(after.orders.some((o) => o.id === ask.id)).toBe(false);
-  expect(after.scenario.worlds[0].user_wnear).toBe((5n * 10n ** 17n).toString());
-  await expect(sam.locator('[data-demo="ladder-row"][data-side="ask"]', { hasText: "$3,750.00" })).toHaveCount(0);
+  expect(after.scenario.worlds[0].user_wnear).toBe((1_000n * 10n ** 18n).toString());
+  await expect(sam.locator('[data-demo="ladder-row"][data-side="ask"]', { hasText: "$3.7500" })).toHaveCount(0);
   await shoot(sam, "11-after-accept");
   await sam.context().close();
 });
 
 test("Uma underwrites every world as Root LP, then withdraws it all", async ({ browser }) => {
-  await fund(persona("uma"), { wnear: 5n * ETH, usdc: 20_000n * USDC });
+  await fund(persona("uma"), { wnear: 5_000n * NEAR, usdc: 20_000n * USDC });
   const page = await as(browser, "uma");
   await page.goto("/lend/");
   await connected(page, "uma");
-  await page.locator('[data-demo="lp-wnear"]').fill("5");
+  await page.locator('[data-demo="lp-wnear"]').fill("5000");
   await page.locator('[data-demo="lp-usdc"]').fill("20000");
   const preview = await view<{ shares: string }>("preview_lp_deposit", {
     scenario_id: S,
-    wnear_amount: (5n * 10n ** 18n).toString(),
+    wnear_amount: (5_000n * 10n ** 18n).toString(),
     usdc_amount: (20000n * 10n ** 18n).toString(),
   });
   await expect(page.locator('[data-demo="lp-deposit"]')).toContainText(usd(preview.shares));
   await shoot(page, "12-lp-preview", undefined, async (p) => {
-    await p.locator('[data-demo="lp-wnear"]').fill("5");
+    await p.locator('[data-demo="lp-wnear"]').fill("5000");
     await p.locator('[data-demo="lp-usdc"]').fill("20000");
   });
   await expect(async () => {
-    await page.locator('[data-demo="lp-wnear"]').fill("5");
+    await page.locator('[data-demo="lp-wnear"]').fill("5000");
     await page.locator('[data-demo="lp-usdc"]').fill("20000");
     await expect(page.locator('[data-demo="lp-deposit-confirm"]')).toHaveText("Underwrite every world", { timeout: 3_000 });
     await page.locator('[data-demo="lp-deposit-confirm"]').click({ timeout: 2_000 });
@@ -245,7 +246,7 @@ test("Uma underwrites every world as Root LP, then withdraws it all", async ({ b
   await page.context().close();
 });
 
-test("resolution: the resolver proposes Fed HOLDS, the window runs out, Alice finalizes; the owner resolves Glamsterdam DELAYED; Alice closes", async ({ browser }) => {
+test("resolution: the resolver proposes Fed HOLDS, the window runs out, Alice finalizes; the owner resolves SPICE DELAYED; Alice closes", async ({ browser }) => {
   const owner = await as(browser, "owner");
   await owner.goto("/admin/");
   await connected(owner, "owner");
@@ -272,11 +273,11 @@ test("resolution: the resolver proposes Fed HOLDS, the window runs out, Alice fi
   await shoot(alice, "17-fed-final");
 
   await owner.reload();
-  const glam = owner.locator('[data-demo="event-card"][data-event="1"]');
-  await glam.locator('[data-demo="resolve-outcome"]', { hasText: "DELAYED" }).click();
-  await expect(glam.locator('[data-demo="resolve-now"]')).toHaveText("Resolve now: DELAYED");
-  await glam.locator('[data-demo="resolve-now"]').click();
-  await expect(glam.locator('[data-demo="event-badge"]')).toHaveText("Resolved: DELAYED", { timeout: 60_000 });
+  const spice = owner.locator('[data-demo="event-card"][data-event="1"]');
+  await spice.locator('[data-demo="resolve-outcome"]', { hasText: "DELAYED" }).click();
+  await expect(spice.locator('[data-demo="resolve-now"]')).toHaveText("Resolve now: DELAYED");
+  await spice.locator('[data-demo="resolve-now"]').click();
+  await expect(spice.locator('[data-demo="event-badge"]')).toHaveText("Resolved: DELAYED", { timeout: 60_000 });
   await shoot(owner, "18-admin-resolved");
   await owner.context().close();
 

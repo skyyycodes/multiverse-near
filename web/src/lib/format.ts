@@ -61,7 +61,7 @@ export function pct(part: bigint, whole: bigint, digits = 1): string {
 
 /** Named accounts stay readable; only implicit (hex) accounts are cut in the middle. */
 export function shortAccount(a: string): string {
-  if (/^[0-9a-f]{64}$/.test(a) || /^0x[0-9a-fA-F]{40}$/.test(a)) return `${a.slice(0, 6)}…${a.slice(-4)}`;
+  if (/^[0-9a-f]{64}$/.test(a)) return `${a.slice(0, 6)}…${a.slice(-4)}`;
   return a.length <= 22 ? a : `${a.slice(0, 20)}…`;
 }
 

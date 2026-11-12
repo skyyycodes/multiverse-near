@@ -78,8 +78,8 @@ Ladder rows carry `data-side="bid|ask"`; event cards `data-event="<id>"`.
 ## 4. Transactions: one per action
 
 There are no approvals on NEAR: every real-token action is a single `ft_transfer_call` (the tokens travel with the
-instruction; unused tokens come back). Where the EVM recorder waited for "2 txs (approve + …)", expect one signature.
-Exceptions: the Root LP deposit is two (WETH deposit, then `lp_deposit`) unless the WETH already sits in the internal
+instruction; unused tokens come back), so expect one signature per action.
+Exceptions: the Root LP deposit is two (wNEAR deposit, then `lp_deposit`) unless the wNEAR already sits in the internal
 balance; an account's first action adds a one-time NEP-145 storage registration (register personas off camera to
 avoid it). Every transaction button (`TxButton`) shows its outcome in `[data-demo="<button hook>-result"]`:
 `Done · <first 10 chars of the hash>…` (a link to nearblocks; plain text on the sandbox) or the contract's own error,
@@ -92,10 +92,10 @@ proposal with a countdown comes from the resolver's `report_outcome`.
 ### Shell
 | Hook | What |
 |---|---|
-| `scenario-switch` | Scenario pill; opens a list with `scenario-2x2` ("Glamsterdam × Fed (4 worlds)") and `scenario-binary` ("Glamsterdam only (2 worlds)") |
+| `scenario-switch` | Scenario pill; opens a list with `scenario-2x2` ("SPICE × Fed (4 worlds)") and `scenario-binary` ("SPICE only (2 worlds)") |
 | `connect`, `account` | Connect button / signed-in account button (`aria-label="Account <id>"`); `account` opens `account-sheet` |
 | `account-sheet`, `account-id`, `disconnect`, `withdraw-inner-wnear`, `withdraw-inner-usdc` | Account sheet: id, balances, internal "In Multiverse" balance and its withdrawal |
-| `test-tokens`, `get-test-tokens`, `faucet-progress` | Account sheet, testnet builds without design data: "Get test tokens" (mints 2 WETH and 5,000 USDC to the account itself, then registers it with Multiverse if needed) and one line per finished step |
+| `test-tokens`, `get-test-tokens`, `faucet-progress` | Account sheet, testnet builds without design data: "Get test tokens" (mints 2,000 wNEAR and 5,000 USDC to the account itself, then registers it with Multiverse if needed) and one line per finished step |
 | `status-bell` | Link to Resolve; shows a pulsing dot while a result is in its dispute window |
 | `help` | Link to `/welcome/` |
 | `fixture-picker`, `persona-<name>` | Design fixtures only: the "Sign in as" list |
@@ -108,29 +108,29 @@ proposal with a countdown comes from the resolver's `report_outcome`.
 | Hook | What, and the text it carries |
 |---|---|
 | `trade` / `sell` / `orders` | The screen's `main` |
-| `hero-spot` | "ETH SPOT" numeral and "implied by the four futures: $3,037.86 ✓" (or the difference) |
-| `balance-chips` | Wallet WETH, USDC, and "In Multiverse" when non-zero |
-| `empty-wallet-hint`, `hint-test-tokens` | Testnet, connected wallet with no WETH and no USDC: the same "Get test tokens" button under the balances |
+| `hero-spot` | "NEAR SPOT" numeral ("$3.0378") and "implied by the four futures: $3.0378 ✓" (or the difference) |
+| `balance-chips` | Wallet wNEAR, USDC, and "In Multiverse" when non-zero |
+| `empty-wallet-hint`, `hint-test-tokens` | Testnet, connected wallet with no wNEAR and no USDC: the same "Get test tokens" button under the balances |
 | `scenario-status` | "scenario {id} · {n} resolved", plus " · paused: resolution pending" while halted |
 | `futures-strip`, `world-thumb` | Phone: small world cards (link to `/world/`) |
 | `action-tiles`, `tile-protect`, `tile-back`, `tile-borrow`, `tile-lend` | Phone: Protect (sell), Back (buy), Borrow, Lend |
 | `futures-list`, `future-row` | Phone: "Possible futures" rows, then "Resolved away" |
-| `world-grid`, `world-card`, `world-details` | Desktop grid: card = `button[aria-pressed]` whose first line is the world label; "SELL"/"BOOK" tag when selected; `world-details` opens the world screen |
+| `world-grid`, `grid-axes`, `axis-label`, `world-card`, `world-details` | Desktop grid: `grid-axes` names the rows' and the columns' question once, in full; `axis-label` is an outcome over a column or beside a row (the question in its `title`); card = `button[aria-pressed]` whose first line is the world label; "SELL"/"BOOK" tag when selected; `world-details` opens the world screen |
 | `spot-stats`, `stat-actual-spot`, `stat-implied-spot`, `stat-impact`, `stat-backing` | "ACTUAL SPOT", "IMPLIED SPOT" ("odds × world prices …"), "IMPACT METER" ("gap between …", sparkline `role=img` "Impact meter history"), "EVERY WORLD BALANCES" ("✓ all backed") |
 | `rules` | One paragraph per event: question, then the rule |
 | `trade-aside`, `tab-sell`, `tab-book` | Desktop sheet with `button[role=tab]` "Sell" / "Order book" |
 | `sell-panel`, `world-pick-grid`, `world-pick` | Sell form; phone picker pills = `button[aria-pressed]` with `data-world` |
-| `sell-amount` | Amount input (`aria-label="Amount of WETH to split"`), default "2" |
-| `sell-wallet` | "wallet: 2.0000 WETH" (fills the input) |
-| `sell-from-wallet`, `sell-from-inner` | Source switch, only when the internal WETH balance is non-zero |
-| `sell-preview`, `sell-row` (`data-world`) | Per-world rows: "sell via a bid + pool → 4,881.88 USDC" / "keep → 2.0000 WETH", Fair price, You get, Cost / ETH |
-| `plan-legs` | "bid #1 · 1.0000 ETH @ $2,450.00 … 2,450.00 USDC", "pool · 1.0000 ETH … 2,431.88 USDC" |
+| `sell-amount` | Amount input (`aria-label="Amount of NEAR to split"`), default "2000" |
+| `sell-wallet` | "wallet: 2,000.00 wNEAR" (fills the input) |
+| `sell-from-wallet`, `sell-from-inner` | Source switch, only when the internal wNEAR balance is non-zero |
+| `sell-preview`, `sell-row` (`data-world`) | Per-world rows: "sell via a bid + pool → 4,881.88 USDC" / "keep → 2,000.00 NEAR", Fair price, You get, Cost / NEAR (prices to four decimals) |
+| `plan-legs` | "bid #1 · 1,000.00 NEAR @ $2.4500 … 2,450.00 USDC", "pool · 1,000.00 NEAR … 2,431.88 USDC" |
 | `sell-to-lending` | "Keep the result as loan collateral…" checkbox |
 | `sell-confirm` | "Sell in 3 worlds" (or its blocker); result in `sell-confirm-result` |
 | `order-panel`, `book-pick-grid`, `book-pick` | Order book; phone picker |
 | `ladder`, `ladder-row` (`data-side`), `ladder-pool`, `accept` | Ladder: asks above "pool price", bids below; `accept` per row ("Accept") |
-| `accept-box`, `accept-amount`, `accept-confirm` | "Buy from ask #2 at $3,750.00" / "Sell into bid …"; input `aria-label="Amount of ETH to trade with this order"`; "Confirm" |
-| `post-form`, `post-bid-tab`, `post-ask-tab`, `post-price`, `post-amount`, `post-life`, `post-bid`, `post-ask` | "Post bid" / "Post ask"; "Price (USDC per ETH)", "Amount (ETH)", "Good for"; the crossing warning "This bid crosses ask #… which is already there." sits in `post-form` |
+| `accept-box`, `accept-amount`, `accept-confirm` | "Buy from ask #2 at $3.7500" / "Sell into bid …"; input `aria-label="Amount of NEAR to trade with this order"`; "Confirm" |
+| `post-form`, `post-bid-tab`, `post-ask-tab`, `post-price`, `post-amount`, `post-life`, `post-bid`, `post-ask` | "Post bid" / "Post ask"; "Price (USDC per NEAR)", "Amount (NEAR)", "Good for"; the crossing warning "This bid crosses ask #… which is already there." sits in `post-form` |
 | `my-orders`, `cancel-order` | "Your orders here"; "Cancel" / "Cancel and take the escrow back" |
 
 ### World (`/world/?w=3`)
@@ -152,7 +152,7 @@ proposal with a countdown comes from the resolver's `report_outcome`.
 `hero-supply-apr`, `lend-stats` with `stat-utilization` ("UTILIZATION"), `stat-supplied` ("YOU SUPPLIED"),
 `stat-earned` ("YOU EARNED"); `supply-card`, `supply-amount`, `supply-confirm` ("Supply"); `withdraw-card`,
 `withdraw-amount`, `withdraw-all`, `withdraw-confirm`; Root LP: `root-lp` ("Underwrite every world"), `lp-deposit`,
-`lp-wnear` ("Amount (WETH)"), `lp-usdc` ("Amount (USDC)"), `lp-deposit-confirm` ("Underwrite every world"),
+`lp-wnear` ("Amount (NEAR)"), `lp-usdc` ("Amount (USDC)"), `lp-deposit-confirm` ("Underwrite every world"),
 `lp-position`, `lp-withdraw-all` ("Withdraw all"), `lp-table`.
 
 ### Resolve (`/resolve/`)
@@ -167,37 +167,20 @@ redeemed 4,881.88 real USDC."), `wallet-redeem`, `redeem`.
 ### Admin (`/admin/`)
 `owner-status` ("✓ Connected as the oracle owner"), `admin-events`, `resolve-controls`, `resolve-outcome` (outcome
 chips, `aria-pressed`), `resolve-now` ("Resolve now: HOLDS"), `dispute` ("Dispute the proposal"); `price-push`,
-`push-pick` (phone picker), `push-amount` (`aria-label="Amount of WETH to sell in the picked world"`), `push-confirm`
-("Push DELAYED·HOLDS down"), `push-result` ("DELAYED·HOLDS: $x → $y"), `mint-wnear` ("Mint 3.0000 test WETH to my
+`push-pick` (phone picker), `push-amount` (`aria-label="Amount of NEAR to sell in the picked world"`), `push-confirm`
+("Push DELAYED·HOLDS down"), `push-result` ("DELAYED·HOLDS: $x → $y"), `mint-wnear` ("Mint 3,000.00 test wNEAR to my
 wallet"); `demo-reset`, `reset-command`.
 
 ## 6. Load-bearing strings
 
-Kept verbatim from the EVM app: the world labels with "·"; "wallet: 2.0000 WETH"; "Sell in N world(s)";
+The recorder may wait for these: the world labels with "·"; "wallet: 2,000.00 wNEAR"; "Sell in N world(s)";
 "bid #"; "Keep the result as loan collateral"; "Done ·"; "You hold … here · loan collateral"; "Health factor",
 "HEALTH FACTOR (WORST WORLD)", "worst world:"; "Liquidatable", "Health factor below 1"; "Borrow real USDC", "Amount
 (USDC)", "Supply USDC", "UTILIZATION", "YOU SUPPLIED", "YOU EARNED"; tab "Order book" (`button[role=tab]`, desktop),
-"Order book · SHIPS·CUTS", "Post ask", "Post bid", "Price (USDC per ETH)", "Amount (ETH)", "Buy from ask", "Confirm";
-"Underwrite every world", "Amount (WETH)", "Withdraw all"; "Connected as the oracle owner", "Mint 3.0000 test WETH",
+"Order book · SHIPS·CUTS", "Post ask", "Post bid", "Price (USDC per NEAR)", "Amount (NEAR)", "Buy from ask", "Confirm";
+"Underwrite every world", "Amount (NEAR)", "Withdraw all"; "Connected as the oracle owner", "Mint 3,000.00 test wNEAR",
 "Push DELAYED·HOLDS down", "DELAYED·HOLDS: $"; "Finalize in", "Finalize", "Resolved", "paused: resolution pending",
 "Only DELAYED·HOLDS is still possible", "collapsed: redeemed 1:1", "Close and redeem", "Repaid $", "Demo reset";
-"ACTUAL SPOT"/"real WETH", "IMPLIED SPOT"/"odds ×", "IMPACT METER"/"gap between", "EVERY WORLD BALANCES"/"live tokens";
-"Glamsterdam × Fed (4 worlds)", "Glamsterdam only (2 worlds)" (now inside the scenario list); the event questions and
+"ACTUAL SPOT"/"real wNEAR", "IMPLIED SPOT"/"odds ×", "IMPACT METER"/"gap between", "EVERY WORLD BALANCES"/"live tokens";
+"SPICE × Fed (4 worlds)", "SPICE only (2 worlds)" (inside the scenario list); the event questions and
 rules come from the chain.
-
-Changed because they named EVM tools:
-
-| EVM | NEAR app |
-|---|---|
-| " by Chainlink CRE" | " by the resolver" (" by the admin override", " by OutLayer") |
-| "During the hackathon the Chainlink CRE workflow resolves …" | "During the hackathon a resolver script resolves …" |
-| "The same CRE workflow resolves this event from FRED's …" | "The same resolver reads this event from FRED's …" |
-| "Past Fed decision · CRE reads FRED" | "Past Fed decision · resolver reads FRED" |
-| "… through the same functions as the CRE path … when CRE cannot run." | "… as the resolver's path … when the resolver cannot run." |
-| "… in one world's Uniswap v4 pool from this wallet, through the router." | "… in one world's pool, inside the Multiverse contract, from this wallet." |
-| "No contracts for {chain} in deployments.json yet." | "The Multiverse contract {id} is not deployed on testnet yet." |
-| "… but SeedDemo has not run there yet." | "… but the demo has not been seeded there yet." |
-| "This deployment has no order book yet (deployed before build step 7)." | "The order book is not live on this deployment yet." |
-| Demo reset: `contracts/script/reset-demo.sh …`, keys in `contracts/.env` | `NEXT_PUBLIC_RESET_COMMAND` (default `RUN_SALE=false pnpm -C scripts reset`), keys in `.keys/` |
-| Header: Anon-RPC switch, network picker, RainbowKit | Removed; NEAR Connect account button |
-| "Approving WETH…", "Approving USDC…" steps | Removed (no approvals); new steps "Registering with Multiverse…", "Registering on USDC…", "Depositing WETH…" |

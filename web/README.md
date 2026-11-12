@@ -1,6 +1,6 @@
 # Multiverse web app
 
-The browser app for Multiverse Lending on NEAR: pick the futures you fear, sell ETH only there, borrow real USDC
+The browser app for Multiverse Lending on NEAR: pick the futures you fear, sell NEAR only there, borrow real USDC
 against your worst one, lend, underwrite every world, and close out when the events resolve.
 
 Next.js (App Router, static export) · React 19 · TypeScript strict · Tailwind 4 · framer-motion · TanStack Query ·
@@ -28,7 +28,7 @@ Static build (any static host serves `out/`):
 
 ```bash
 pnpm build && pnpm serve                       # out/ on http://localhost:3040
-pnpm build:fixtures && pnpm serve:fixtures     # out-fixtures/ on http://localhost:3031
+pnpm build:fixtures && pnpm serve:fixtures     # out-fixtures/ on http://localhost:3041
 ```
 
 ## Configuration
@@ -81,7 +81,7 @@ withdrawal, the resolver's proposal through its dispute window, the owner's over
 each checked against the contract's views. It changes the chain, so start from a fresh node for every run.
 
 Screenshots of every screen and state at 390 × 844 and 1440 × 900: `pnpm serve:fixtures`, then
-`node scripts/shots.mjs http://localhost:3031 <dir>`.
+`node scripts/shots.mjs http://localhost:3041 <dir>`.
 
 ## How it fits together
 
@@ -101,8 +101,9 @@ Screenshots of every screen and state at 390 × 844 and 1440 × 900: `pnpm serve
   "Done". Storage registration (NEP-145 on Multiverse, and on the payout
   token before a payout) runs first when needed.
 - Amounts are bigint throughout. The contract keeps every amount in 18 decimals; wallet balances (`ft_balance_of`)
-  arrive in token units and are scaled once (`lib/units.ts`). Formatting truncates, percentages round half up, as
-  in the EVM app (`lib/format.ts`).
+  arrive in token units and are scaled once (`lib/units.ts`). Formatting truncates and percentages round half up
+  (`lib/format.ts`). A NEAR price never shows in whole dollars: two decimals by default, four where cents would hide
+  a difference (spot against implied spot, fair price, cost per NEAR, order prices); NEAR amounts show with two.
 - `src/lib/orders.ts`: the order book in the browser and the sale planner (best bids first while they beat the pool,
   the rest to the pool, at most 5 per world, your own orders skipped, 0.5% slippage on the pool part only).
 - `src/lib/fixtures/`: the design data, built from the seeded demo with the pools' own constant-product maths, so
