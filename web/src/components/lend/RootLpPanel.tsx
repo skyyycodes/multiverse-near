@@ -15,7 +15,7 @@ import { useSubmit } from "@/lib/hooks/useTx";
 import { call, ftTransferCall } from "@/lib/near/tx";
 import { toTokenCeil, toTokenFloor } from "@/lib/units";
 
-/** Minimums sent with a deposit or withdrawal: the preview less 0.5%, so a pool that moves in between reverts it. */
+/** Minimums sent with a deposit or withdrawal: the preview less 0.5%, so a pool that moves in between fails the call. */
 const lessSlippage = (x: bigint) => (x * 9_950n) / 10_000n;
 const smallest = (xs: readonly bigint[]) => xs.reduce((m, x) => (x < m ? x : m), xs[0] ?? 0n);
 /** Shares in the vault's own decimals, shown with the 18-decimal formatter. */
