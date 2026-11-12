@@ -1,6 +1,7 @@
 // A local NEAR sandbox node with the whole deployment on it: test.near as the root, the personas
-// as sub-accounts (alice.test.near, ...), both mock tokens and the protocol contract, so seeding
-// and the end-to-end flow run in seconds without testnet NEAR.
+// as sub-accounts (alice.test.near, ...), both mock tokens (wnear.test.near with 24 decimals,
+// usdc.test.near with 6) and the protocol contract, so seeding and the end-to-end flow run in
+// seconds without testnet NEAR.
 //
 //   pnpm sandbox [start] [--fresh] [--wasm <multiverse.wasm>] [--mock-ft-wasm <mock_ft.wasm>]
 //   pnpm sandbox stop | status
