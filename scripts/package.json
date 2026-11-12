@@ -21,7 +21,8 @@
     "demo-sale": "tsx demo-sale.ts",
     "reset": "tsx reset.ts",
     "resolver": "tsx resolver.ts",
-    "e2e": "tsx e2e.ts"
+    "e2e": "tsx e2e.ts",
+    "outlayer": "tsx outlayer.ts"
   },
   "dependencies": {
     "near-api-js": "7.4.0"
