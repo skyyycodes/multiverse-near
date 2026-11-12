@@ -60,8 +60,8 @@ follow on the local sandbox (see "Verify it yourself").
 - Node 22 and pnpm 10, only to run the app locally or to run the checks in "Verify it yourself".
 - Test wNEAR and USDC. Once your wallet is connected, click "Get test tokens" in the account sheet (or under the
   balances on the Trade screen while your wallet holds no wNEAR and no USDC). It mints 2,000 wNEAR and 5,000 USDC to
-  your own account, then pays the 0.1 NEAR Multiverse storage deposit if you have none: up to three wallet
-  approvals. The mock tokens have an open `mint` capped at 1,000,000 wNEAR and 10,000,000 USDC per call, and an
+  your own account (skipping a token you already hold that much of), then pays the 0.1 NEAR Multiverse storage
+  deposit if you have none: up to three wallet approvals. The mock tokens have an open `mint` capped at 1,000,000 wNEAR and 10,000,000 USDC per call, and an
   account that is not registered with the token yet can only mint to itself, which registers it. Without the app,
   NEAR CLI (`near-cli-rs`) does the same:
 
@@ -77,8 +77,8 @@ near contract call-function as-transaction usdc.multiverse-near.testnet mint \
   sign-as <you>.testnet network-config testnet sign-with-keychain send
 ```
 
-That is 2,000 wNEAR (24 decimals) and 5,000 USDC (6 decimals). The Admin screen's "Mint test wNEAR to my wallet"
-button is a separate tool for the owner account's price pushes.
+That is 2,000 wNEAR (24 decimals) and 5,000 USDC (6 decimals). The Admin screen's "Mint <amount> test wNEAR to my
+wallet" button is a separate tool for the owner's price pushes; for any other account it reads "Oracle owner only".
 
 ### Open the app
 
@@ -102,11 +102,12 @@ pnpm -C web dev        # http://localhost:3040, reads app.multiverse-near.testne
 2. Click "Connect NEAR wallet" and pick Meteor, Intear or Nightly. See your wallet's wNEAR and USDC on the Trade
    screen; if both are zero, click "Get test tokens" there. Before the first action that stores something, the app
    asks for a one-time NEP-145 storage deposit.
-3. Select the worlds DELAYED·CUTS, SHIPS·HOLDS and DELAYED·HOLDS (or open
-   https://multiverse-lending.vercel.app/sell/?sel=14). Enter an "Amount of NEAR". See, per world, "Fair price",
+3. Select the worlds DELAYED·CUTS, SHIPS·HOLDS and DELAYED·HOLDS on the grid (on a phone, tap Sell in the bottom
+   bar and pick them under "Pick the worlds you fear"), or open https://multiverse-lending.vercel.app/sell/?sel=14.
+   "Amount of NEAR" starts at 2000, the whole faucet drop; keep it or enter less. See, per world, "Fair price",
    "You get" and "Cost / NEAR"; resting bids that pay more than the pool are filled first. Leave "Keep the result as
    loan collateral" ticked and click "Sell in 3 worlds". See one wallet prompt (an `ft_transfer_call` on the wNEAR
-   token, no approval), then "Done · <hash>", which links to nearblocks.
+   token, no approval), then "Done · <first 10 characters of the hash>…", which links to the transaction on nearblocks.
 4. Open Borrow. See "Health factor (worst world)" and the name of your worst world: the world where your collateral
    is worth least. Enter an amount in USDC and click "Borrow". See real USDC arrive in your wallet and the health
    factor drop.
@@ -115,7 +116,7 @@ pnpm -C web dev        # http://localhost:3040, reads app.multiverse-near.testne
 6. Open "Order book" in the desktop top bar (More, then Order book on a phone). Pick a world, post a bid or an ask
    with "Post bid" or "Post ask", or click "Accept" on a resting order and then "Confirm". See your order in the
    ladder and under "Your orders here".
-7. Open Resolve. See each event's question and the rule stored with it. The two grid events show "Open" and "No
+7. Open Resolve (More, then Resolve on a phone). See each event's question and the rule stored with it. The two grid events show "Open" and "No
    result yet" until the reporter proposes an outcome; a proposal shows "Proposed: <outcome>" with "Dispute window"
    and its countdown, and once final the worlds that did not happen die. Under "Real data: a past Fed decision", the
    October Fed meeting shows "Resolved: HOLDS" by OutLayer (TEE). After resolution, "Close and redeem" is one
@@ -167,8 +168,9 @@ NEAR_NETWORK=sandbox pnpm -C scripts e2e          # seeds a fresh demo and runs 
 pnpm -C scripts sandbox stop
 ```
 
-Expected lines (from a run on 2026-11-12 from `main`; the TWAP prices depend on how many blocks the sandbox skips
-and can differ slightly between runs, the proceeds, health factors and max borrows do not):
+Expected lines (from a run on 2026-11-12 from `main`; the TWAP prices, and the SHIPS·CUTS and SHIPS
+collateral values priced from them, depend on how many blocks the sandbox skips and can differ slightly between
+runs; the proceeds, health factors and max borrows do not):
 
 ```
 seed:
@@ -201,7 +203,7 @@ e2e (last lines):
 ```
 
 In the binary scenario Alice's DELAYED proceeds are 5474.04 USDC-if-w. The sandbox skips blocks instead of waiting
-for the TWAP window. After every step `e2e` checks the contract's views and that every world of both scenarios is
+for the TWAP window. After every step that moves tokens `e2e` checks the contract's views and that every world of both scenarios is
 still fully backed; Leo's liquidation took Carl from HF 0.86 to 0.93. Transaction hashes differ on every run.
 
 The same flow runs on testnet with `NEAR_NETWORK=testnet pnpm -C scripts e2e` (it needs the owner and persona keys
@@ -210,7 +212,7 @@ real time where the sandbox skips blocks, including the 30-minute TWAP window. A
 `G6GtUs6A...` it ran on 2026-11-12 from 12:08 to 12:47 UTC and printed the same 13 `ok` lines, with 88 transactions
 and real waits (56 s for the new pools, 30 minutes for the TWAP to take the pushed-down DELAYED·HOLDS price, 12 s of
 dispute window). Alice's DELAYED·HOLDS proceeds were 4881.88 and her HF 1.22, as on the sandbox; Leo's liquidation
-took Carl from HF 0.86 to 0.95. The testnet demo was seeded again afterwards.
+took Carl from HF 0.86 to 0.95. The testnet demo was seeded again afterwards, at 12:56 UTC (scenarios 5 and 6).
 
 ### Script and web tests
 
@@ -240,7 +242,7 @@ The mock token's sha256 is `70a12a7f3432df1f59f176cb756ff4431c59f382ed7f10923bcd
 
 In base58 these are the code hashes on testnet: `G6GtUs6AqHfxRb8YCdBx5dv1bgiQ3c1gDhPE9ygQTkEt` on
 `app.multiverse-near.testnet` (deployed on 2026-11-12 at 12:08 UTC by `pnpm -C scripts deploy:contract`, deploy and
-init transaction `F5X2U1CSpptsNUEUeeeixcw79ERvfGLFEpREwpnMvWc3`) and
+init transaction [`F5X2U1CS...`](https://testnet.nearblocks.io/txns/F5X2U1CSpptsNUEUeeeixcw79ERvfGLFEpREwpnMvWc3)) and
 `8afCVgFKDom2fYt5BZatMXPLXMiJ1vWHBiUTpN6AyggY` on both token accounts. To read one:
 
 ```bash
@@ -277,14 +279,15 @@ pinned guest is https://multiverse-lending.vercel.app/outlayer/fred-guest.wasm (
 `8c809e11f5b4b37627baa5c0a65a8587ef5f3e4918d1e0bb42cb2f87a5ae1660`), the exact output of
 `oracle/fred-guest/build.sh`.
 
-On the current deployment the event is <<PENDING: event id>>, resolved by these transactions:
+On the current deployment the event is event 9, resolved on 2026-11-12 by these transactions:
 
-- `set_outlayer_config`: <<PENDING: nearblocks link>>
-- `set_outlayer_dates`: <<PENDING: nearblocks link>>
-- `request_resolution`: <<PENDING: nearblocks link>> (OutLayer answered after <<PENDING: OutLayer run time>>)
-- `finalize`: <<PENDING: nearblocks link>>
+- `set_outlayer_config` (owner): https://testnet.nearblocks.io/txns/FUZHqurtQEqXxGjLwDuWzjNZ8pYR8wdYJVX2kHsUNaJM
+- `set_outlayer_dates(9, 2026-10-27, 2026-10-29)` (owner): https://testnet.nearblocks.io/txns/5XjagKSwJB2S9G3uyYtHJvLVSiyJtVRHowoeaNr7URHC
+- `request_resolution(9)` (Leo, 0.005 NEAR and 300 Tgas): https://testnet.nearblocks.io/txns/5DKPy7JXgjs4UMP8Bpt2AEyepa4QVswQcBRtwu6p4rgk. The
+  contract's callback ran 15 s later; OutLayer reported a 1,655 ms run and charged 0.0011655 NEAR, refunding the rest.
+- `finalize(9)` (Leo, after the 30 s dispute window): https://testnet.nearblocks.io/txns/Aygmi1WCCzuEhxMADrQ3eTes1KAeFyyrRg3y7G4epgGE
 
-Evidence logged with the proposal: <<PENDING: evidence string>>.
+Evidence logged with the proposal: `FRED DFEDTARU 2026-10-27=4.00 2026-10-29=4.00, DFEDTARL 2026-10-27=3.75 2026-10-29=3.75: HOLDS`.
 
 To repeat the read without signing anything: `pnpm -C scripts test:live` queries FRED and checks the HOLDS answer.
 The two grid events (SPICE, December Fed) have not happened yet. In the demo they resolve from
@@ -328,7 +331,7 @@ NEP-245 `mt_transfer_call`, NEAR refunds, and the OutLayer request.
 |---|---|
 | `contracts/multiverse` | The protocol contract: `receiver`, `router`, `core`, `masks`, `ledger`, `nep245`, `oracle`, `outlayer`, `amm`, `orders`, `lending`, `rootlp`, `storage`, `payout`, `views`, `admin`, `events` |
 | `crates/multiverse-math` | Integer maths with no NEAR dependency: fixed point and `mul_div`, tick maths, constant-product pools, dynamic fee, TWAP, odds, shares, order maths, worst-world risk |
-| `contracts/mock-ft` | The NEP-141 test token with a capped open mint |
+| `contracts/mock-ft` | The NEP-141 test token with an open mint capped per call |
 | `oracle/fred-guest` | The program OutLayer runs to read FRED (WASI, built on its own) |
 | `scripts` | Accounts, deploy, sandbox, seed, demo sale, reset, resolver, OutLayer, end-to-end flow (TypeScript, near-api-js) |
 | `web` | The Next.js app (static export, no server) |
@@ -356,8 +359,7 @@ NEP-245 `mt_transfer_call`, NEAR refunds, and the OutLayer request.
 - **OutLayer.** `request_resolution` calls `request_execution` on `outlayer.testnet` with a pinned wasm URL and
   sha256; OutLayer runs `oracle/fred-guest` in a TEE (Intel TDX) worker and resumes the call (NEP-519 yield) with
   the result, which `on_outlayer_result` turns into an ordinary proposal under the same dispute window. It has 16
-  contract unit tests and 12 guest tests. On testnet it resolved the past Fed event <<PENDING: confirmation of the
-  OutLayer run on the current deployment>> (see "Real-data resolution").
+  contract unit tests and 12 guest tests. On testnet it resolved the past Fed event (event 9) HOLDS on 2026-11-12 (see "Real-data resolution").
 - **Named accounts.** The contract, tokens, reporter and personas are sub-accounts of `multiverse-near.testnet`.
 - **NEP-297 events** under the standard `multiverse` for every protocol action.
 
@@ -397,7 +399,8 @@ Trust assumptions:
   anyone can finalize it.
 - The grid events resolve from a file the team controls; only the past FOMC event resolves from FRED.
 - All liquidity, Bob's supply and Ravi's order come from the seed script.
-- wNEAR and USDC are mock tokens with an open, capped mint. They have no value.
+- wNEAR and USDC are mock tokens that anyone can mint, up to 1,000,000 wNEAR or 10,000,000 USDC per call. They have
+  no value.
 - Testnet only. Nothing has been deployed or tested on mainnet.
 
 Accepted residual risks (ECON-1 and ECON-2 in `docs/SECURITY.md`): lending prices come only from the protocol's own
