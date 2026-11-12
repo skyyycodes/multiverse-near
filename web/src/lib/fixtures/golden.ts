@@ -19,7 +19,7 @@ export type Stage = (typeof STAGES)[number];
 export const PERSONAS = ["alice", "bob", "ravi", "sam", "uma", "carl", "dana", "owner"] as const;
 export type Persona = (typeof PERSONAS)[number];
 
-export const ROOT_ACCOUNT = "multiverse-lending.testnet";
+export const ROOT_ACCOUNT = "multiverse-near.testnet";
 export const FIXTURE_IDS = {
   contract: `app.${ROOT_ACCOUNT}`,
   wnear: `wnear.${ROOT_ACCOUNT}`,

@@ -19,7 +19,7 @@ await page.exposeFunction("__nearDemo", async (method, paramsJson) => {
   const params = JSON.parse(paramsJson);
   switch (method) {
     case "signIn":
-    case "getAccounts":            return JSON.stringify([{ accountId: "alice.multiverse-lending.testnet" }]);
+    case "getAccounts":            return JSON.stringify([{ accountId: "alice.multiverse-near.testnet" }]);
     case "signOut":                return "";
     case "signAndSendTransaction":  // { receiverId, actions: [{ type: "FunctionCall", params: { methodName, args, gas, deposit } }], network }
       return JSON.stringify(await signWithNearApiJs(params)); // the FinalExecutionOutcome, receipts included

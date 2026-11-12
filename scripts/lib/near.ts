@@ -49,7 +49,7 @@ export const NETWORKS: Record<Network, NetworkConfig> = {
     network: "testnet",
     rpcUrl: "https://test.rpc.fastnear.com",
     explorer: "https://testnet.nearblocks.io",
-    defaultRoot: "multiverse-lending.testnet",
+    defaultRoot: "multiverse-near.testnet",
   },
   sandbox: { network: "sandbox", rpcUrl: "http://127.0.0.1:3030", explorer: "", defaultRoot: "test.near" },
 };

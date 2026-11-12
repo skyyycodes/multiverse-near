@@ -266,7 +266,7 @@ mod tests {
     const CAP: u128 = 1_000_000_000_000;
 
     fn token_id() -> AccountId {
-        "usdc.multiverse-lending.testnet".parse().unwrap()
+        "usdc.multiverse-near.testnet".parse().unwrap()
     }
 
     fn owner() -> AccountId {

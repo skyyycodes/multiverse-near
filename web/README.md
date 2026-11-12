@@ -13,7 +13,7 @@ Node 22 and pnpm 10.
 
 ```bash
 pnpm install
-pnpm dev               # http://localhost:3040, reads app.multiverse-lending.testnet on testnet
+pnpm dev               # http://localhost:3040, reads app.multiverse-near.testnet on testnet
 pnpm dev:sandbox       # the same app against the local sandbox node (pnpm -C scripts sandbox start), demo wallet on
 pnpm dev:fixtures      # same app on design data: the seeded demo replayed in the browser, no chain needed
 ```

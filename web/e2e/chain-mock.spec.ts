@@ -6,8 +6,8 @@ import { expect, test, type Page, type Route } from "@playwright/test";
 import type { Stage } from "../src/lib/fixtures/golden";
 import { createFixtureSource } from "../src/lib/fixtures/source";
 
-const ALICE = "alice.multiverse-lending.testnet";
-const CONTRACT = "app.multiverse-lending.testnet";
+const ALICE = "alice.multiverse-near.testnet";
+const CONTRACT = "app.multiverse-near.testnet";
 const b64 = (s: string) => Buffer.from(s).toString("base64");
 
 type Signed = { receiverId: string; actions: { type: string; params: { methodName: string; args: Record<string, unknown>; gas: string; deposit: string } }[] };
@@ -85,7 +85,7 @@ test("the sale is one ft_transfer_call of 2,000 wNEAR carrying the plan, and the
 
   expect(signed).toHaveLength(1);
   const tx = signed[0];
-  expect(tx.receiverId).toBe("wnear.multiverse-lending.testnet");
+  expect(tx.receiverId).toBe("wnear.multiverse-near.testnet");
   const call = tx.actions[0].params;
   expect(call).toMatchObject({ methodName: "ft_transfer_call", deposit: "1", gas: "300000000000000" });
   // wNEAR has 24 decimals: 2,000 of them, while the plan below speaks the contract's 18-decimal units.

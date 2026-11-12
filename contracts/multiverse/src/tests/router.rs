@@ -1587,8 +1587,8 @@ fn worst_case_trade_fits_the_log_limits() {
     let testnet: usize = logs
         .iter()
         .map(|l| {
-            l.replace(CONTRACT, "app.multiverse-lending.testnet")
-                .replace(".near\"", ".multiverse-lending.testnet\"")
+            l.replace(CONTRACT, "app.multiverse-near.testnet")
+                .replace(".near\"", ".multiverse-near.testnet\"")
                 .len()
         })
         .sum();

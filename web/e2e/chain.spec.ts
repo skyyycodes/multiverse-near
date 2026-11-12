@@ -3,7 +3,7 @@
 // Connect; the real build ("chain" project) ignores it.
 import { expect, test, type Page } from "@playwright/test";
 
-const ALICE = "alice.multiverse-lending.testnet";
+const ALICE = "alice.multiverse-near.testnet";
 
 /** Stands in for the recorder's signer: answers NEAR Connect's wallet methods with Alice's account. */
 async function exposeDemoWallet(page: Page, calls: string[]) {

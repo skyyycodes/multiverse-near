@@ -65,7 +65,7 @@ export function shortAccount(a: string): string {
   return a.length <= 22 ? a : `${a.slice(0, 20)}…`;
 }
 
-/** The shortest readable form of an account in tight rows: "ravi" for ravi.multiverse-lending.testnet. */
+/** The shortest readable form of an account in tight rows: "ravi" for ravi.multiverse-near.testnet. */
 export function accountLabel(a: string, max = 20): string {
   if (/^[0-9a-f]{64}$/.test(a)) return `${a.slice(0, 6)}…${a.slice(-4)}`;
   if (a.length <= max) return a;

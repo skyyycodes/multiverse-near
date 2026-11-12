@@ -9,7 +9,7 @@ import type { TxOutcome } from "./outcome";
 import type { Tx } from "./tx";
 
 export type WalletApi = {
-  /** The signed-in NEAR account, e.g. alice.multiverse-lending.testnet. */
+  /** The signed-in NEAR account, e.g. alice.multiverse-near.testnet. */
   accountId: string | null;
   /** True once a previous session has been restored (or found absent). */
   ready: boolean;

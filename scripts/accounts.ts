@@ -2,7 +2,7 @@
 // Safe to re-run: every step checks the chain first and only does what is missing, so a later run
 // also tops accounts up to their full amounts once the root has the NEAR for it.
 //
-//   pnpm accounts [--root multiverse-lending.testnet] [--root-keep 12] [--max-faucet 4]
+//   pnpm accounts [--root multiverse-near.testnet] [--root-keep 12] [--max-faucet 4]
 //                 [--faucet-request 5] [--max-faucet-requests 8]
 //                 [--sponsor <account.testnet> --sponsor-key <key.json> --sponsor-amount 5]
 //                 [--wasm ../target/deploy/mock_ft.wasm] [--upgrade-tokens]
