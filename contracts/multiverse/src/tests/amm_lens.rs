@@ -143,9 +143,9 @@ fn golden_twap_prices_after_a_full_window() {
     let bin: Vec<u128> = (0..2)
         .map(|i| price_5dp(w.view(|c| c.world_price(sb, i)).0))
         .collect();
-    // 2.79980 for DELAYED: at a few dollars the tick grid sits elsewhere than
-    // at the prototype's thousands, and this one floors a hair higher (the
-    // prototype's demo numbers had 2,799.79)
+    // 2.79980 for DELAYED: the tick grid sits elsewhere relative to the price
+    // than at the prototype's price scale, and this one floors a hair higher
+    // (the prototype's demo numbers had one unit less in the last digit)
     assert_eq!(bin, [339987, 279980]);
 }
 

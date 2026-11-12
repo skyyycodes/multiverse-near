@@ -307,9 +307,9 @@ fn seeded_prices_match_the_spec() {
 
 #[test]
 fn demo_twap_prices() {
-    // With wNEAR-if-w as token0, the TWAP of a freshly seeded pool reads one tick below the seed price. At a few
-    // dollars the tick grid sits elsewhere than at the prototype's thousands, so 2.80 reads 2.79980 where the
-    // prototype's demo numbers had 2,799.79; the others carry over digit for digit.
+    // With wNEAR-if-w as token0, the TWAP of a freshly seeded pool reads one tick below the seed price. The tick grid
+    // sits elsewhere relative to the price than at the prototype's price scale, so 2.80 reads 2.79980 where the
+    // prototype's demo numbers had one unit less in the last digit; the others carry over digit for digit.
     let expected = [
         (3_700, "3.69963"),
         (3_000, "2.99979"),

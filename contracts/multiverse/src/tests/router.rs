@@ -1692,7 +1692,8 @@ fn golden_demo_sale() {
     assert_eq!(twap, [369963, 299979, 329972, 249990]);
     let values: Vec<u128> = w.values(s, ALICE).into_iter().map(cents).collect();
     // 2,000 NEAR at world 0's TWAP is 7,399.27: the mean tick at 3.70 floors
-    // a hair higher than at the prototype's 3,700 (its demo numbers: 7,399.26)
+    // a hair higher than at the prototype's price scale (its demo numbers:
+    // 7,399.26)
     assert_eq!(values, [739927, 586505, 645155, 488188]);
     let (hf, worst) = w.hf(s, ALICE);
     let hf = hf.unwrap();

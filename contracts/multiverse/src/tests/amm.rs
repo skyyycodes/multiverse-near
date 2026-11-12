@@ -95,7 +95,7 @@ pub fn sum_over(q: &[u128], mask: u8) -> u128 {
         .sum()
 }
 
-/// Odds of independent events from basis points, as SeedDemo builds them.
+/// Odds of independent events from basis points, as the demo seed builds them.
 pub fn independent_odds(world_count: usize, ships_bps: u128, cuts_bps: u128) -> Vec<u128> {
     let (s, c) = (ships_bps, cuts_bps);
     if world_count == 2 {
