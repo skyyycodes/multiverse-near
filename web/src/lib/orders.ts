@@ -1,5 +1,5 @@
 // The order book in the browser: the contract's rounding, which orders can still fill, each cell's book, and the
-// sale planner. Amounts are bigint in 18-decimal units (WETH and USDC alike); nothing here uses floating point.
+// sale planner. Amounts are bigint in 18-decimal units (NEAR and USDC alike); nothing here uses floating point.
 
 const ONE = 10n ** 18n;
 
@@ -11,21 +11,21 @@ export type Order = {
   scenarioId: number;
   mask: number;
   side: Side;
-  price: bigint; // USDC per WETH, 18 decimals
-  amount: bigint; // WETH when posted
-  remaining: bigint; // WETH left; 0 once filled or cancelled
+  price: bigint; // USDC per NEAR, 18 decimals
+  amount: bigint; // NEAR when posted
+  remaining: bigint; // NEAR left; 0 once filled or cancelled
   expiry: bigint; // unix seconds; fills fail from this second on
   epoch: number; // the scenario's resolution count when posted
   cancelled: boolean;
 };
 
-/** USDC a buyer pays for `amount` WETH at `price`, rounded up: a bid's escrow, or the cost of filling an ask. */
+/** USDC a buyer pays for `amount` NEAR at `price`, rounded up: a bid's escrow, or the cost of filling an ask. */
 export function cost(amount: bigint, price: bigint): bigint {
   const p = amount * price;
   return p === 0n ? 0n : (p - 1n) / ONE + 1n;
 }
 
-/** USDC a seller receives for `amount` WETH at `price`, rounded down: what filling a bid pays. */
+/** USDC a seller receives for `amount` NEAR at `price`, rounded down: what filling a bid pays. */
 export function proceeds(amount: bigint, price: bigint): bigint {
   return (amount * price) / ONE;
 }
@@ -123,7 +123,7 @@ export function bestPlan(candidates: readonly Candidate[], poolOut: (amount: big
 export const SLIPPAGE_BPS = 50n;
 export const minOutOf = (plan: WorldPlan | undefined): bigint => (plan ? plan.total - (plan.poolOut * SLIPPAGE_BPS) / 10_000n : 0n);
 
-/** Where a sold world's ETH goes, for the preview line. */
+/** Where a sold world's NEAR goes, for the preview line. */
 export function via(plan: WorldPlan | undefined): string {
   if (!plan?.fills.length) return "sell via pool → ";
   const orders = plan.fills.length === 1 ? "a bid" : `${plan.fills.length} bids`;

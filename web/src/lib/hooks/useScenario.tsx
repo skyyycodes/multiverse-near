@@ -19,7 +19,7 @@ type Ctx = {
 const ScenarioContext = createContext<Ctx | null>(null);
 
 /**
- * Which demo scenario every screen shows (Glamsterdam × Fed, or Glamsterdam only), and the worlds picked for a sale or
+ * Which demo scenario every screen shows (SPICE × Fed, or SPICE only), and the worlds picked for a sale or
  * an order book. Kept above the routes so a selection survives moving between the home, the sell form and back; not
  * kept across a reload.
  */

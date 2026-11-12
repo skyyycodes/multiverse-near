@@ -10,7 +10,7 @@ import { Chip, InfoRows } from "@/components/ui/Bits";
 import { ChainWait } from "@/components/ui/Notice";
 import { Block } from "@/components/ui/Surface";
 import type { AppConfig, EventState, Scenario, World } from "@/lib/domain";
-import { fmt, fmtUsd, fmtNear, pct } from "@/lib/format";
+import { fmt, fmtNear, fmtPrice, fmtUsd, pct } from "@/lib/format";
 import { useNowSeconds } from "@/lib/hooks/useClock";
 import { usePool, useScenarioId, useTrade } from "@/lib/hooks/useData";
 import { useIsDesktop } from "@/lib/hooks/useMedia";
@@ -210,7 +210,7 @@ function WorldInfo({ config, scenario, world, orders }: { config: AppConfig; sce
           {dead && <Chip tone="neutral">resolved away</Chip>}
         </div>
         <span className="numeral text-[44px] text-ink">{world.poolInitialized ? fmtUsd(world.wnearPrice) : "no pool"}</span>
-        <span className="text-[13px] text-mute">ETH price if this world happens</span>
+        <span className="text-[13px] text-mute">NEAR price if this world happens</span>
       </div>
       <div className="flex flex-col gap-1">
         <h3 className="font-display text-[18px] font-medium text-ink">World info</h3>
@@ -219,16 +219,16 @@ function WorldInfo({ config, scenario, world, orders }: { config: AppConfig; sce
             { label: "Odds", value: scenario.oddsKnown ? pct(world.odds, ONE) : "—" },
             {
               label: "Pool depth",
-              value: p?.wnearReserve !== undefined && p?.usdcReserve !== undefined ? `${fmt(p.wnearReserve)} WETH / ${fmt(p.usdcReserve, 0)} USDC` : "—",
+              value: p?.wnearReserve !== undefined && p?.usdcReserve !== undefined ? `${fmtNear(p.wnearReserve)} NEAR / ${fmt(p.usdcReserve, 0)} USDC` : "—",
             },
             { label: "Dynamic fee now", value: fee },
             {
               label: "Best bid / best ask",
               value: config.orderBook
-                ? `${book.bids[0] ? fmtUsd(book.bids[0].price) : "—"} / ${book.asks[0] ? fmtUsd(book.asks[0].price) : "—"}`
+                ? `${book.bids[0] ? fmtPrice(book.bids[0].price) : "—"} / ${book.asks[0] ? fmtPrice(book.asks[0].price) : "—"}`
                 : "—",
             },
-            { label: `TWAP (${config.twapWindowSec} s) price`, value: p?.twapPrice ? fmtUsd(p.twapPrice) : "—" },
+            { label: `TWAP (${config.twapWindowSec} s) price`, value: p?.twapPrice ? fmtPrice(p.twapPrice) : "—" },
             { label: "Your position", value: held ? positionText(world) : "nothing here" },
             { label: "Backed", value: world.backed ? "✓ live tokens = reserves" : "✗ check failed", tone: world.backed ? "text-pos" : "text-neg" },
           ]}
@@ -247,16 +247,16 @@ function WorldInfo({ config, scenario, world, orders }: { config: AppConfig; sce
           </PillLink>
         </div>
       )}
-      {world.userWnear > 0n && dead && <p className="text-[12px] text-mute">Tokens of a world that can no longer happen are worth nothing. {fmtNear(world.userWnear)} WETH-if-{world.label} stays in your wallet.</p>}
+      {world.userWnear > 0n && dead && <p className="text-[12px] text-mute">Tokens of a world that can no longer happen are worth nothing. {fmtNear(world.userWnear)} wNEAR-if-{world.label} stays in your wallet.</p>}
     </Block>
   );
 }
 
-/** "2.0000 WETH + 1.00 USDC · loan collateral", short enough for one info row. */
+/** "2,000.00 NEAR + 1.00 USDC · loan collateral", short enough for one info row. */
 function positionText(w: World): string {
   const wnear = w.userWnear + w.collateralWnear;
   const usdc = w.userUsdc + w.collateralUsdc;
-  const parts = [wnear > 0n ? `${fmtNear(wnear)} WETH` : "", usdc > 0n ? `${fmt(usdc)} USDC` : ""].filter(Boolean);
+  const parts = [wnear > 0n ? `${fmtNear(wnear)} NEAR` : "", usdc > 0n ? `${fmt(usdc)} USDC` : ""].filter(Boolean);
   const posted = w.collateralWnear > 0n || w.collateralUsdc > 0n;
   return `${parts.join(" + ")}${posted ? " · collateral" : ""}`;
 }
@@ -283,7 +283,7 @@ function Conditions({ scenario, world, events }: { scenario: Scenario; world: Wo
         })}
       </ul>
       <p className="text-[13px] leading-relaxed text-mute">
-        If {scenario.worldCount === 4 ? "both happen" : "it happens"}, WETH-if-{world.label} pays 1 real WETH and USDC-if-{world.label} pays 1 real USDC,
+        If {scenario.worldCount === 4 ? "both happen" : "it happens"}, wNEAR-if-{world.label} pays 1 real wNEAR and USDC-if-{world.label} pays 1 real USDC,
         per token. If not, they pay nothing.
       </p>
     </Block>

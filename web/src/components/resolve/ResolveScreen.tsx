@@ -11,7 +11,7 @@ import { TxButton } from "@/components/ui/TxButton";
 import { WorldGrid } from "@/components/world/WorldGrid";
 import { CONTRACT_ID } from "@/lib/data/client";
 import type { Account, AppConfig, EventState, Scenario } from "@/lib/domain";
-import { countdown, fmt, fmtUsd, fmtNear } from "@/lib/format";
+import { countdown, fmt, fmtAsset, fmtNear, fmtUsd } from "@/lib/format";
 import { useChainClock } from "@/lib/hooks/useClock";
 import { useBalances, useCellQuotes, useResolve, useScenarioId } from "@/lib/hooks/useData";
 import { useIsDesktop } from "@/lib/hooks/useMedia";
@@ -20,6 +20,7 @@ import { eventsOf } from "@/lib/near/outcome";
 import { call, ftTransferCall } from "@/lib/near/tx";
 import { useWallet } from "@/lib/near/wallet";
 import { fateText, planClose, summarizeClose, walletRedeemable, type CloseSummary } from "@/lib/settlement";
+import type { Asset } from "@/lib/types";
 import { toTokenCeil } from "@/lib/units";
 import { EventCard } from "./EventCard";
 
@@ -245,7 +246,7 @@ function ClosePanel({ config, s, v, walletUsdc }: { config: AppConfig; s: Scenar
                   <div className={`truncate text-[13px] font-semibold text-ink ${p.fate === "dead" ? "line-through" : ""}`}>{p.label}</div>
                   <div className={`text-[12px] ${p.fate === "redeems" ? "text-pos" : "text-mute"}`}>{fateText(p)}</div>
                 </div>
-                <span className="num shrink-0 text-[13px] text-ink">{fmt(p.amount, 4)}</span>
+                <span className="num shrink-0 text-[13px] text-ink">{fmtAsset(p.asset, p.amount)}</span>
               </div>
             ))}
           </div>
@@ -254,7 +255,7 @@ function ClosePanel({ config, s, v, walletUsdc }: { config: AppConfig; s: Scenar
               { label: "You repay (loan plus interest)", value: fmtUsd(v.debt) },
               {
                 label: "You receive, real",
-                value: `${fmt(plan.realUsdc)} USDC${plan.realWnear > 0n ? ` + ${fmtNear(plan.realWnear)} WETH` : ""}`,
+                value: `${fmt(plan.realUsdc)} USDC${plan.realWnear > 0n ? ` + ${fmtNear(plan.realWnear)} wNEAR` : ""}`,
                 tone: "text-pos",
                 demo: "close-receive",
               },
@@ -276,7 +277,7 @@ function ClosePanel({ config, s, v, walletUsdc }: { config: AppConfig; s: Scenar
       {closed && (
         <p className="num text-[13px] text-pos" data-demo="close-result">
           Repaid {fmtUsd(closed.repaid)}; redeemed {fmt(closed.usdc)} real USDC
-          {closed.wnear > 0n ? ` and ${fmtNear(closed.wnear)} real WETH` : ""}.
+          {closed.wnear > 0n ? ` and ${fmtNear(closed.wnear)} real wNEAR` : ""}.
         </p>
       )}
     </Sheet>
@@ -288,7 +289,7 @@ function WalletRedeem({ s }: { s: Scenario }) {
   const wallet = useWallet();
   const submit = useSubmit();
   // A redeemed row leaves the list (its balance is now zero), so what was redeemed is kept here to confirm it.
-  const [redeemed, setRedeemed] = useState<{ label: string; amount: bigint; symbol: string }[]>([]);
+  const [redeemed, setRedeemed] = useState<{ label: string; asset: Asset; amount: bigint; symbol: string }[]>([]);
   const rows = walletRedeemable(s);
   if (!wallet.accountId || (rows.length === 0 && redeemed.length === 0)) return null;
   return (
@@ -301,7 +302,7 @@ function WalletRedeem({ s }: { s: Scenario }) {
           <div className="min-w-0 text-[13px]">
             <div className="truncate font-semibold text-ink">{r.label}</div>
             <div className="num text-mute">
-              {fmt(r.amount, 4)} → {fmt(r.amount, 4)} real {r.symbol}
+              {fmtAsset(r.asset, r.amount)} → {fmtAsset(r.asset, r.amount)} real {r.symbol}
             </div>
           </div>
           <div className="w-32 shrink-0">
@@ -316,7 +317,7 @@ function WalletRedeem({ s }: { s: Scenario }) {
                 const hash = await submit(
                   call(CONTRACT_ID, "redeem", { scenario_id: s.scenarioId, asset: r.asset, mask: r.mask, amount: r.amount.toString() }),
                 );
-                setRedeemed((x) => [...x, { label: r.label, amount: r.amount, symbol: r.symbol }]);
+                setRedeemed((x) => [...x, { label: r.label, asset: r.asset, amount: r.amount, symbol: r.symbol }]);
                 return hash;
               }}
             />
@@ -325,7 +326,7 @@ function WalletRedeem({ s }: { s: Scenario }) {
       ))}
       {redeemed.map((x) => (
         <p key={x.label} className="num text-[13px] text-pos">
-          Redeemed {fmt(x.amount, 4)} {x.label} for real {x.symbol}.
+          Redeemed {fmtAsset(x.asset, x.amount)} {x.label} for real {x.symbol}.
         </p>
       ))}
     </Sheet>

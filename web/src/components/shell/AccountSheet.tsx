@@ -63,7 +63,7 @@ export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => 
       )}
 
       <div className="grid grid-cols-2 gap-2">
-        <Balance label="Wallet WETH" value={b ? fmtNear(b.wnear) : "—"} />
+        <Balance label="Wallet wNEAR" value={b ? fmtNear(b.wnear) : "—"} />
         <Balance label="Wallet USDC" value={b ? fmt(b.usdc) : "—"} />
       </div>
 
@@ -77,12 +77,12 @@ export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => 
       <div className="flex flex-col gap-2">
         <div className="label text-mute">In Multiverse</div>
         <p className="text-[12px] leading-relaxed text-mute">
-          Real WETH and USDC the contract holds for you: payouts your wallet could not receive, sub-cent dust, deposits.
+          Real wNEAR and USDC the contract holds for you: payouts your wallet could not receive, sub-cent dust, deposits.
           Withdraw sends it to your wallet.
         </p>
         {(["wnear", "usdc"] as const).map((asset) => {
           const amount = asset === "wnear" ? (b?.innerWnear ?? 0n) : (b?.innerUsdc ?? 0n);
-          const label = asset === "wnear" ? `${fmtNear(amount)} WETH` : `${fmt(amount)} USDC`;
+          const label = asset === "wnear" ? `${fmtNear(amount)} wNEAR` : `${fmt(amount)} USDC`;
           // The token moves whole units only: anything below one stays here, so only the whole part is sent.
           const token = asset === "wnear" ? cfg?.wnear : cfg?.usdc;
           const unit = token ? unitOf(token.decimals) : 1n;

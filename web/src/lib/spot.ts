@@ -1,8 +1,9 @@
 // Spot bar maths: implied spot against actual spot, the Impact Meter gap, and its sparkline.
 import type { ImpactPoint, Scenario } from "./domain";
-import { fmtUsd, pct } from "./format";
+import { fmtPrice, pct } from "./format";
 
-const CENT = 10n ** 16n;
+/** Below this, actual and implied spot agree at the four decimals a NEAR price is shown with. */
+const TICK = 10n ** 14n;
 
 export type ImpliedNote =
   | { kind: "unknown"; text: string }
@@ -18,9 +19,9 @@ export function impliedNote(s: Pick<Scenario, "oddsKnown" | "impliedSpot" | "spo
   if (s.spotPrice === 0n) return { kind: "no-spot", text: "odds × world prices" };
   const diff = s.impliedSpot - s.spotPrice;
   const abs = diff < 0n ? -diff : diff;
-  if (abs < CENT) return { kind: "equal", text: "odds × world prices · equal to actual" };
-  // No "+" for a negative difference: fmtUsd already writes "-$".
-  const d = `${diff > 0n ? "+" : ""}${fmtUsd(diff)} (${pct(abs, s.spotPrice, 2)})`;
+  if (abs < TICK) return { kind: "equal", text: "odds × world prices · equal to actual" };
+  // No "+" for a negative difference: fmtPrice already writes "-$".
+  const d = `${diff > 0n ? "+" : ""}${fmtPrice(diff)} (${pct(abs, s.spotPrice, 2)})`;
   return { kind: "diff", text: `odds × world prices · ${d} vs actual`, diff: d };
 }
 

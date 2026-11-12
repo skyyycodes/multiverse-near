@@ -10,7 +10,7 @@ const mono = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500"], variab
 
 export const metadata: Metadata = {
   title: "Multiverse Lending",
-  description: "Hold a position that exists only if a specific event happens. Sell ETH only in the futures you fear, borrow against the worst one. On NEAR.",
+  description: "Hold a position that exists only if a specific event happens. Sell NEAR only in the futures you fear, borrow against the worst one. On NEAR.",
 };
 
 export const viewport: Viewport = {

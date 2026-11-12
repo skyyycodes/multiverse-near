@@ -10,7 +10,7 @@ import { WorldPicker } from "@/components/world/WorldGrid";
 import { CONTRACT_ID } from "@/lib/data/client";
 import { txUrl } from "@/lib/env";
 import type { AppConfig, EventState, Scenario, World } from "@/lib/domain";
-import { accountLabel, fmt, fmtUsd, fmtNear, inputText, parseAmount } from "@/lib/format";
+import { accountLabel, fmt, fmtNear, fmtPrice, inputText, parseAmount } from "@/lib/format";
 import type { Balances } from "@/lib/hooks/useData";
 import { useSubmit } from "@/lib/hooks/useTx";
 import { call, ftTransferCall, singleOrderPlan } from "@/lib/near/tx";
@@ -98,7 +98,7 @@ export function OrderPanel({ config, scenario, events, orders, chainNow, wallNow
       {heading && <SheetTitle>{`Order book · ${world.label}`}</SheetTitle>}
       {pickerBlock}
       <p className="text-[13px] leading-relaxed text-mute">
-        Bids and asks for ETH in this world, priced in this world&apos;s dollars. A trade happens only when someone takes
+        Bids and asks for NEAR in this world, priced in this world&apos;s dollars. A trade happens only when someone takes
         an order; a counter-offer is a new order. Orders end when an event resolves.
       </p>
       <Ladder world={world} bids={book.bids} asks={book.asks} me={me} taking={takingOrder?.id} onTake={(id) => setTaking({ mask, id })} />
@@ -160,7 +160,7 @@ function Ladder({
     const own = o.maker.toLowerCase() === me;
     return (
       <tr key={String(o.id)} className={`border-t border-line ${taking === o.id ? "bg-tile" : ""}`} data-demo="ladder-row" data-side={o.side}>
-        <td className={`num py-2 pr-2 pl-3 text-[14px] ${o.side === "bid" ? "text-pos" : "text-neg"}`}>{fmtUsd(o.price)}</td>
+        <td className={`num py-2 pr-2 pl-3 text-[14px] ${o.side === "bid" ? "text-pos" : "text-neg"}`}>{fmtPrice(o.price)}</td>
         <td className="num px-2 py-2 text-right text-[13px] text-ink">{fmtNear(o.remaining)}</td>
         <td className="px-2 py-1.5 text-[12px] leading-tight text-mute" title={o.maker}>
           <span className="num block">#{String(o.id)}</span>
@@ -185,15 +185,15 @@ function Ladder({
     <div className="overflow-hidden rounded-[18px] border border-line" data-demo="ladder">
       <table className="w-full table-fixed text-left">
         <colgroup>
-          <col className="w-[29%]" />
-          <col className="w-[19%]" />
+          <col className="w-[26%]" />
+          <col className="w-[24%]" />
           <col />
           <col className="w-[76px]" />
         </colgroup>
         <thead className="bg-tile">
           <tr>
             <th className="label py-2 pr-2 pl-3 font-medium text-mute">Price</th>
-            <th className="label px-2 py-2 text-right font-medium text-mute">ETH</th>
+            <th className="label px-2 py-2 text-right font-medium text-mute">NEAR</th>
             <th className="label px-2 py-2 font-medium text-mute">Order</th>
             <th className="py-2" />
           </tr>
@@ -201,7 +201,7 @@ function Ladder({
         <tbody>
           {topAsks.length === 0 ? <EmptyRow text="no asks" /> : topAsks.map(row)}
           <tr className="border-t border-line bg-cobalt/8" data-demo="ladder-pool">
-            <td className="num py-2 pr-2 pl-3 text-[14px] font-semibold text-cobalt-ink">{world.poolInitialized ? fmtUsd(world.wnearPrice) : "—"}</td>
+            <td className="num py-2 pr-2 pl-3 text-[14px] font-semibold text-cobalt-ink">{world.poolInitialized ? fmtPrice(world.wnearPrice) : "—"}</td>
             <td colSpan={3} className="px-2 py-2 text-[12px] text-mute">
               pool price
             </td>
@@ -223,7 +223,7 @@ function EmptyRow({ text }: { text: string }) {
   );
 }
 
-/** Take an order from real WETH or USDC in one transaction: a sale into a bid, or a buy from an ask. */
+/** Take an order from real wNEAR or USDC in one transaction: a sale into a bid, or a buy from an ask. */
 function AcceptBox({
   config,
   scenario,
@@ -234,20 +234,20 @@ function AcceptBox({
   onTraded,
 }: Common & { world: World; order: Order; onClose: () => void; onTraded: (hash: string) => void }) {
   const submit = useSubmit();
-  const sell = order.side === "bid"; // taking a bid sells ETH-if-w
+  const sell = order.side === "bid"; // taking a bid sells NEAR-if-w
   const wallWnear = balances?.wnear ?? 0n;
   const wallUsdc = balances?.usdc ?? 0n;
   const affordable = sell ? wallWnear : (wallUsdc * ONE) / order.price;
   const start = order.remaining < affordable ? order.remaining : affordable;
-  const [input, setInput] = useState(inputText(start, 4));
+  const [input, setInput] = useState(inputText(start, 2));
   const amount = parseAmount(input, config.wnear.decimals);
   const usdc = amount === undefined ? undefined : sell ? proceeds(amount, order.price) : cost(amount, order.price);
 
   let blocker: string | undefined;
   if (scenario.halted) blocker = "Paused while a resolution is pending";
-  else if (amount === undefined) blocker = "Enter an amount of ETH";
+  else if (amount === undefined) blocker = "Enter an amount of NEAR";
   else if (amount > order.remaining) blocker = "More than the order has left";
-  else if (sell && amount > wallWnear) blocker = "Not enough WETH in this wallet";
+  else if (sell && amount > wallWnear) blocker = "Not enough wNEAR in this wallet";
   else if (!sell && usdc! > wallUsdc) blocker = "Not enough USDC in this wallet";
   else if (usdc === 0n) blocker = "Too small to pay anything";
 
@@ -289,18 +289,18 @@ function AcceptBox({
     <div className="flex flex-col gap-3 rounded-[20px] border border-cobalt/35 bg-cobalt/5 p-4" data-demo="accept-box">
       <div className="flex items-start justify-between gap-2">
         <span className="text-[14px] font-semibold text-ink">
-          {sell ? "Sell into" : "Buy from"} {sell ? "bid" : "ask"} #{String(order.id)} at <span className="num">{fmtUsd(order.price)}</span>
+          {sell ? "Sell into" : "Buy from"} {sell ? "bid" : "ask"} #{String(order.id)} at <span className="num">{fmtPrice(order.price)}</span>
         </span>
         <button type="button" onClick={onClose} aria-label="Close" className="focus-ring -mt-1 -mr-1 grid size-9 place-items-center rounded-full text-mute hover:bg-sheet hover:text-ink">
           <IconClose size={18} />
         </button>
       </div>
-      <SmallField label="ETH" ariaLabel="Amount of ETH to trade with this order" value={input} onChange={setInput} demo="accept-amount" />
+      <SmallField label="NEAR" ariaLabel="Amount of NEAR to trade with this order" value={input} onChange={setInput} demo="accept-amount" />
       {amount !== undefined && usdc !== undefined && (
         <p className="num text-[12px] leading-relaxed text-mute">
           {sell
-            ? `Pay ${fmtNear(amount)} WETH; get ${fmt(usdc)} USDC-if-${world.label} and keep ${fmtNear(amount)} WETH in every other world.`
-            : `Pay ${fmt(usdc)} USDC; get ${fmtNear(amount)} WETH-if-${world.label} and keep ${fmt(usdc)} USDC in every other world.`}
+            ? `Pay ${fmtNear(amount)} wNEAR; get ${fmt(usdc)} USDC-if-${world.label} and keep ${fmtNear(amount)} NEAR in every other world.`
+            : `Pay ${fmt(usdc)} USDC; get ${fmtNear(amount)} NEAR-if-${world.label} and keep ${fmt(usdc)} USDC in every other world.`}
         </p>
       )}
       <TxButton
@@ -320,7 +320,7 @@ function AcceptBox({
   );
 }
 
-/** Post a bid or ask from real USDC or WETH; the contract splits it and escrows this world's piece in the book. */
+/** Post a bid or ask from real USDC or wNEAR; the contract splits it and escrows this world's piece in the book. */
 function PostForm({
   config,
   scenario,
@@ -358,9 +358,9 @@ function PostForm({
   let blocker: string | undefined;
   if (scenario.halted) blocker = "Paused while a resolution is pending";
   else if (price === undefined) blocker = "Enter a price";
-  else if (amount === undefined) blocker = "Enter an amount of ETH";
+  else if (amount === undefined) blocker = "Enter an amount of NEAR";
   else if (bid && escrow! > wallUsdc) blocker = "Not enough USDC in this wallet";
-  else if (!bid && escrow! > wallWnear) blocker = "Not enough WETH in this wallet";
+  else if (!bid && escrow! > wallWnear) blocker = "Not enough wNEAR in this wallet";
 
   async function run(step: (s: string) => void): Promise<string> {
     // The order lives from now (chain time or the wall clock, whichever is later) for the chosen period.
@@ -396,8 +396,8 @@ function PostForm({
         ]}
       />
       <div className="grid grid-cols-2 gap-2">
-        <SmallField label="Price (USDC per ETH)" value={priceInput} onChange={setPriceInput} demo="post-price" />
-        <SmallField label="Amount (ETH)" value={amountInput} onChange={setAmountInput} demo="post-amount" />
+        <SmallField label="Price (USDC per NEAR)" value={priceInput} onChange={setPriceInput} demo="post-price" />
+        <SmallField label="Amount (NEAR)" value={amountInput} onChange={setAmountInput} demo="post-amount" />
       </div>
       <label className="flex items-center justify-between gap-2 text-[13px] text-mute">
         <span>Good for</span>
@@ -418,13 +418,13 @@ function PostForm({
         <p className="num text-[12px] leading-relaxed text-mute">
           {bid
             ? `Locks ${fmt(escrow)} USDC-if-${world.label} from ${fmt(escrow)} real USDC; you keep ${fmt(escrow)} USDC in every other world. Cancel any time to get it back.`
-            : `Locks ${fmtNear(escrow)} WETH-if-${world.label} from ${fmtNear(escrow)} real WETH; you keep ${fmtNear(escrow)} WETH in every other world. Cancel any time to get it back.`}
+            : `Locks ${fmtNear(escrow)} NEAR-if-${world.label} from ${fmtNear(escrow)} real wNEAR; you keep ${fmtNear(escrow)} NEAR in every other world. Cancel any time to get it back.`}
         </p>
       )}
       {crossing && (
         <div className="flex items-center justify-between gap-3 rounded-[14px] border border-neg/30 bg-neg-bright/6 px-3 py-2 text-[12px] text-ink" role="alert">
           <span>
-            This {bid ? "bid" : "ask"} crosses {bid ? "ask" : "bid"} #{String(crossing.id)} at <span className="num">{fmtUsd(crossing.price)}</span>, which is
+            This {bid ? "bid" : "ask"} crosses {bid ? "ask" : "bid"} #{String(crossing.id)} at <span className="num">{fmtPrice(crossing.price)}</span>, which is
             already there.
           </span>
           <button type="button" onClick={() => onTake(crossing.id)} className="focus-ring min-h-9 shrink-0 rounded-full px-2 font-semibold text-cobalt-ink hover:underline">
@@ -434,7 +434,7 @@ function PostForm({
       )}
       {throughPool && !crossing && (
         <p className="text-[12px] text-mute">
-          {bid ? "Above" : "Below"} the pool price ({fmtUsd(pool!)}): anyone can {bid ? "sell into" : "buy"} this at once through the pool.
+          {bid ? "Above" : "Below"} the pool price ({fmtPrice(pool!)}): anyone can {bid ? "sell into" : "buy"} this at once through the pool.
         </p>
       )}
       <TxButton
@@ -448,7 +448,7 @@ function PostForm({
         onDone={() => setAmountInput("")}
       />
       <p className="num text-[12px] text-mute">
-        wallet {fmt(wallUsdc)} USDC · {fmtNear(wallWnear)} WETH
+        wallet {fmt(wallUsdc)} USDC · {fmtNear(wallWnear)} wNEAR
       </p>
     </div>
   );
@@ -467,10 +467,10 @@ function MyOrders({ scenario, orders, wallNow }: { scenario: Scenario; orders: O
           <div key={String(o.id)} className="flex flex-col gap-2 rounded-[16px] bg-tile p-3">
             <div className="num flex flex-wrap justify-between gap-x-3 gap-y-1 text-[13px]">
               <span className="text-ink">
-                #{String(o.id)} {o.side} {fmtUsd(o.price)}
+                #{String(o.id)} {o.side} {fmtPrice(o.price)}
               </span>
               <span className="text-mute">
-                {fmtNear(o.remaining)} of {fmtNear(o.amount)} ETH left{reason ? ` · ${reason}` : ""}
+                {fmtNear(o.remaining)} of {fmtNear(o.amount)} NEAR left{reason ? ` · ${reason}` : ""}
               </span>
             </div>
             <TxButton

@@ -10,7 +10,7 @@ function account(p: Partial<Account> = {}): Account {
     debt: 0n,
     healthFactor: null,
     worstWorld: 3,
-    // Alice after her sale (DemoSale): 2 WETH-if-SHIPS·CUTS at 3,700, then her proceeds in the other worlds.
+    // Alice after her sale (DemoSale): 2,000 NEAR-if-SHIPS·CUTS at 3.70, then her proceeds in the other worlds.
     collateralValues: [wad("7399.26"), wad("5865.050885346196835108"), wad("6451.555973880816518618"), wad("4881.885259897065638949")],
     worldPriceOk: [true, true, true, true],
     collateral: [],

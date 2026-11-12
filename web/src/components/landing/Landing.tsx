@@ -54,12 +54,12 @@ const STEPS = [
   {
     icon: <IconSplit />,
     title: "Split",
-    body: "1 ETH becomes 1 ETH in each possible future. Nothing is lost: together the pieces are your ETH.",
+    body: "1 NEAR becomes 1 NEAR in each possible future. Nothing is lost: together the pieces are your NEAR.",
   },
   {
     icon: <IconProtect />,
     title: "Sell the futures you fear",
-    body: "Sell the pieces in the worlds you are afraid of for dollars in those worlds. Keep ETH everywhere else.",
+    body: "Sell the pieces in the worlds you are afraid of for dollars in those worlds. Keep NEAR everywhere else.",
   },
   {
     icon: <IconLend />,
@@ -69,7 +69,7 @@ const STEPS = [
   {
     icon: <IconResolve />,
     title: "One future happens",
-    body: "When the events resolve, one world is left. Its pieces redeem 1:1 for real ETH and USDC; the rest are worth nothing.",
+    body: "When the events resolve, one world is left. Its pieces redeem 1:1 for real NEAR and USDC; the rest are worth nothing.",
   },
 ];
 
@@ -115,7 +115,7 @@ export function Landing({ embedded }: { embedded?: boolean }) {
                 <span className={`font-serif font-normal tracking-normal normal-case italic ${desktop ? "text-[70px]" : "text-[40px]"}`}>fear</span>
               </h1>
               <p className={`max-w-[34rem] leading-relaxed ${ink ? "text-ink/80" : "text-white/85"} ${desktop ? "text-[18px]" : "text-[15px]"}`}>
-                Sell your ETH only in the futures you&apos;re afraid of. Keep all of it in the ones you&apos;re not. Settled on NEAR.
+                Sell your NEAR only in the futures you&apos;re afraid of. Keep all of it in the ones you&apos;re not. Settled on NEAR.
               </p>
               <div className={`mt-2 flex gap-3 ${desktop ? "flex-row items-center" : "flex-col"}`}>
                 {wallet.accountId ? (

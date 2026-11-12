@@ -2,7 +2,7 @@
 
 import { StatTile } from "@/components/ui/Bits";
 import type { EventState, ImpactPoint, Scenario } from "@/lib/domain";
-import { fmtUsd } from "@/lib/format";
+import { fmtPrice } from "@/lib/format";
 import { allBacked, impactGap, impactSeries, impliedNote, sparklinePath, SPARK_H, SPARK_W } from "@/lib/spot";
 
 /** Actual spot, implied spot, the Impact Meter and the backing check. */
@@ -14,13 +14,13 @@ export function SpotStats({ scenario, impact }: { scenario: Scenario; impact: re
       <StatTile
         demo="stat-actual-spot"
         label="Actual spot"
-        value={scenario.spotPrice > 0n ? fmtUsd(scenario.spotPrice) : "—"}
-        note="real WETH / USDC pool"
+        value={scenario.spotPrice > 0n ? fmtPrice(scenario.spotPrice) : "—"}
+        note="real wNEAR / USDC pool"
       />
       <StatTile
         demo="stat-implied-spot"
         label="Implied spot"
-        value={scenario.impliedSpot > 0n ? fmtUsd(scenario.impliedSpot) : "—"}
+        value={scenario.impliedSpot > 0n ? fmtPrice(scenario.impliedSpot) : "—"}
         note={
           note.kind === "diff" ? (
             <>
@@ -31,7 +31,7 @@ export function SpotStats({ scenario, impact }: { scenario: Scenario; impact: re
           )
         }
       />
-      <StatTile demo="stat-impact" label="Impact meter" value={fmtUsd(impactGap(scenario))} note="gap between the highest and lowest world price">
+      <StatTile demo="stat-impact" label="Impact meter" value={fmtPrice(impactGap(scenario))} note="gap between the highest and lowest world price">
         <Sparkline points={impactSeries(impact, scenario.possible)} />
       </StatTile>
       <StatTile

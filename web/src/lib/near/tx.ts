@@ -72,4 +72,4 @@ export function singleOrderPlan(worldCount: number, index: number, orderId: bigi
 export const storageDeposit = (contractId: string, deposit: bigint, registrationOnly: boolean, accountId?: string): Tx =>
   call(contractId, "storage_deposit", { account_id: accountId ?? null, registration_only: registrationOnly }, deposit.toString(), GAS_LIGHT);
 
-export const assetSymbol = (a: Asset) => (a === "wnear" ? "WETH" : "USDC");
+export const assetSymbol = (a: Asset) => (a === "wnear" ? "wNEAR" : "USDC");

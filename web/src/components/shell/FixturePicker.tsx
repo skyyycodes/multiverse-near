@@ -8,7 +8,7 @@ import { fixtureStage, setFixtureStage } from "@/lib/fixtures/session";
 import { useWallet } from "@/lib/near/wallet";
 
 const ROLES: Record<Persona, string> = {
-  alice: "Hedges her ETH against a delay and a hold",
+  alice: "Hedges her NEAR against a delay and a hold",
   bob: "Lends USDC to every market",
   ravi: "Makes markets in the order book",
   sam: "Backs one future he believes in",

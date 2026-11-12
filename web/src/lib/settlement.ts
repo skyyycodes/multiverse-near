@@ -3,7 +3,7 @@ import type { Collateral, Scenario } from "./domain";
 import type { NepEvent } from "./near/outcome";
 import type { Asset } from "./types";
 
-/** real: real WETH/USDC, returned as is. redeems: covers every world still possible, so it is worth the real asset
+/** real: real wNEAR/USDC, returned as is. redeems: covers every world still possible, so it is worth the real asset
  *  1:1. live: some worlds still possible, returned as a world token. dead: no possible world, returned, worthless. */
 export type Fate = "real" | "redeems" | "live" | "dead";
 
@@ -11,10 +11,13 @@ export type Piece = Collateral & { fate: Fate };
 
 export type ClosePlan = {
   pieces: Piece[];
-  /** Real USDC and WETH that reach the wallet: redeemed pieces plus real collateral. */
+  /** Real USDC and wNEAR that reach the wallet: redeemed pieces plus real collateral. */
   realUsdc: bigint;
   realWnear: bigint;
 };
+
+/** The real tokens' symbols, as the contract names its world tokens ("wNEAR-if-DELAYED·HOLDS"). */
+export const SYMBOL = { wnear: "wNEAR", usdc: "USDC" } as const;
 
 export function fateOf(c: Collateral, possible: number): Fate {
   if (c.isReal) return "real";
@@ -30,7 +33,7 @@ export function planClose(collateral: readonly Collateral[], possible: number): 
 }
 
 export function fateText(p: Piece): string {
-  const symbol = p.asset === "wnear" ? "WETH" : "USDC";
+  const symbol = SYMBOL[p.asset];
   switch (p.fate) {
     case "redeems":
       return `collapsed: redeemed 1:1 for real ${symbol}`;
@@ -43,7 +46,7 @@ export function fateText(p: Piece): string {
   }
 }
 
-export type RedeemRow = { asset: Asset; symbol: "WETH" | "USDC"; tokenId: string; mask: number; amount: bigint; label: string };
+export type RedeemRow = { asset: Asset; symbol: (typeof SYMBOL)[Asset]; tokenId: string; mask: number; amount: bigint; label: string };
 
 /**
  * Single-world tokens in the wallet whose world is the only one left: each redeems 1:1 for the real asset. A world
@@ -53,7 +56,7 @@ export function walletRedeemable(s: Scenario): RedeemRow[] {
   return s.worlds.flatMap((w) => {
     if ((w.mask & s.possible) !== s.possible) return [];
     const rows: RedeemRow[] = [
-      { asset: "wnear", symbol: "WETH", tokenId: w.wnearTokenId, mask: w.mask, amount: w.userWnear, label: `WETH-if-${w.label}` },
+      { asset: "wnear", symbol: "wNEAR", tokenId: w.wnearTokenId, mask: w.mask, amount: w.userWnear, label: `wNEAR-if-${w.label}` },
       { asset: "usdc", symbol: "USDC", tokenId: w.usdcTokenId, mask: w.mask, amount: w.userUsdc, label: `USDC-if-${w.label}` },
     ];
     return rows.filter((r) => r.amount > 0n);

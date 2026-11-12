@@ -7,7 +7,7 @@ import { BranchLines } from "@/components/brand/BranchLines";
 import { IconArrowUpRight } from "@/components/brand/Icons";
 import type { World } from "@/lib/domain";
 import type { CellQuote } from "@/lib/orders";
-import { fmt, fmtUsd, fmtNear, pct, wholeUsd } from "@/lib/format";
+import { fmt, fmtNear, fmtUsd, pct } from "@/lib/format";
 import { alpha, hueOf } from "./hues";
 
 const ONE = 10n ** 18n;
@@ -52,7 +52,7 @@ export function BackedBadge({ ok, onDark = true }: { ok: boolean; onDark?: boole
   );
 }
 
-/** "You hold 2.0000 WETH + 1.00 USDC here · loan collateral", or nothing when the account holds nothing here. */
+/** "You hold 2,000.00 NEAR + 1.00 USDC here · loan collateral", or nothing when the account holds nothing here. */
 export function Holdings({ world, className = "" }: { world: World; className?: string }) {
   const wnearHeld = world.userWnear + world.collateralWnear;
   const usdcHeld = world.userUsdc + world.collateralUsdc;
@@ -60,7 +60,7 @@ export function Holdings({ world, className = "" }: { world: World; className?: 
   const posted = world.collateralWnear > 0n || world.collateralUsdc > 0n;
   return (
     <span className={`num block text-[12px] leading-snug ${className}`}>
-      You hold{wnearHeld > 0n ? ` ${fmtNear(wnearHeld)} WETH` : ""}
+      You hold{wnearHeld > 0n ? ` ${fmtNear(wnearHeld)} NEAR` : ""}
       {wnearHeld > 0n && usdcHeld > 0n ? " +" : ""}
       {usdcHeld > 0n ? ` ${fmt(usdcHeld)} USDC` : ""} here
       {posted && <span className="opacity-60"> · loan collateral</span>}
@@ -115,7 +115,7 @@ export function WorldCard({ world, oddsKnown, selected, onToggle, quote, badge =
         </span>
         <span className="relative z-10 block">
           <span className="numeral block text-[34px]">{world.poolInitialized ? fmtUsd(world.wnearPrice) : "no pool"}</span>
-          <span className="mt-1.5 block text-[12px] text-white/60">ETH price if this world happens</span>
+          <span className="mt-1.5 block text-[12px] text-white/60">NEAR price if this world happens</span>
         </span>
         <span className="relative z-10 grid grid-cols-3 gap-2">
           <Metric
@@ -127,8 +127,8 @@ export function WorldCard({ world, oddsKnown, selected, onToggle, quote, badge =
                 : "Unknown until every between-world pool exists"
             }
           />
-          <Metric label="best bid" value={quote && (quote.bid !== undefined ? wholeUsd(quote.bid) : "—")} />
-          <Metric label="best ask" value={quote && (quote.ask !== undefined ? wholeUsd(quote.ask) : "—")} />
+          <Metric label="best bid" value={quote && (quote.bid !== undefined ? fmtUsd(quote.bid) : "—")} />
+          <Metric label="best ask" value={quote && (quote.ask !== undefined ? fmtUsd(quote.ask) : "—")} />
         </span>
         <Holdings world={world} className="relative z-10 text-white/90" />
         {selected && (

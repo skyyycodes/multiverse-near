@@ -13,7 +13,7 @@ import { WorldGlyph } from "@/components/world/WorldBits";
 import { alpha, hueOf } from "@/components/world/hues";
 import { CONTRACT_ID } from "@/lib/data/client";
 import type { Account, AppConfig, Scenario } from "@/lib/domain";
-import { fmt, fmtHf, fmtUsd, hfTone, inputText, parseAmount, pct, type Tone } from "@/lib/format";
+import { fmtAsset, fmtHf, fmtUsd, hfTone, inputText, parseAmount, pct, type Tone } from "@/lib/format";
 import { useBalances, useBorrow, useScenarioId } from "@/lib/hooks/useData";
 import { useSubmit } from "@/lib/hooks/useTx";
 import { annualRate, barWidth, borrowMath, linePosition, liquidationOf, neededValue, WAD } from "@/lib/lending";
@@ -153,7 +153,7 @@ function WorldsPanel({ v, s, liq }: { v: Account; s: Scenario; liq: ReturnType<t
       </ul>
       <p className="text-[12px] leading-relaxed text-mute">
         Collateral value in each world. The dashed line is where the loan would reach HF 1; the worst world sets the limit.
-        USDC-if-w counts 1:1 in its world; WETH-if-w at that world&apos;s TWAP price
+        USDC-if-w counts 1:1 in its world; NEAR-if-w at that world&apos;s TWAP price
         {v.worldPriceOk.every(Boolean) ? "." : " (worlds without enough TWAP history or liquidity count zero)."}
       </p>
       <div className="flex flex-col gap-2" data-demo="posted-collateral">
@@ -165,7 +165,7 @@ function WorldsPanel({ v, s, liq }: { v: Account; s: Scenario; liq: ReturnType<t
             {v.collateral.map((c) => (
               <li key={c.tokenId} className="flex justify-between gap-3 border-b border-line py-2 text-[13px] last:border-b-0">
                 <span className="truncate text-ink">{c.label}</span>
-                <span className="num text-ink">{fmt(c.amount, 4)}</span>
+                <span className="num text-ink">{fmtAsset(c.asset, c.amount)}</span>
               </li>
             ))}
           </ul>

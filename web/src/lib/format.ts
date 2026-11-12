@@ -1,5 +1,8 @@
-// Money is bigint in 18-decimal units: the contract scales both WETH and USDC to 18 decimals internally, and wallet
+// Money is bigint in 18-decimal units: the contract keeps both wNEAR and USDC in 18 decimals internally, and wallet
 // balances are scaled the same way before they reach a formatter. Nothing here uses floating point.
+//
+// A NEAR price is a few dollars, so it never shows in whole dollars: 2 decimals by default ($3.70), 4 where a
+// difference would otherwise vanish (actual against implied spot, fair price, cost per NEAR, order prices).
 
 export const ONE = 10n ** 18n;
 
@@ -19,10 +22,20 @@ export function fmt(x: bigint, digits = 2): string {
   return (neg && (whole > 0n || frac > 0n) ? "-" : "") + groupThousands(whole) + fracStr;
 }
 
-export const fmtUsd = (x: bigint) => (x < 0n && fmt(-x) !== "0.00" ? "-$" + fmt(-x) : "$" + fmt(x < 0n ? -x : x));
-export const fmtNear = (x: bigint) => fmt(x, 4);
-/** Whole dollars, rounded down: grid cells are narrow; the order panel shows cents. */
-export const wholeUsd = (x: bigint) => "$" + fmt(x, 0);
+function signedUsd(x: bigint, digits: number): string {
+  const abs = x < 0n ? -x : x;
+  const body = fmt(abs, digits);
+  return x < 0n && /[1-9]/.test(body) ? "-$" + body : "$" + body;
+}
+
+/** Dollars with cents: USDC amounts, and a NEAR price where cents tell the worlds apart ("$3.70"). */
+export const fmtUsd = (x: bigint) => signedUsd(x, 2);
+/** A NEAR price to four decimals, where cents would hide the difference ("$3.0377", "$2.4500"). */
+export const fmtPrice = (x: bigint) => signedUsd(x, 4);
+/** A NEAR amount: thousands grouped, two decimals ("2,000.00"). */
+export const fmtNear = (x: bigint) => fmt(x, 2);
+/** A token amount in a list that mixes both assets: NEAR as above, USDC with four decimals. */
+export const fmtAsset = (asset: "wnear" | "usdc", x: bigint) => (asset === "wnear" ? fmtNear(x) : fmt(x, 4));
 
 /**
  * Parse a human decimal into 18-decimal units; undefined unless it is a positive number. `decimals` is the token's

@@ -4,15 +4,16 @@ import {
   countdown,
   fmt,
   fmtHf,
-  fmtUsd,
+  fmtAsset,
   fmtNear,
+  fmtPrice,
+  fmtUsd,
   hfTone,
   inputText,
   parseAmount,
   pct,
   shortAccount,
   utcDate,
-  wholeUsd,
 } from "./format";
 
 const E18 = 10n ** 18n;
@@ -38,12 +39,25 @@ describe("fmt", () => {
     expect(fmt(-(E18 / 1000n))).toBe("0.00");
     expect(fmtUsd(-wad("124.31"))).toBe("-$124.31");
     expect(fmtUsd(-1n)).toBe("$0.00");
+    expect(fmtPrice(-wad("0.0001"))).toBe("-$0.0001");
+    expect(fmtPrice(-(E18 / 100_000n))).toBe("$0.0000");
   });
 
   it("has the screen variants", () => {
-    expect(fmtUsd(wad("3037.866632"))).toBe("$3,037.86");
-    expect(fmtNear(wad("2"))).toBe("2.0000");
-    expect(wholeUsd(wad("2450"))).toBe("$2,450");
+    expect(fmtAsset("wnear", wad("2000"))).toBe("2,000.00");
+    expect(fmtAsset("usdc", wad("4881.885259"))).toBe("4,881.8852");
+    expect(fmtUsd(wad("4881.885259"))).toBe("$4,881.88");
+    expect(fmtNear(wad("2000"))).toBe("2,000.00");
+    expect(fmtNear(wad("0.5"))).toBe("0.50");
+  });
+
+  it("never shows a NEAR price in whole dollars", () => {
+    expect(fmtUsd(wad("3.7"))).toBe("$3.70");
+    expect(fmtUsd(wad("2.45"))).toBe("$2.45");
+    // actual against implied spot: cents would show both as $3.03
+    expect(fmtPrice(wad("3.037866632"))).toBe("$3.0378");
+    expect(fmtPrice(wad("3.0376933"))).toBe("$3.0376");
+    expect(fmtPrice(wad("2.45"))).toBe("$2.4500");
     expect(inputText(wad("3643.1052"), 2)).toBe("3643.10");
   });
 });

@@ -14,9 +14,9 @@ function order(p: Omit<Partial<Order>, "id"> & { id: number }): Order {
     scenarioId: 1,
     mask: 8,
     side: "bid",
-    price: wad("2450"),
-    amount: E18,
-    remaining: E18,
+    price: wad("2.45"),
+    amount: wad("1000"),
+    remaining: wad("1000"),
     expiry: NOW + 86_400n,
     epoch: 0,
     cancelled: false,
@@ -33,7 +33,7 @@ describe("order maths", () => {
     expect(proceeds(1n, p)).toBe(1n);
     expect(cost(1n, p)).toBe(2n);
     expect(cost(0n, p)).toBe(0n);
-    expect(cost(E18, wad("2450"))).toBe(wad("2450"));
+    expect(cost(wad("1000"), wad("2.45"))).toBe(wad("2450"));
   });
 
   it("never lets cost and proceeds drift more than one unit apart", () => {
@@ -73,12 +73,12 @@ describe("open and closed orders", () => {
 
   it("sorts a cell's book best first, older first on a tie", () => {
     const orders = [
-      order({ id: 1, price: wad("2400") }),
-      order({ id: 2, price: wad("2450") }),
-      order({ id: 3, price: wad("2450") }),
-      order({ id: 4, side: "ask", price: wad("2600") }),
-      order({ id: 5, side: "ask", price: wad("2550") }),
-      order({ id: 6, side: "ask", price: wad("2550") }),
+      order({ id: 1, price: wad("2.40") }),
+      order({ id: 2, price: wad("2.45") }),
+      order({ id: 3, price: wad("2.45") }),
+      order({ id: 4, side: "ask", price: wad("2.60") }),
+      order({ id: 5, side: "ask", price: wad("2.55") }),
+      order({ id: 6, side: "ask", price: wad("2.55") }),
       order({ id: 7, mask: 4 }),
       order({ id: 8, cancelled: true }),
     ];
@@ -90,51 +90,51 @@ describe("open and closed orders", () => {
 
 describe("sale planner", () => {
   it("builds candidates best bid first, the last one partly, the rest to the pool", () => {
-    const bids = [order({ id: 1, remaining: wad("0.5"), price: wad("2500") }), order({ id: 2, remaining: wad("2"), price: wad("2450") })];
-    const c = saleCandidates(bids, wad("2"));
+    const bids = [order({ id: 1, remaining: wad("500"), price: wad("2.50") }), order({ id: 2, remaining: wad("2000"), price: wad("2.45") })];
+    const c = saleCandidates(bids, wad("2000"));
     expect(c).toHaveLength(3);
-    expect(c[0]).toEqual({ fills: [], poolAmount: wad("2") });
-    expect(c[1].poolAmount).toBe(wad("1.5"));
-    expect(c[2].fills.map((f) => f.amount)).toEqual([wad("0.5"), wad("1.5")]);
+    expect(c[0]).toEqual({ fills: [], poolAmount: wad("2000") });
+    expect(c[1].poolAmount).toBe(wad("1500"));
+    expect(c[2].fills.map((f) => f.amount)).toEqual([wad("500"), wad("1500")]);
     expect(c[2].poolAmount).toBe(0n);
     expect(c[2].fills[1].out).toBe(wad("3675"));
   });
 
   it("looks at five bids at most and stops at a bid that would pay nothing", () => {
-    const many = Array.from({ length: 8 }, (_, i) => order({ id: i + 1, remaining: 1n, price: wad("2450") }));
-    expect(saleCandidates(many, wad("1"))).toHaveLength(MAX_PLAN_ORDERS + 1);
-    const dust = [order({ id: 1, remaining: 1n, price: 10n ** 17n })]; // 1 wei at 0.1 pays 0
-    expect(saleCandidates(dust, wad("1"))).toHaveLength(1);
+    const many = Array.from({ length: 8 }, (_, i) => order({ id: i + 1, remaining: 1n, price: wad("2.45") }));
+    expect(saleCandidates(many, wad("1000"))).toHaveLength(MAX_PLAN_ORDERS + 1);
+    const dust = [order({ id: 1, remaining: 1n, price: 10n ** 17n })]; // one base unit at 0.1 pays 0
+    expect(saleCandidates(dust, wad("1000"))).toHaveLength(1);
   });
 
   it("reproduces the demo: Ravi's bid then the pool beats the pool alone", () => {
-    // DELAYED·HOLDS: 40 WETH / 100,000 USDC at 0.30%. Pool alone for 2 WETH: 4,748.29; for 1 WETH: 2,431.88.
+    // DELAYED·HOLDS: 40,000 NEAR / 100,000 USDC at 0.30%. Pool alone for 2,000 NEAR: 4,748.29; for 1,000: 2,431.88.
     const poolOut = (a: bigint) => {
-      const x = wad("40");
+      const x = wad("40000");
       const y = wad("100000");
       const aEff = (a * 997_000n) / 1_000_000n;
       return (y * aEff) / (x + aEff);
     };
-    const plan = bestPlan(saleCandidates([order({ id: 1 })], wad("2")), poolOut)!;
+    const plan = bestPlan(saleCandidates([order({ id: 1 })], wad("2000")), poolOut)!;
     expect(plan.fills.map((f) => f.order.id)).toEqual([1n]);
-    expect(plan.poolAmount).toBe(wad("1"));
-    expect(plan.total).toBe(wad("2450") + poolOut(wad("1")));
+    expect(plan.poolAmount).toBe(wad("1000"));
+    expect(plan.total).toBe(wad("2450") + poolOut(wad("1000")));
     expect(plan.total / 10n ** 16n).toBe(488_188n); // 4,881.88
-    expect(poolOut(wad("2")) / 10n ** 16n).toBe(474_829n); // 4,748.29
+    expect(poolOut(wad("2000")) / 10n ** 16n).toBe(474_829n); // 4,748.29
     expect(via(plan)).toBe("sell via a bid + pool → ");
     // only the pool part can slip: 0.5% of 2,431.88
     expect(minOutOf(plan)).toBe(plan.total - (plan.poolOut * 50n) / 10_000n);
   });
 
   it("keeps the plan with fewer orders on a tie, waits for missing quotes, skips zero quotes", () => {
-    const bids = [order({ id: 1, remaining: wad("1"), price: wad("1000") })];
-    const cands = saleCandidates(bids, wad("2"));
-    // the pool pays exactly 1,000 per ETH: a tie, so the pool alone wins
-    expect(bestPlan(cands, (a) => (a * 1000n) / 1n)!.fills).toHaveLength(0);
+    const bids = [order({ id: 1, remaining: wad("1000"), price: wad("1") })];
+    const cands = saleCandidates(bids, wad("2000"));
+    // the pool pays exactly 1 USDC per NEAR, as the bid does: a tie, so the pool alone wins
+    expect(bestPlan(cands, (a) => a)!.fills).toHaveLength(0);
     expect(bestPlan(cands, () => undefined)).toBeUndefined();
-    const onlyBid = bestPlan(cands, (a) => (a === wad("2") ? 0n : a * 900n));
+    const onlyBid = bestPlan(cands, (a) => (a === wad("2000") ? 0n : (a * 9n) / 10n));
     expect(onlyBid!.fills).toHaveLength(1);
-    expect(bestPlan([{ fills: [], poolAmount: wad("1") }], () => 0n)).toBeUndefined();
+    expect(bestPlan([{ fills: [], poolAmount: wad("1000") }], () => 0n)).toBeUndefined();
   });
 
   it("describes the route", () => {
@@ -150,17 +150,17 @@ describe("best bid and ask per world", () => {
     const worlds = [1, 2, 4, 8].map((mask) => ({ mask }));
     const orders = [
       order({ id: 1 }),
-      order({ id: 2, price: wad("2400") }),
-      order({ id: 3, mask: 1, side: "ask", price: wad("3750") }),
-      order({ id: 4, mask: 1, side: "ask", price: wad("3880") }),
-      order({ id: 5, mask: 1, price: wad("3600") }),
-      order({ id: 6, mask: 2, price: wad("2900"), expiry: NOW }),
+      order({ id: 2, price: wad("2.40") }),
+      order({ id: 3, mask: 1, side: "ask", price: wad("3.75") }),
+      order({ id: 4, mask: 1, side: "ask", price: wad("3.88") }),
+      order({ id: 5, mask: 1, price: wad("3.60") }),
+      order({ id: 6, mask: 2, price: wad("2.90"), expiry: NOW }),
     ];
     expect(cellQuotes(orders, { ...state, worlds }, NOW)).toEqual([
-      { bid: wad("3600"), ask: wad("3750") },
+      { bid: wad("3.60"), ask: wad("3.75") },
       { bid: undefined, ask: undefined },
       { bid: undefined, ask: undefined },
-      { bid: wad("2450"), ask: undefined },
+      { bid: wad("2.45"), ask: undefined },
     ]);
   });
 });

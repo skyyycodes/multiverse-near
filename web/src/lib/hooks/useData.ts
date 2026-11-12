@@ -158,7 +158,7 @@ export function useHalted(sid: number | undefined) {
   });
 }
 
-/** Pool proceeds of selling `amount` WETH in every world of `mask` (0 where unsold, dead, unpooled or failing). */
+/** Pool proceeds of selling `amount` NEAR in every world of `mask` (0 where unsold, dead, unpooled or failing). */
 export function useQuoteSell(sid: number | undefined, amount: bigint | undefined, mask: number, enabled = true) {
   return useQuery({
     queryKey: ["quote", CONTRACT_ID, String(sid), amount?.toString() ?? "", String(mask)],

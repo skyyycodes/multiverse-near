@@ -49,7 +49,7 @@ export function PillLink({
   );
 }
 
-/** A small text button inside a label row ("wallet: 2.0000 WETH", "max $3,600.00"). */
+/** A small text button inside a label row ("wallet: 2,000.00 wNEAR", "max $3,600.00"). */
 export function InlineButton({ className = "", ...rest }: ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button

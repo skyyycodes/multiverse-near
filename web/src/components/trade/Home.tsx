@@ -10,26 +10,27 @@ import { WorldGlyph, WorldThumb } from "@/components/world/WorldBits";
 import type { CellQuote } from "@/components/world/WorldCard";
 import { hueOf, spaced } from "@/components/world/hues";
 import type { Scenario, World } from "@/lib/domain";
-import { fmt, fmtUsd, fmtNear, pct, wholeUsd } from "@/lib/format";
+import { fmt, fmtNear, fmtPrice, fmtUsd, pct } from "@/lib/format";
 import type { Balances } from "@/lib/hooks/useData";
 import { useWallet } from "@/lib/near/wallet";
 
 const ONE = 10n ** 18n;
-const CENT = 10n ** 16n;
+/** Below this, actual and implied spot agree at the four decimals they are shown with. */
+const TICK = 10n ** 14n;
 const COUNT = ["", "one", "two", "three", "four"];
 
-/** "implied by the four futures: $3,037.86 ✓", or the difference, or why it is unknown. */
+/** "implied by the four futures: $3.0378 ✓", or the difference, or why it is unknown. */
 export function impliedLine(s: Scenario): ReactNode {
   const live = s.worlds.filter((w) => w.possible).length;
   const n = COUNT[live] ?? String(live);
   if (!s.oddsKnown) return "Implied spot unknown until every between-world pool exists";
   if (s.impliedSpot === 0n) return "Implied spot unknown: a world has no pool";
-  const head = `implied by the ${n} ${live === 1 ? "future" : "futures"}: ${fmtUsd(s.impliedSpot)}`;
+  const head = `implied by the ${n} ${live === 1 ? "future" : "futures"}: ${fmtPrice(s.impliedSpot)}`;
   if (s.spotPrice === 0n) return head;
   const diff = s.impliedSpot - s.spotPrice;
   const abs = diff < 0n ? -diff : diff;
-  if (abs < CENT) return <>{head} <span className="text-pos-dark">✓</span></>;
-  return `${head} (${diff > 0n ? "+" : ""}${fmtUsd(diff)})`;
+  if (abs < TICK) return <>{head} <span className="text-pos-dark">✓</span></>;
+  return `${head} (${diff > 0n ? "+" : ""}${fmtPrice(diff)})`;
 }
 
 /** Wallet balances as chips; one "Connect" pill while signed out. */
@@ -56,7 +57,7 @@ export function BalanceChips({ balances, loading, hideConnect }: { balances?: Ba
   const inner = innerChipText(b);
   return (
     <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 lg:mx-0 lg:px-0" data-demo="balance-chips">
-      <BalanceChip glyph={<EthGlyph />} label="WETH" value={b ? fmtNear(b.wnear) : undefined} loading={loading} />
+      <BalanceChip glyph={<NearGlyph />} label="wNEAR" value={b ? fmtNear(b.wnear) : undefined} loading={loading} />
       <BalanceChip glyph={<UsdGlyph />} label="USDC" value={b ? fmt(b.usdc) : undefined} loading={loading} />
       {inner && <BalanceChip glyph={<Mark size={20} />} label="In Multiverse" value={inner} />}
     </div>
@@ -65,13 +66,13 @@ export function BalanceChips({ balances, loading, hideConnect }: { balances?: Ba
 
 /**
  * The "In Multiverse" chip's text, or nothing when the amount rounds to zero at the chip's precision: a withdrawal can
- * leave a few billionths of a USDC of rounding behind, and a chip reading 0.00 looks like money left over.
+ * leave a few billionths of a USDC or wNEAR of rounding behind, and a chip reading 0.00 looks like money left over.
  */
 export function innerChipText(b: Balances | undefined): string | undefined {
   if (!b) return undefined;
   const parts = [
     b.innerUsdc >= 10n ** 16n ? `${fmt(b.innerUsdc)} USDC` : undefined,
-    b.innerWnear >= 10n ** 14n ? `${fmtNear(b.innerWnear)} WETH` : undefined,
+    b.innerWnear >= 10n ** 16n ? `${fmtNear(b.innerWnear)} wNEAR` : undefined,
   ].filter((p) => p !== undefined);
   return parts.length > 0 ? parts.join(" + ") : undefined;
 }
@@ -92,10 +93,10 @@ function BalanceChip({ glyph, label, value, loading }: { glyph: ReactNode; label
   );
 }
 
-const EthGlyph = () => (
+/** A plain N for the wNEAR chip. */
+const NearGlyph = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M12 2.5 6 12.2l6 3.5 6-3.5L12 2.5Z" fill="#D0F6F9" />
-    <path d="m6 13.6 6 7.9 6-7.9-6 3.5-6-3.5Z" fill="#8FBEDC" />
+    <path d="M7 18V6l10 12V6" stroke="#D0F6F9" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
   </svg>
 );
 const UsdGlyph = () => (
@@ -105,14 +106,14 @@ const UsdGlyph = () => (
   </svg>
 );
 
-/** The headline: ETH's real spot price, and what the futures together imply. */
+/** The headline: NEAR's real spot price, and what the futures together imply. */
 export function SpotHero({ scenario }: { scenario: Scenario | undefined }) {
   return (
     <HeroNumber
       demo="hero-spot"
-      label="ETH spot"
+      label="NEAR spot"
       loading={!scenario}
-      value={scenario && scenario.spotPrice > 0n ? fmtUsd(scenario.spotPrice) : "—"}
+      value={scenario && scenario.spotPrice > 0n ? fmtPrice(scenario.spotPrice) : "—"}
       sub={scenario ? impliedLine(scenario) : undefined}
     />
   );
@@ -245,9 +246,9 @@ function FutureRow({ world, oddsKnown, quote }: { world: World; oddsKnown: boole
     held > 0n
       ? `you: ${fmt(held)} USDC`
       : heldWnear > 0n
-        ? `you: ${fmtNear(heldWnear)} WETH`
+        ? `you: ${fmtNear(heldWnear)} NEAR`
         : quote?.bid !== undefined
-          ? `best bid ${wholeUsd(quote.bid)}`
+          ? `best bid ${fmtUsd(quote.bid)}`
           : quote
             ? "no bids"
             : "";

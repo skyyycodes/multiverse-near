@@ -35,7 +35,7 @@ describe("get test tokens", () => {
     expect(FAUCET_ON).toBe(true);
   });
 
-  it("counts a wallet as empty only when it holds no WETH and no USDC", () => {
+  it("counts a wallet as empty only when it holds no wNEAR and no USDC", () => {
     expect(walletEmpty(undefined)).toBe(false);
     expect(walletEmpty(empty)).toBe(true);
     expect(walletEmpty({ ...empty, innerUsdc: E18 })).toBe(true);
@@ -45,8 +45,8 @@ describe("get test tokens", () => {
 
   it("keeps the home hint once pressed, though the first mint already filled the wallet", () => {
     expect(hintShown(empty, false)).toBe(true);
-    expect(hintShown({ ...empty, wnear: 2n * E18 }, false)).toBe(false);
-    expect(hintShown({ ...empty, wnear: 2n * E18 }, true)).toBe(true);
+    expect(hintShown({ ...empty, wnear: 2_000n * E18 }, false)).toBe(false);
+    expect(hintShown({ ...empty, wnear: 2_000n * E18 }, true)).toBe(true);
     expect(hintShown(undefined, true)).toBe(true);
   });
 
@@ -68,9 +68,9 @@ describe("get test tokens", () => {
 
   it("lists each finished step, and nothing before the first", () => {
     expect(render(createElement(FaucetProgress, { done: [] }), wallet(null))).toBe("");
-    const html = render(createElement(FaucetProgress, { done: ["2 WETH minted to your wallet", "Registered with Multiverse"] }), wallet(null));
+    const html = render(createElement(FaucetProgress, { done: ["2,000 wNEAR minted to your wallet", "Registered with Multiverse"] }), wallet(null));
     expect(html).toContain('data-demo="faucet-progress"');
-    expect(html).toContain("2 WETH minted to your wallet");
+    expect(html).toContain("2,000 wNEAR minted to your wallet");
     expect(html).toContain("Registered with Multiverse");
     expect(html.match(/<li/g)).toHaveLength(2);
   });

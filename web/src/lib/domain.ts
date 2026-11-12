@@ -8,7 +8,7 @@ export type World = {
   label: string;
   possible: boolean;
   poolInitialized: boolean;
-  /** The pool's spot price, USDC per WETH (lending uses the TWAP, not this). */
+  /** The pool's spot price, USDC per NEAR (lending uses the TWAP, not this). */
   wnearPrice: bigint;
   backed: boolean;
   wnearTokenId: string;

@@ -1,4 +1,4 @@
-// The testnet faucet: the mock WETH and USDC contracts (contracts/mock-ft) have an open `mint(account_id, amount)`.
+// The testnet faucet: the mock wNEAR and USDC contracts (contracts/mock-ft) have an open `mint(account_id, amount)`.
 // It takes no deposit, mints at most `max_mint_per_call` token units per call, and registers an unregistered
 // receiver only when the caller mints to itself (or the caller is the token owner). So a visitor mints to their own
 // account and needs no storage_deposit on the tokens.
@@ -9,7 +9,7 @@ import type { Asset } from "./types";
 import { toInternal } from "./units";
 
 /** Whole tokens per click: enough for a sale, a borrow and a Root LP deposit. */
-export const FAUCET_DROP: Record<Asset, bigint> = { wnear: 2n, usdc: 5_000n };
+export const FAUCET_DROP: Record<Asset, bigint> = { wnear: 2_000n, usdc: 5_000n };
 
 /** What `faucet_config` returns. */
 export type FaucetConfig = { owner_id: string; max_mint_per_call: string };
@@ -58,10 +58,10 @@ export function capOf(cfg: FaucetConfig | null | undefined): bigint | undefined 
   return BigInt(cfg.max_mint_per_call);
 }
 
-/** "2 WETH", "5,000 USDC"; four decimals when a cap cut the amount to a fraction. */
-export const mintLabel = (m: Pick<FaucetMint, "internal" | "symbol">): string => `${fmt(m.internal, m.internal % ONE === 0n ? 0 : 4)} ${m.symbol}`;
+/** "2,000 wNEAR", "5,000 USDC"; two decimals when a cap cut the amount to a fraction. */
+export const mintLabel = (m: Pick<FaucetMint, "internal" | "symbol">): string => `${fmt(m.internal, m.internal % ONE === 0n ? 0 : 2)} ${m.symbol}`;
 
-/** "2 WETH and 5,000 USDC" for the standard drop of the two tokens. */
+/** "2,000 wNEAR and 5,000 USDC" for the standard drop of the two tokens. */
 export function dropLabel(tokens: { wnear: TokenCfg; usdc: TokenCfg }): string {
   return (["wnear", "usdc"] as const)
     .map((a) => mintLabel({ internal: toInternal(wholeTokens(FAUCET_DROP[a], tokens[a].decimals), tokens[a].decimals), symbol: tokens[a].symbol }))

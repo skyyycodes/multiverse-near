@@ -3,7 +3,7 @@
 import { useId, type ReactNode } from "react";
 
 /**
- * An amount input with big numerals: label on the left, an optional helper on the right ("wallet: 2.0000 WETH" as a
+ * An amount input with big numerals: label on the left, an optional helper on the right ("wallet: 2,000.00 wNEAR" as a
  * fill button), the unit inside the field.
  */
 export function AmountField({

@@ -11,7 +11,7 @@ import { WorldGlyph } from "@/components/world/WorldBits";
 import { WorldPicker } from "@/components/world/WorldGrid";
 import { CONTRACT_ID } from "@/lib/data/client";
 import type { AppConfig, EventState, Scenario } from "@/lib/domain";
-import { fmt, fmtUsd, fmtNear, inputText, parseAmount } from "@/lib/format";
+import { fmt, fmtNear, fmtPrice, inputText, parseAmount } from "@/lib/format";
 import type { Balances } from "@/lib/hooks/useData";
 import { useQuoteSell } from "@/lib/hooks/useData";
 import { useDebounced } from "@/lib/hooks/useDebounced";
@@ -41,7 +41,7 @@ type Props = {
 };
 
 /**
- * Sell ETH in the worlds you fear, keep it everywhere else, in one transaction: the WETH travels with the instruction
+ * Sell NEAR in the worlds you fear, keep it everywhere else, in one transaction: the wNEAR travels with the instruction
  * (ft_transfer_call), so there is no approval step. Resting bids fill first in a world when they pay more than the pool
  * would for that part of the sale.
  */
@@ -49,7 +49,7 @@ export function SellPanel({ config, scenario, events, orders, nowSec, balances, 
   const wallet = useWallet();
   const qc = useQueryClient();
   const submit = useSubmit();
-  const [input, setInput] = useState("2");
+  const [input, setInput] = useState("2000");
   const [toLending, setToLending] = useState(true);
   const [from, setFrom] = useState<"wallet" | "inner">("wallet");
   const amount = parseAmount(input, config.wnear.decimals);
@@ -68,8 +68,8 @@ export function SellPanel({ config, scenario, events, orders, nowSec, balances, 
   let blocker: string | undefined;
   if (scenario.halted) blocker = "Trading pauses while a resolution is pending";
   else if (sold.length === 0) blocker = "Tap the worlds you fear on the grid";
-  else if (amount === undefined) blocker = "Enter an amount of WETH";
-  else if (amount > available) blocker = "Not enough WETH in this wallet";
+  else if (amount === undefined) blocker = "Enter an amount of NEAR";
+  else if (amount > available) blocker = "Not enough wNEAR in this wallet";
   else if (!quoteFresh || !plan.ready) blocker = "Getting prices…";
   else if (sold.some((w) => !plan.plans[w.index]?.total)) blocker = "No price in one of the worlds";
 
@@ -108,14 +108,14 @@ export function SellPanel({ config, scenario, events, orders, nowSec, balances, 
   return (
     <div className="flex flex-col gap-5" data-demo="sell-panel">
       {heading && (
-        <SheetTitle sub="Your ETH is split into one piece per world. The pieces in the worlds you pick are sold for dollars in those worlds; everywhere else you keep the ETH. One transaction.">
+        <SheetTitle sub="Your NEAR is split into one piece per world. The pieces in the worlds you pick are sold for dollars in those worlds; everywhere else you keep the NEAR. One transaction.">
           Sell in the worlds you fear
         </SheetTitle>
       )}
       {!heading && (
         <p className="text-[13px] leading-relaxed text-mute">
-          Your ETH is split into one piece per world. The pieces in the worlds you pick are sold for dollars in those
-          worlds; everywhere else you keep the ETH. One transaction.
+          Your NEAR is split into one piece per world. The pieces in the worlds you pick are sold for dollars in those
+          worlds; everywhere else you keep the NEAR. One transaction.
         </p>
       )}
 
@@ -142,16 +142,16 @@ export function SellPanel({ config, scenario, events, orders, nowSec, balances, 
       )}
 
       <AmountField
-        label="Amount of ETH"
+        label="Amount of NEAR"
         value={input}
         onChange={setInput}
-        unit="WETH"
-        ariaLabel="Amount of WETH to split"
+        unit="wNEAR"
+        ariaLabel="Amount of NEAR to split"
         demo="sell-amount"
         right={
           wallet.accountId ? (
-            <InlineButton onClick={() => setInput(inputText(available, 4))} data-demo="sell-wallet">
-              wallet: {fmtNear(available)} WETH
+            <InlineButton onClick={() => setInput(inputText(available, 2))} data-demo="sell-wallet">
+              wallet: {fmtNear(available)} wNEAR
             </InlineButton>
           ) : undefined
         }
@@ -178,19 +178,19 @@ export function SellPanel({ config, scenario, events, orders, nowSec, balances, 
                     <div className="truncate text-[12px] text-mute">
                       {isSold ? via(worldPlan) : "keep → "}
                       <span className="num text-ink">
-                        {isSold ? (out !== undefined ? `${fmt(out)} USDC` : "…") : amount ? `${fmtNear(amount)} WETH` : "—"}
+                        {isSold ? (out !== undefined ? `${fmt(out)} USDC` : "…") : amount ? `${fmtNear(amount)} NEAR` : "—"}
                       </span>
                     </div>
                   </div>
                   <div className="num shrink-0 text-right text-[15px] text-ink">
-                    {isSold ? (got !== undefined ? fmtUsd(got) : "…") : <span className="text-[12px] text-mute">keeps ETH</span>}
+                    {isSold ? (got !== undefined ? fmtPrice(got) : "…") : <span className="text-[12px] text-mute">keeps NEAR</span>}
                   </div>
                 </div>
                 {isSold && (
-                  <div className="ml-12 grid grid-cols-3 gap-2 text-[11px]">
-                    <Mini label="Fair price" value={fmtUsd(w.wnearPrice)} />
-                    <Mini label="You get" value={got !== undefined ? fmtUsd(got) : "—"} />
-                    <Mini label="Cost / ETH" value={cost !== undefined ? fmtUsd(cost) : "—"} tone="text-warn" />
+                  <div className="grid grid-cols-3 gap-2 text-[11px] sm:ml-12">
+                    <Mini label="Fair price" value={fmtPrice(w.wnearPrice)} />
+                    <Mini label="You get" value={got !== undefined ? fmtPrice(got) : "—"} />
+                    <Mini label="Cost / NEAR" value={cost !== undefined ? fmtPrice(cost) : "—"} tone="text-warn" />
                   </div>
                 )}
                 {isSold && worldPlan && worldPlan.fills.length > 0 && <PlanLegs plan={worldPlan} />}
@@ -201,7 +201,7 @@ export function SellPanel({ config, scenario, events, orders, nowSec, balances, 
       </div>
 
       <p className="text-[12px] leading-relaxed text-mute">
-        Fair price is the pool price before your trade; the cost per ETH is what this insurance costs you in that world
+        Fair price is the pool price before your trade; the cost per NEAR is what this insurance costs you in that world
         (fee plus price impact). Resting bids fill first when they pay more than the pool would for that part of the
         sale. Each world must pay at least its plan, less 0.5% on the pool part, or nothing happens.
       </p>
@@ -243,21 +243,28 @@ function Mini({ label, value, tone }: { label: string; value: string; tone?: str
   );
 }
 
-/** The plan in one world: the bids it fills, best first, then what goes to the pool. */
+/**
+ * The plan in one world: the bids it fills, best first, then what goes to the pool. Full width on a phone, so a leg
+ * like "bid #16 · 1,000.00 NEAR @ $2.4500" fits at 390 px; if it ever does not, it wraps between its parts instead of
+ * being cut off.
+ */
 function PlanLegs({ plan }: { plan: WorldPlan }) {
   return (
-    <ul className="num ml-12 flex flex-col gap-1 rounded-[12px] bg-tile px-3 py-2 text-[12px] text-mute" data-demo="plan-legs">
+    <ul className="num flex flex-col gap-1 rounded-[12px] bg-tile px-3 py-2 text-[12px] text-mute sm:ml-12" data-demo="plan-legs">
       {plan.fills.map((f) => (
-        <li key={String(f.order.id)} className="flex justify-between gap-2">
-          <span className="min-w-0 truncate">
-            <span className="font-semibold text-pos">bid #{String(f.order.id)}</span> · {fmtNear(f.amount)} ETH @ {fmtUsd(f.order.price)}
+        <li key={String(f.order.id)} className="flex items-baseline justify-between gap-2">
+          <span className="min-w-0">
+            <span className="font-semibold whitespace-nowrap text-pos">bid #{String(f.order.id)}</span> ·{" "}
+            <span className="whitespace-nowrap">
+              {fmtNear(f.amount)} NEAR @ {fmtPrice(f.order.price)}
+            </span>
           </span>
           <span className="shrink-0 text-ink">{fmt(f.out)} USDC</span>
         </li>
       ))}
       {plan.poolAmount > 0n && (
-        <li className="flex justify-between gap-2">
-          <span>pool · {fmtNear(plan.poolAmount)} ETH</span>
+        <li className="flex items-baseline justify-between gap-2">
+          <span className="min-w-0">pool · {fmtNear(plan.poolAmount)} NEAR</span>
           <span className="shrink-0 text-ink">{fmt(plan.poolOut)} USDC</span>
         </li>
       )}

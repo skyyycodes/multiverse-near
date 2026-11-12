@@ -7,7 +7,7 @@ import { HUES } from "@/components/world/hues";
 const WORLDS = ["SHIPS·CUTS", "DELAYED·CUTS", "SHIPS·HOLDS", "DELAYED·HOLDS"];
 
 /**
- * The split, drawn: one ETH in front, and behind it the same ETH once per future, fanned out like parallel planes.
+ * The split, drawn: one NEAR in front, and behind it the same NEAR once per future, fanned out like parallel planes.
  * Plays once on arrival; with reduced motion it is simply there.
  */
 export function SplitArt({ size = "md" }: { size?: "md" | "lg" }) {
@@ -39,7 +39,7 @@ export function SplitArt({ size = "md" }: { size?: "md" | "lg" }) {
             <div className="flex items-start justify-between px-4 pt-3 text-[11px]">
               <span className="font-mono tracking-[0.06em] text-white/85">{WORLDS[world]}</span>
               <span className="num font-medium" style={{ color: HUES[world] }}>
-                1 ETH
+                1 NEAR
               </span>
             </div>
           </motion.div>
@@ -61,8 +61,8 @@ export function SplitArt({ size = "md" }: { size?: "md" | "lg" }) {
           </span>
         </div>
         <div>
-          <div className={`numeral ${lg ? "text-[52px]" : "text-[40px]"}`}>1 ETH</div>
-          <div className="mt-1 text-[12px] text-mute">= 1 ETH in each future</div>
+          <div className={`numeral ${lg ? "text-[52px]" : "text-[40px]"}`}>1 NEAR</div>
+          <div className="mt-1 text-[12px] text-mute">= 1 NEAR in each future</div>
         </div>
       </motion.div>
     </div>

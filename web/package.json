@@ -2,7 +2,7 @@
   "name": "multiverse-web",
   "version": "0.1.0",
   "private": true,
-  "description": "Web app for Multiverse Lending on NEAR: sell ETH only in the futures you fear, borrow against the worst one.",
+  "description": "Web app for Multiverse Lending on NEAR: sell NEAR only in the futures you fear, borrow against the worst one.",
   "license": "MIT",
   "scripts": {
     "dev": "next dev --port 3040",

@@ -1,4 +1,4 @@
-// Borrow and lend screen maths. Every value is 18-decimal; the units cancel the same way they did on EVM.
+// Borrow and lend screen maths. Every value is 18-decimal, so the units cancel in every product and quotient.
 import type { Account, LiquidationState, Scenario } from "./domain";
 import { isPossible } from "./domain";
 
@@ -39,7 +39,7 @@ export function borrowMath(v: Account, possible: number, borrow: bigint | undefi
 /** Collateral value at which the loan reaches HF 1 (the dashed line). */
 export const neededValue = (debt: bigint, lltv: bigint): bigint => (debt === 0n || lltv === 0n ? 0n : (debt * WAD) / lltv);
 
-/** Bar width in percent with one decimal, as the EVM screen computed it. */
+/** Bar width in percent with one decimal. */
 export const barWidth = (value: bigint, max: bigint): number => (max === 0n ? 0 : Number((value * 1000n) / max) / 10);
 export const linePosition = (needed: bigint, max: bigint): number => Math.min(100, barWidth(needed, max));
 

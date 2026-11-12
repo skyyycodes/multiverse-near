@@ -6,8 +6,8 @@ import { Mark } from "@/components/brand/Mark";
 import { useScenarioChoice, type ScenarioChoice } from "@/lib/hooks/useScenario";
 
 const OPTIONS: { value: ScenarioChoice; label: string; short: string; demo: string }[] = [
-  { value: "2x2", label: "Glamsterdam × Fed (4 worlds)", short: "Glamsterdam × Fed", demo: "scenario-2x2" },
-  { value: "binary", label: "Glamsterdam only (2 worlds)", short: "Glamsterdam", demo: "scenario-binary" },
+  { value: "2x2", label: "SPICE × Fed (4 worlds)", short: "SPICE × Fed", demo: "scenario-2x2" },
+  { value: "binary", label: "SPICE only (2 worlds)", short: "SPICE", demo: "scenario-binary" },
 ];
 
 /** The scenario picker: a dark pill in the header that opens a two-item list. */

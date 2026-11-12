@@ -49,7 +49,7 @@ export function ConfigGuard({ children, needDemo = true }: { children: (config: 
 /** The screen's frame around a guard: a reading state while the config loads, a plain title once the answer is in. */
 function Frame({ children, loading }: { children: ReactNode; loading?: boolean }) {
   const hero = loading ? (
-    <HeroNumber label="ETH spot" value="—" loading />
+    <HeroNumber label="NEAR spot" value="—" loading />
   ) : (
     <div className="flex flex-col gap-2">
       <span className="label text-white/65">Multiverse Lending</span>

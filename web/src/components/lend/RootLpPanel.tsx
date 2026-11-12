@@ -22,7 +22,7 @@ const smallest = (xs: readonly bigint[]) => xs.reduce((m, x) => (x < m ? x : m),
 const shares18 = (x: bigint, decimals: number) => (decimals <= 18 ? x * 10n ** BigInt(18 - decimals) : x / 10n ** BigInt(decimals - 18));
 
 /**
- * Root LP: one deposit of real WETH and USDC becomes liquidity in every world's pool, so the LP takes the other side
+ * Root LP: one deposit of real wNEAR and USDC becomes liquidity in every world's pool, so the LP takes the other side
  * of every conditional sale and earns the pools' swap fees in every world at once.
  */
 export function RootLpPanel({ config, sid, view, balances }: { config: AppConfig; sid: number; view: LendSnapshot; balances?: Balances }) {
@@ -60,32 +60,32 @@ export function RootLpPanel({ config, sid, view, balances }: { config: AppConfig
     return { wnear: ((h.wnearIdle + h.wnearFees) * balance) / supply, usdc: ((h.usdcIdle + h.usdcFees) * balance) / supply };
   };
 
-  // WETH needed beyond what already sits in the internal balance; it goes in first as a plain deposit.
+  // wNEAR needed beyond what already sits in the internal balance; it goes in first as a plain deposit.
   const wnearShort = wnear !== undefined && wnear > innerWnear ? wnear - innerWnear : 0n;
   let blocker: string | undefined;
   if (!wnear || !usdc) blocker = "Enter both amounts";
-  else if (wnearShort > walletWnear) blocker = "Not enough WETH";
+  else if (wnearShort > walletWnear) blocker = "Not enough wNEAR";
   else if (usdc > walletUsdc) blocker = "Not enough USDC";
   else if (!kept) blocker = "Previewing…";
 
   return (
     <Block title="Underwrite every world" demo="root-lp">
       <p className="text-[13px] leading-relaxed text-mute">
-        One deposit of WETH and USDC is split into every world and added to each world&apos;s pool at its own price, so you
+        One deposit of NEAR and USDC is split into every world and added to each world&apos;s pool at its own price, so you
         take the other side of every conditional sale and earn the swap fees those pools charge. What a pool cannot take at
-        its price comes back to you. At resolution the surviving world&apos;s share comes back as real WETH and USDC.
+        its price comes back to you. At resolution the surviving world&apos;s share comes back as real wNEAR and USDC.
       </p>
 
       <div className="grid gap-6 xl:grid-cols-2">
         <div className="flex flex-col gap-4" data-demo="lp-deposit">
           <AmountField
-            label="Amount (WETH)"
+            label="Amount (NEAR)"
             size="md"
             value={wnearInput}
             onChange={setWnearInput}
-            unit="WETH"
+            unit="wNEAR"
             demo="lp-wnear"
-            right={<InlineButton onClick={() => setWnearInput(inputText(walletWnear + innerWnear, 4))}>wallet {fmtNear(walletWnear)}</InlineButton>}
+            right={<InlineButton onClick={() => setWnearInput(inputText(walletWnear + innerWnear, 2))}>wallet {fmtNear(walletWnear)}</InlineButton>}
           />
           <AmountField
             label="Amount (USDC)"
@@ -115,7 +115,7 @@ export function RootLpPanel({ config, sid, view, balances }: { config: AppConfig
             needs={{ contract: true }}
             run={async (step) => {
               if (wnearShort > 0n) {
-                step("Depositing WETH…");
+                step("Depositing wNEAR…");
                 const tokens = toTokenFloor(wnearShort, config.wnear.decimals);
                 await submit(ftTransferCall(config.wnear.tokenId, CONTRACT_ID, tokens, { action: "deposit" }), tokens);
               }
@@ -148,7 +148,7 @@ export function RootLpPanel({ config, sid, view, balances }: { config: AppConfig
           </div>
           {balance > 0n && claim ? (
             <p className="text-[13px] leading-relaxed text-mute">
-              Withdrawing now returns <span className="num text-ink">{fmtNear(smallest(claimWnear))} WETH</span> and{" "}
+              Withdrawing now returns <span className="num text-ink">{fmtNear(smallest(claimWnear))} wNEAR</span> and{" "}
               <span className="num text-ink">{fmtUsd(smallest(claimUsdc))}</span> as real assets, and the rest as world tokens.
             </p>
           ) : (
@@ -182,11 +182,11 @@ export function RootLpPanel({ config, sid, view, balances }: { config: AppConfig
           rows={live.map((w, k) => ({
             world: w,
             cells: [
-              `${fmtNear(kept.wnearKept[w.index] ?? 0n)} WETH · ${fmtUsd(kept.usdcKept[w.index] ?? 0n)}`,
-              `${fmtNear(backWnear[k])} WETH · ${fmtUsd(backUsdc[k])}`,
+              `${fmtNear(kept.wnearKept[w.index] ?? 0n)} NEAR · ${fmtUsd(kept.usdcKept[w.index] ?? 0n)}`,
+              `${fmtNear(backWnear[k])} NEAR · ${fmtUsd(backUsdc[k])}`,
             ],
           }))}
-          note={`What every world has left over comes back as real assets (here ${fmtNear(smallest(backWnear))} WETH and ${fmtUsd(smallest(backUsdc))}); the rest as that world's tokens.`}
+          note={`What every world has left over comes back as real assets (here ${fmtNear(smallest(backWnear))} wNEAR and ${fmtUsd(smallest(backUsdc))}); the rest as that world's tokens.`}
         />
       )}
       {balance > 0n && claim && (
@@ -197,7 +197,7 @@ export function RootLpPanel({ config, sid, view, balances }: { config: AppConfig
             const fees = feesOf(w.index);
             return {
               world: w,
-              cells: [`${fmtNear(claimWnear[k])} WETH · ${fmtUsd(claimUsdc[k])}`, `${fmtNear(fees.wnear)} WETH${fees.usdc > 0n ? ` · ${fmtUsd(fees.usdc)}` : ""}`],
+              cells: [`${fmtNear(claimWnear[k])} NEAR · ${fmtUsd(claimUsdc[k])}`, `${fmtNear(fees.wnear)} NEAR${fees.usdc > 0n ? ` · ${fmtUsd(fees.usdc)}` : ""}`],
             };
           })}
           note="Fees are your share of what each world's pool has paid the vault, included in the amounts above."

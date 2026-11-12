@@ -14,7 +14,7 @@ import { WorldGrid, WorldPicker } from "@/components/world/WorldGrid";
 import { CONTRACT_ID } from "@/lib/data/client";
 import type { AppConfig, EventState, Scenario } from "@/lib/domain";
 import { ENV } from "@/lib/env";
-import { fmt, fmtUsd, fmtNear, parseAmount, shortAccount } from "@/lib/format";
+import { fmt, fmtNear, fmtPrice, parseAmount, shortAccount } from "@/lib/format";
 import { useChainClock } from "@/lib/hooks/useClock";
 import { useAdmin, useBalances, useCellQuotes, useQuoteSell, useScenarioId } from "@/lib/hooks/useData";
 import { useIsDesktop } from "@/lib/hooks/useMedia";
@@ -183,7 +183,7 @@ function PricePush({
   const wallet = useWallet();
   const submit = useSubmit();
   const balances = useBalances(wallet.accountId, config.wnear, config.usdc);
-  const [input, setInput] = useState("1");
+  const [input, setInput] = useState("1000");
   const [last, setLast] = useState<{ mask: number; label: string; before: bigint }>();
   const amount = parseAmount(input, config.wnear.decimals);
   const world = s.worlds.find((w) => w.mask === mask);
@@ -196,33 +196,33 @@ function PricePush({
   if (!isOwner) blocker = "Oracle owner only";
   else if (!world) blocker = "Tap a world on the grid";
   else if (s.halted) blocker = "Pools pause while a resolution is pending";
-  else if (!amount) blocker = "Enter an amount of WETH";
-  else if (amount > walletWnear) blocker = "Not enough WETH: mint test WETH below";
+  else if (!amount) blocker = "Enter an amount of NEAR";
+  else if (amount > walletWnear) blocker = "Not enough wNEAR: mint test wNEAR below";
   else if (out === undefined) blocker = quote.isError ? "No quote for that world" : "Getting a quote…";
   else if (out === 0n) blocker = "No price in that world";
 
   return (
     <Sheet demo="price-push">
-      <SheetTitle sub="Sells WETH-if-w for USDC-if-w in one world's pool, inside the Multiverse contract, from this wallet. The price moves because a real swap happened, never because someone typed a number. You keep WETH-if-w in the other worlds.">
+      <SheetTitle sub="Sells NEAR-if-w for USDC-if-w in one world's pool, inside the Multiverse contract, from this wallet. The price moves because a real swap happened, never because someone typed a number. You keep NEAR-if-w in the other worlds.">
         Price push
       </SheetTitle>
       {picker && <WorldPicker scenario={s} events={events} selected={mask} onToggle={onPick} demo="push-pick" />}
       <InfoRows rows={[{ label: "World", value: world ? world.label : "none picked" }]} />
       <AmountField
-        label="WETH to sell there"
+        label="NEAR to sell there"
         size="md"
         value={input}
         onChange={setInput}
-        unit="WETH"
-        ariaLabel="Amount of WETH to sell in the picked world"
+        unit="wNEAR"
+        ariaLabel="Amount of NEAR to sell in the picked world"
         demo="push-amount"
-        right={<span className="num text-[12px] text-mute">wallet: {fmtNear(walletWnear)} WETH</span>}
+        right={<span className="num text-[12px] text-mute">wallet: {fmtNear(walletWnear)} wNEAR</span>}
       />
       <InfoRows
         rows={[
-          { label: "Pool price now", value: world ? fmtUsd(world.wnearPrice) : "—" },
+          { label: "Pool price now", value: world ? fmtPrice(world.wnearPrice) : "—" },
           { label: "Quote", value: out !== undefined ? `${fmt(out)} USDC-if-w` : "—" },
-          { label: "Average price of the push", value: out !== undefined && amount ? fmtUsd((out * ONE) / amount) : "—", tone: "text-warn" },
+          { label: "Average price of the push", value: out !== undefined && amount ? fmtPrice((out * ONE) / amount) : "—", tone: "text-warn" },
         ]}
       />
       <TxButton
@@ -253,7 +253,7 @@ function PricePush({
       />
       {last && lastWorld && (
         <p className="num text-[13px] text-ink" data-demo="push-result">
-          {last.label}: {fmtUsd(last.before)} → {fmtUsd(lastWorld.wnearPrice)}
+          {last.label}: {fmtPrice(last.before)} → {fmtPrice(lastWorld.wnearPrice)}
         </p>
       )}
       <div className="flex flex-col gap-2 border-t border-line pt-4">
@@ -261,14 +261,14 @@ function PricePush({
           demo="mint-wnear"
           tone="secondary"
           size="md"
-          label={amount ? `Mint ${fmtNear(amount)} test WETH to my wallet` : "Mint test WETH to my wallet"}
+          label={amount ? `Mint ${fmtNear(amount)} test wNEAR to my wallet` : "Mint test wNEAR to my wallet"}
           busyLabel="Minting…"
-          blocker={!isOwner ? "Oracle owner only" : !amount ? "Enter an amount of WETH" : undefined}
+          blocker={!isOwner ? "Oracle owner only" : !amount ? "Enter an amount of NEAR" : undefined}
           run={() =>
             submit(call(config.wnear.tokenId, "mint", { account_id: wallet.accountId, amount: toTokenFloor(amount!, config.wnear.decimals).toString() }, "0"))
           }
         />
-        <p className="text-[12px] text-mute">Testnet mock: the demo WETH has an open mint and no value.</p>
+        <p className="text-[12px] text-mute">Testnet mock: the demo wNEAR has an open mint and no value.</p>
       </div>
     </Sheet>
   );

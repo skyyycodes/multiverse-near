@@ -1,7 +1,7 @@
 // JSON returned by the Multiverse contract's views (snake_case, as served). U128 values are decimal strings.
-// Units: every amount the contract keeps is 18-decimal fixed point for both assets (the NEP-141 edge scales USDC by
-// 1e12), prices are USDC per WETH in 18 decimals, odds and rates are 18-decimal fractions. Only ft_balance_of on the
-// token contracts answers in token units (USDC 6 decimals, WETH 18).
+// Units: every amount the contract keeps is 18-decimal fixed point for both assets (the NEP-141 edge scales USDC up by
+// 1e12 and wNEAR down by 1e6), prices are USDC per NEAR in 18 decimals, odds and rates are 18-decimal fractions. Only
+// ft_balance_of on the token contracts answers in token units (USDC 6 decimals, wNEAR 24).
 
 export type U128 = string;
 export type Mask = number;
@@ -106,7 +106,7 @@ export interface OrderViewJson {
   price: U128;
   amount: U128;
   remaining: U128;
-  /** What the order still holds: USDC for a bid, WETH for an ask. */
+  /** What the order still holds: USDC for a bid, NEAR for an ask. */
   escrow: U128;
   expiry_sec: number;
   epoch: number;

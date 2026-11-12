@@ -16,7 +16,7 @@ import { toInternal } from "@/lib/units";
 /** The open mint exists on the testnet mock tokens only; design data signs nothing. */
 export const FAUCET_ON = ENV.network === "testnet" && process.env.NEXT_PUBLIC_FIXTURES !== "1";
 
-/** True for a connected wallet that holds no WETH and no USDC at all. */
+/** True for a connected wallet that holds no wNEAR and no USDC at all. */
 export const walletEmpty = (b: Balances | undefined): boolean => Boolean(b && b.wnear === 0n && b.usdc === 0n);
 
 /**
@@ -136,7 +136,7 @@ async function getTestTokens(
   return hash;
 }
 
-/** Home: a connected wallet with no WETH and no USDC is offered the faucet right under its balances. */
+/** Home: a connected wallet with no wNEAR and no USDC is offered the faucet right under its balances. */
 export function EmptyWalletHint({ balances }: { balances: Balances | undefined }) {
   const wallet = useWallet();
   const [startedBy, setStartedBy] = useState<string>();
@@ -146,7 +146,7 @@ export function EmptyWalletHint({ balances }: { balances: Balances | undefined }
     <div className="flex flex-col gap-3 rounded-[20px] border border-white/10 bg-white/8 p-4" data-demo="empty-wallet-hint">
       {walletEmpty(balances) && (
         <p className="text-[13px] leading-relaxed text-white/85">
-          Your wallet has no WETH or USDC yet. On testnet you can mint the demo tokens yourself.
+          Your wallet has no wNEAR or USDC yet. On testnet you can mint the demo tokens yourself.
         </p>
       )}
       <GetTestTokens tone="light" size="md" dark demo="hint-test-tokens" onStart={() => setStartedBy(wallet.accountId ?? undefined)} />
