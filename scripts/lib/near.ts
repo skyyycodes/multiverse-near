@@ -352,6 +352,38 @@ export async function sendTransaction(
   return result;
 }
 
+/**
+ * Sends and returns the hash once the transaction is in a final block, without waiting for its
+ * receipts. For calls that yield (NEP-519) and resume minutes later, which every other wait level
+ * would sit through; the caller follows the receipts itself with `transactionStatus`.
+ */
+export async function sendIncluded(signerId: string, receiverId: string, txActions: Action[], label: string): Promise<string> {
+  const key = signerKey(signerId);
+  return oneAtATime(key, async () => {
+    for (let attempt = 1; ; attempt++) {
+      const account = await signerAccount(signerId);
+      const signed = await account.createSignedTransaction({ receiverId, actions: txActions });
+      const hash = baseEncode(createHash("sha256").update(signed.transaction.encode()).digest());
+      try {
+        await provider.sendTransactionUntil(signed, "INCLUDED_FINAL");
+      } catch (err) {
+        if ((err instanceof InvalidNonceError || err instanceof TransactionExpiredError) && attempt < 3) {
+          signers.delete(key);
+          continue;
+        }
+        if (!(err instanceof TransactionTimeoutError)) throw err;
+      }
+      console.log(`  ${label}: sent ${explorerTx(hash)}`);
+      return hash;
+    }
+  });
+}
+
+/** Whatever the node knows of a transaction now: the receipts executed so far, with their logs. */
+export function transactionStatus(hash: string, signerId: string, waitUntil: TxExecutionStatus = "NONE"): Promise<TxOutcome> {
+  return provider.viewTransactionStatusWithReceipts({ txHash: hash, accountId: signerId, waitUntil });
+}
+
 /** Polls the status of a transaction that the RPC gave up waiting for. */
 export async function waitForTransaction(hash: string, signerId: string, waitUntil: TxExecutionStatus, timeoutMs = 90_000): Promise<TxOutcome> {
   const deadline = Date.now() + timeoutMs;
