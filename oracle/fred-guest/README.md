@@ -64,9 +64,12 @@ $ echo '{"before":"2026-11-10","after":"2026-11-12"}' | wasmtime run -S http tar
 
 ## Host it at a pinned URL
 
-Do this once the repository is public. The URL must be `https://`, serve the
-file directly (HTTP 200, no redirect) and never change; a raw file at a fixed
-commit does all three.
+The testnet deployment serves the guest from the web app's host, at
+https://multiverse-lending.vercel.app/outlayer/fred-guest.wasm (408,875 bytes,
+sha256 `8c809e11f5b4b37627baa5c0a65a8587ef5f3e4918d1e0bb42cb2f87a5ae1660`, the
+exact output of `./build.sh`). Any URL works that is `https://`, serves the
+file directly (HTTP 200, no redirect) and never changes; a raw file at a fixed
+commit of the public repository does all three:
 
 ```bash
 cd oracle/fred-guest
@@ -93,6 +96,10 @@ that holds nothing else.
 
 ## Configure the contract
 
+`scripts/outlayer.ts` does the steps below and follows the run:
+`NEAR_NETWORK=testnet pnpm -C scripts outlayer configure --url <url> --sha256 <hash>`, then
+`NEAR_NETWORK=testnet pnpm -C scripts outlayer request`. By hand with NEAR CLI:
+
 One owner call pins the guest. Limits default to 1e9 instructions, 128 MB and
 30 s, and a request must attach at least 0.005 NEAR (OutLayer's estimate for
 those limits on testnet is 0.0040001 NEAR; what a run does not use goes back to
@@ -100,10 +107,10 @@ whoever paid). The attached NEAR pays for the stored bytes and the rest is
 refunded.
 
 ```bash
-near contract call-function as-transaction app.multiverse-lending.testnet set_outlayer_config \
+near contract call-function as-transaction app.multiverse-near.testnet set_outlayer_config \
   json-args "{\"wasm_url\":\"$URL\",\"wasm_sha256\":\"$HASH\"}" \
   prepaid-gas '30.0 Tgas' attached-deposit '0.01 NEAR' \
-  sign-as multiverse-lending.testnet network-config testnet sign-with-keychain send
+  sign-as multiverse-near.testnet network-config testnet sign-with-keychain send
 ```
 
 Optional fields: `outlayer_id` (default `outlayer.testnet`),
@@ -114,13 +121,13 @@ Then give the past FOMC event its two FRED dates. Its id is
 `demo.past_fed_event` in `get_app_config`:
 
 ```bash
-near contract call-function as-read-only app.multiverse-lending.testnet get_app_config \
+near contract call-function as-read-only app.multiverse-near.testnet get_app_config \
   json-args '{}' network-config testnet now
 
-near contract call-function as-transaction app.multiverse-lending.testnet set_outlayer_dates \
+near contract call-function as-transaction app.multiverse-near.testnet set_outlayer_dates \
   json-args '{"event_id":3,"before":"2026-10-27","after":"2026-10-29"}' \
   prepaid-gas '30.0 Tgas' attached-deposit '0.01 NEAR' \
-  sign-as multiverse-lending.testnet network-config testnet sign-with-keychain send
+  sign-as multiverse-near.testnet network-config testnet sign-with-keychain send
 ```
 
 Setting the dates again makes any run in flight for that event stale and
@@ -131,7 +138,7 @@ clears its pending flag.
 Anyone can, from any funded testnet account:
 
 ```bash
-near contract call-function as-transaction app.multiverse-lending.testnet request_resolution \
+near contract call-function as-transaction app.multiverse-near.testnet request_resolution \
   json-args '{"event_id":3}' \
   prepaid-gas '300.0 Tgas' attached-deposit '0.005 NEAR' \
   sign-as <you>.testnet network-config testnet sign-with-keychain send
@@ -145,10 +152,10 @@ contract's callback either proposes the outcome with source `outlayer` (event
 event can be in flight. Check it, then finalize once the dispute window is over:
 
 ```bash
-near contract call-function as-read-only app.multiverse-lending.testnet get_event \
+near contract call-function as-read-only app.multiverse-near.testnet get_event \
   json-args '{"event_id":3}' network-config testnet now
 
-near contract call-function as-transaction app.multiverse-lending.testnet finalize \
+near contract call-function as-transaction app.multiverse-near.testnet finalize \
   json-args '{"event_id":3}' prepaid-gas '300.0 Tgas' attached-deposit '0 NEAR' \
   sign-as <you>.testnet network-config testnet sign-with-keychain send
 ```
