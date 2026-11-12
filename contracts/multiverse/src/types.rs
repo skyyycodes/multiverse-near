@@ -54,10 +54,50 @@ pub struct AssetCfg {
     pub decimals: u8,
 }
 
+/// Most decimals a configured token may have (wNEAR has 24).
+pub const MAX_DECIMALS: u8 = 24;
+
 impl AssetCfg {
-    /// Token units to internal 18-decimal units: USDC (6) is 1e12, wNEAR (18) is 1.
-    pub fn scale(&self) -> u128 {
-        10u128.pow(u32::from(18 - self.decimals))
+    /// `10^|18 - decimals|`: internal units per raw unit up to 18 decimals,
+    /// raw units per internal unit above.
+    fn factor(&self) -> u128 {
+        10u128.pow(u32::from(self.decimals.abs_diff(18)))
+    }
+
+    /// Raw token units to internal units, with the raw remainder that has no
+    /// internal unit. Up to 18 decimals it is exact (`raw * 10^(18-d)`, the
+    /// remainder 0); above, `floor(raw / 10^(d-18))` and the remainder is
+    /// `raw % 10^(d-18)`, which never enters the ledger. `None` if the internal
+    /// amount does not fit a `u128`.
+    pub fn to_internal(&self, raw: u128) -> Option<(u128, u128)> {
+        let f = self.factor();
+        if self.decimals <= 18 {
+            raw.checked_mul(f).map(|internal| (internal, 0))
+        } else {
+            Some((raw / f, raw % f))
+        }
+    }
+
+    /// Internal units to raw token units, with the internal dust below one
+    /// raw unit. Up to 18 decimals `floor(internal / 10^(18-d))` and the dust
+    /// is the remainder; above, `internal * 10^(d-18)` exactly, no dust. `None`
+    /// if the raw amount does not fit a `u128`.
+    pub fn to_raw(&self, internal: u128) -> Option<(u128, u128)> {
+        let f = self.factor();
+        if self.decimals <= 18 {
+            Some((internal / f, internal % f))
+        } else {
+            internal.checked_mul(f).map(|raw| (raw, 0))
+        }
+    }
+
+    /// The smallest internal amount that pays out at least one raw unit.
+    pub fn min_payable(&self) -> u128 {
+        if self.decimals <= 18 {
+            self.factor()
+        } else {
+            1
+        }
     }
 }
 

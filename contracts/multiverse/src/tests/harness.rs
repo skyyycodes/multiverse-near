@@ -9,6 +9,9 @@
 //! The fixture: two events (SPICE, Fed), the 2x2 scenario and the binary
 //! SPICE scenario, and funded users. USDC has
 //! 6 decimals here, as on testnet, so every USDC path crosses the scaling.
+//! wNEAR has 18 decimals in the default fixture, so most tests read raw and
+//! internal wNEAR alike; `World::new_with_wnear_decimals(24)` is the testnet
+//! token, for the tests of the 24-decimal boundary.
 
 use std::any::Any;
 use std::cell::Cell;
@@ -85,6 +88,7 @@ pub fn token_id(scenario: u64, asset: Asset, mask: u8) -> String {
     VerseKey::new(scenario, asset, mask).token_id()
 }
 
+/// Internal units per raw unit in the default fixture (18-decimal wNEAR).
 pub fn scale(asset: Asset) -> u128 {
     match asset {
         Asset::Wnear => 1,
@@ -93,10 +97,14 @@ pub fn scale(asset: Asset) -> u128 {
 }
 
 pub fn wnear_cfg() -> AssetCfg {
+    wnear_cfg_with(18)
+}
+
+pub fn wnear_cfg_with(decimals: u8) -> AssetCfg {
     AssetCfg {
         token_id: acc(WNEAR_TOKEN),
         symbol: "wNEAR".into(),
-        decimals: 18,
+        decimals,
     }
 }
 
@@ -275,11 +283,23 @@ pub struct World {
     pub fed: u64,
     pub s2x2: u64,
     pub s_bin: u64,
+    /// The configured wNEAR and USDC.
+    pub cfg: [AssetCfg; 2],
 }
+
+/// What each user starts with when wNEAR has more than 18 decimals: 1e31
+/// internal units (1e37 raw at 24 decimals), so that every raw balance and
+/// their sum still fit a `u128`.
+pub const FUND_ABOVE_18: u128 = 10_000_000_000_000 * E18;
 
 impl World {
     /// Contract, tokens and accounts, with no events yet.
     pub fn bare() -> Self {
+        Self::bare_with_wnear_decimals(18)
+    }
+
+    /// `bare` with a wNEAR of `decimals` decimals.
+    pub fn bare_with_wnear_decimals(decimals: u8) -> Self {
         let mut w = World {
             now: T0,
             wallets: HashMap::new(),
@@ -293,13 +313,14 @@ impl World {
             fed: 0,
             s2x2: 0,
             s_bin: 0,
+            cfg: [wnear_cfg_with(decimals), usdc_cfg()],
         };
         w.install(&acc(CONTRACT), NO_DEPOSIT, vec![], Storage::new());
         quietly(|| {
             let c = Contract::new(
                 acc(OWNER),
                 Some(acc(REPORTER)),
-                wnear_cfg(),
+                wnear_cfg_with(decimals),
                 usdc_cfg(),
                 DISPUTE_WINDOW,
             );
@@ -317,7 +338,12 @@ impl World {
     /// The base fixture: events spice = 1 and fed = 2, scenarios 2x2 = 1
     /// and binary = 2.
     pub fn new() -> Self {
-        let mut w = Self::bare();
+        Self::new_with_wnear_decimals(18)
+    }
+
+    /// `new` with a wNEAR of `decimals` decimals.
+    pub fn new_with_wnear_decimals(decimals: u8) -> Self {
+        let mut w = Self::bare_with_wnear_decimals(decimals);
         w.spice = w
             .create_event(
                 SPICE_QUESTION,
@@ -490,20 +516,66 @@ impl World {
             .unwrap();
     }
 
-    pub fn fund(&mut self, who: &str) {
-        for asset in Asset::ALL {
-            *self.wallets.entry((acc(who), asset)).or_default() += FUND / scale(asset);
+    fn asset_cfg(&self, asset: Asset) -> &AssetCfg {
+        &self.cfg[asset as usize]
+    }
+
+    /// Raw token units of `internal`, which must convert exactly.
+    pub fn to_raw(&self, asset: Asset, internal: u128) -> u128 {
+        let (raw, dust) = self.asset_cfg(asset).to_raw(internal).expect("raw fits");
+        assert_eq!(dust, 0, "test setup: {internal} is not whole {asset} units");
+        raw
+    }
+
+    /// Internal units of `raw` token units, rounded down.
+    pub fn to_internal(&self, asset: Asset, raw: u128) -> u128 {
+        self.asset_cfg(asset)
+            .to_internal(raw)
+            .expect("internal fits")
+            .0
+    }
+
+    /// The smallest internal amount that is a whole number of raw units.
+    pub fn unit(&self, asset: Asset) -> u128 {
+        self.asset_cfg(asset).min_payable()
+    }
+
+    /// What a funded user starts with, in internal units.
+    pub fn fund_amount(&self, asset: Asset) -> u128 {
+        if self.asset_cfg(asset).decimals > 18 {
+            FUND_ABOVE_18
+        } else {
+            FUND
         }
     }
 
-    /// Wallet balance in internal units (token units times the scale).
-    pub fn wallet(&self, who: &str, asset: Asset) -> u128 {
-        self.wallets.get(&(acc(who), asset)).copied().unwrap_or(0) * scale(asset)
+    pub fn fund(&mut self, who: &str) {
+        for asset in Asset::ALL {
+            let raw = self.to_raw(asset, self.fund_amount(asset));
+            *self.wallets.entry((acc(who), asset)).or_default() += raw;
+        }
     }
 
-    /// The contract's holding of the token, in internal units.
+    /// Wallet balance in internal units, rounded down.
+    pub fn wallet(&self, who: &str, asset: Asset) -> u128 {
+        let raw = self.wallets.get(&(acc(who), asset)).copied().unwrap_or(0);
+        self.to_internal(asset, raw)
+    }
+
+    /// The contract's holding of the token, in internal units, rounded down.
     pub fn held_by_contract(&self, asset: Asset) -> u128 {
-        self.contract_ft.get(&asset).copied().unwrap_or(0) * scale(asset)
+        let raw = self.contract_ft.get(&asset).copied().unwrap_or(0);
+        self.to_internal(asset, raw)
+    }
+
+    /// The contract's holding of the token, in raw units.
+    pub fn held_raw(&self, asset: Asset) -> u128 {
+        self.contract_ft.get(&asset).copied().unwrap_or(0)
+    }
+
+    /// Wallet balance in raw units.
+    pub fn wallet_raw(&self, who: &str, asset: Asset) -> u128 {
+        self.wallets.get(&(acc(who), asset)).copied().unwrap_or(0)
     }
 
     /// `ft_transfer_call` from `sender`'s wallet as the token contract runs
@@ -548,19 +620,8 @@ impl World {
         Ok(unused)
     }
 
-    /// Internal units to whole token units; the amount must be a multiple
-    /// of the scale.
-    fn tokens(asset: Asset, internal: u128) -> u128 {
-        assert_eq!(
-            internal % scale(asset),
-            0,
-            "test setup: {internal} is not whole {asset} units"
-        );
-        internal / scale(asset)
-    }
-
     pub fn deposit(&mut self, who: &str, asset: Asset, internal: u128) -> Result<(), String> {
-        let unused = self.ft_transfer_call(who, asset, Self::tokens(asset, internal), "")?;
+        let unused = self.ft_transfer_call(who, asset, self.to_raw(asset, internal), "")?;
         assert_eq!(unused, 0);
         Ok(())
     }
@@ -576,7 +637,7 @@ impl World {
         internal: u128,
     ) -> Result<(), String> {
         let msg = json!({"action": "split", "scenario_id": sid, "to_masks": to_masks}).to_string();
-        let unused = self.ft_transfer_call(who, asset, Self::tokens(asset, internal), &msg)?;
+        let unused = self.ft_transfer_call(who, asset, self.to_raw(asset, internal), &msg)?;
         assert_eq!(unused, 0);
         Ok(())
     }

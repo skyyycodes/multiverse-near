@@ -3,6 +3,7 @@
 //! and the actions whose modules are not built yet.
 
 use near_sdk::json_types::{U128, U64};
+use near_sdk::serde_json::json;
 use near_sdk::PromiseOrValue;
 
 use super::harness::*;
@@ -364,4 +365,156 @@ fn ids_and_amounts_must_be_strings_where_the_design_says_so() {
     for msg in bad {
         fails_starting(w.ft_transfer_call(ALICE, Usdc, 1, msg), "BadMessage(");
     }
+}
+
+// A 24-decimal token (the testnet wNEAR): one internal unit is 10^6 raw units.
+
+/// Raw units of a 24-decimal token per internal unit.
+const RAW_PER_UNIT_24: u128 = 1_000_000;
+/// One whole 24-decimal token, raw.
+const E24: u128 = 1_000_000_000_000_000_000_000_000;
+
+#[test]
+fn conversions_at_every_supported_decimals() {
+    let cfg = |d| wnear_cfg_with(d);
+    // up to 18 decimals: exact in, rounded down out with the dust kept
+    assert_eq!(
+        cfg(6).to_internal(1_234_567),
+        Some((1_234_567 * USDC_UNIT, 0))
+    );
+    assert_eq!(cfg(6).to_raw(USDC_UNIT + 7), Some((1, 7)));
+    assert_eq!(cfg(6).to_internal(u128::MAX), None);
+    assert_eq!(cfg(18).to_internal(5), Some((5, 0)));
+    assert_eq!(cfg(18).to_raw(5), Some((5, 0)));
+    assert_eq!(cfg(0).to_raw(E18 - 1), Some((0, E18 - 1)));
+    // above 18: rounded down in with the raw remainder, exact out
+    assert_eq!(
+        cfg(24).to_internal(3 * E24 + 999_999),
+        Some((3 * E18, 999_999))
+    );
+    assert_eq!(cfg(24).to_internal(999_999), Some((0, 999_999)));
+    assert_eq!(
+        cfg(24).to_raw(3 * E18 + 1),
+        Some((3 * E24 + RAW_PER_UNIT_24, 0))
+    );
+    assert_eq!(cfg(24).to_raw(u128::MAX), None);
+    // the smallest balance a payout can send
+    assert_eq!(cfg(6).min_payable(), USDC_UNIT);
+    assert_eq!(cfg(18).min_payable(), 1);
+    assert_eq!(cfg(24).min_payable(), 1);
+}
+
+#[test]
+fn a_24_decimal_deposit_is_exact() {
+    let mut w = World::new_with_wnear_decimals(24);
+    let wallet = w.wallet_raw(ALICE, Wnear);
+    let unused = w.ft_transfer_call(ALICE, Wnear, 5 * E24, "").unwrap();
+    assert_eq!(unused, 0);
+    assert_eq!(w.real(ALICE, Wnear), 5 * E18);
+    assert_eq!(w.held_raw(Wnear), 5 * E24);
+    assert_eq!(w.wallet_raw(ALICE, Wnear), wallet - 5 * E24);
+    assert_eq!(
+        w.last.data_of("real_deposit"),
+        vec![json!({"account_id": ALICE, "asset": "wnear", "amount": (5 * E18).to_string()})]
+    );
+}
+
+/// The raw units below one internal unit never enter the ledger: the
+/// receiver hands them back as unused, for a plain deposit and for an action.
+#[test]
+fn a_24_decimal_sub_unit_remainder_is_refunded() {
+    let mut w = World::new_with_wnear_decimals(24);
+    let wallet = w.wallet_raw(ALICE, Wnear);
+    // 2.000000000000000001234567 wNEAR: 2e18 + 1 internal units and 234,567 raw left over
+    let raw = 2 * E24 + 1_234_567;
+    assert_eq!(w.ft_transfer_call(ALICE, Wnear, raw, "").unwrap(), 234_567);
+    assert_eq!(w.real(ALICE, Wnear), 2 * E18 + 1);
+    assert_eq!(w.held_raw(Wnear), 2 * E24 + RAW_PER_UNIT_24);
+    assert_eq!(
+        w.wallet_raw(ALICE, Wnear),
+        wallet - 2 * E24 - RAW_PER_UNIT_24
+    );
+    // a split takes the whole internal units; the remainder comes back too
+    let msg = r#"{"action":"split","scenario_id":1,"to_masks":[1,2,4,8]}"#;
+    assert_eq!(w.ft_transfer_call(ALICE, Wnear, E24 + 42, msg).unwrap(), 42);
+    for m in SINGLES {
+        assert_eq!(w.bal(ALICE, 1, Wnear, m), E18);
+    }
+    assert_eq!(w.reserves(1, Wnear), E18);
+    assert_eq!(w.real(ALICE, Wnear), 2 * E18 + 1);
+    assert_eq!(w.held_raw(Wnear), 3 * E24 + RAW_PER_UNIT_24);
+    // less than one internal unit is nothing to deposit: refunded in full
+    fails(w.ft_transfer_call(ALICE, Wnear, 999_999, ""), "ZeroAmount");
+    assert_eq!(w.held_raw(Wnear), 3 * E24 + RAW_PER_UNIT_24);
+}
+
+#[test]
+fn a_24_decimal_payout_is_exact() {
+    let mut w = World::new_with_wnear_decimals(24);
+    let wallet = w.wallet_raw(ALICE, Wnear);
+    w.deposit(ALICE, Wnear, 5 * E18 + 3).unwrap();
+    w.auto_payouts = false;
+    w.withdraw(ALICE, Wnear, 2 * E18 + 1).unwrap();
+    let calls = w.last.calls();
+    assert_eq!(calls[0].method, "ft_transfer");
+    assert_eq!(
+        calls[0].args,
+        json!({"receiver_id": ALICE, "amount": (2 * E24 + RAW_PER_UNIT_24).to_string(), "memo": null})
+    );
+    w.run_payouts();
+    // no dust: every internal unit is a whole number of raw units
+    assert_eq!(w.real(ALICE, Wnear), 3 * E18 + 2);
+    assert_eq!(
+        w.wallet_raw(ALICE, Wnear),
+        wallet - 3 * E24 - 2 * RAW_PER_UNIT_24
+    );
+    assert_eq!(w.held_raw(Wnear), 3 * E24 + 2 * RAW_PER_UNIT_24);
+    // a single internal unit is still worth sending
+    w.withdraw(ALICE, Wnear, 1).unwrap();
+    assert_eq!(
+        w.last.calls()[0].args["amount"],
+        json!(RAW_PER_UNIT_24.to_string())
+    );
+}
+
+#[test]
+fn a_failed_24_decimal_payout_is_credited_back() {
+    let mut w = World::new_with_wnear_decimals(24);
+    w.deposit(ALICE, Wnear, 5 * E18).unwrap();
+    w.ft_unregistered.insert(acc(ALICE));
+    w.withdraw(ALICE, Wnear, 2 * E18).unwrap();
+    assert_eq!(w.real(ALICE, Wnear), 5 * E18);
+    assert_eq!(w.held_raw(Wnear), 5 * E24);
+    assert_eq!(
+        w.callbacks[0].data_of("payout_failed"),
+        vec![json!({
+            "account_id": ALICE,
+            "asset": "wnear",
+            "token_amount": (2 * E24).to_string(),
+            "credited": (2 * E18).to_string(),
+        })]
+    );
+    // registered again, the same balance withdraws in full
+    w.ft_unregistered.clear();
+    w.withdraw(ALICE, Wnear, 5 * E18).unwrap();
+    assert_eq!(w.real(ALICE, Wnear), 0);
+    assert_eq!(w.held_raw(Wnear), 0);
+}
+
+/// At 24 decimals every internal unit can be paid out, so even one blocks
+/// `storage_unregister`; there is no wNEAR dust to sweep.
+#[test]
+fn one_internal_unit_of_24_decimal_wnear_blocks_unregister() {
+    let mut w = World::new_with_wnear_decimals(24);
+    w.deposit(ALICE, Wnear, 1).unwrap();
+    assert_eq!(w.held_raw(Wnear), RAW_PER_UNIT_24);
+    fails(
+        w.call(ALICE, ONE_YOCTO, |c| c.storage_unregister(None)),
+        "AccountNotEmpty(alice.near)",
+    );
+    w.withdraw(ALICE, Wnear, 1).unwrap();
+    assert_eq!(w.held_raw(Wnear), 0);
+    assert!(w
+        .call(ALICE, ONE_YOCTO, |c| c.storage_unregister(None))
+        .unwrap());
 }

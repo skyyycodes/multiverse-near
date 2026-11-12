@@ -357,7 +357,7 @@ impl Contract {
     pub(crate) fn holds_anything(&self, account_id: &AccountId) -> bool {
         Asset::ALL
             .into_iter()
-            .any(|a| self.real_balance(account_id, a) >= self.scale(a))
+            .any(|a| self.real_balance(account_id, a) >= self.asset_cfg(a).min_payable())
             || self
                 .verse_keys()
                 .any(|k| self.verse_balance(account_id, &k) > 0)

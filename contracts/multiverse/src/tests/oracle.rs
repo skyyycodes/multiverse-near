@@ -88,13 +88,18 @@ fn init_only_by_the_contract_itself() {
     );
     // and it validates what it is given
     let mut usdc = usdc_cfg();
-    usdc.decimals = 19;
+    usdc.decimals = 25;
     fails(
         w.call(CONTRACT, NO_DEPOSIT, |_| {
             Contract::new(acc(OWNER), None, wnear_cfg(), usdc, 30).event_count
         }),
-        "BadDecimals(19)",
+        "BadDecimals(25)",
     );
+    // 24 decimals, as the testnet wNEAR has, is fine
+    w.call(CONTRACT, NO_DEPOSIT, |_| {
+        Contract::new(acc(OWNER), None, wnear_cfg_with(24), usdc_cfg(), 30).event_count
+    })
+    .unwrap();
     fails(
         w.call(CONTRACT, NO_DEPOSIT, |_| {
             Contract::new(acc(OWNER), None, wnear_cfg(), wnear_cfg(), 30).event_count

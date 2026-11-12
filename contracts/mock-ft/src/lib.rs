@@ -327,7 +327,60 @@ mod tests {
     #[should_panic(expected = "max_mint_per_call must be positive")]
     fn new_rejects_a_zero_cap() {
         as_caller(owner(), NearToken::from_yoctonear(0));
-        Contract::new(owner(), "Mock wNEAR".into(), "wNEAR".into(), 18, U128(0));
+        Contract::new(
+            owner(),
+            "Mock Wrapped NEAR".into(),
+            "wNEAR".into(),
+            24,
+            U128(0),
+        );
+    }
+
+    // 1,000,000 wNEAR at 24 decimals.
+    const WNEAR_CAP: u128 = 1_000_000_000_000_000_000_000_000_000_000;
+
+    fn setup_wnear() -> Contract {
+        as_caller(owner(), NearToken::from_yoctonear(0));
+        Contract::new(
+            owner(),
+            "Mock Wrapped NEAR".into(),
+            "wNEAR".into(),
+            24,
+            U128(WNEAR_CAP),
+        )
+    }
+
+    #[test]
+    fn a_24_decimal_token_mints_up_to_its_cap() {
+        let mut contract = setup_wnear();
+        let meta = contract.ft_metadata();
+        assert_eq!(
+            (meta.name.as_str(), meta.symbol.as_str(), meta.decimals),
+            ("Mock Wrapped NEAR", "wNEAR", 24)
+        );
+        assert_eq!(contract.faucet_config().max_mint_per_call, U128(WNEAR_CAP));
+        as_caller(accounts(1), NearToken::from_yoctonear(0));
+        contract.mint(accounts(1), U128(WNEAR_CAP));
+        // the faucet drop: 2,000 wNEAR
+        contract.mint(accounts(1), U128(2_000 * 10u128.pow(24)));
+        assert_eq!(
+            contract.ft_balance_of(accounts(1)).0,
+            WNEAR_CAP + 2_000 * 10u128.pow(24)
+        );
+        assert_eq!(
+            contract.ft_total_supply().0,
+            WNEAR_CAP + 2_000 * 10u128.pow(24)
+        );
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "amount 1000000000000000000000000000001 is above the per-call cap of 1000000000000000000000000000000"
+    )]
+    fn a_24_decimal_mint_above_the_cap_panics() {
+        let mut contract = setup_wnear();
+        as_caller(accounts(1), NearToken::from_yoctonear(0));
+        contract.mint(accounts(1), U128(WNEAR_CAP + 1));
     }
 
     #[test]

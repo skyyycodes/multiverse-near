@@ -6,8 +6,9 @@
 //! multi-step action atomic; only payouts of real tokens leave as promises.
 //!
 //! Units: every amount inside the contract is 18-decimal fixed point for both
-//! assets. Token amounts are scaled at the NEP-141 boundary (`receiver` on the
-//! way in, `payout` on the way out).
+//! assets. Token amounts are converted at the NEP-141 boundary with
+//! `AssetCfg::to_internal` (`receiver` on the way in, a failed payout's
+//! re-credit) and `AssetCfg::to_raw` (`payout` on the way out).
 
 #[macro_use]
 pub mod errors;
@@ -44,7 +45,7 @@ use crate::orders::Order;
 use crate::outlayer::OutLayerState;
 use crate::rootlp::Vault;
 use crate::storage::StorageAccount;
-use crate::types::{Asset, AssetCfg, EventData, Params, Scenario, VerseKey};
+use crate::types::{Asset, AssetCfg, EventData, Params, Scenario, VerseKey, MAX_DECIMALS};
 
 /// One prefix per collection. Append new variants at the end: the borsh
 /// index of a variant is its storage prefix.
@@ -169,7 +170,7 @@ impl Contract {
             fail("InitNotSelf");
         }
         for cfg in [&wnear, &usdc] {
-            if cfg.decimals > 18 {
+            if cfg.decimals > MAX_DECIMALS {
                 fail!("BadDecimals({})", cfg.decimals);
             }
             if cfg.symbol.is_empty() {
@@ -226,11 +227,6 @@ impl Contract {
             Asset::Wnear => &self.wnear,
             Asset::Usdc => &self.usdc,
         }
-    }
-
-    /// Token units to internal units: 10^(18 - decimals).
-    pub(crate) fn scale(&self, asset: Asset) -> u128 {
-        self.asset_cfg(asset).scale()
     }
 
     /// The asset whose NEP-141 contract is `token`, if it is one of ours.

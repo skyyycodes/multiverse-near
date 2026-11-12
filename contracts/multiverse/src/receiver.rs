@@ -2,10 +2,13 @@
 //! one signature, no approval, and whatever the action leaves unused goes
 //! back to the sender through the token contract.
 //!
-//! Flow: credit `amount * scale` to the sender's internal balance, run the
-//! action for the sender (it draws what it uses from that balance), then hand
-//! back the part of this transfer still sitting there. Only whole token units
-//! can go back; a sub-unit remainder stays in the internal balance as dust.
+//! Flow: convert the amount to internal units and credit them to the
+//! sender's internal balance, run the action for the sender (it draws what it
+//! uses from that balance), then hand back the part of this transfer still
+//! sitting there. Only whole token units can go back; up to 18 decimals a
+//! sub-unit remainder stays in the internal balance as dust. Above 18
+//! decimals (wNEAR has 24) the raw units below one internal unit never enter
+//! the ledger and go back as unused.
 //! Any failed check panics, which rolls the receipt back and makes the token
 //! contract refund everything.
 
@@ -13,7 +16,7 @@ use near_sdk::json_types::U128;
 use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::{env, near, serde_json, AccountId, PromiseOrValue};
 
-use crate::errors::{fail, mul};
+use crate::errors::fail;
 use crate::events::{MultiverseEvent, RealDeposit};
 use crate::lending::RepayAmount;
 use crate::orders::Side;
@@ -174,7 +177,8 @@ impl Contract {
 
 impl Contract {
     /// Credits the transfer, runs the action and settles what is left of it.
-    /// Returns the token units to hand back.
+    /// Returns the token units to hand back: what the action left unused plus
+    /// the remainder below one internal unit.
     pub(crate) fn receive(
         &mut self,
         sender: &AccountId,
@@ -182,7 +186,13 @@ impl Contract {
         token_amount: u128,
         action: Action,
     ) -> u128 {
-        let credited = mul(token_amount, self.scale(asset));
+        let (credited, remainder) = self
+            .asset_cfg(asset)
+            .to_internal(token_amount)
+            .unwrap_or_else(|| fail("ArithmeticOverflow"));
+        if credited == 0 {
+            fail("ZeroAmount");
+        }
         let held_before = self.real_balance(sender, asset);
         self.real_credit(sender, asset, credited);
         if let Action::Deposit(_) = action {
@@ -192,15 +202,16 @@ impl Contract {
                 amount: U128(credited),
             }
             .emit();
-            return 0;
+            return remainder;
         }
         self.dispatch(sender, asset, credited, action);
-        self.settle_unused(sender, asset, credited, held_before)
+        self.settle_unused(sender, asset, credited, held_before) + remainder
     }
 
     /// What is left of this transfer is whatever the sender's balance in
     /// `asset` holds above where it started, never more than was credited.
-    /// Whole token units of it go back; the remainder stays as dust.
+    /// Whole token units of it go back (`to_raw`); the dust below one token
+    /// unit stays in the internal balance. Returns the token units.
     pub(crate) fn settle_unused(
         &mut self,
         sender: &AccountId,
@@ -208,14 +219,17 @@ impl Contract {
         credited: u128,
         held_before: u128,
     ) -> u128 {
-        let scale = self.scale(asset);
         let unused = self
             .real_balance(sender, asset)
             .saturating_sub(held_before)
             .min(credited);
-        let refund = unused / scale;
+        // cannot overflow: `unused` is at most what came in as `to_internal`
+        let (refund, dust) = self
+            .asset_cfg(asset)
+            .to_raw(unused)
+            .unwrap_or_else(|| fail("ArithmeticOverflow"));
         if refund > 0 {
-            self.real_debit(sender, asset, refund * scale);
+            self.real_debit(sender, asset, unused - dust);
         }
         refund
     }

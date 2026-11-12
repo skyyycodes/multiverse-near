@@ -9,6 +9,10 @@
 //! always fail (she is not registered with the tokens), so the books also go
 //! through `on_payout`'s re-credit.
 //!
+//! The backing invariant also runs with the 24-decimal wNEAR of testnet,
+//! where deposits carry a random remainder below one internal unit that must
+//! come straight back as unused and never reach the books.
+//!
 //! Choices come from bit ranges of one seed per action; actions that would
 //! be pointless are skipped, and calls that fail are rolled back and the run
 //! goes on.
@@ -103,8 +107,8 @@ struct Campaign {
 }
 
 impl Campaign {
-    fn new() -> Self {
-        let mut w = World::new();
+    fn new(wnear_decimals: u8) -> Self {
+        let mut w = World::new_with_wnear_decimals(wnear_decimals);
         w.fund(CAROL);
         w.ft_unregistered.insert(acc(CAROL));
         let s_fed = w.create_scenario(&[w.fed]).unwrap();
@@ -217,7 +221,7 @@ impl Campaign {
             return false;
         }
         let result = if from == p.root && !direct {
-            let unit = scale(p.asset);
+            let unit = self.w.unit(p.asset);
             let tokens = bound(amount, 1, (available / unit).min(MAX_AMOUNT / unit));
             self.w
                 .split_ft(p.actor, p.sid, p.asset, &parts, tokens * unit)
@@ -381,7 +385,7 @@ impl Campaign {
         }
         // one token unit of every live single world, then a merge that only
         // the dead part spoils
-        let unit = scale(p.asset);
+        let unit = self.w.unit(p.asset);
         let singles = single_worlds(p.possible);
         self.w
             .split_ft(p.actor, p.sid, p.asset, &singles, unit)
@@ -468,13 +472,31 @@ impl Campaign {
             ACTORS[(seed % 3) as usize],
             ASSETS[((seed >> 16) % 2) as usize],
         );
-        let unit = scale(asset);
+        let unit = self.w.unit(asset);
         let tokens = bound(
             amount,
             1,
             (self.w.wallet(actor, asset) / unit).min(MAX_AMOUNT / unit),
         );
-        self.w.deposit(actor, asset, tokens * unit).is_ok()
+        let raw = self.w.to_raw(asset, tokens * unit);
+        // above 18 decimals, raw units below one internal unit ride along and
+        // must come back as unused
+        let raw_per_unit = if unit == 1 {
+            self.w.to_raw(asset, 1)
+        } else {
+            1
+        };
+        let remainder = u128::from(seed >> 32) % raw_per_unit;
+        if self.w.wallet_raw(actor, asset) < raw + remainder {
+            return false;
+        }
+        match self.w.ft_transfer_call(actor, asset, raw + remainder, "") {
+            Ok(unused) => {
+                assert_eq!(unused, remainder, "the remainder goes back");
+                true
+            }
+            Err(_) => false,
+        }
     }
 
     fn withdraw(&mut self, seed: u64, amount: u128) -> bool {
@@ -516,11 +538,12 @@ impl Campaign {
     /// Invariant 1, backing: for every (scenario, asset) and every possible
     /// world, the supply of the tokens covering it equals the scenario's
     /// reserves; there is never a root token; every token's supply is what
-    /// its holders hold; and the contract's token balance is exactly the
-    /// reserves plus the internal balances.
+    /// its holders hold; and the contract's token balance, in raw units, is
+    /// exactly the reserves plus the internal balances.
     fn check_backing(&mut self) -> Result<(), TestCaseError> {
         let scenarios = self.scenarios;
-        let held: Vec<u128> = ASSETS.iter().map(|a| self.w.held_by_contract(*a)).collect();
+        let held: Vec<u128> = ASSETS.iter().map(|a| self.w.held_raw(*a)).collect();
+        let cfg = self.w.cfg.clone();
         let holders: Vec<near_sdk::AccountId> = ACTORS.iter().map(|a| acc(a)).collect();
         self.w.view(|c| {
             for (i, asset) in ASSETS.into_iter().enumerate() {
@@ -579,9 +602,10 @@ impl Campaign {
                     }
                 }
                 let internal: u128 = holders.iter().map(|h| c.real_balance(h, asset)).sum();
+                let books = cfg[i].to_raw(total_reserves + internal).expect("raw fits");
                 prop_assert_eq!(
-                    held[i],
-                    total_reserves + internal,
+                    (held[i], 0),
+                    books,
                     "token balance != reserves + internal ({})",
                     asset
                 );
@@ -631,7 +655,11 @@ fn name(op: Op) -> &'static str {
     }
 }
 
-fn campaign(title: &str, check: fn(&mut Campaign) -> Result<(), TestCaseError>) {
+fn campaign(
+    title: &str,
+    wnear_decimals: u8,
+    check: fn(&mut Campaign) -> Result<(), TestCaseError>,
+) {
     let stats = RefCell::new(Stats::default());
     let config = Config {
         cases: CASES,
@@ -641,7 +669,7 @@ fn campaign(title: &str, check: fn(&mut Campaign) -> Result<(), TestCaseError>) 
     };
     let mut runner = TestRunner::new(config);
     let result = runner.run(&actions(), |actions| {
-        let mut c = Campaign::new();
+        let mut c = Campaign::new(wnear_decimals);
         let mut s = stats.borrow_mut();
         s.cases += 1;
         check(&mut c)?;
@@ -670,13 +698,26 @@ fn campaign(title: &str, check: fn(&mut Campaign) -> Result<(), TestCaseError>) 
 
 #[test]
 fn invariant_1_backing() {
-    campaign("invariant_1_backing", Campaign::check_backing);
+    campaign("invariant_1_backing", 18, Campaign::check_backing);
+}
+
+/// The backing invariant with the testnet wNEAR's 24 decimals: the contract
+/// holds exactly the raw units of reserves plus internal balances, so no
+/// deposit remainder and no payout rounding ever leaks into the books.
+#[test]
+fn invariant_1_backing_with_24_decimal_wnear() {
+    campaign(
+        "invariant_1_backing_with_24_decimal_wnear",
+        24,
+        Campaign::check_backing,
+    );
 }
 
 #[test]
 fn invariant_2_dead_stays_dead() {
     campaign(
         "invariant_2_dead_stays_dead",
+        18,
         Campaign::check_dead_stays_dead,
     );
 }

@@ -1,6 +1,7 @@
 //! Real wNEAR/USDC going out. Callers finish every state change first, then
-//! call `payout`, which sends whole token units with `ft_transfer` and keeps
-//! the sub-unit remainder in the internal balance. If the transfer fails
+//! call `payout`, which converts with `AssetCfg::to_raw`, sends whole token
+//! units with `ft_transfer` and keeps any sub-unit remainder (only possible
+//! up to 18 decimals) in the internal balance. If the transfer fails
 //! (typically: the receiver is not registered with the token), `on_payout`
 //! puts the amount back into the internal balance, from where `withdraw` can
 //! try again. Nothing is ever re-minted.
@@ -53,8 +54,12 @@ impl Contract {
             PromiseResult::Successful(_) => true,
             PromiseResult::Failed => {
                 let before = env::storage_usage();
-                // amount * scale cannot overflow: it came from an internal amount / scale.
-                let credited = amount.0.saturating_mul(self.scale(asset));
+                // Exact: the amount came from `to_raw` of an internal amount.
+                // Saturates rather than panics, which would lose the re-credit.
+                let credited = self
+                    .asset_cfg(asset)
+                    .to_internal(amount.0)
+                    .map_or(u128::MAX, |(internal, _)| internal);
                 let balance = self
                     .real_balance(&account_id, asset)
                     .saturating_add(credited);
@@ -82,9 +87,10 @@ impl Contract {
     /// `ft_transfer` (1 yoctoNEAR attached, as NEP-141 requires), the
     /// remainder below one token unit back to the internal balance at once.
     pub(crate) fn payout(&mut self, account: &AccountId, asset: Asset, internal_amount: u128) {
-        let scale = self.scale(asset);
-        let token_amount = internal_amount / scale;
-        let dust = internal_amount % scale;
+        let (token_amount, dust) = self
+            .asset_cfg(asset)
+            .to_raw(internal_amount)
+            .unwrap_or_else(|| fail("ArithmeticOverflow"));
         self.real_credit(account, asset, dust);
         if token_amount == 0 {
             return;
