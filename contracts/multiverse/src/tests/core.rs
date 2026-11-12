@@ -60,7 +60,7 @@ fn create_scenario_fails_non_owner() {
     let spice = w.spice;
     fails(
         w.call(ALICE, ONE_YOCTO, |c| c.create_scenario(vec![spice])),
-        "OwnableUnauthorizedAccount(alice.near)",
+        "NotOwner(alice.near)",
     );
 }
 
@@ -556,7 +556,7 @@ fn resolve_only_through_the_oracle() {
     let mut w = World::new();
     fails(
         w.call(ALICE, ONE_YOCTO, |c| c.admin_resolve(2, OUT_HOLDS)),
-        "OwnableUnauthorizedAccount(alice.near)",
+        "NotOwner(alice.near)",
     );
     w.report(w.fed, OUT_HOLDS).unwrap();
     assert_eq!(w.possible(1), ROOT);

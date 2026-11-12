@@ -107,7 +107,7 @@ const ACCOUNT: &[&str] = &[
 ];
 const PIECE: &[&str] = &["token_id", "label", "asset", "mask", "is_real", "amount"];
 
-const DEMO: &str = r#"{"spice_event":1,"fed_event":2,"past_fed_event":3,"scenario_2x2":1,"scenario_binary":2,"implied_spot":"3163359000000000000000","odds_ships_bps":6667,"odds_cuts_bps":3000,"odds_source":null,"seeded_at_sec":1790000000,"spot_from":"2x2"}"#;
+const DEMO: &str = r#"{"spice_event":1,"fed_event":2,"past_fed_event":3,"scenario_2x2":1,"scenario_binary":2,"implied_spot":"3163359000000000000","odds_ships_bps":6667,"odds_cuts_bps":3000,"odds_source":null,"seeded_at_sec":1790000000,"spot_from":"2x2"}"#;
 
 fn json<T: Serialize>(v: &T) -> Value {
     serde_json::to_value(v).unwrap()
@@ -290,7 +290,7 @@ fn app_config_json_shape() {
     assert_eq!(v["dispute_window_sec"], DISPUTE_WINDOW);
     assert!(v["twap_window_sec"].is_u64());
 
-    let spot = seed_spot(&mut w, 3000 * E18, DEPTH);
+    let spot = seed_spot(&mut w, 3_000 * E15, DEPTH);
     set_demo(&mut w, DEMO);
     let v = json(&w.view(|c| c.get_app_config()));
     assert_eq!(v["spot_pool_id"], spot);
@@ -298,7 +298,7 @@ fn app_config_json_shape() {
     assert_eq!(demo["scenario_2x2"], 1);
     assert_eq!(demo["scenario_binary"], 2);
     assert_eq!(demo["past_fed_event"], 3);
-    assert_eq!(demo["implied_spot"], "3163359000000000000000");
+    assert_eq!(demo["implied_spot"], "3163359000000000000");
     assert!(demo["odds_source"].is_null());
     assert_eq!(demo["spot_from"], "2x2");
 }
@@ -308,7 +308,7 @@ fn trade_view_json_shape() {
     let mut w = pool_world();
     let pools = seed_demo_2x2(&mut w);
     let s = w.s2x2;
-    give_world_tokens(&mut w, BOB, s, 2 * E18, 0);
+    give_world_tokens(&mut w, BOB, s, 2_000 * E18, 0);
     let expiry = T0 + DAY;
     let order = w
         .call(BOB, ONE_YOCTO, |c| {
@@ -316,14 +316,14 @@ fn trade_view_json_shape() {
                 s,
                 DELAYED_HOLDS,
                 Side::Ask,
-                U128(2600 * E18),
-                U128(E18),
+                U128(2_600 * E15),
+                U128(1_000 * E18),
                 expiry,
             )
         })
         .unwrap();
-    give_world_tokens(&mut w, ALICE, s, 2 * E18, 0);
-    sell(&mut w, ALICE, pools[1], E18);
+    give_world_tokens(&mut w, ALICE, s, 2_000 * E18, 0);
+    sell(&mut w, ALICE, pools[1], 1_000 * E18);
 
     let v = json(&w.view(|c| c.trade_view(s, Some(acc(ALICE)))));
     assert_keys(&v, &["scenario", "events", "orders", "impact", "now_sec"]);
@@ -566,7 +566,7 @@ fn account_view_matches_lending() {
     assert_eq!(a.market_borrow.0, 3_000 * E18);
     assert_eq!(a.liquidation, LiquidationState::None);
     let v = scenario(&mut w, s, Some(ALICE));
-    assert_eq!(v.worlds[0].collateral_wnear.0, 2 * E18);
+    assert_eq!(v.worlds[0].collateral_wnear.0, 2_000 * E18);
     assert_eq!(v.worlds[0].user_wnear.0, 0);
     for i in 1..4 {
         assert_eq!(
@@ -620,7 +620,7 @@ fn odds_in_the_scenario_view() {
         .sum();
     assert_eq!(v.implied_spot.0, weighted);
 
-    let spot = seed_spot(&mut w, 3000 * E18, DEPTH);
+    let spot = seed_spot(&mut w, 3_000 * E15, DEPTH);
     let v = scenario(&mut w, s, None);
     assert_eq!(v.spot_price.0, price_of(&mut w, spot));
 }
@@ -640,7 +640,7 @@ fn account_view_liquidation_states() {
     );
 
     // wNEAR-if-SHIPS·CUTS loses almost all its value
-    set_price(s, 0, 10 * E18);
+    set_price(s, 0, 10 * E15);
     let a = account(&mut w, s, Some(ALICE));
     assert!(a.health_factor.unwrap().0 < E18);
     assert_eq!(a.liquidation, LiquidationState::Liquidatable);

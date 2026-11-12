@@ -43,6 +43,8 @@ pub const CAROL: &str = "carol.near";
 pub const NO_DEPOSIT: NearToken = NearToken::from_yoctonear(0);
 pub const ONE_YOCTO: NearToken = NearToken::from_yoctonear(1);
 pub const E18: u128 = 1_000_000_000_000_000_000;
+/// 0.001 in WAD: demo prices are a few USDC per NEAR.
+pub const E15: u128 = 1_000_000_000_000_000;
 /// What each user starts with, in internal units (1e36).
 pub const FUND: u128 = 1_000_000_000_000_000_000 * E18;
 pub const DISPUTE_WINDOW: u64 = 30;

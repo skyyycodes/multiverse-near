@@ -29,7 +29,7 @@ fn create_event_fails() {
         w.call(ALICE, ONE_YOCTO, |c| {
             c.create_event("q".into(), names(), "r".into(), 0)
         }),
-        "OwnableUnauthorizedAccount(alice.near)",
+        "NotOwner(alice.near)",
     );
     fails(
         w.create_event("q", &["A", "B", "C"], "r", 0),
@@ -113,7 +113,7 @@ fn set_dispute_window_only_owner() {
     let mut w = World::new();
     fails(
         w.call(ALICE, ONE_YOCTO, |c| c.set_dispute_window(1)),
-        "OwnableUnauthorizedAccount(alice.near)",
+        "NotOwner(alice.near)",
     );
     w.call(OWNER, ONE_YOCTO, |c| c.set_dispute_window(300))
         .unwrap();
@@ -150,7 +150,7 @@ fn admin_resolve_fails() {
     let fed = w.fed;
     fails(
         w.call(ALICE, ONE_YOCTO, |c| c.admin_resolve(fed, OUT_HOLDS)),
-        "OwnableUnauthorizedAccount(alice.near)",
+        "NotOwner(alice.near)",
     );
     fails(w.admin_resolve(fed, 2), "InvalidOutcome(2)");
     fails(w.admin_resolve(9, 0), "UnknownEvent(9)");
@@ -214,7 +214,7 @@ fn dispute_fails() {
     w.report(fed, OUT_CUTS).unwrap();
     fails(
         w.call(ALICE, ONE_YOCTO, |c| c.dispute(fed)),
-        "OwnableUnauthorizedAccount(alice.near)",
+        "NotOwner(alice.near)",
     );
     w.warp(DISPUTE_WINDOW);
     fails(w.dispute(fed), "DisputeWindowOver(2)");
@@ -338,7 +338,7 @@ fn set_reporter_only_owner() {
     let mut w = World::new();
     fails(
         w.call(ALICE, ONE_YOCTO, |c| c.set_reporter(Some(acc(ALICE)))),
-        "OwnableUnauthorizedAccount(alice.near)",
+        "NotOwner(alice.near)",
     );
     w.call(OWNER, ONE_YOCTO, |c| c.set_reporter(Some(acc(BOB))))
         .unwrap();

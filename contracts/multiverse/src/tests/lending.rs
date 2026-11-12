@@ -4,9 +4,10 @@
 //!
 //! World prices come from the test price table instead of pool TWAPs, so
 //! valuations are exact rather than within one tick. The router's L-shape
-//! sale into lending is rebuilt from splits: the user keeps 2 wNEAR-if-SHIPS·CUTS
-//! and gets the USDC-if-w a constant-product pool of 100 wNEAR depth would pay
-//! for 2 wNEAR in worlds 1 to 3 (`proceeds[w]`; no assertion hard-codes them).
+//! sale into lending is rebuilt from splits: the user keeps 2,000
+//! wNEAR-if-SHIPS·CUTS and gets the USDC-if-w a constant-product pool of
+//! 100,000 wNEAR depth would pay for 2,000 wNEAR in worlds 1 to 3
+//! (`proceeds[w]`; no assertion hard-codes them).
 
 use near_sdk::json_types::U128;
 use near_sdk::NearToken;
@@ -16,8 +17,8 @@ use crate::amm::TEST_WORLD_PRICES;
 use crate::lending::{CollateralKey, Liquidation, LiquidationState};
 use crate::types::Asset::{self, Usdc, Wnear};
 
-pub const PRICES_2X2: [u128; 4] = [3_700 * E18, 3_000 * E18, 3_300 * E18, 2_500 * E18];
-pub const PRICES_BIN: [u128; 2] = [3_400 * E18, 2_800 * E18];
+pub const PRICES_2X2: [u128; 4] = [3_700 * E15, 3_000 * E15, 3_300 * E15, 2_500 * E15];
+pub const PRICES_BIN: [u128; 2] = [3_400 * E15, 2_800 * E15];
 pub const LLTV: u128 = 750_000_000_000_000_000;
 pub const BONUS: u128 = 50_000_000_000_000_000;
 pub const RATE: u128 = 1_585_489_599;
@@ -253,19 +254,19 @@ impl Lend for World {
         self.wallet(who, Usdc) + self.real(who, Usdc)
     }
 
-    /// The router's `conditionalSell(s2x2, 2 wNEAR, L_SHAPE, into lending)`,
-    /// rebuilt from splits. Returns `proceeds` (world 0 unused).
+    /// The router's `conditional_sell(s2x2, 2,000 wNEAR, L_SHAPE, into
+    /// lending)`, rebuilt from splits. Returns `proceeds` (world 0 unused).
     fn l_shape(&mut self, who: &str) -> [u128; 4] {
         let s = self.s2x2;
         let mut proceeds = [0u128; 4];
         for w in 1..4 {
-            proceeds[w] = cpmm_out(2 * E18, 100 * E18, 100 * PRICES_2X2[w]);
+            proceeds[w] = cpmm_out(2_000 * E18, 100_000 * E18, 100_000 * PRICES_2X2[w]);
         }
         let total: u128 = proceeds.iter().sum();
         self.deposit(who, Usdc, total.div_ceil(E18) * E18).unwrap();
-        self.split_ft(who, s, Wnear, &[SHIPS_CUTS, L_SHAPE], 2 * E18)
+        self.split_ft(who, s, Wnear, &[SHIPS_CUTS, L_SHAPE], 2_000 * E18)
             .unwrap();
-        self.post(who, s, &token_id(s, Wnear, SHIPS_CUTS), 2 * E18)
+        self.post(who, s, &token_id(s, Wnear, SHIPS_CUTS), 2_000 * E18)
             .unwrap();
         for w in 1..4u8 {
             let single = 1u8 << w;
@@ -717,13 +718,13 @@ fn router_api() {
     let mut w = lending_world(50_000 * E18);
     let s = w.s2x2;
     let alice = acc(ALICE);
-    w.deposit(ALICE, Wnear, 2 * E18).unwrap();
+    w.deposit(ALICE, Wnear, 2_000 * E18).unwrap();
     w.deposit(ALICE, Usdc, 500 * E18).unwrap();
     w.split_ft(ALICE, s, Usdc, &[HOLDS, CUTS], 1_000 * E18)
         .unwrap();
     let a = alice.clone();
     w.call(ALICE, ONE_YOCTO, |c| {
-        c.deposit_collateral_for(&a, s, CollateralKey::Real(Wnear), 2 * E18);
+        c.deposit_collateral_for(&a, s, CollateralKey::Real(Wnear), 2_000 * E18);
         c.deposit_collateral_for(
             &a,
             s,
@@ -770,7 +771,7 @@ fn router_api() {
     assert_eq!(
         back,
         vec![
-            (CollateralKey::Real(Wnear), 2 * E18),
+            (CollateralKey::Real(Wnear), 2_000 * E18),
             (
                 CollateralKey::Verse {
                     asset: Usdc,
@@ -780,7 +781,7 @@ fn router_api() {
             )
         ]
     );
-    assert_eq!(w.real(ALICE, Wnear), 2 * E18);
+    assert_eq!(w.real(ALICE, Wnear), 2_000 * E18);
     assert_eq!(w.real(ALICE, Usdc), real_before - debt);
     assert_eq!(w.bal(ALICE, s, Usdc, HOLDS), 1_000 * E18);
     // nothing posted: nothing to do

@@ -18,7 +18,11 @@ use crate::types::Asset::Usdc;
 const PROTO_W1_SALE: u128 = 5_865_050_885_346_196_835_108;
 const PROTO_W2_SALE: u128 = 6_451_555_973_880_816_518_618;
 const PROTO_W3_RAVI_THEN_POOL: u128 = 4_881_885_259_897_065_638_949;
-const RAVI_PRICE: u128 = 2450 * E18;
+/// Ravi's bid: 1,000 NEAR at 2.45 USDC per NEAR.
+const RAVI_PRICE: u128 = 2_450 * E15;
+const RAVI_SIZE: u128 = 1_000 * E18;
+/// Alice's sale: 2,000 NEAR.
+const SALE: u128 = 2_000 * E18;
 
 fn odds_view(w: &mut World, sid: u64) -> (Vec<u128>, bool) {
     let v = w.view(|c| c.odds(sid));
@@ -79,18 +83,19 @@ fn golden_sale_in_the_thin_pool() {
     let mut w = pool_world();
     seed_demo_thin(&mut w);
     let s = w.s2x2;
-    let pool_only = w.view(|c| c.quote_sell(s, U128(2 * E18), DELAYED_HOLDS))[3].0;
+    let pool_only = w.view(|c| c.quote_sell(s, U128(SALE), DELAYED_HOLDS))[3].0;
     assert_eq!(cents(pool_only), 474829);
-    assert_eq!(cents(pool_only / 2), 237414);
-    // Ravi's 1 wNEAR at 2,450, then 1 wNEAR into the pool
-    let slice = w.view(|c| c.quote_sell(s, U128(E18), DELAYED_HOLDS))[3].0;
+    // 2.37414 USDC per NEAR on average
+    assert_eq!(price_5dp(pool_only / 2_000), 237414);
+    // Ravi's 1,000 NEAR at 2.45, then 1,000 NEAR into the pool
+    let slice = w.view(|c| c.quote_sell(s, U128(RAVI_SIZE), DELAYED_HOLDS))[3].0;
     assert_eq!(cents(slice), 243188);
-    let with_bid = RAVI_PRICE + slice;
+    let with_bid = wmul(RAVI_SIZE, RAVI_PRICE) + slice;
     assert_eq!(cents(with_bid), 488188);
-    assert_eq!(cents(with_bid / 2), 244094);
+    assert_eq!(price_5dp(with_bid / 2_000), 244094);
     assert!(with_bid.abs_diff(PROTO_W3_RAVI_THEN_POOL) <= 1_000_000);
-    // even the pool's first wNEAR averages under the bid
-    assert!(slice < RAVI_PRICE && pool_only / 2 < RAVI_PRICE);
+    // even the pool's first NEAR averages under the bid
+    assert!(slice / 1_000 < RAVI_PRICE && pool_only / 2_000 < RAVI_PRICE);
 }
 
 #[test]
@@ -98,9 +103,9 @@ fn golden_l_shape_sale_and_the_prices_after_it() {
     let mut w = pool_world();
     let pools = seed_demo_thin(&mut w);
     let s = w.s2x2;
-    give_world_tokens(&mut w, ALICE, s, 10 * E18, 0);
+    give_world_tokens(&mut w, ALICE, s, 10_000 * E18, 0);
     let quotes: Vec<u128> = w
-        .view(|c| c.quote_sell(s, U128(2 * E18), L_SHAPE))
+        .view(|c| c.quote_sell(s, U128(SALE), L_SHAPE))
         .iter()
         .map(|q| q.0)
         .collect();
@@ -108,13 +113,13 @@ fn golden_l_shape_sale_and_the_prices_after_it() {
     assert!(quotes[1].abs_diff(PROTO_W1_SALE) <= 1_000_000);
     assert!(quotes[2].abs_diff(PROTO_W2_SALE) <= 1_000_000);
     assert_eq!((cents(quotes[1]), cents(quotes[2])), (586505, 645155));
-    // worlds 1 and 2 sell 2 wNEAR; world 3 sells the 1 wNEAR Ravi's bid leaves
-    assert_eq!(sell(&mut w, ALICE, pools[1], 2 * E18).0, quotes[1]);
-    assert_eq!(sell(&mut w, ALICE, pools[2], 2 * E18).0, quotes[2]);
-    sell(&mut w, ALICE, pools[3], E18);
+    // worlds 1 and 2 sell 2,000 NEAR; world 3 sells the 1,000 NEAR Ravi's bid leaves
+    assert_eq!(sell(&mut w, ALICE, pools[1], SALE).0, quotes[1]);
+    assert_eq!(sell(&mut w, ALICE, pools[2], SALE).0, quotes[2]);
+    sell(&mut w, ALICE, pools[3], SALE - RAVI_SIZE);
     let after: Vec<u128> = world_prices(&mut w, &pools)
         .into_iter()
-        .map(cents)
+        .map(price_5dp)
         .collect();
     assert_eq!(after, [370000, 288384, 317223, 237988]);
     let fees: Vec<u32> = pools.iter().map(|id| fee_of(&mut w, *id)).collect();
@@ -130,20 +135,25 @@ fn golden_twap_prices_after_a_full_window() {
     w.warp(61);
     let s = w.s2x2;
     let twap: Vec<u128> = (0..4)
-        .map(|i| cents(w.view(|c| c.world_price(s, i)).0))
+        .map(|i| price_5dp(w.view(|c| c.world_price(s, i)).0))
         .collect();
+    // 3.69963, 2.99979, 3.29972 and 2.49990: a floored mean tick prices the
+    // world up to one tick (0.01%) under its pool
     assert_eq!(twap, [369963, 299979, 329972, 249990]);
     let bin: Vec<u128> = (0..2)
-        .map(|i| cents(w.view(|c| c.world_price(sb, i)).0))
+        .map(|i| price_5dp(w.view(|c| c.world_price(sb, i)).0))
         .collect();
-    assert_eq!(bin, [339987, 279979]);
+    // 2.79980 for DELAYED: at a few dollars the tick grid sits elsewhere than
+    // at the prototype's thousands, and this one floors a hair higher (the
+    // prototype's demo numbers had 2,799.79)
+    assert_eq!(bin, [339987, 279980]);
 }
 
 #[test]
 fn golden_implied_spot_at_104_and_119_bps() {
     for (cuts, configured) in [
-        (104, 3_037_866_632 * 1_000_000_000_000),
-        (119, 3_038_516_627 * 1_000_000_000_000),
+        (104, 3_037_866_632 * 1_000_000_000),
+        (119, 3_038_516_627 * 1_000_000_000),
     ] {
         let mut w = pool_world();
         let pools = seed_demo_thin(&mut w);
@@ -164,8 +174,8 @@ fn golden_implied_spot_at_104_and_119_bps() {
         );
         let got = assert_implied(&mut w, s, &pools);
         assert!(within_rel(got, configured, 10_000_000_000));
-        assert_eq!(cents(got), cents(configured));
-        // SeedDemo seeds the spot pool at the configured implied spot
+        assert_eq!(price_5dp(got), price_5dp(configured));
+        // the demo seed seeds the spot pool at the configured implied spot
         seed_spot(&mut w, configured, DEPTH);
         assert_eq!(w.view(|c| c.spot_price()).0, configured);
         assert_eq!(w.view(|c| c.spot_price_wad()), configured);
@@ -181,8 +191,8 @@ fn golden_binary_implied_spot() {
     seed_odds(&mut w, sb, &q, ODDS_DEPTH);
     assert_odds(&mut w, sb, &q);
     let got = assert_implied(&mut w, sb, &pools);
-    assert_eq!(cents(got), 320002);
-    assert!(within_rel(got, 3_200_020 * E18 / 1000, 10_000_000_000));
+    assert_eq!(price_5dp(got), 320002);
+    assert!(within_rel(got, 3_200_020 * E15 / 1000, 10_000_000_000));
 }
 
 // The lens
@@ -198,9 +208,9 @@ fn scenario_pools_before_and_after_a_sale() {
         assert!(within_rel(p.price.0, DEMO_2X2[i], 1_000_000));
         assert!(p.liquidity.0 > 0);
     }
-    give_world_tokens(&mut w, ALICE, s, 2 * E18, 0);
+    give_world_tokens(&mut w, ALICE, s, SALE, 0);
     for id in &pools[1..] {
-        sell(&mut w, ALICE, *id, 2 * E18);
+        sell(&mut w, ALICE, *id, SALE);
     }
     for (i, id) in pools.iter().enumerate().skip(1) {
         assert!(price_of(&mut w, *id) < DEMO_2X2[i]);
@@ -214,20 +224,20 @@ fn quote_sell_matches_execution() {
     let mut w = pool_world();
     let pools = seed_demo_2x2(&mut w);
     let s = w.s2x2;
-    give_world_tokens(&mut w, ALICE, s, 2 * E18, 0);
+    give_world_tokens(&mut w, ALICE, s, SALE, 0);
     // a fee window that is not at base, so the quote must use the live fee
-    sell(&mut w, ALICE, pools[2], E18 / 2);
-    let quotes = w.view(|c| c.quote_sell(s, U128(E18), L_SHAPE));
+    sell(&mut w, ALICE, pools[2], 500 * E18);
+    let quotes = w.view(|c| c.quote_sell(s, U128(1_000 * E18), L_SHAPE));
     assert_eq!(quotes[0].0, 0);
     for i in 1..4 {
-        let (out, _) = sell(&mut w, ALICE, pools[i], E18);
+        let (out, _) = sell(&mut w, ALICE, pools[i], 1_000 * E18);
         assert_eq!(out, quotes[i].0, "world {i}");
     }
     // the router-facing quote is the same number
     let next = w
-        .view(|c| c.quote_exact_in(pools[1], true, E18 / 4))
+        .view(|c| c.quote_exact_in(pools[1], true, 250 * E18))
         .unwrap();
-    assert_eq!(sell(&mut w, ALICE, pools[1], E18 / 4).0, next);
+    assert_eq!(sell(&mut w, ALICE, pools[1], 250 * E18).0, next);
 }
 
 #[test]
@@ -235,20 +245,20 @@ fn quote_sell_parts_and_bounds() {
     let mut w = pool_world();
     seed_demo_2x2(&mut w);
     let (s, sb) = (w.s2x2, w.s_bin);
-    let one = w.view(|c| c.quote_sell(s, U128(E18), 0xF));
-    let two = w.view(|c| c.quote_sell(s, U128(2 * E18), 0xF));
+    let one = w.view(|c| c.quote_sell(s, U128(1_000 * E18), 0xF));
+    let two = w.view(|c| c.quote_sell(s, U128(SALE), 0xF));
     let parts = vec![
         SellPart {
             world: 3,
-            wnear_amount: U128(E18),
+            wnear_amount: U128(1_000 * E18),
         },
         SellPart {
             world: 3,
-            wnear_amount: U128(2 * E18),
+            wnear_amount: U128(SALE),
         },
         SellPart {
             world: 0,
-            wnear_amount: U128(E18),
+            wnear_amount: U128(1_000 * E18),
         },
         SellPart {
             world: 7,
@@ -322,7 +332,7 @@ fn odds_2x2_match_configured_odds() {
         weighted(&q, &DEMO_2X2, ROOT),
         10_000_000_000
     ));
-    assert!(within_rel(got, 3_163_359 * E18 / 1000, 10_000_000_000));
+    assert!(within_rel(got, 3_163_359 * E15 / 1000, 10_000_000_000));
 }
 
 #[test]
@@ -335,7 +345,7 @@ fn odds_binary_match_configured_odds() {
     assert_odds(&mut w, sb, &q);
     assert!(within_rel(
         implied(&mut w, sb),
-        320002 * E18 / 100,
+        320002 * E15 / 100,
         10_000_000_000
     ));
 }
@@ -347,7 +357,7 @@ fn implied_spot_matches_actual_spot_after_seeding() {
     let s = w.s2x2;
     let q = independent_odds(4, 6667, 3000);
     let configured = weighted(&q, &DEMO_2X2, ROOT);
-    assert_eq!(configured, 3_163_359 * E18 / 1000);
+    assert_eq!(configured, 3_163_359 * E15 / 1000);
     seed_odds(&mut w, s, &q, ODDS_DEPTH);
     let spot_id = seed_spot(&mut w, configured, DEPTH);
     let got = assert_implied(&mut w, s, &pools);
@@ -369,7 +379,7 @@ fn odds_renormalize_after_holds() {
     let got = assert_implied(&mut w, s, &pools);
     assert!(within_rel(
         got,
-        (6667 * 3300 + 3333 * 2500) * E18 / 10_000,
+        (6667 * 3300 + 3333 * 2500) * E15 / 10_000,
         10_000_000_000
     ));
 }
@@ -385,7 +395,7 @@ fn odds_renormalize_after_delayed() {
     let got = assert_implied(&mut w, s, &pools);
     assert!(within_rel(
         got,
-        (3 * 3000 + 7 * 2500) * E18 / 10,
+        (3 * 3000 + 7 * 2500) * E15 / 10,
         10_000_000_000
     ));
 }

@@ -66,25 +66,25 @@ fn unhealthy_usdc_loan(w: &mut World) {
     age_to(w, s, ALICE, 975_000_000_000_000_000);
 }
 
-/// L-shape + 0.5 real wNEAR + 200 real USDC + 0.3 wNEAR-if-HOLDS: 7 pieces.
+/// L-shape + 500 real wNEAR + 200 real USDC + 300 wNEAR-if-HOLDS: 7 pieces.
 fn mixed_loan(w: &mut World) {
     let s = w.s2x2;
     w.l_shape(ALICE);
-    w.post_real(ALICE, s, Wnear, E18 / 2).unwrap();
+    w.post_real(ALICE, s, Wnear, 500 * E18).unwrap();
     w.post_real(ALICE, s, Usdc, 200 * E18).unwrap();
-    w.split_ft(ALICE, s, Wnear, &[HOLDS, CUTS], 3 * E18 / 10)
+    w.split_ft(ALICE, s, Wnear, &[HOLDS, CUTS], 300 * E18)
         .unwrap();
-    w.post(ALICE, s, &token_id(s, Wnear, HOLDS), 3 * E18 / 10)
+    w.post(ALICE, s, &token_id(s, Wnear, HOLDS), 300 * E18)
         .unwrap();
     assert_eq!(w.pieces(s, ALICE).len(), 7);
     borrow_near_max(w, s, ALICE);
     age_to(w, s, ALICE, 980_000_000_000_000_000);
 }
 
-/// 1 real wNEAR, borrowed near the max, then world 3 crashes to 1/16 of 2,500.
+/// 1,000 real wNEAR, borrowed near the max, then world 3 crashes to 1/16 of 2.50.
 fn crashed_wnear_loan(w: &mut World) {
     let s = w.s2x2;
-    w.post_real(ALICE, s, Wnear, E18).unwrap();
+    w.post_real(ALICE, s, Wnear, 1_000 * E18).unwrap();
     borrow_near_max(w, s, ALICE);
     set_price(s, 3, PRICES_2X2[3] / 16);
 }
@@ -271,7 +271,8 @@ fn liquidate_fails_on_dust() {
     mixed_loan(&mut w);
     let max_price = PRICES_2X2[0];
     let smallest = 20 * 7 * (max_price / PRICE_UNIT + 2);
-    assert_eq!(smallest, 518_280);
+    // 3.70 USDC per wNEAR counts as 3 whole USDC per unit: 20 * 7 * 5
+    assert_eq!(smallest, 700);
     fails(
         w.liquidate(LIQ, s, ALICE, Some(1)),
         "LiquidationTooSmall(1)",
@@ -375,7 +376,7 @@ fn liquidate_gap_below_the_repayment_takes_everything() {
     crashed_wnear_loan(&mut w);
     let done = liquidate_in(&mut w, s, ALICE, None);
     assert!(done.target >= done.c_min);
-    assert_eq!(done.liq.seized, vec![E18]);
+    assert_eq!(done.liq.seized, vec![1_000 * E18]);
     assert!(w.pieces(s, ALICE).is_empty());
     assert_eq!(done.slice[3], done.c_min);
     assert!(done.c_min < done.liq.repaid, "156 vs 932");
@@ -395,8 +396,8 @@ fn liquidate_gap_smallest_repayment_that_caps_f_takes_everything() {
     assert!(liquidation_target(repay - 1, BONUS) < c_min);
     let done = liquidate_in(&mut w, s, ALICE, Some(repay));
     assert!(done.target >= c_min);
-    assert_eq!(done.liq.seized, vec![E18]);
-    // DELAYED·CUTS still values the wNEAR at 3,000
+    assert_eq!(done.liq.seized, vec![1_000 * E18]);
+    // DELAYED·CUTS still values the 1,000 wNEAR at 3,000 USDC
     assert!(done.slice[1] >= 2_999 * E18);
     let left = w.debt(s, ALICE);
     assert!(left.abs_diff(done.debt - repay) <= 2);
@@ -435,7 +436,7 @@ fn liquidate_pauses_while_a_pool_is_under_the_gate() {
     let sid = binary_market(&mut w);
     set_price(sid, 0, PRICES_BIN[0]);
     set_price(sid, 1, PRICES_BIN[1]);
-    w.post_real(ALICE, sid, Wnear, E18).unwrap();
+    w.post_real(ALICE, sid, Wnear, 1_000 * E18).unwrap();
     w.borrow(ALICE, sid, 2_079 * E18).unwrap();
     let hf = w.hf(sid, ALICE).0.unwrap();
     assert!(hf > E18 && hf < 1_011_000_000_000_000_000);
@@ -466,9 +467,9 @@ fn liquidate_pauses_without_twap_history() {
     set_unpriced(sid, 0);
     set_price(sid, 1, PRICES_BIN[1]);
     w.post_real(ALICE, sid, Usdc, 1_000 * E18).unwrap();
-    w.split_ft(ALICE, sid, Wnear, &[BIN_SHIPS, BIN_DELAYED], E18)
+    w.split_ft(ALICE, sid, Wnear, &[BIN_SHIPS, BIN_DELAYED], 1_000 * E18)
         .unwrap();
-    w.post(ALICE, sid, &token_id(sid, Wnear, BIN_SHIPS), E18)
+    w.post(ALICE, sid, &token_id(sid, Wnear, BIN_SHIPS), 1_000 * E18)
         .unwrap();
     w.borrow(ALICE, sid, 740 * E18).unwrap();
     assert_eq!(w.values(sid, ALICE)[0], 1_000 * E18);
@@ -556,7 +557,7 @@ fn liquidate_cuts_dead_pieces_too() {
     assert_eq!(done.liq.seized[1], dead_usdc);
     assert_eq!(
         w.bal(LIQ, s, Wnear, SHIPS_CUTS),
-        mul_div_down(2 * E18, done.target, done.c_min)
+        mul_div_down(2_000 * E18, done.target, done.c_min)
     );
 }
 

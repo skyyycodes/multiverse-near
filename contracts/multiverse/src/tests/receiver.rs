@@ -237,7 +237,7 @@ fn ft_on_transfer_returns_a_value_not_a_promise() {
 const DESIGN_MESSAGES: [(&str, &str); 11] = [
     (
         "conditional_sell",
-        r#"{"action":"conditional_sell","scenario_id":1,"sell_mask":14,"plans":[[],[],[],[{"order_id":"1","amount":"1000000000000000000"}]],"min_out":["0","0","0","0"],"to_lending":true}"#,
+        r#"{"action":"conditional_sell","scenario_id":1,"sell_mask":14,"plans":[[],[],[],[{"order_id":"1","amount":"1000000000000000000000"}]],"min_out":["0","0","0","0"],"to_lending":true}"#,
     ),
     (
         "conditional_buy",
@@ -249,7 +249,7 @@ const DESIGN_MESSAGES: [(&str, &str); 11] = [
     ),
     (
         "post_order",
-        r#"{"action":"post_order","scenario_id":1,"mask":8,"side":"bid","price":"2450000000000000000000","amount":"1000000000000000000","expiry_sec":1795000000}"#,
+        r#"{"action":"post_order","scenario_id":1,"mask":8,"side":"bid","price":"2450000000000000000","amount":"1000000000000000000000","expiry_sec":1795000000}"#,
     ),
     ("supply", r#"{"action":"supply","scenario_id":1}"#),
     ("repay", r#"{"action":"repay","scenario_id":1,"all":true}"#),
@@ -267,7 +267,7 @@ const DESIGN_MESSAGES: [(&str, &str); 11] = [
     ),
     (
         "lp_deposit",
-        r#"{"action":"lp_deposit","scenario_id":1,"wnear_amount":"5000000000000000000","min_shares":"0"}"#,
+        r#"{"action":"lp_deposit","scenario_id":1,"wnear_amount":"5000000000000000000000","min_shares":"0"}"#,
     ),
     ("spot_swap", r#"{"action":"spot_swap","min_out":"0"}"#),
 ];
@@ -316,7 +316,7 @@ fn design_messages_parse_to_the_right_actions() {
                 m.plans[3],
                 vec![PlanFill {
                     order_id: U64(1),
-                    amount: U128(E18)
+                    amount: U128(1_000 * E18)
                 }]
             );
             assert_eq!(m.min_out, vec![U128(0); 4]);
@@ -327,7 +327,7 @@ fn design_messages_parse_to_the_right_actions() {
         Action::PostOrder(m) => {
             assert_eq!(
                 (m.mask, m.side, m.price, m.expiry_sec),
-                (8, Side::Bid, U128(2450 * E18), 1_795_000_000)
+                (8, Side::Bid, U128(2_450 * E15), 1_795_000_000)
             );
         }
         other => panic!("{other:?}"),

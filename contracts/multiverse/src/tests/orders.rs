@@ -20,7 +20,7 @@ use crate::types::Asset::{self, Usdc, Wnear};
 use crate::types::VerseKey;
 
 pub const RAVI: &str = "ravi.near";
-const PRICE: u128 = 2_450 * E18;
+const PRICE: u128 = 2_450 * E15;
 const HALF: u128 = E18 / 2;
 const ONE_HALF: u128 = 1_500_000_000_000_000_000;
 
@@ -89,7 +89,7 @@ fn expiry(w: &World) -> u64 {
     w.now + DAY
 }
 
-/// Ravi's bid: 1 wNEAR-if-DELAYED·HOLDS at 2,450.
+/// Ravi's bid: 1 wNEAR-if-DELAYED·HOLDS at 2.45.
 fn ravi_bid(w: &mut World) -> u64 {
     let (s, e) = (w.s2x2, expiry(w));
     give(w, RAVI, s, Usdc, DELAYED_HOLDS, PRICE);
@@ -161,7 +161,7 @@ fn post_bid_escrows_usdc() {
 fn post_ask_escrows_wnear() {
     let mut w = book();
     let s = w.s2x2;
-    let id = ask(&mut w, RAVI, DELAYED_HOLDS, 2_800 * E18, 2 * E18);
+    let id = ask(&mut w, RAVI, DELAYED_HOLDS, 2_800 * E15, 2 * E18);
     let o = order(&mut w, id);
     assert_eq!(o.side, Side::Ask);
     assert_eq!(o.escrow, U128(2 * E18));
@@ -183,13 +183,13 @@ fn post_accepts_any_live_mask() {
     let mut w = book();
     let s = w.s2x2;
     let b = bid(&mut w, RAVI, L_SHAPE, PRICE, E18);
-    let a = ask(&mut w, RAVI, DELAYED, 2_800 * E18, E18);
+    let a = ask(&mut w, RAVI, DELAYED, 2_800 * E15, E18);
     assert_eq!(order(&mut w, b).mask, L_SHAPE);
     assert_eq!(order(&mut w, a).mask, DELAYED);
     let fed = w.fed;
     w.admin_resolve(fed, OUT_HOLDS).unwrap();
     // DELAYED is half dead now (DELAYED_CUTS), still live
-    let a2 = ask(&mut w, RAVI, DELAYED, 2_800 * E18, E18);
+    let a2 = ask(&mut w, RAVI, DELAYED, 2_800 * E15, E18);
     let o = order(&mut w, a2);
     assert_eq!((o.mask, o.epoch), (DELAYED, 1));
     assert_eq!(o.scenario_id, s);
@@ -464,20 +464,20 @@ fn fill_fails_beyond_limit_price() {
     let mut w = book();
     let s = w.s2x2;
     let b = ravi_bid(&mut w);
-    let a = ask(&mut w, RAVI, DELAYED_HOLDS, 2_800 * E18, E18);
+    let a = ask(&mut w, RAVI, DELAYED_HOLDS, 2_800 * E15, E18);
     give(&mut w, ALICE, s, Wnear, DELAYED_HOLDS, E18);
-    give(&mut w, ALICE, s, Usdc, DELAYED_HOLDS, 2_800 * E18);
+    give(&mut w, ALICE, s, Usdc, DELAYED_HOLDS, 2_800 * E15);
     fails(
-        fill(&mut w, ALICE, b, E18, 2_451 * E18),
-        &format!("PriceBeyondLimit({b}, {PRICE}, {})", 2_451 * E18),
+        fill(&mut w, ALICE, b, E18, 2_451 * E15),
+        &format!("PriceBeyondLimit({b}, {PRICE}, {})", 2_451 * E15),
     );
     fails(
-        fill(&mut w, ALICE, a, E18, 2_799 * E18),
-        &format!("PriceBeyondLimit({a}, {}, {})", 2_800 * E18, 2_799 * E18),
+        fill(&mut w, ALICE, a, E18, 2_799 * E15),
+        &format!("PriceBeyondLimit({a}, {}, {})", 2_800 * E15, 2_799 * E15),
     );
     // a limit equal to the price passes
     fill(&mut w, ALICE, b, HALF, PRICE).unwrap();
-    fill(&mut w, ALICE, a, HALF, 2_800 * E18).unwrap();
+    fill(&mut w, ALICE, a, HALF, 2_800 * E15).unwrap();
 }
 
 #[test]
@@ -521,11 +521,11 @@ fn self_fill_works() {
 fn multi_world_ask_fills_directly() {
     let mut w = book();
     let s = w.s2x2;
-    let id = ask(&mut w, RAVI, L_SHAPE, 3_000 * E18, E18);
-    give(&mut w, ALICE, s, Usdc, L_SHAPE, 3_000 * E18);
+    let id = ask(&mut w, RAVI, L_SHAPE, 3_000 * E15, E18);
+    give(&mut w, ALICE, s, Usdc, L_SHAPE, 3_000 * E15);
     assert_eq!(
-        fill(&mut w, ALICE, id, E18, 3_000 * E18),
-        Ok((3_000 * E18, E18))
+        fill(&mut w, ALICE, id, E18, 3_000 * E15),
+        Ok((3_000 * E15, E18))
     );
     assert_eq!(w.bal(ALICE, s, Wnear, L_SHAPE), E18);
 }
@@ -540,15 +540,15 @@ fn cancel_returns_remaining_escrow() {
     give(&mut w, ALICE, s, Wnear, DELAYED_HOLDS, HALF);
     fill(&mut w, ALICE, id, HALF, PRICE).unwrap();
     let before = w.bal(RAVI, s, Usdc, DELAYED_HOLDS);
-    assert_eq!(cancel(&mut w, RAVI, id), Ok(3_675 * E18));
+    assert_eq!(cancel(&mut w, RAVI, id), Ok(3_675 * E15));
     assert_eq!(
         w.last.data_of("order_cancelled"),
         vec![json!({
             "order_id": id.to_string(), "scenario_id": s, "maker": RAVI,
-            "remaining": (3 * HALF).to_string(), "refund": (3_675 * E18).to_string()
+            "remaining": (3 * HALF).to_string(), "refund": (3_675 * E15).to_string()
         })]
     );
-    assert_eq!(w.bal(RAVI, s, Usdc, DELAYED_HOLDS), before + 3_675 * E18);
+    assert_eq!(w.bal(RAVI, s, Usdc, DELAYED_HOLDS), before + 3_675 * E15);
     assert_eq!(held(&mut w, s, Usdc, DELAYED_HOLDS), 0);
     let o = order(&mut w, id);
     assert_eq!((o.remaining, o.escrow), (U128(0), U128(0)));
@@ -564,7 +564,7 @@ fn cancel_after_resolution_and_expiry() {
     let mut w = book();
     let s = w.s2x2;
     let b = ravi_bid(&mut w);
-    let a = ask(&mut w, RAVI, SHIPS_CUTS, 3_700 * E18, E18);
+    let a = ask(&mut w, RAVI, SHIPS_CUTS, 3_700 * E15, E18);
     let spice = w.spice;
     w.admin_resolve(spice, OUT_SHIPS).unwrap();
     w.warp(2 * DAY);
@@ -638,15 +638,15 @@ fn order_ids_are_strings_in_json() {
 fn orders_for_world_sorts_best_first() {
     let mut w = book();
     let s = w.s2x2;
-    let b1 = bid(&mut w, RAVI, DELAYED_HOLDS, 2_400 * E18, E18);
-    let b2 = bid(&mut w, BOB, DELAYED_HOLDS, 2_450 * E18, E18);
-    let b3 = bid(&mut w, ALICE, DELAYED_HOLDS, 2_400 * E18, E18);
-    let a1 = ask(&mut w, RAVI, DELAYED_HOLDS, 2_600 * E18, E18);
-    let a2 = ask(&mut w, BOB, DELAYED_HOLDS, 2_550 * E18, E18);
-    let a3 = ask(&mut w, ALICE, DELAYED_HOLDS, 2_600 * E18, E18);
+    let b1 = bid(&mut w, RAVI, DELAYED_HOLDS, 2_400 * E15, E18);
+    let b2 = bid(&mut w, BOB, DELAYED_HOLDS, 2_450 * E15, E18);
+    let b3 = bid(&mut w, ALICE, DELAYED_HOLDS, 2_400 * E15, E18);
+    let a1 = ask(&mut w, RAVI, DELAYED_HOLDS, 2_600 * E15, E18);
+    let a2 = ask(&mut w, BOB, DELAYED_HOLDS, 2_550 * E15, E18);
+    let a3 = ask(&mut w, ALICE, DELAYED_HOLDS, 2_600 * E15, E18);
     // other worlds and multi-world masks stay out of this world's book
-    bid(&mut w, RAVI, SHIPS_HOLDS, 3_000 * E18, E18);
-    ask(&mut w, RAVI, HOLDS, 2_000 * E18, E18);
+    bid(&mut w, RAVI, SHIPS_HOLDS, 3_000 * E15, E18);
+    ask(&mut w, RAVI, HOLDS, 2_000 * E15, E18);
     let ids = |v: Vec<OrderView>| v.into_iter().map(|o| o.id.0).collect::<Vec<_>>();
     let book = w.view(|c| c.orders_for_world(s, 3, None));
     assert_eq!(ids(book.bids), vec![b2, b1, b3]);

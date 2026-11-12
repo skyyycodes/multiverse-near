@@ -109,7 +109,7 @@ impl Contract {
     pub(crate) fn assert_owner(&self) {
         let caller = env::predecessor_account_id();
         if caller != self.owner_id {
-            fail!("OwnableUnauthorizedAccount({caller})");
+            fail!("NotOwner({caller})");
         }
     }
 }

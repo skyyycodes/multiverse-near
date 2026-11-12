@@ -135,7 +135,7 @@ fn config_rejects_what_outlayer_would() {
         w.call(ALICE, ONE_YOCTO, |c| {
             c.set_outlayer_config(URL.into(), HASH.into(), None, None, None)
         }),
-        "OwnableUnauthorizedAccount(alice.near)",
+        "NotOwner(alice.near)",
     );
     fails(
         w.call(OWNER, NO_DEPOSIT, |c| {
@@ -205,7 +205,7 @@ fn dates_are_owner_only_and_well_formed() {
     };
     fails(
         put(ALICE, fed, "2026-10-27", "2026-10-29"),
-        "OwnableUnauthorizedAccount(alice.near)",
+        "NotOwner(alice.near)",
     );
     fails(
         put(OWNER, 99, "2026-10-27", "2026-10-29"),

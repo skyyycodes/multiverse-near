@@ -370,7 +370,7 @@ fn demo_record_is_charged_to_the_owner() {
 
     fails(
         w.call(ALICE, ONE_YOCTO, |c| c.set_demo_record("{}".into())),
-        "OwnableUnauthorizedAccount(alice.near)",
+        "NotOwner(alice.near)",
     );
     fails(
         w.call(OWNER, NO_DEPOSIT, |c| c.set_demo_record("{}".into())),

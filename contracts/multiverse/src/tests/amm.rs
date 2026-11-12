@@ -14,9 +14,14 @@ use crate::amm::IMPACT_POINTS;
 use crate::types::Asset::{self, Usdc, Wnear};
 use crate::types::VerseKey;
 
-pub const DEMO_2X2: [u128; 4] = [3700 * E18, 3000 * E18, 3300 * E18, 2500 * E18];
-pub const DEMO_BIN: [u128; 2] = [3400 * E18, 2800 * E18];
-pub const DEPTH: u128 = 100 * E18;
+/// The demo's world prices, USDC per NEAR: 3.70, 3.00, 3.30 and 2.50.
+pub const DEMO_2X2: [u128; 4] = [3_700 * E15, 3_000 * E15, 3_300 * E15, 2_500 * E15];
+/// The binary demo's world prices: 3.40 and 2.80.
+pub const DEMO_BIN: [u128; 2] = [3_400 * E15, 2_800 * E15];
+/// Each demo world pool is 100,000 NEAR deep.
+pub const DEPTH: u128 = 100_000 * E18;
+/// DELAYED·HOLDS, the thin demo pool, is 40,000 NEAR deep.
+pub const THIN_DEPTH: u128 = 40_000 * E18;
 pub const ODDS_DEPTH: u128 = 1_000_000 * E18;
 pub const POOL_FEE: NearToken = NearToken::from_near(1);
 
@@ -75,10 +80,10 @@ pub fn seed_demo_2x2(w: &mut World) -> Vec<u64> {
     seed_worlds(w, sid, &DEMO_2X2, &[DEPTH; 4])
 }
 
-/// The demo's 2x2 pools: DELAYED·HOLDS is the thin one, 40 wNEAR deep.
+/// The demo's 2x2 pools: DELAYED·HOLDS is the thin one, 40,000 NEAR deep.
 pub fn seed_demo_thin(w: &mut World) -> Vec<u64> {
     let sid = w.s2x2;
-    seed_worlds(w, sid, &DEMO_2X2, &[DEPTH, DEPTH, DEPTH, 40 * E18])
+    seed_worlds(w, sid, &DEMO_2X2, &[DEPTH, DEPTH, DEPTH, THIN_DEPTH])
 }
 
 /// Sum of `q` over the worlds of `mask`.
@@ -233,6 +238,12 @@ pub fn buy(w: &mut World, who: &str, pool: u64, amount: u128) -> (u128, u32) {
 /// Floors a WAD amount to cents, the way the scripts print it.
 pub fn cents(x: u128) -> u128 {
     x / 10_000_000_000_000_000
+}
+
+/// Floors a WAD price to 5 decimals: a NEAR price is a few dollars, so its
+/// cents alone would hide the differences the tests pin.
+pub fn price_5dp(x: u128) -> u128 {
+    x / 10_000_000_000_000
 }
 
 pub fn within_rel(a: u128, b: u128, denominator: u128) -> bool {
@@ -401,7 +412,7 @@ fn rejects_a_second_pool_bad_worlds_and_strangers() {
         w.call(ALICE, POOL_FEE, |c| {
             c.create_within_pool(s, 0, U128(E18), U128(E18))
         }),
-        "OwnableUnauthorizedAccount(alice.near)",
+        "NotOwner(alice.near)",
     );
     let sb = w.s_bin;
     fails(
@@ -422,15 +433,16 @@ fn rejects_a_second_pool_bad_worlds_and_strangers() {
 fn pool_creation_logs_and_takes_the_owners_tokens() {
     let mut w = pool_world();
     let s = w.s2x2;
-    w.split_ft(OWNER, s, Wnear, &singles(4), 10 * E18).unwrap();
+    w.split_ft(OWNER, s, Wnear, &singles(4), 10_000 * E18)
+        .unwrap();
     w.split_ft(OWNER, s, Usdc, &singles(4), 30_000 * E18)
         .unwrap();
-    let id = seed_world(&mut w, s, 1, 3000 * E18, 10 * E18);
+    let id = seed_world(&mut w, s, 1, 3_000 * E15, 10_000 * E18);
     let logs = w.last.data_of("pool_created");
     assert_eq!(logs.len(), 1);
     assert_eq!(logs[0]["kind"], "within");
     assert_eq!(logs[0]["pool_id"], id);
-    assert_eq!(logs[0]["price"], (3000 * E18).to_string());
+    assert_eq!(logs[0]["price"], (3_000 * E15).to_string());
     assert_eq!(w.bal(OWNER, s, Wnear, DELAYED_CUTS), 0);
     assert_eq!(w.bal(OWNER, s, Usdc, DELAYED_CUTS), 0);
     let moved = w
@@ -843,9 +855,9 @@ fn fee_dust_swaps_do_not_reset_the_window() {
 
 fn spot_world() -> (World, u64) {
     let mut w = pool_world();
-    let id = seed_spot(&mut w, 3000 * E18, 1_000 * E18);
+    let id = seed_spot(&mut w, 3_000 * E15, 1_000_000 * E18);
     // working balances for the moves
-    w.deposit(OWNER, Wnear, 1_000 * E18).unwrap();
+    w.deposit(OWNER, Wnear, 1_000_000 * E18).unwrap();
     w.deposit(OWNER, Usdc, 10_000_000 * E18).unwrap();
     (w, id)
 }
@@ -858,14 +870,14 @@ fn move_spot(w: &mut World, price: u128) -> Result<Option<crate::amm::create::Sp
 fn move_to_up_and_down_lands_on_the_target() {
     let (mut w, id) = spot_world();
     let held = w.held_by_contract(Wnear) + w.held_by_contract(Usdc);
-    for target in [3200 * E18, 2900 * E18] {
+    for target in [3_200 * E15, 2_900 * E15] {
         let (wnear0, usdc0) = (w.real(OWNER, Wnear), w.real(OWNER, Usdc));
         let m = move_spot(&mut w, target).unwrap().unwrap();
         let p = w.view(|c| c.spot_price()).0;
         // the closed form lands within a few units of the target
         assert!(p.abs_diff(target) <= 1_000_000, "{p} vs {target}");
         let (wnear1, usdc1) = (w.real(OWNER, Wnear), w.real(OWNER, Usdc));
-        if target > 3000 * E18 {
+        if target > 3_000 * E15 {
             assert!(!m.zero_for_one);
             assert_eq!(usdc0 - usdc1, m.amount_in.0);
             assert_eq!(wnear1 - wnear0, m.amount_out.0);
@@ -901,11 +913,11 @@ fn move_to_at_the_target_is_a_no_op() {
 fn move_to_only_owner() {
     let (mut w, _) = spot_world();
     fails(
-        w.call(ALICE, ONE_YOCTO, |c| c.move_spot_to(U128(3200 * E18))),
-        "OwnableUnauthorizedAccount(alice.near)",
+        w.call(ALICE, ONE_YOCTO, |c| c.move_spot_to(U128(3_200 * E15))),
+        "NotOwner(alice.near)",
     );
     let mut bare = pool_world();
-    fails(move_spot(&mut bare, 3200 * E18), "NoSpotPool");
+    fails(move_spot(&mut bare, 3_200 * E15), "NoSpotPool");
 }
 
 // The spot pool
@@ -913,7 +925,7 @@ fn move_to_only_owner() {
 #[test]
 fn spot_pool_is_created_once_from_real_balances() {
     let mut w = pool_world();
-    let id = seed_spot(&mut w, 3000 * E18, 100 * E18);
+    let id = seed_spot(&mut w, 3_000 * E15, 100_000 * E18);
     assert_eq!(w.real(OWNER, Wnear), 0);
     let v = w.view(|c| c.get_spot_pool().unwrap());
     assert_eq!((v.id, v.kind.as_str(), v.scenario_id), (id, "spot", None));
@@ -921,7 +933,7 @@ fn spot_pool_is_created_once_from_real_balances() {
         (v.token0.as_str(), v.token1.as_str()),
         (WNEAR_TOKEN, USDC_TOKEN)
     );
-    assert_eq!(w.view(|c| c.spot_price()).0, 3000 * E18);
+    assert_eq!(w.view(|c| c.spot_price()).0, 3_000 * E15);
     w.deposit(OWNER, Wnear, E18).unwrap();
     w.deposit(OWNER, Usdc, E18).unwrap();
     fails(
@@ -936,16 +948,19 @@ fn spot_pool_is_created_once_from_real_balances() {
 fn spot_swap_action_credits_the_internal_balance() {
     let mut w = pool_world();
     let fed = w.fed;
-    seed_spot(&mut w, 3000 * E18, 100 * E18);
+    seed_spot(&mut w, 3_000 * E15, 100_000 * E18);
     let id = w.view(|c| c.spot_pool).unwrap();
     // never halted
     w.report(fed, OUT_HOLDS).unwrap();
-    let quote = w.view(|c| c.quote_exact_in(id, true, E18)).unwrap();
+    let quote = w.view(|c| c.quote_exact_in(id, true, 1_000 * E18)).unwrap();
     let msg = r#"{"action":"spot_swap","min_out":"0"}"#;
-    assert_eq!(w.ft_transfer_call(ALICE, Wnear, E18, msg).unwrap(), 0);
+    assert_eq!(
+        w.ft_transfer_call(ALICE, Wnear, 1_000 * E18, msg).unwrap(),
+        0
+    );
     assert_eq!(w.real(ALICE, Usdc), quote);
     assert_eq!(w.real(ALICE, Wnear), 0);
-    assert_eq!(w.wallet(ALICE, Wnear), FUND - E18);
+    assert_eq!(w.wallet(ALICE, Wnear), FUND - 1_000 * E18);
     let swaps = w.last.data_of("swap");
     assert_eq!(swaps[0]["fee_pips"], 3000);
     // static fee: one-sided flow changes nothing
@@ -961,7 +976,7 @@ fn spot_swap_action_credits_the_internal_balance() {
     let wallet = w.wallet(ALICE, Wnear);
     let msg = r#"{"action":"spot_swap","min_out":"1000000000000000000000000"}"#;
     assert!(w
-        .ft_transfer_call(ALICE, Wnear, E18, msg)
+        .ft_transfer_call(ALICE, Wnear, 1_000 * E18, msg)
         .unwrap_err()
         .starts_with("TooLittleReceived("));
     assert_eq!(w.wallet(ALICE, Wnear), wallet);
@@ -970,12 +985,12 @@ fn spot_swap_action_credits_the_internal_balance() {
 #[test]
 fn spot_swap_through_the_method_uses_internal_balances() {
     let mut w = pool_world();
-    let id = seed_spot(&mut w, 3000 * E18, 100 * E18);
-    w.deposit(ALICE, Wnear, 2 * E18).unwrap();
-    let (out, fee) = swap(&mut w, ALICE, id, true, E18).unwrap();
+    let id = seed_spot(&mut w, 3_000 * E15, 100_000 * E18);
+    w.deposit(ALICE, Wnear, 2_000 * E18).unwrap();
+    let (out, fee) = swap(&mut w, ALICE, id, true, 1_000 * E18).unwrap();
     assert_eq!(fee, 3000);
     assert_eq!(w.real(ALICE, Usdc), out);
-    assert_eq!(w.real(ALICE, Wnear), E18);
+    assert_eq!(w.real(ALICE, Wnear), 1_000 * E18);
     let held = w.held_by_contract(Wnear);
     let inside = w.real(ALICE, Wnear) + w.real(OWNER, Wnear) + w.view(|c| c.spot_holdings(Wnear));
     assert_eq!(held, inside);
@@ -988,18 +1003,18 @@ fn liquidity_add_collect_remove() {
     let mut w = pool_world();
     let pools = seed_demo_2x2(&mut w);
     let (s, id) = (w.s2x2, pools[3]);
-    give_world_tokens(&mut w, BOB, s, 50 * E18, 200_000 * E18);
-    give_world_tokens(&mut w, ALICE, s, 10 * E18, 0);
+    give_world_tokens(&mut w, BOB, s, 50_000 * E18, 200_000 * E18);
+    give_world_tokens(&mut w, ALICE, s, 10_000 * E18, 0);
     assert!(!w.view(|c| c.has_pool_positions(&acc(BOB))));
     let storage = w.storage_used(BOB);
     let added = w
         .call(BOB, ONE_YOCTO, |c| {
-            c.add_liquidity(id, U128(50 * E18), U128(200_000 * E18), U128(0))
+            c.add_liquidity(id, U128(50_000 * E18), U128(200_000 * E18), U128(0))
         })
         .unwrap();
     assert!(w.storage_used(BOB) > storage);
-    // binding side: 50 wNEAR at 2500 needs 125,000 USDC
-    assert!(added.amount0.0 <= 50 * E18 && added.amount0.0 > 50 * E18 - 1_000);
+    // binding side: 50,000 wNEAR at 2.50 needs 125,000 USDC
+    assert!(added.amount0.0 <= 50_000 * E18 && added.amount0.0 > 50_000 * E18 - 1_000);
     assert!(within_rel(
         added.amount1.0,
         125_000 * E18,
@@ -1015,11 +1030,11 @@ fn liquidity_add_collect_remove() {
     assert_eq!((pos.fees0.0, pos.fees1.0), (0, 0));
     assert_eq!(w.last.data_of("liquidity")[0]["action"], "add");
     // the price did not move
-    assert_eq!(price_of(&mut w, id), 2500 * E18);
+    assert_eq!(price_of(&mut w, id), 2_500 * E15);
 
     // a sale pays its fee in wNEAR, shared by liquidity
-    sell(&mut w, ALICE, id, 10 * E18);
-    let fee_total = 10 * E18 * 3000 / 1_000_000;
+    sell(&mut w, ALICE, id, 10_000 * E18);
+    let fee_total = 10_000 * E18 * 3000 / 1_000_000;
     let pool = w.view(|c| c.get_pool(id).unwrap());
     assert_eq!((pool.fees0.0, pool.fees1.0), (fee_total, 0));
     let bob = w.view(|c| c.position_of(id, acc(BOB)).unwrap());
@@ -1058,12 +1073,17 @@ fn liquidity_checks() {
     let mut w = pool_world();
     let pools = seed_demo_2x2(&mut w);
     let (s, id) = (w.s2x2, pools[3]);
-    give_world_tokens(&mut w, BOB, s, 10 * E18, 30_000 * E18);
+    give_world_tokens(&mut w, BOB, s, 10_000 * E18, 30_000 * E18);
     fails(
         w.call(BOB, ONE_YOCTO, |c| {
-            c.add_liquidity(id, U128(E18), U128(2500 * E18), U128(u128::MAX))
+            c.add_liquidity(id, U128(1_000 * E18), U128(2500 * E18), U128(u128::MAX))
         }),
-        &format!("TooLittleLiquidity({}, {})", 50 * E18, u128::MAX),
+        // sqrt(1,000 * 2,500) of liquidity
+        &format!(
+            "TooLittleLiquidity({}, {})",
+            1_581_138_830_084_189_665_999u128,
+            u128::MAX
+        ),
     );
     fails(
         w.call(BOB, ONE_YOCTO, |c| {
@@ -1089,12 +1109,12 @@ fn liquidity_checks() {
     );
     let added = w
         .call(BOB, ONE_YOCTO, |c| {
-            c.add_liquidity(id, U128(E18), U128(2500 * E18), U128(0))
+            c.add_liquidity(id, U128(1_000 * E18), U128(2500 * E18), U128(0))
         })
         .unwrap();
     assert!(w
         .call(BOB, ONE_YOCTO, |c| {
-            c.remove_liquidity(id, added.liquidity, U128(E18 + 1), U128(0))
+            c.remove_liquidity(id, added.liquidity, U128(1_000 * E18 + 1), U128(0))
         })
         .unwrap_err()
         .starts_with("TooLittleReceived("));
@@ -1134,10 +1154,11 @@ fn liquidity_is_never_blocked() {
 fn a_drained_pool_takes_a_new_price() {
     let mut w = pool_world();
     let s = w.s2x2;
-    w.split_ft(OWNER, s, Wnear, &singles(4), 10 * E18).unwrap();
+    w.split_ft(OWNER, s, Wnear, &singles(4), 10_000 * E18)
+        .unwrap();
     w.split_ft(OWNER, s, Usdc, &singles(4), 40_000 * E18)
         .unwrap();
-    let id = seed_world(&mut w, s, 0, 3000 * E18, E18);
+    let id = seed_world(&mut w, s, 0, 3_000 * E15, 1_000 * E18);
     let all = w.view(|c| c.position_of(id, acc(OWNER)).unwrap());
     w.call(OWNER, ONE_YOCTO, |c| {
         c.remove_liquidity(id, all.liquidity, U128(0), U128(0))
@@ -1172,9 +1193,9 @@ fn world_price_needs_twap_history() {
     let (p, ok) = w.view(|c| c.world_price(sb, 0));
     assert!(ok);
     // wNEAR is token0, so the floored mean tick prices it down, by at most a tick
-    assert!(p <= 3400 * E18 && within_rel(p, 3400 * E18, 10_000));
-    assert_eq!(cents(p), 339_987);
-    assert_eq!(cents(w.view(|c| c.world_price(sb, 1)).0), 279_979);
+    assert!(p <= 3_400 * E15 && within_rel(p, 3_400 * E15, 10_000));
+    assert_eq!(price_5dp(p), 339_987);
+    assert_eq!(price_5dp(w.view(|c| c.world_price(sb, 1)).0), 279_980);
     // no pool, no price
     assert_eq!(w.view(|c| c.world_price(1, 0)), (0, false));
 }
@@ -1183,9 +1204,9 @@ fn world_price_needs_twap_history() {
 fn world_price_below_liquidity_gate_counts_zero() {
     let mut w = pool_world();
     let sb = w.s_bin;
-    seed_worlds(&mut w, sb, &DEMO_BIN, &[E18, DEPTH]);
+    seed_worlds(&mut w, sb, &DEMO_BIN, &[1_000 * E18, DEPTH]);
     w.warp(60);
-    // 1 wNEAR deep at 3400 holds 3,400 USDC, under the 10,000 gate
+    // 1,000 wNEAR deep at 3.40 holds 3,400 USDC, under the 10,000 gate
     assert_eq!(w.view(|c| c.world_price(sb, 0)), (0, false));
     assert!(!w.view(|c| c.get_pool(1).unwrap().twap_ok));
     assert!(w.view(|c| c.world_price(sb, 1)).1);
@@ -1196,10 +1217,15 @@ fn world_price_follows_liquidity_in_and_out() {
     let mut w = pool_world();
     let sb = w.s_bin;
     let pools = seed_worlds(&mut w, sb, &DEMO_BIN, &[DEPTH; 2]);
-    give_world_tokens(&mut w, BOB, sb, 300 * E18, 1_100_000 * E18);
+    give_world_tokens(&mut w, BOB, sb, 300_000 * E18, 1_100_000 * E18);
     let added = w
         .call(BOB, ONE_YOCTO, |c| {
-            c.add_liquidity(pools[0], U128(300 * E18), U128(1_020_000 * E18), U128(0))
+            c.add_liquidity(
+                pools[0],
+                U128(300_000 * E18),
+                U128(1_020_000 * E18),
+                U128(0),
+            )
         })
         .unwrap();
     // the owner pulls out, leaving Bob's position
@@ -1210,7 +1236,7 @@ fn world_price_follows_liquidity_in_and_out() {
     .unwrap();
     w.warp(60);
     assert!(w.view(|c| c.world_price(sb, 0)).1);
-    // Bob pulls all but 2 wNEAR: under the gate
+    // Bob pulls all but 2,000 wNEAR: under the gate
     let keep = added.liquidity.0 / 150;
     w.call(BOB, ONE_YOCTO, |c| {
         c.remove_liquidity(pools[0], U128(added.liquidity.0 - keep), U128(0), U128(0))
@@ -1218,7 +1244,7 @@ fn world_price_follows_liquidity_in_and_out() {
     .unwrap();
     assert_eq!(w.view(|c| c.world_price(sb, 0)), (0, false));
     w.call(BOB, ONE_YOCTO, |c| {
-        c.add_liquidity(pools[0], U128(10 * E18), U128(34_000 * E18), U128(0))
+        c.add_liquidity(pools[0], U128(10_000 * E18), U128(34_000 * E18), U128(0))
     })
     .unwrap();
     assert!(w.view(|c| c.world_price(sb, 0)).1);
@@ -1229,12 +1255,12 @@ fn twap_follows_the_price_over_time() {
     let mut w = pool_world();
     let pools = seed_demo_thin(&mut w);
     let s = w.s2x2;
-    give_world_tokens(&mut w, ALICE, s, 10 * E18, 0);
+    give_world_tokens(&mut w, ALICE, s, 10_000 * E18, 0);
     w.warp(120);
     let twap = |w: &mut World| w.view(|c| c.get_pool(pools[3]).unwrap().twap_price.unwrap().0);
     let seeded = twap(&mut w);
     assert!(w.view(|c| c.world_price(s, 3)).1);
-    sell(&mut w, ALICE, pools[3], 2 * E18);
+    sell(&mut w, ALICE, pools[3], 2_000 * E18);
     let after = price_of(&mut w, pools[3]);
     // the sale's tick has no weight in its own second
     assert_eq!(twap(&mut w), seeded);
@@ -1310,7 +1336,7 @@ fn pools_of_lists_every_pool_of_the_scenario() {
     let s = w.s2x2;
     let within = seed_demo_2x2(&mut w);
     let between = seed_odds(&mut w, s, &independent_odds(4, 6667, 3000), ODDS_DEPTH);
-    seed_spot(&mut w, 3000 * E18, E18);
+    seed_spot(&mut w, 3_000 * E15, 1_000 * E18);
     let ids: Vec<u64> = w.view(|c| c.pools_of(s)).iter().map(|p| p.id).collect();
     assert_eq!(ids, [within, between].concat());
     assert!(w.view(|c| c.pools_of(2)).is_empty());

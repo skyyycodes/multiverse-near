@@ -1,6 +1,6 @@
 //! The router over pools and orders, test by test, the router probes, the
-//! demo sale's golden numbers on real pools, the transfer actions and their refunds, the direct methods,
-//! storage and the per-receipt log budget.
+//! demo sale's golden numbers on real pools, the transfer actions and their
+//! refunds, the direct methods, storage and the per-receipt log budget.
 //!
 //! There is no router account: whatever a trade briefly holds lives in
 //! the user's ledger during the call, so "the router ends empty" becomes
@@ -22,8 +22,16 @@ use crate::types::Asset::{self, Usdc, Wnear};
 use crate::types::VerseKey;
 
 const HOLDERS: [&str; 5] = [OWNER, ALICE, BOB, CAROL, RAVI];
-const RAVI_PRICE: u128 = 2_450 * E18;
+/// Ravi's demo bid: 1,000 NEAR at 2.45 USDC per NEAR, 2% under DELAYED·HOLDS.
+const RAVI_PRICE: u128 = 2_450 * E15;
+const RAVI_SIZE: u128 = 1_000 * E18;
+/// What Ravi's whole bid pays: 2,450 USDC.
+const RAVI_ESCROW: u128 = 2_450 * E18;
+/// Alice's demo sale: 2,000 NEAR.
+const SALE: u128 = 2_000 * E18;
 const HALF: u128 = E18 / 2;
+/// 1,000 NEAR, the demo's order size.
+const K: u128 = 1_000 * E18;
 const SUPPLIED: u128 = 100_000 * E18;
 const BORROW: u128 = 3_000 * E18;
 
@@ -88,7 +96,7 @@ fn units(asset: Asset, internal: u128) -> u128 {
 }
 
 /// The router fixture: the 2x2 pools at the demo prices (world 3 `w3_depth`
-/// wNEAR deep, the others 100), the binary pools, Bob lending 100,000 USDC in
+/// wNEAR deep, the others 100,000), the binary pools, Bob lending 100,000 USDC in
 /// both markets, Ravi and Carol funded, and a full TWAP window behind.
 fn router_world(w3_depth: u128) -> (World, Vec<u64>, Vec<u64>) {
     clear_prices();
@@ -104,14 +112,14 @@ fn router_world(w3_depth: u128) -> (World, Vec<u64>, Vec<u64>) {
     (w, p2, pb)
 }
 
-/// Every 2x2 pool 100 wNEAR deep.
+/// Every 2x2 pool 100,000 wNEAR deep.
 fn full_world() -> (World, Vec<u64>, Vec<u64>) {
     router_world(DEPTH)
 }
 
-/// World 3 is the thin 40 wNEAR pool.
+/// World 3 is the thin 40,000 wNEAR pool.
 fn thin_world() -> (World, Vec<u64>, Vec<u64>) {
-    router_world(40 * E18)
+    router_world(THIN_DEPTH)
 }
 
 trait Router {
@@ -287,10 +295,10 @@ impl Router for World {
     }
 }
 
-/// Ravi's bid: 1 wNEAR-if-DELAYED·HOLDS at 2,450, posted from real USDC.
+/// Ravi's bid: 1,000 wNEAR-if-DELAYED·HOLDS at 2.45, posted from real USDC.
 fn ravi_bid(w: &mut World) -> u64 {
     let (s, e) = (w.s2x2, w.now + 30 * DAY);
-    w.post_from_real(RAVI, s, DELAYED_HOLDS, Side::Bid, RAVI_PRICE, E18, e)
+    w.post_from_real(RAVI, s, DELAYED_HOLDS, Side::Bid, RAVI_PRICE, RAVI_SIZE, e)
         .unwrap()
 }
 
@@ -319,10 +327,10 @@ fn alice_sale_2x2_l_shape() {
     let (mut w, ..) = full_world();
     let s = w.s2x2;
     let out = w
-        .sell(ALICE, s, 2 * E18, L_SHAPE, &no_plans(4), &[0; 4], false)
+        .sell(ALICE, s, SALE, L_SHAPE, &no_plans(4), &[0; 4], false)
         .unwrap();
     assert_eq!(out[0], 0);
-    assert_eq!(w.bal(ALICE, s, Wnear, SHIPS_CUTS), 2 * E18);
+    assert_eq!(w.bal(ALICE, s, Wnear, SHIPS_CUTS), SALE);
     let caps = [0, 6000 * E18, 6600 * E18, 5000 * E18];
     for i in 1..4u8 {
         let k = usize::from(i);
@@ -330,12 +338,12 @@ fn alice_sale_2x2_l_shape() {
         assert_eq!(w.bal(ALICE, s, Wnear, 1 << i), 0);
         assert!(out[k] < caps[k] && within_rel(out[k], caps[k], 33));
     }
-    // a 100 wNEAR pool everywhere: x*y=k with the fee on the input
+    // a 100,000 wNEAR pool everywhere: x*y=k with the fee on the input
     assert_eq!(
         [cents(out[1]), cents(out[2]), cents(out[3])],
         [586505, 645155, 488754]
     );
-    assert_eq!(w.wallet(ALICE, Wnear), FUND - 2 * E18);
+    assert_eq!(w.wallet(ALICE, Wnear), FUND - SALE);
     assert_eq!(w.real(ALICE, Wnear), 0);
 }
 
@@ -344,18 +352,10 @@ fn alice_sale_binary() {
     let (mut w, ..) = full_world();
     let sb = w.s_bin;
     let out = w
-        .sell(
-            ALICE,
-            sb,
-            2 * E18,
-            BIN_DELAYED,
-            &no_plans(2),
-            &[0; 2],
-            false,
-        )
+        .sell(ALICE, sb, SALE, BIN_DELAYED, &no_plans(2), &[0; 2], false)
         .unwrap();
     assert_eq!(out[0], 0);
-    assert_eq!(w.bal(ALICE, sb, Wnear, BIN_SHIPS), 2 * E18);
+    assert_eq!(w.bal(ALICE, sb, Wnear, BIN_SHIPS), SALE);
     assert_eq!(w.bal(ALICE, sb, Usdc, BIN_DELAYED), out[1]);
     assert!(out[1] < 5600 * E18 && within_rel(out[1], 5600 * E18, 33));
     assert_eq!(cents(out[1]), 547404);
@@ -365,16 +365,16 @@ fn alice_sale_binary() {
 fn min_out_is_enforced_per_world() {
     let (mut w, ..) = full_world();
     let s = w.s2x2;
-    let q = quote_sell(&mut w, s, 2 * E18, L_SHAPE);
+    let q = quote_sell(&mut w, s, SALE, L_SHAPE);
     let min = [0, 0, 0, 5000 * E18];
     fails(
-        w.sell(ALICE, s, 2 * E18, L_SHAPE, &no_plans(4), &min, false),
+        w.sell(ALICE, s, SALE, L_SHAPE, &no_plans(4), &min, false),
         &format!("InsufficientOutput(3, {}, {})", q[3], 5000 * E18),
     );
     assert_eq!(w.wallet(ALICE, Wnear), FUND);
     // exactly the quote passes
     let out = w
-        .sell(ALICE, s, 2 * E18, L_SHAPE, &no_plans(4), &q, false)
+        .sell(ALICE, s, SALE, L_SHAPE, &no_plans(4), &q, false)
         .unwrap();
     assert_eq!(out, q);
 }
@@ -465,9 +465,9 @@ fn to_lending_posts_every_piece() {
     let (mut w, ..) = full_world();
     let s = w.s2x2;
     let out = w
-        .sell(ALICE, s, 2 * E18, L_SHAPE, &no_plans(4), &[0; 4], true)
+        .sell(ALICE, s, SALE, L_SHAPE, &no_plans(4), &[0; 4], true)
         .unwrap();
-    let mut expected = vec![(piece(s, Wnear, SHIPS_CUTS), 2 * E18)];
+    let mut expected = vec![(piece(s, Wnear, SHIPS_CUTS), SALE)];
     for i in 1..4u8 {
         expected.push((piece(s, Usdc, 1 << i), out[usize::from(i)]));
         assert_eq!(w.bal(ALICE, s, Usdc, 1 << i), 0);
@@ -483,7 +483,7 @@ fn rejects_selling_a_dead_world() {
     let (s, fed) = (w.s2x2, w.fed);
     w.admin_resolve(fed, OUT_HOLDS).unwrap();
     fails(
-        w.sell(ALICE, s, 2 * E18, L_SHAPE, &no_plans(4), &[0; 4], false),
+        w.sell(ALICE, s, SALE, L_SHAPE, &no_plans(4), &[0; 4], false),
         "BadSellMask(14)",
     );
 }
@@ -494,7 +494,7 @@ fn close_after_resolution_repays_withdraws_and_redeems() {
     let (s, spice, fed) = (w.s2x2, w.spice, w.fed);
     let usdc_start = w.usdc_total(ALICE);
     let out = w
-        .sell_and_borrow(ALICE, s, 2 * E18, L_SHAPE, &no_plans(4), &[0; 4], BORROW)
+        .sell_and_borrow(ALICE, s, SALE, L_SHAPE, &no_plans(4), &[0; 4], BORROW)
         .unwrap();
     assert_eq!(w.wallet(ALICE, Usdc), FUND + BORROW);
     w.admin_resolve(fed, OUT_HOLDS).unwrap();
@@ -512,7 +512,7 @@ fn close_after_resolution_repays_withdraws_and_redeems() {
     assert_eq!(w.usdc_total(ALICE), usdc_start + BORROW - debt + out[3]);
     assert_eq!(w.bal(ALICE, s, Usdc, DELAYED_HOLDS), 0);
     // dead pieces come back as tokens
-    assert_eq!(w.bal(ALICE, s, Wnear, SHIPS_CUTS), 2 * E18);
+    assert_eq!(w.bal(ALICE, s, Wnear, SHIPS_CUTS), SALE);
     assert_eq!(w.bal(ALICE, s, Usdc, SHIPS_HOLDS), out[2]);
     assert_eq!(w.bal(ALICE, s, Usdc, DELAYED_CUTS), out[1]);
     // only whole micro-USDC left for the wallet; the dust stays inside
@@ -523,7 +523,7 @@ proptest! {
     #![proptest_config(ProptestConfig { cases: 32, failure_persistence: None, ..ProptestConfig::default() })]
 
     #[test]
-    fn sale_keeps_backing(amount in 1_000_000_000u128..=20 * E18, mask in 1u8..=15) {
+    fn sale_keeps_backing(amount in 1_000_000_000u128..=20_000 * E18, mask in 1u8..=15) {
         let (mut w, ..) = full_world();
         let s = w.s2x2;
         let out = w.sell(ALICE, s, amount, mask, &no_plans(4), &[0; 4], false).unwrap();
@@ -554,25 +554,25 @@ fn demo_ravi_bid_beats_the_pool_on_alices_sale() {
     let id = ravi_bid(&mut w);
     let fair = price_of(&mut w, p2[3]);
     assert!(RAVI_PRICE < fair);
-    let pool_only = quote_sell(&mut w, s, 2 * E18, L_SHAPE);
-    let slice = quote_sell(&mut w, s, E18, DELAYED_HOLDS)[3];
-    assert!(pool_only[3] / 2 < RAVI_PRICE);
+    let pool_only = quote_sell(&mut w, s, SALE, L_SHAPE);
+    let slice = quote_sell(&mut w, s, K, DELAYED_HOLDS)[3];
+    assert!(pool_only[3] / 2_000 < RAVI_PRICE);
     let ravi_before = w.bal(RAVI, s, Wnear, DELAYED_HOLDS);
     let planned = w
         .sell(
             ALICE,
             s,
-            2 * E18,
+            SALE,
             L_SHAPE,
-            &plan_in(4, 3, &[(id, E18)]),
+            &plan_in(4, 3, &[(id, K)]),
             &[0; 4],
             false,
         )
         .unwrap();
-    assert_eq!(planned[3], RAVI_PRICE + slice);
+    assert_eq!(planned[3], RAVI_ESCROW + slice);
     assert!(planned[3] > pool_only[3]);
     assert_eq!(planned[1..3], pool_only[1..3]);
-    assert_eq!(w.bal(RAVI, s, Wnear, DELAYED_HOLDS), ravi_before + E18);
+    assert_eq!(w.bal(RAVI, s, Wnear, DELAYED_HOLDS), ravi_before + K);
     assert_eq!(w.bal(ALICE, s, Usdc, DELAYED_HOLDS), planned[3]);
     assert_eq!(order(&mut w, id).remaining.0, 0);
     assert_eq!(escrow_held(&mut w, s, Usdc, DELAYED_HOLDS), 0);
@@ -592,18 +592,18 @@ fn accept_bid_fills_only_pool_untouched() {
         .sell(
             ALICE,
             s,
-            E18,
+            K,
             DELAYED_HOLDS,
-            &plan_in(4, 3, &[(id, E18)]),
-            &[0, 0, 0, RAVI_PRICE],
+            &plan_in(4, 3, &[(id, K)]),
+            &[0, 0, 0, RAVI_ESCROW],
             false,
         )
         .unwrap();
-    assert_eq!(out[3], RAVI_PRICE);
+    assert_eq!(out[3], RAVI_ESCROW);
     assert_eq!(price_of(&mut w, p2[3]), price_before);
     assert!(w.last.data_of("swap").is_empty());
     for mask in [SHIPS_CUTS, DELAYED_CUTS, SHIPS_HOLDS] {
-        assert_eq!(w.bal(ALICE, s, Wnear, mask), E18);
+        assert_eq!(w.bal(ALICE, s, Wnear, mask), K);
     }
 }
 
@@ -614,25 +614,25 @@ fn plan_several_orders_and_a_partial_fill() {
     let a = ravi_bid(&mut w);
     let e = w.now + DAY;
     let b = w
-        .post_from_real(BOB, s, DELAYED_HOLDS, Side::Bid, 2440 * E18, 2 * E18, e)
+        .post_from_real(BOB, s, DELAYED_HOLDS, Side::Bid, 2_440 * E15, SALE, e)
         .unwrap();
-    let slice = quote_sell(&mut w, s, 3 * HALF, DELAYED_HOLDS)[3];
+    let slice = quote_sell(&mut w, s, 3 * K / 2, DELAYED_HOLDS)[3];
     let out = w
         .sell(
             ALICE,
             s,
-            3 * E18,
+            3 * K,
             DELAYED_HOLDS,
-            &plan_in(4, 3, &[(a, E18), (b, HALF)]),
+            &plan_in(4, 3, &[(a, K), (b, K / 2)]),
             &[0; 4],
             false,
         )
         .unwrap();
-    assert_eq!(out[3], RAVI_PRICE + 1220 * E18 + slice);
+    assert_eq!(out[3], RAVI_ESCROW + 1220 * E18 + slice);
     assert_eq!(order(&mut w, a).remaining.0, 0);
     let ob = order(&mut w, b);
-    assert_eq!((ob.remaining.0, ob.escrow.0), (3 * HALF, 3660 * E18));
-    assert_eq!(w.bal(BOB, s, Wnear, DELAYED_HOLDS), HALF);
+    assert_eq!((ob.remaining.0, ob.escrow.0), (3 * K / 2, 3660 * E18));
+    assert_eq!(w.bal(BOB, s, Wnear, DELAYED_HOLDS), K / 2);
 }
 
 #[test]
@@ -641,22 +641,22 @@ fn plan_binary_scenario() {
     let sb = w.s_bin;
     let e = w.now + DAY;
     let id = w
-        .post_from_real(RAVI, sb, BIN_DELAYED, Side::Bid, 2780 * E18, HALF, e)
+        .post_from_real(RAVI, sb, BIN_DELAYED, Side::Bid, 2_780 * E15, K / 2, e)
         .unwrap();
     let out = w
         .sell(
             ALICE,
             sb,
-            2 * E18,
+            SALE,
             BIN_DELAYED,
-            &plan_in(2, 1, &[(id, HALF)]),
+            &plan_in(2, 1, &[(id, K / 2)]),
             &[0; 2],
             false,
         )
         .unwrap();
     assert!(out[1] > 1390 * E18);
-    assert_eq!(w.bal(RAVI, sb, Wnear, BIN_DELAYED), HALF);
-    assert_eq!(w.bal(ALICE, sb, Wnear, BIN_SHIPS), 2 * E18);
+    assert_eq!(w.bal(RAVI, sb, Wnear, BIN_DELAYED), K / 2);
+    assert_eq!(w.bal(ALICE, sb, Wnear, BIN_SHIPS), SALE);
 }
 
 #[test]
@@ -668,9 +668,9 @@ fn sell_and_borrow_with_ravis_bid() {
         .sell_and_borrow(
             ALICE,
             s,
-            2 * E18,
+            SALE,
             L_SHAPE,
-            &plan_in(4, 3, &[(id, E18)]),
+            &plan_in(4, 3, &[(id, K)]),
             &[0; 4],
             BORROW,
         )
@@ -688,18 +688,18 @@ fn plan_fails() {
     let e = w.now + DAY;
     let bid = ravi_bid(&mut w);
     let ask = w
-        .post_from_real(BOB, s, DELAYED_HOLDS, Side::Ask, 2600 * E18, E18, e)
+        .post_from_real(BOB, s, DELAYED_HOLDS, Side::Ask, 2_600 * E15, K, e)
         .unwrap();
     let other = w
-        .post_from_real(BOB, s, DELAYED_CUTS, Side::Bid, 2900 * E18, E18, e)
+        .post_from_real(BOB, s, DELAYED_CUTS, Side::Bid, 2_900 * E15, K, e)
         .unwrap();
     let bin = w
-        .post_from_real(BOB, sb, BIN_DELAYED, Side::Bid, 2700 * E18, E18, e)
+        .post_from_real(BOB, sb, BIN_DELAYED, Side::Bid, 2_700 * E15, K, e)
         .unwrap();
     let z = [0; 4];
     // a plan in a world that is not sold
     fails(
-        w.sell(ALICE, s, E18, 0x6, &plan_in(4, 3, &[(bid, E18)]), &z, false),
+        w.sell(ALICE, s, K, 0x6, &plan_in(4, 3, &[(bid, K)]), &z, false),
         "BadPlan(3)",
     );
     // more than the world has
@@ -707,9 +707,9 @@ fn plan_fails() {
         w.sell(
             ALICE,
             s,
-            HALF,
+            K / 2,
             DELAYED_HOLDS,
-            &plan_in(4, 3, &[(bid, E18)]),
+            &plan_in(4, 3, &[(bid, K)]),
             &z,
             false,
         ),
@@ -719,21 +719,21 @@ fn plan_fails() {
         w.sell(
             ALICE,
             s,
-            2 * E18,
+            SALE,
             DELAYED_HOLDS,
-            &plan_in(4, 3, &[(bid, 3 * HALF)]),
+            &plan_in(4, 3, &[(bid, 3 * K / 2)]),
             &z,
             false,
         ),
-        &format!("AmountExceedsRemaining({bid}, {}, {E18})", 3 * HALF),
+        &format!("AmountExceedsRemaining({bid}, {}, {K})", 3 * K / 2),
     );
     fails(
         w.sell(
             ALICE,
             s,
-            E18,
+            K,
             DELAYED_HOLDS,
-            &plan_in(4, 3, &[(ask, E18)]),
+            &plan_in(4, 3, &[(ask, K)]),
             &z,
             false,
         ),
@@ -743,9 +743,9 @@ fn plan_fails() {
         w.sell(
             ALICE,
             s,
-            E18,
+            K,
             DELAYED_HOLDS,
-            &plan_in(4, 3, &[(other, E18)]),
+            &plan_in(4, 3, &[(other, K)]),
             &z,
             false,
         ),
@@ -756,9 +756,9 @@ fn plan_fails() {
         w.sell(
             ALICE,
             s,
-            E18,
+            K,
             DELAYED_CUTS,
-            &plan_in(4, 1, &[(bin, E18)]),
+            &plan_in(4, 1, &[(bin, K)]),
             &z,
             false,
         ),
@@ -768,9 +768,9 @@ fn plan_fails() {
         w.sell(
             ALICE,
             s,
-            E18,
+            K,
             DELAYED_HOLDS,
-            &plan_in(4, 3, &[(999, E18)]),
+            &plan_in(4, 3, &[(999, K)]),
             &z,
             false,
         ),
@@ -780,16 +780,16 @@ fn plan_fails() {
         w.sell(
             ALICE,
             s,
-            E18,
+            K,
             DELAYED_HOLDS,
-            &plan_in(4, 3, &[(bid, E18)]),
-            &[0, 0, 0, RAVI_PRICE + 1],
+            &plan_in(4, 3, &[(bid, K)]),
+            &[0, 0, 0, RAVI_ESCROW + 1],
             false,
         ),
-        &format!("InsufficientOutput(3, {RAVI_PRICE}, {})", RAVI_PRICE + 1),
+        &format!("InsufficientOutput(3, {RAVI_ESCROW}, {})", RAVI_ESCROW + 1),
     );
     assert_eq!(w.wallet(ALICE, Wnear), FUND);
-    assert_eq!(order(&mut w, bid).remaining.0, E18);
+    assert_eq!(order(&mut w, bid).remaining.0, K);
 }
 
 #[test]
@@ -802,16 +802,16 @@ fn plan_stale_order_fails() {
         w.sell(
             ALICE,
             s,
-            E18,
+            K,
             DELAYED_HOLDS,
-            &plan_in(4, 3, &[(id, E18)]),
+            &plan_in(4, 3, &[(id, K)]),
             &[0; 4],
             false,
         ),
         &format!("StaleOrder({id}, 0, 1)"),
     );
     let refund = super::orders::cancel(&mut w, RAVI, id).unwrap();
-    assert_eq!(refund, RAVI_PRICE);
+    assert_eq!(refund, RAVI_ESCROW);
 }
 
 #[test]
@@ -854,7 +854,7 @@ fn post_order_ask_outcome_mask() {
     let (mut w, ..) = thin_world();
     let s = w.s2x2;
     let e = w.now + DAY;
-    w.post_from_real(ALICE, s, DELAYED, Side::Ask, 3000 * E18, E18, e)
+    w.post_from_real(ALICE, s, DELAYED, Side::Ask, 3_000 * E15, E18, e)
         .unwrap();
     assert_eq!(escrow_held(&mut w, s, Wnear, DELAYED), E18);
     assert_eq!(w.bal(ALICE, s, Wnear, SHIPS_CUTS), E18);
@@ -869,10 +869,10 @@ fn post_order_after_resolution() {
     w.admin_resolve(fed, OUT_HOLDS).unwrap();
     let e = w.now + DAY;
     let id = w
-        .post_from_real(RAVI, s, DELAYED_HOLDS, Side::Bid, 2600 * E18, E18, e)
+        .post_from_real(RAVI, s, DELAYED_HOLDS, Side::Bid, 2_600 * E15, E18, e)
         .unwrap();
     assert_eq!(order(&mut w, id).epoch, 1);
-    assert_eq!(w.bal(RAVI, s, Usdc, SHIPS_HOLDS), 2600 * E18);
+    assert_eq!(w.bal(RAVI, s, Usdc, SHIPS_HOLDS), 2_600 * E15);
     assert_eq!(w.bal(RAVI, s, Usdc, SHIPS_CUTS), 0);
     assert_eq!(w.bal(RAVI, s, Usdc, DELAYED_CUTS), 0);
 }
@@ -959,14 +959,14 @@ fn post_order_returns_what_the_escrow_does_not_use() {
     let s = w.s2x2;
     let msg = json!({
         "action": "post_order", "scenario_id": s, "mask": 8, "side": "bid",
-        "price": RAVI_PRICE.to_string(), "amount": E18.to_string(), "expiry_sec": w.now + DAY,
+        "price": RAVI_PRICE.to_string(), "amount": K.to_string(), "expiry_sec": w.now + DAY,
     });
     let attached = units(Usdc, 3000 * E18);
     let unused = w
         .ft_transfer_call(RAVI, Usdc, attached, &msg.to_string())
         .unwrap();
     assert_eq!(unused, units(Usdc, 550 * E18));
-    assert_eq!(w.wallet(RAVI, Usdc), FUND - RAVI_PRICE);
+    assert_eq!(w.wallet(RAVI, Usdc), FUND - RAVI_ESCROW);
     assert_eq!(w.real(RAVI, Usdc), 0);
     w.conserved();
 }
@@ -986,7 +986,7 @@ fn conditional_buy_pool_only() {
             false,
         )
         .unwrap();
-    assert!(got[3] > 185 * E18 / 100 && got[3] < 2 * E18);
+    assert!(got[3] > 1_850 * E18 && got[3] < SALE);
     assert_eq!(w.bal(BOB, s, Wnear, DELAYED_HOLDS), got[3]);
     for mask in [SHIPS_CUTS, DELAYED_CUTS, SHIPS_HOLDS] {
         assert_eq!(w.bal(BOB, s, Usdc, mask), 5000 * E18);
@@ -1000,7 +1000,7 @@ fn conditional_buy_fills_asks_first() {
     let s = w.s2x2;
     let e = w.now + DAY;
     let ask = w
-        .post_from_real(CAROL, s, DELAYED_HOLDS, Side::Ask, 2510 * E18, E18, e)
+        .post_from_real(CAROL, s, DELAYED_HOLDS, Side::Ask, 2_510 * E15, K, e)
         .unwrap();
     let pool_only = quote_buy(&mut w, p2[3], 5000 * E18);
     let slice = quote_buy(&mut w, p2[3], 2490 * E18);
@@ -1010,14 +1010,14 @@ fn conditional_buy_fills_asks_first() {
             s,
             5000 * E18,
             DELAYED_HOLDS,
-            &plan_in(4, 3, &[(ask, E18)]),
+            &plan_in(4, 3, &[(ask, K)]),
             &[0; 4],
             false,
         )
         .unwrap();
-    assert_eq!(got[3], E18 + slice);
+    assert_eq!(got[3], K + slice);
     assert!(got[3] > pool_only);
-    assert_eq!(w.bal(CAROL, s, Usdc, DELAYED_HOLDS), 2510 * E18);
+    assert_eq!(w.bal(CAROL, s, Usdc, DELAYED_HOLDS), 2_510 * E18);
     assert_eq!(order(&mut w, ask).remaining.0, 0);
 }
 
@@ -1059,7 +1059,7 @@ fn buy_plan_fails() {
     let e = w.now + DAY;
     let bid = ravi_bid(&mut w);
     let ask = w
-        .post_from_real(CAROL, s, DELAYED_HOLDS, Side::Ask, 2510 * E18, E18, e)
+        .post_from_real(CAROL, s, DELAYED_HOLDS, Side::Ask, 2_510 * E15, K, e)
         .unwrap();
     fails(
         w.buy(
@@ -1067,7 +1067,7 @@ fn buy_plan_fails() {
             s,
             5000 * E18,
             DELAYED_HOLDS,
-            &plan_in(4, 3, &[(bid, E18)]),
+            &plan_in(4, 3, &[(bid, K)]),
             &[0; 4],
             false,
         ),
@@ -1079,7 +1079,7 @@ fn buy_plan_fails() {
             s,
             2000 * E18,
             DELAYED_HOLDS,
-            &plan_in(4, 3, &[(ask, E18)]),
+            &plan_in(4, 3, &[(ask, K)]),
             &[0; 4],
             false,
         ),
@@ -1089,13 +1089,13 @@ fn buy_plan_fails() {
         w.buy(
             BOB,
             s,
-            2510 * E18,
+            2_510 * E18,
             DELAYED_HOLDS,
-            &plan_in(4, 3, &[(ask, E18)]),
-            &[0, 0, 0, E18 + 1],
+            &plan_in(4, 3, &[(ask, K)]),
+            &[0, 0, 0, K + 1],
             false,
         ),
-        &format!("InsufficientOutput(3, {E18}, {})", E18 + 1),
+        &format!("InsufficientOutput(3, {K}, {})", K + 1),
     );
 }
 
@@ -1103,8 +1103,8 @@ proptest! {
     #![proptest_config(ProptestConfig { cases: 24, failure_persistence: None, ..ProptestConfig::default() })]
 
     #[test]
-    fn sell_through_bid(amount in 1_000_000_000_000u128..=10 * E18, fill_seed in any::<u128>()) {
-        let fill = 1 + fill_seed % amount.min(E18);
+    fn sell_through_bid(amount in 1_000_000_000_000u128..=10_000 * E18, fill_seed in any::<u128>()) {
+        let fill = 1 + fill_seed % amount.min(K);
         let (mut w, ..) = thin_world();
         let s = w.s2x2;
         let id = ravi_bid(&mut w);
@@ -1116,7 +1116,7 @@ proptest! {
         prop_assert_eq!(out[3], proceeds(fill, RAVI_PRICE) + slice);
         prop_assert_eq!(w.bal(RAVI, s, Wnear, DELAYED_HOLDS), fill);
         let o = order(&mut w, id);
-        prop_assert_eq!(o.remaining.0, E18 - fill);
+        prop_assert_eq!(o.remaining.0, K - fill);
         prop_assert_eq!(escrow_held(&mut w, s, Usdc, DELAYED_HOLDS), o.escrow.0);
     }
 }
@@ -1160,13 +1160,13 @@ fn same_order_twice_in_a_plan() {
     let (mut w, ..) = thin_world();
     let s = w.s2x2;
     let id = ravi_bid(&mut w);
-    let six = 6 * E18 / 10;
-    let four = 4 * E18 / 10;
+    let six = 6 * K / 10;
+    let four = 4 * K / 10;
     fails(
         w.sell(
             ALICE,
             s,
-            2 * E18,
+            SALE,
             DELAYED_HOLDS,
             &plan_in(4, 3, &[(id, six), (id, six)]),
             &[0; 4],
@@ -1178,14 +1178,14 @@ fn same_order_twice_in_a_plan() {
         .sell(
             ALICE,
             s,
-            E18,
+            K,
             DELAYED_HOLDS,
             &plan_in(4, 3, &[(id, four), (id, six)]),
             &[0; 4],
             false,
         )
         .unwrap();
-    assert_eq!(out[3], RAVI_PRICE);
+    assert_eq!(out[3], RAVI_ESCROW);
     assert_eq!(order(&mut w, id).remaining.0, 0);
 }
 
@@ -1231,7 +1231,7 @@ fn halted_trades_report_the_book_before_the_pool() {
         w.sell(
             ALICE,
             s,
-            2 * E18,
+            SALE,
             L_SHAPE,
             &plan_in(4, 3, &[(id, E18)]),
             &[0; 4],
@@ -1240,7 +1240,7 @@ fn halted_trades_report_the_book_before_the_pool() {
         &halted,
     );
     fails(
-        w.sell(ALICE, s, 2 * E18, L_SHAPE, &no_plans(4), &[0; 4], false),
+        w.sell(ALICE, s, SALE, L_SHAPE, &no_plans(4), &[0; 4], false),
         &halted,
     );
     // still halted after the window, until someone finalizes
@@ -1267,7 +1267,7 @@ fn post_order_on_a_half_dead_mask() {
     w.admin_resolve(fed, OUT_HOLDS).unwrap();
     let e = w.now + DAY;
     let id = w
-        .post_from_real(ALICE, s, DELAYED, Side::Ask, 3000 * E18, E18, e)
+        .post_from_real(ALICE, s, DELAYED, Side::Ask, 3_000 * E15, E18, e)
         .unwrap();
     assert_eq!(order(&mut w, id).epoch, 1);
     assert_eq!(w.bal(ALICE, s, Wnear, SHIPS_HOLDS), E18);
@@ -1280,7 +1280,7 @@ fn sell_and_borrow_of_zero_fails_in_lending() {
     let (mut w, ..) = full_world();
     let s = w.s2x2;
     fails(
-        w.sell_and_borrow(ALICE, s, 2 * E18, L_SHAPE, &no_plans(4), &[0; 4], 0),
+        w.sell_and_borrow(ALICE, s, SALE, L_SHAPE, &no_plans(4), &[0; 4], 0),
         "ZeroAmount",
     );
     assert_eq!(w.wallet(ALICE, Wnear), FUND);
@@ -1291,15 +1291,7 @@ fn sell_and_borrow_too_much_is_unhealthy() {
     let (mut w, ..) = full_world();
     let s = w.s2x2;
     let err = w
-        .sell_and_borrow(
-            ALICE,
-            s,
-            2 * E18,
-            L_SHAPE,
-            &no_plans(4),
-            &[0; 4],
-            4500 * E18,
-        )
+        .sell_and_borrow(ALICE, s, SALE, L_SHAPE, &no_plans(4), &[0; 4], 4500 * E18)
         .unwrap_err();
     assert!(err.starts_with("Unhealthy("), "{err}");
     assert!(err.ends_with(", 3)"), "{err}");
@@ -1313,7 +1305,7 @@ fn multi_world_order_in_a_plan() {
     let s = w.s2x2;
     let e = w.now + DAY;
     let id = w
-        .post_from_real(RAVI, s, HOLDS, Side::Bid, 2400 * E18, E18, e)
+        .post_from_real(RAVI, s, HOLDS, Side::Bid, 2_400 * E15, E18, e)
         .unwrap();
     fails(
         w.sell(
@@ -1357,25 +1349,25 @@ fn conditional_buy_to_lending_deposits_both_legs() {
 fn close_returns_real_collateral_and_uncollapsed_pieces() {
     let (mut w, ..) = full_world();
     let s = w.s2x2;
-    w.post_real(ALICE, s, Wnear, E18).unwrap();
+    w.post_real(ALICE, s, Wnear, K).unwrap();
     let out = w
-        .sell(ALICE, s, 2 * E18, L_SHAPE, &no_plans(4), &[0; 4], true)
+        .sell(ALICE, s, SALE, L_SHAPE, &no_plans(4), &[0; 4], true)
         .unwrap();
-    assert_eq!(w.wallet(ALICE, Wnear), FUND - 3 * E18);
+    assert_eq!(w.wallet(ALICE, Wnear), FUND - SALE - K);
     assert_eq!(w.close_direct(ALICE, s).unwrap(), 0);
     let calls = w.last.calls();
     assert_eq!(calls[0].method, "ft_transfer");
     assert_eq!(calls[0].receiver_id.as_str(), WNEAR_TOKEN);
-    assert_eq!(w.wallet(ALICE, Wnear), FUND - 2 * E18);
+    assert_eq!(w.wallet(ALICE, Wnear), FUND - SALE);
     assert!(w.pieces(s, ALICE).is_empty());
-    assert_eq!(w.bal(ALICE, s, Wnear, SHIPS_CUTS), 2 * E18);
+    assert_eq!(w.bal(ALICE, s, Wnear, SHIPS_CUTS), SALE);
     for i in 1..4u8 {
         assert_eq!(w.bal(ALICE, s, Usdc, 1 << i), out[usize::from(i)]);
     }
 }
 
 #[test]
-fn one_wei_pool_sale_pays_nothing() {
+fn one_unit_pool_sale_pays_nothing() {
     let (mut w, ..) = full_world();
     let s = w.s2x2;
     let out = w
@@ -1424,7 +1416,7 @@ fn wrong_asset_is_refunded() {
 fn close_needs_the_debt_attached_and_returns_the_rest() {
     let (mut w, ..) = full_world();
     let (s, fed) = (w.s2x2, w.fed);
-    w.sell_and_borrow(ALICE, s, 2 * E18, L_SHAPE, &no_plans(4), &[0; 4], BORROW)
+    w.sell_and_borrow(ALICE, s, SALE, L_SHAPE, &no_plans(4), &[0; 4], BORROW)
         .unwrap();
     w.admin_resolve(fed, OUT_HOLDS).unwrap();
     w.warp(DAY);
@@ -1456,7 +1448,7 @@ fn close_needs_the_debt_attached_and_returns_the_rest() {
 fn close_direct_repays_from_the_internal_balance() {
     let (mut w, ..) = full_world();
     let s = w.s2x2;
-    w.sell_and_borrow(ALICE, s, 2 * E18, L_SHAPE, &no_plans(4), &[0; 4], BORROW)
+    w.sell_and_borrow(ALICE, s, SALE, L_SHAPE, &no_plans(4), &[0; 4], BORROW)
         .unwrap();
     w.deposit(ALICE, Usdc, BORROW).unwrap();
     assert_eq!(w.close_direct(ALICE, s).unwrap(), BORROW);
@@ -1469,12 +1461,12 @@ fn close_direct_repays_from_the_internal_balance() {
 fn direct_trades_draw_on_the_internal_balance_and_pay_storage() {
     let (mut w, ..) = full_world();
     let s = w.s2x2;
-    w.deposit(ALICE, Wnear, 3 * E18).unwrap();
+    w.deposit(ALICE, Wnear, SALE + K).unwrap();
     let call = |w: &mut World, deposit: NearToken| {
         w.call(ALICE, deposit, |c| {
             c.conditional_sell(
                 s,
-                U128(2 * E18),
+                U128(SALE),
                 L_SHAPE,
                 vec![vec![]; 4],
                 vec![U128(0); 4],
@@ -1490,11 +1482,11 @@ fn direct_trades_draw_on_the_internal_balance_and_pay_storage() {
     let out = call(&mut w, ONE_YOCTO).unwrap();
     w.conserved();
     assert!(w.storage_used(ALICE) > used);
-    assert_eq!(w.real(ALICE, Wnear), E18);
+    assert_eq!(w.real(ALICE, Wnear), K);
     assert_eq!(w.bal(ALICE, s, Usdc, DELAYED_HOLDS), out[3].0);
     fails(
         call(&mut w, ONE_YOCTO),
-        &format!("InsufficientBalance(alice.near, {E18}, {})", 2 * E18),
+        &format!("InsufficientBalance(alice.near, {K}, {SALE})"),
     );
     // buying with internal USDC
     w.deposit(ALICE, Usdc, 1000 * E18).unwrap();
@@ -1511,7 +1503,7 @@ fn direct_trades_draw_on_the_internal_balance_and_pay_storage() {
         })
         .unwrap();
     w.conserved();
-    assert_eq!(w.bal(ALICE, s, Wnear, SHIPS_CUTS), 2 * E18 + got[0].0);
+    assert_eq!(w.bal(ALICE, s, Wnear, SHIPS_CUTS), SALE + got[0].0);
     assert_eq!(w.real(ALICE, Usdc), 0);
 }
 
@@ -1520,13 +1512,13 @@ fn trade_events_are_compact() {
     let (mut w, ..) = full_world();
     let s = w.s2x2;
     let out = w
-        .sell(ALICE, s, 2 * E18, L_SHAPE, &no_plans(4), &[0; 4], true)
+        .sell(ALICE, s, SALE, L_SHAPE, &no_plans(4), &[0; 4], true)
         .unwrap();
     assert_eq!(
         w.last.data_of("conditional_sale")[0],
         json!({
             "account_id": ALICE, "scenario_id": s, "sell_mask": L_SHAPE,
-            "amount": (2 * E18).to_string(), "proceeds": amounts_json(&out), "to_lending": true,
+            "amount": (SALE).to_string(), "proceeds": amounts_json(&out), "to_lending": true,
         })
     );
     let got = w
@@ -1550,33 +1542,33 @@ fn worst_case_trade_fits_the_log_limits() {
     let (mut w, ..) = full_world();
     let s = w.s2x2;
     // an odd price, so a partial fill leaves rounding dust in the escrow
-    let price = 2_000 * E18 - 1;
+    let price = 2_000 * E15 - 1;
     let e = w.now + DAY;
     let makers = [RAVI, CAROL, BOB, OWNER, RAVI];
     let mut plans = no_plans(4);
     for wi in 0..4u8 {
         for maker in makers {
             let id = w
-                .post_from_real(maker, s, 1 << wi, Side::Bid, price, E18, e)
+                .post_from_real(maker, s, 1 << wi, Side::Bid, price, K, e)
                 .unwrap();
-            plans[usize::from(wi)].push((id, E18 - 1));
+            plans[usize::from(wi)].push((id, K - 1));
         }
     }
     // Carol takes 1 unit of each bid first
-    w.split_ft(CAROL, s, Wnear, &SINGLES, E18).unwrap();
+    w.split_ft(CAROL, s, Wnear, &SINGLES, K).unwrap();
     for fills in &plans {
         for &(id, _) in fills {
             super::orders::fill(&mut w, CAROL, id, 1, 0).unwrap();
         }
     }
     let out = w
-        .sell_and_borrow(ALICE, s, 6 * E18, ROOT, &plans, &[0; 4], 1000 * E18)
+        .sell_and_borrow(ALICE, s, 6 * K, ROOT, &plans, &[0; 4], 1000 * E18)
         .unwrap();
     for wi in 0..4usize {
         for &(id, _) in &plans[wi] {
             assert_eq!(order(&mut w, id).remaining.0, 0);
         }
-        assert!(out[wi] > 5 * proceeds(E18 - 1, price));
+        assert!(out[wi] > 5 * proceeds(K - 1, price));
     }
     let logs = &w.last.logs;
     assert_eq!(w.last.data_of("order_filled").len(), 20);
@@ -1641,8 +1633,9 @@ fn a_failed_trade_leaves_no_batch_open() {
 /// The demo seed then the demo sale: every world pool (DELAYED·HOLDS the thin one),
 /// the between-world pools at 66.67% SHIPS / 1.04% CUTS, the spot pool at
 /// the implied spot, Bob's supply, Ravi's bid; a full TWAP window later
-/// Alice sells 2 NEAR in the L-shape through Ravi's bid and borrows 3,000,
-/// then sells 2 NEAR-if-DELAYED in the binary market and borrows 3,000.
+/// Alice sells 2,000 NEAR in the L-shape through Ravi's bid and borrows
+/// 3,000 USDC, then sells 2,000 NEAR-if-DELAYED in the binary market and
+/// borrows 3,000 more.
 #[test]
 fn golden_demo_sale() {
     clear_prices();
@@ -1655,9 +1648,10 @@ fn golden_demo_sale() {
     seed_odds(&mut w, s, &independent_odds(4, 6667, 104), ODDS_DEPTH);
     seed_odds(&mut w, sb, &independent_odds(2, 6667, 0), ODDS_DEPTH);
     let implied = w.view(|c| c.implied_spot(s)).0;
-    assert_eq!(cents(implied), 303786);
-    // whole micro-USDC for the 100 wNEAR deep spot pool
-    seed_spot(&mut w, implied / 10_000_000_000 * 10_000_000_000, DEPTH);
+    // 3.03786 USDC per NEAR
+    assert_eq!(price_5dp(implied), 303786);
+    // whole micro-USDC for the 100,000 wNEAR deep spot pool
+    seed_spot(&mut w, implied / 10_000_000 * 10_000_000, DEPTH);
     w.conserved();
     w.lend(BOB, s, SUPPLIED).unwrap();
     w.lend(BOB, sb, SUPPLIED).unwrap();
@@ -1665,8 +1659,9 @@ fn golden_demo_sale() {
     w.warp(61);
 
     // the app's rule: use the bid only if it beats the pool for the slice
-    let pool_only = quote_sell(&mut w, s, 2 * E18, DELAYED_HOLDS)[3];
-    let with_bid = proceeds(E18, RAVI_PRICE) + quote_sell(&mut w, s, E18, DELAYED_HOLDS)[3];
+    let pool_only = quote_sell(&mut w, s, SALE, DELAYED_HOLDS)[3];
+    let with_bid =
+        proceeds(RAVI_SIZE, RAVI_PRICE) + quote_sell(&mut w, s, SALE - RAVI_SIZE, DELAYED_HOLDS)[3];
     assert!(with_bid > pool_only);
     assert_eq!((cents(with_bid), cents(pool_only)), (488188, 474829));
 
@@ -1674,9 +1669,9 @@ fn golden_demo_sale() {
         .sell_and_borrow(
             ALICE,
             s,
-            2 * E18,
+            SALE,
             L_SHAPE,
-            &plan_in(4, 3, &[(ravi, E18)]),
+            &plan_in(4, 3, &[(ravi, RAVI_SIZE)]),
             &[0; 4],
             BORROW,
         )
@@ -1692,11 +1687,13 @@ fn golden_demo_sale() {
     assert_eq!(w.debt(s, ALICE), BORROW);
     // the TWAP still sits on the seeded tick: the sale's has no weight yet
     let twap: Vec<u128> = (0..4)
-        .map(|i| cents(w.view(|c| c.world_price(s, i)).0))
+        .map(|i| price_5dp(w.view(|c| c.world_price(s, i)).0))
         .collect();
     assert_eq!(twap, [369963, 299979, 329972, 249990]);
     let values: Vec<u128> = w.values(s, ALICE).into_iter().map(cents).collect();
-    assert_eq!(values, [739926, 586505, 645155, 488188]);
+    // 2,000 NEAR at world 0's TWAP is 7,399.27: the mean tick at 3.70 floors
+    // a hair higher than at the prototype's 3,700 (its demo numbers: 7,399.26)
+    assert_eq!(values, [739927, 586505, 645155, 488188]);
     let (hf, worst) = w.hf(s, ALICE);
     let hf = hf.unwrap();
     assert_eq!((worst, hf / 10_000_000_000_000_000), (3, 122));
@@ -1709,20 +1706,13 @@ fn golden_demo_sale() {
     assert_eq!(order(&mut w, ravi).remaining.0, 0);
 
     let bin = w
-        .sell_and_borrow(
-            ALICE,
-            sb,
-            2 * E18,
-            BIN_DELAYED,
-            &no_plans(2),
-            &[0; 2],
-            BORROW,
-        )
+        .sell_and_borrow(ALICE, sb, SALE, BIN_DELAYED, &no_plans(2), &[0; 2], BORROW)
         .unwrap();
     assert_eq!(cents(bin[1]), 547404);
     assert!(bin[1].abs_diff(PROTO_BIN_PROCEEDS) <= 1_000_000);
     let values: Vec<u128> = w.values(sb, ALICE).into_iter().map(cents).collect();
-    assert_eq!(values, [679974, 547404]);
+    // 6,799.75 for SHIPS, a cent over the prototype's 6,799.74 for the same reason
+    assert_eq!(values, [679975, 547404]);
     let (hf, worst) = w.hf(sb, ALICE);
     assert_eq!((worst, hf.unwrap() / 10_000_000_000_000_000), (1, 136));
     let lowest = w.lowest(sb, ALICE);
@@ -1733,9 +1723,12 @@ fn golden_demo_sale() {
     assert_eq!(w.wallet(ALICE, Usdc), FUND + 2 * BORROW);
 
     // the pools after the sale, and the fee each one charges next
-    let after: Vec<u128> = p2.iter().map(|id| cents(price_of(&mut w, *id))).collect();
+    let after: Vec<u128> = p2
+        .iter()
+        .map(|id| price_5dp(price_of(&mut w, *id)))
+        .collect();
     assert_eq!(after, [370000, 288384, 317223, 237988]);
-    assert_eq!(cents(price_of(&mut w, pb[1])), 269158);
+    assert_eq!(price_5dp(price_of(&mut w, pb[1])), 269158);
     let fees: Vec<u32> = p2.iter().map(|id| fee_of(&mut w, *id)).collect();
     assert_eq!(fees, [3000, 15000, 15000, 15000]);
     assert_eq!(fee_of(&mut w, pb[1]), 15000);
@@ -1752,15 +1745,15 @@ fn conservation_counts_collateral_and_escrow() {
     w.sell_and_borrow(
         ALICE,
         s,
-        2 * E18,
+        SALE,
         L_SHAPE,
-        &plan_in(4, 3, &[(id, E18)]),
+        &plan_in(4, 3, &[(id, RAVI_SIZE)]),
         &[0; 4],
         BORROW,
     )
     .unwrap();
     let key = VerseKey::new(s, Usdc, DELAYED_HOLDS);
     let in_lending = w.view(|c| c.collateral_holdings(&key));
-    assert!(in_lending > RAVI_PRICE);
+    assert!(in_lending > RAVI_ESCROW);
     w.conserved();
 }

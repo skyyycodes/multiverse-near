@@ -1,8 +1,8 @@
-//! The Root LP vault, test by test, on the 2x2
-//! pools at 3700 / 3000 / 3300 / 2500 and the binary at 3400 / 2800, 100 wNEAR
-//! deep. Alice's conditional sales are the
-//! router's pool legs done by hand: a root split into every world, then a
-//! sale of the wNEAR-if-w of each world in the sold mask.
+//! The Root LP vault, test by test, on the 2x2 pools at 3.70 / 3.00 / 3.30 /
+//! 2.50 USDC per NEAR and the binary at 3.40 / 2.80, 100,000 NEAR deep.
+//! Alice's conditional sales are the router's pool legs done by hand: a
+//! root split into every world, then a sale of the wNEAR-if-w of each world
+//! in the sold mask.
 //!
 //! "Held in world w" counts a real unit (wallet or internal) plus the
 //! account's single-world token of w.
@@ -18,9 +18,17 @@ use crate::rootlp::{LpDepositPreview, RootLpHolding, WorldAmounts, MINIMUM_SHARE
 use crate::types::Asset::{self, Usdc, Wnear};
 
 const DAVE: &str = BOB;
-const WNEAR_IN: u128 = 10 * E18;
+const WNEAR_IN: u128 = 10_000 * E18;
 const USDC_IN: u128 = 30_000 * E18;
 const HOLDERS: [&str; 5] = [OWNER, ALICE, BOB, CAROL, CONTRACT];
+/// sqrt(1000), scaled by 1e15.
+const SQRT_1000_E15: u128 = 31_622_776_601_683_793;
+
+/// Shares are pool liquidity, sqrt(wNEAR * USDC): with 1,000 times the
+/// wNEAR of the prototype's demo numbers they are its shares times sqrt(1000).
+fn proto_shares(shares: u128) -> u128 {
+    shares * SQRT_1000_E15 / 1_000_000_000_000_000
+}
 
 struct Fx {
     w: World,
@@ -308,20 +316,20 @@ fn first_deposit_provides_liquidity_to_every_world() {
         }
     }
     assert_eq!(shares + MINIMUM_SHARES, *expected.iter().min().unwrap());
-    assert!(w.bal(CAROL, s, Wnear, SHIPS_CUTS) > 18 * E18 / 10);
+    assert!(w.bal(CAROL, s, Wnear, SHIPS_CUTS) > 1_800 * E18);
     assert!(w.bal(CAROL, s, Usdc, DELAYED_HOLDS) > 4_900 * E18);
 
     // the prototype's vector, through a different pool implementation
     assert!(within_rel(
         shares,
-        493_196_961_916_071_619_077,
+        proto_shares(493_196_961_916_071_619_077),
         1_000_000_000_000
     ));
     let proto_wnear_kept: [u128; 4] = [
-        8_108_108_108_108_099_974,
-        9_999_999_999_999_999_971,
-        9_090_909_090_909_090_881,
-        10_000_000_000_000_000_000,
+        8_108_108_108_108_099_974_000,
+        9_999_999_999_999_999_971_000,
+        9_090_909_090_909_090_881_000,
+        10_000_000_000_000_000_000_000,
     ];
     for (i, k) in proto_wnear_kept.iter().enumerate() {
         assert!(within_rel(kept(&preview, Wnear, i), *k, 1_000_000_000_000));
@@ -351,8 +359,9 @@ fn ft_lp_deposit_takes_attached_usdc_and_hands_back_the_rest() {
         .ft_transfer_call(CAROL, Usdc, usdc / scale(Usdc), &msg)
         .unwrap();
     let (wnear_refund, usdc_refund) = last_refunds(&w);
-    // every world had USDC left over, so part of it comes back as USDC
-    assert!(usdc_refund > 3_000 * E18);
+    // world 0 at 3.70 needs exactly 37,000 USDC for 10,000 NEAR, so 3,000
+    // of the 40,000 comes back
+    assert!(usdc_refund >= 3_000 * E18);
     assert_eq!(unused, usdc_refund / scale(Usdc));
     assert_eq!(w.wallet(CAROL, Usdc), wallet - usdc + unused * scale(Usdc));
     assert_eq!(w.real(CAROL, Usdc), usdc_refund % scale(Usdc));
@@ -385,7 +394,7 @@ fn second_deposit_before_trading_joins_at_the_same_mix() {
     assert!(within_rel(shares, supply_before, 1_000_000_000_000_000));
     assert!(within_rel(
         shares,
-        493_196_961_916_071_619_929,
+        proto_shares(493_196_961_916_071_619_929),
         1_000_000_000_000
     ));
     for i in 0..4 {
@@ -436,7 +445,7 @@ fn trade_then_withdraw_pays_fees_and_returns_world_tokens() {
     } = setup();
     let shares = deposit(&mut w, CAROL, s, WNEAR_IN, USDC_IN);
     let before = holdings(&mut w, s);
-    alice_sells(&mut w, s, &pools, L_SHAPE, 2 * E18);
+    alice_sells(&mut w, s, &pools, L_SHAPE, 2_000 * E18);
     let after = holdings(&mut w, s);
     assert_eq!((after[0].wnear_fees.0, after[0].usdc_fees.0), (0, 0));
     for i in 1..4 {
@@ -482,7 +491,7 @@ fn full_resolution_surviving_world_collapses_to_real_assets() {
     } = setup();
     let shares = deposit(&mut w, CAROL, s, WNEAR_IN, USDC_IN);
     let leftover = w.bal(CAROL, s, Usdc, DELAYED_HOLDS);
-    alice_sells(&mut w, s, &pools, L_SHAPE, 2 * E18);
+    alice_sells(&mut w, s, &pools, L_SHAPE, 2_000 * E18);
     let price = w.view(|c| c.world_spot_price(1, 3).unwrap());
     w.admin_resolve(w.fed, OUT_HOLDS).unwrap();
     w.admin_resolve(w.spice, OUT_DELAYED).unwrap();
@@ -513,8 +522,8 @@ fn full_resolution_surviving_world_collapses_to_real_assets() {
     let value = wmul(wnear_got, price) + usdc_got;
     let held = wmul(WNEAR_IN, price) + USDC_IN;
     assert!(within_rel(value, held, 1_000), "{value} vs {held}");
-    // the prototype's walk-through: 10.181818 wNEAR + 29,554.886868 USDC
-    assert!(within_rel(wnear_got, 10_181_818 * E18 / 1_000_000, 100_000));
+    // the prototype's walk-through at NEAR scale: 10,181.818 wNEAR + 29,554.886868 USDC
+    assert!(within_rel(wnear_got, 10_181_818 * E18 / 1_000, 100_000));
     assert!(within_rel(
         usdc_got,
         29_554_886_868 * E18 / 1_000_000,
@@ -531,7 +540,7 @@ fn withdraw_between_resolutions_merges_across_live_worlds() {
         mut w, s, pools, ..
     } = setup();
     let shares = deposit(&mut w, CAROL, s, WNEAR_IN, USDC_IN);
-    alice_sells(&mut w, s, &pools, L_SHAPE, 2 * E18);
+    alice_sells(&mut w, s, &pools, L_SHAPE, 2_000 * E18);
     w.admin_resolve(w.fed, OUT_HOLDS).unwrap();
     let preview = claim(&mut w, s, shares);
     for i in 0..2 {
@@ -575,12 +584,12 @@ fn binary_deposit_trade_resolve_withdraw() {
     let preview = preview_deposit(&mut w, b, WNEAR_IN, USDC_IN);
     assert!(within_rel(
         preview.shares.0,
-        514_495_755_427_526_048_090,
+        proto_shares(514_495_755_427_526_048_090),
         1_000_000_000_000
     ));
     let shares = deposit(&mut w, CAROL, b, WNEAR_IN, USDC_IN);
     let (wnear_refund, _) = last_refunds(&w);
-    alice_sells(&mut w, b, &bin_pools, BIN_DELAYED, 2 * E18);
+    alice_sells(&mut w, b, &bin_pools, BIN_DELAYED, 2_000 * E18);
     w.admin_resolve(w.spice, OUT_SHIPS).unwrap();
 
     let wallet = w.wallet(CAROL, Wnear) + w.real(CAROL, Wnear);
@@ -648,7 +657,7 @@ fn two_lps_join_is_fair_in_every_world() {
         mut w, s, pools, ..
     } = setup();
     let carol = deposit(&mut w, CAROL, s, WNEAR_IN, USDC_IN);
-    alice_sells(&mut w, s, &pools, L_SHAPE, 2 * E18);
+    alice_sells(&mut w, s, &pools, L_SHAPE, 2_000 * E18);
     let before = claim(&mut w, s, carol);
     let preview = preview_deposit(&mut w, s, WNEAR_IN, USDC_IN);
     let dave = deposit(&mut w, DAVE, s, WNEAR_IN, USDC_IN);
@@ -672,7 +681,7 @@ fn two_lps_join_is_fair_in_every_world() {
         );
     }
 
-    alice_sells(&mut w, s, &pools, DELAYED_HOLDS, E18);
+    alice_sells(&mut w, s, &pools, DELAYED_HOLDS, 1_000 * E18);
     let total = supply(&mut w, s);
     let all = claim(&mut w, s, total);
     let c = claim(&mut w, s, carol);

@@ -33,9 +33,9 @@ const CASES: u32 = 256;
 const ACTORS: [&str; 3] = [ALICE, CAROL, DAVE];
 const LIQUIDATOR: &str = "leo.near";
 const GATE: u128 = 10_000 * E18;
-const DEPTH: u128 = 100 * E18;
-const PERMANENT: u128 = 2 * E18;
-const REMOVABLE: u128 = 98 * E18;
+const DEPTH: u128 = 100_000 * E18;
+const PERMANENT: u128 = 2_000 * E18;
+const REMOVABLE: u128 = 98_000 * E18;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Op {
@@ -192,8 +192,8 @@ impl Campaign {
         c
     }
 
-    /// Each actor sells 2 wNEAR into lending in each scenario, posts 1 real
-    /// wNEAR, and borrows 99% of what the worst world carries.
+    /// Each actor sells 2,000 wNEAR into lending in each scenario, posts
+    /// 1,000 real wNEAR, and borrows 99% of what the worst world carries.
     fn open_loans(&mut self) {
         let masks = [
             [L_SHAPE, BIN_DELAYED],
@@ -202,8 +202,8 @@ impl Campaign {
         ];
         for (i, who) in ACTORS.iter().enumerate() {
             for (j, s) in self.sids.into_iter().enumerate() {
-                self.sell_into_lending(who, s, masks[i][j], 2 * E18);
-                self.w.post_real(who, s, Wnear, E18).unwrap();
+                self.sell_into_lending(who, s, masks[i][j], 2_000 * E18);
+                self.w.post_real(who, s, Wnear, 1_000 * E18).unwrap();
             }
         }
         self.w.warp(61);
@@ -298,7 +298,7 @@ impl Campaign {
                 if sell_mask == 0 {
                     return;
                 }
-                let amount = bound(amount, E18 / 1_000, 5 * E18);
+                let amount = bound(amount, E18, 5_000 * E18);
                 let ok = self.sell_into_lending(who, s, sell_mask, amount);
                 st.ok(
                     "sell_into_lending",
@@ -321,7 +321,7 @@ impl Campaign {
                 let mut amount = bound(
                     amount,
                     1_000_000_000_000,
-                    if wnear { 5 * E18 } else { 10_000 * E18 },
+                    if wnear { 5_000 * E18 } else { 10_000 * E18 },
                 );
                 if !wnear {
                     amount = amount / USDC_UNIT * USDC_UNIT;
@@ -340,7 +340,7 @@ impl Campaign {
                 let mut amount = bound(
                     amount,
                     1_000_000_000_000,
-                    if wnear { 3 * E18 } else { 5_000 * E18 },
+                    if wnear { 3_000 * E18 } else { 5_000 * E18 },
                 );
                 if !wnear {
                     amount = amount / USDC_UNIT * USDC_UNIT;
@@ -495,7 +495,7 @@ impl Campaign {
         }
         let down = (seed >> 24) & 1 == 0;
         let amount = if down {
-            bound(amount, E18 / 1_000, 150 * E18)
+            bound(amount, E18, 150_000 * E18)
         } else {
             bound(amount, E18 / 1_000, 500_000 * E18)
         } >> ((seed >> 32) % 10);
