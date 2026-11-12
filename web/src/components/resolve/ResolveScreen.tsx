@@ -102,10 +102,10 @@ function Resolve({ config }: { config: AppConfig }) {
           {d.pastFedEvent && (
             <Block title="Real data: a past Fed decision" demo="past-fed">
               <p className="text-[13px] leading-relaxed text-mute">
-                The same resolver reads this event from FRED&apos;s federal funds target range (DFEDTARU and DFEDTARL must
-                agree). It is not part of the grid, so finalizing it removes no worlds.
+                Read from FRED&apos;s federal funds target range (DFEDTARU and DFEDTARL must agree), by OutLayer running the
+                reader in a secure enclave, or by the reporter. It is not part of the grid, so finalizing it removes no worlds.
               </p>
-              {card(d.pastFedEvent, "Past Fed decision · resolver reads FRED", false)}
+              {card(d.pastFedEvent, "Past Fed decision · FRED data", false)}
             </Block>
           )}
         </>

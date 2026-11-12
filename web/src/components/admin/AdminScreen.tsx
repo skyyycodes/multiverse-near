@@ -84,7 +84,7 @@ function Admin({ config }: { config: AppConfig }) {
               inside its window.
             </p>
             {d.events.map((e, i) => card(e, `Event ${String.fromCharCode(65 + i)}`))}
-            {d.pastFedEvent && card(d.pastFedEvent, "Past Fed decision · resolver reads FRED", false)}
+            {d.pastFedEvent && card(d.pastFedEvent, "Past Fed decision · FRED data", false)}
           </Block>
         </>
       ) : (
