@@ -28,7 +28,7 @@ export function parseTarget(value: string): ResolverTarget {
 
 /**
  * The events the resolver looks after, from the on-chain demo record: the past FOMC meeting on real
- * FRED data, and the two grid events from the team file (Fed first, then Glamsterdam).
+ * FRED data, and the two grid events from the team file (Fed first, then SPICE).
  */
 export function resolverEvents(demo: DemoRecord, target: ResolverTarget): ResolverEvent[] {
   const fomc: ResolverEvent[] =
@@ -46,7 +46,7 @@ export function resolverEvents(demo: DemoRecord, target: ResolverTarget): Resolv
         ];
   const team: ResolverEvent[] = [
     { kind: "team", eventId: demo.fed_event, label: "Fed, December meeting", question: questionOf("fed"), key: "fed-december-2026", outcomes: ["CUTS", "HOLDS"] },
-    { kind: "team", eventId: demo.glam_event, label: "Glamsterdam by Dec 31", question: questionOf("glam"), key: "glamsterdam-2026", outcomes: ["SHIPS", "DELAYED"] },
+    { kind: "team", eventId: demo.spice_event, label: "SPICE by Mar 31", question: questionOf("spice"), key: "spice-2027", outcomes: ["SHIPS", "DELAYED"] },
   ];
   if (target === "fomc") return fomc;
   if (target === "team") return team;

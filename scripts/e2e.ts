@@ -389,7 +389,7 @@ async function main(): Promise<void> {
     await assertBacked(p, record);
   });
 
-  await flow.step("10. resolution: the reporter proposes Fed HOLDS, Glamsterdam resolves DELAYED", [], async () => {
+  await flow.step("10. resolution: the reporter proposes Fed HOLDS, SPICE resolves DELAYED", [], async () => {
     const deps = reporterDeps(p, join(REPO_ROOT, "deployments", "demo-outcomes.json"));
     const fed = resolverEvents(record, "team").filter((e) => e.eventId === record.fed_event);
     const run = await resolveOnce(fed, deps, false);
@@ -418,7 +418,7 @@ async function main(): Promise<void> {
     await call(sam, d.contractId, "finalize", { event_id: record.fed_event }, { gas: tgas(100), label: "sam: finalize the Fed event" });
     const after = await p.scenario(s);
     check(after.possible === 0xc && !after.halted, "CUTS column gone: still possible SHIPS·HOLDS, DELAYED·HOLDS");
-    await p.call1y(owner, "admin_resolve", { event_id: record.glam_event, outcome: 1 }, "owner: admin_resolve Glamsterdam DELAYED");
+    await p.call1y(owner, "admin_resolve", { event_id: record.spice_event, outcome: 1 }, "owner: admin_resolve SPICE DELAYED");
     check((await p.scenario(s)).possible === MASK_DELAYED_HOLDS, "only DELAYED·HOLDS is still possible");
     check((await p.scenario(sBin)).possible === 0x2, "binary: only DELAYED is still possible");
     await assertBacked(p, record);

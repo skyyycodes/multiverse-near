@@ -76,7 +76,7 @@ export interface WorldBacking {
 }
 
 export interface DemoRecord {
-  glam_event: number;
+  spice_event: number;
   fed_event: number;
   past_fed_event: number | null;
   scenario_2x2: number;

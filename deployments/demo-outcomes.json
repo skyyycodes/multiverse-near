@@ -2,6 +2,6 @@
   "note": "Outcomes of the two demo grid events, set by the team. The resolver reports them to the contract with the label \"team-controlled outcomes file (demo)\"; only the past FOMC event resolves from real FRED data.",
   "outcomes": {
     "fed-december-2026": "HOLDS",
-    "glamsterdam-2026": "DELAYED"
+    "spice-2027": "DELAYED"
   }
 }

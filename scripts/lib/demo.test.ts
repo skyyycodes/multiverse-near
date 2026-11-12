@@ -126,7 +126,16 @@ describe("demo amounts", () => {
   });
 
   it("event texts match the demo", () => {
-    assert.deepEqual(DEMO_EVENTS.map((e) => e.key), ["glam", "fed", "pastFed"]);
+    assert.deepEqual(DEMO_EVENTS.map((e) => e.key), ["spice", "fed", "pastFed"]);
+    const spice = DEMO_EVENTS[0]!;
+    assert.equal(spice.question, "Will SPICE ship on NEAR mainnet by Mar 31, 2027?");
+    assert.deepEqual(spice.outcomeNames, ["SHIPS", "DELAYED"]);
+    assert.equal(
+      spice.rule,
+      "SHIPS if SPICE, NEAR's separation of consensus and execution, is active on NEAR mainnet before 2027-04-01 00:00 UTC; " +
+        "otherwise DELAYED. During the hackathon this event is resolved from a team-controlled outcomes file (demo).",
+    );
+    assert.equal(new Date(spice.deadlineSec * 1000).toISOString(), "2027-03-31T23:59:59.000Z");
     assert.equal(DEMO_EVENTS[2]?.deadlineSec, 1793210400);
     assert.ok(DEMO_EVENTS.every((e) => e.rule.length <= 512 && e.outcomeNames.length === 2));
   });

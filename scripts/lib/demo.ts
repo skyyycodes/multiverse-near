@@ -13,7 +13,7 @@ export const SPOT_FEE_PIPS = 3000n;
 const PIPS = 1_000_000n;
 
 export interface EventSpec {
-  key: "glam" | "fed" | "pastFed";
+  key: "spice" | "fed" | "pastFed";
   question: string;
   outcomeNames: [string, string];
   rule: string;
@@ -22,13 +22,14 @@ export interface EventSpec {
 
 export const DEMO_EVENTS: readonly EventSpec[] = [
   {
-    key: "glam",
-    question: "Will Glamsterdam ship on mainnet by Dec 31, 2026?",
+    key: "spice",
+    question: "Will SPICE ship on NEAR mainnet by Mar 31, 2027?",
     outcomeNames: ["SHIPS", "DELAYED"],
     rule:
-      "SHIPS if the Glamsterdam upgrade is active on Ethereum mainnet before 2027-01-01 00:00 UTC; otherwise DELAYED. " +
-      "During the hackathon this event is resolved from a team-controlled API (demo).",
-    deadlineSec: 1798761599,
+      "SHIPS if SPICE, NEAR's separation of consensus and execution, is active on NEAR mainnet before " +
+      "2027-04-01 00:00 UTC; otherwise DELAYED. During the hackathon this event is resolved from a " +
+      "team-controlled outcomes file (demo).",
+    deadlineSec: 1806537599,
   },
   {
     key: "fed",

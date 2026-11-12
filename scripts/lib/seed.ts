@@ -45,8 +45,8 @@ export interface SeedOptions {
   withRavi: boolean;
 }
 
-async function createEvents(p: Protocol, owner: string): Promise<Record<"glam" | "fed" | "pastFed", number>> {
-  const ids: Partial<Record<"glam" | "fed" | "pastFed", number>> = {};
+async function createEvents(p: Protocol, owner: string): Promise<Record<"spice" | "fed" | "pastFed", number>> {
+  const ids: Partial<Record<"spice" | "fed" | "pastFed", number>> = {};
   for (const e of DEMO_EVENTS) {
     const r = await p.call1y<number>(owner, "create_event", {
       question: e.question,
@@ -57,7 +57,7 @@ async function createEvents(p: Protocol, owner: string): Promise<Record<"glam" |
     if (typeof r.value !== "number") throw new Error(`create_event ${e.key} returned ${r.returnText}`);
     ids[e.key] = r.value;
   }
-  return ids as Record<"glam" | "fed" | "pastFed", number>;
+  return ids as Record<"spice" | "fed" | "pastFed", number>;
 }
 
 async function createScenario(p: Protocol, owner: string, eventIds: number[]): Promise<number> {
@@ -165,8 +165,8 @@ export async function seedDemo(p: Protocol, o: SeedOptions): Promise<DemoRecord>
 
   console.log("events and scenarios");
   const ev = await createEvents(p, owner);
-  const s2x2 = await createScenario(p, owner, [ev.glam, ev.fed]);
-  const sBin = await createScenario(p, owner, [ev.glam]);
+  const s2x2 = await createScenario(p, owner, [ev.spice, ev.fed]);
+  const sBin = await createScenario(p, owner, [ev.spice]);
 
   console.log("world pools");
   await seedWorlds(p, owner, s2x2, SEED_2X2);
@@ -193,7 +193,7 @@ export async function seedDemo(p: Protocol, o: SeedOptions): Promise<DemoRecord>
   }
 
   const record: DemoRecord = {
-    glam_event: ev.glam,
+    spice_event: ev.spice,
     fed_event: ev.fed,
     past_fed_event: ev.pastFed,
     scenario_2x2: s2x2,
@@ -267,10 +267,10 @@ export async function printSeedReport(p: Protocol, record: DemoRecord): Promise<
   console.log(`odds: SHIPS ${record.odds_ships_bps} bps, CUTS ${record.odds_cuts_bps} bps (${record.odds_source ?? "no source"})`);
   console.log(`Bob supplied USDC to each market: ${fmt2(BOB_SUPPLY)}`);
   console.log("");
-  console.log(`== 2x2 scenario (Glamsterdam x Fed), scenario ${s2x2}`);
+  console.log(`== 2x2 scenario (SPICE x Fed), scenario ${s2x2}`);
   for (const line of await scenarioLines(p, s2x2, SEED_2X2)) console.log(line);
   console.log("");
-  console.log(`== binary scenario (Glamsterdam), scenario ${sBin}`);
+  console.log(`== binary scenario (SPICE), scenario ${sBin}`);
   for (const line of await scenarioLines(p, sBin, SEED_BINARY)) console.log(line);
   console.log("");
   console.log(`== Ravi's standing bid in DELAYED·HOLDS (scenario ${s2x2})`);
@@ -284,5 +284,5 @@ export async function printSeedReport(p: Protocol, record: DemoRecord): Promise<
     console.log(`2,000 NEAR sale, Ravi's bid then the pool: ${fmt2(plan.withBid)} USDC, average ${fmt4((plan.withBid * WAD) / SALE_WNEAR)}`);
     if (plan.withBid <= plan.poolOnly) console.log("WARNING: the pool alone pays more, so the router would not use Ravi's bid");
   }
-  console.log(`events: glam ${record.glam_event}, fed ${record.fed_event}, past fed ${record.past_fed_event ?? "-"}`);
+  console.log(`events: spice ${record.spice_event}, fed ${record.fed_event}, past fed ${record.past_fed_event ?? "-"}`);
 }

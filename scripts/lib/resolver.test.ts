@@ -7,7 +7,7 @@ import type { DemoRecord, EventView } from "./protocol.ts";
 import { parseTarget, resolveOnce, resolverEvents, teamOutcome, type ResolverDeps } from "./resolver.ts";
 
 const DEMO: DemoRecord = {
-  glam_event: 7,
+  spice_event: 7,
   fed_event: 8,
   past_fed_event: 9,
   scenario_2x2: 5,
@@ -22,9 +22,9 @@ const DEMO: DemoRecord = {
   ravi_order: null,
 };
 
-const TEAM_FILE = { note: "", outcomes: { "fed-december-2026": "HOLDS", "glamsterdam-2026": "DELAYED" } };
+const TEAM_FILE = { note: "", outcomes: { "fed-december-2026": "HOLDS", "spice-2027": "DELAYED" } };
 
-// The fixture's ids: 7 Glamsterdam, 8 the December Fed meeting, 9 the past one.
+// The fixture's ids: 7 SPICE, 8 the December Fed meeting, 9 the past one.
 const QUESTIONS = new Map([7, 8, 9].map((id, i) => [id, DEMO_EVENTS[i]!.question]));
 
 function event(id: number, names: string[], patch: Partial<EventView> = {}): EventView {
@@ -87,7 +87,7 @@ const allOpen = (): Map<number, EventView> =>
   ]);
 
 describe("resolver", () => {
-  it("targets: fomc is the past meeting, team is Fed then Glamsterdam", () => {
+  it("targets: fomc is the past meeting, team is Fed then SPICE", () => {
     assert.deepEqual(resolverEvents(DEMO, "fomc").map((e) => e.eventId), [9]);
     assert.deepEqual(resolverEvents(DEMO, "team").map((e) => e.eventId), [8, 7]);
     assert.deepEqual(resolverEvents(DEMO, "all").map((e) => e.eventId), [9, 8, 7]);
@@ -97,7 +97,7 @@ describe("resolver", () => {
 
   it("team outcomes: unknown keys and names are no result", () => {
     assert.equal(teamOutcome(TEAM_FILE, "fed-december-2026", ["CUTS", "HOLDS"]), HOLDS);
-    assert.equal(teamOutcome(TEAM_FILE, "glamsterdam-2026", ["SHIPS", "DELAYED"]), 1);
+    assert.equal(teamOutcome(TEAM_FILE, "spice-2027", ["SHIPS", "DELAYED"]), 1);
     assert.equal(teamOutcome(TEAM_FILE, "missing", ["CUTS", "HOLDS"]), NO_RESULT);
     assert.equal(teamOutcome({ outcomes: { k: "MAYBE" } }, "k", ["CUTS", "HOLDS"]), NO_RESULT);
     assert.equal(teamOutcome(null, "k", ["CUTS", "HOLDS"]), NO_RESULT);
@@ -109,7 +109,7 @@ describe("resolver", () => {
     const run = await resolveOnce(resolverEvents(DEMO, "all"), f.deps, false);
     assert.deepEqual(f.reports.map(([id, o]) => [id, o]), [[9, HOLDS], [8, HOLDS], [7, 1]]);
     assert.match(f.reports[0]?.[2] ?? "", /^FRED DFEDTARU \+ DFEDTARL, 2026-10-27 vs 2026-10-29: HOLDS$/);
-    assert.match(f.reports[2]?.[2] ?? "", /team-controlled outcomes file \(demo\), key glamsterdam-2026: DELAYED/);
+    assert.match(f.reports[2]?.[2] ?? "", /team-controlled outcomes file \(demo\), key spice-2027: DELAYED/);
     assert.deepEqual(run.proposed, [
       { eventId: 9, finalizableAt: 130 },
       { eventId: 8, finalizableAt: 130 },

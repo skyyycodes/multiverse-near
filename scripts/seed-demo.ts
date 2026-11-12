@@ -4,7 +4,7 @@
 //   NEAR_NETWORK=sandbox|testnet pnpm seed [--spot-from 2x2|binary] [--no-ravi]
 //
 // Fed odds: ODDS_CUTS_BPS if set, else Polymarket, else 100 bps (the 2026-11-06 reading).
-// ODDS_SHIPS_BPS defaults to 6667 (no Glamsterdam market exists).
+// ODDS_SHIPS_BPS defaults to 6667 (no SPICE market exists).
 
 import { parseArgs } from "node:util";
 
