@@ -2,24 +2,24 @@
   "network": "testnet",
   "rpcUrl": "https://test.rpc.fastnear.com",
   "explorer": "https://testnet.nearblocks.io",
-  "root": "multiverse-lending.testnet",
-  "contractId": "app.multiverse-lending.testnet",
-  "wnear": "wnear.multiverse-lending.testnet",
-  "usdc": "usdc.multiverse-lending.testnet",
-  "reporter": "resolver.multiverse-lending.testnet",
+  "root": "multiverse-near.testnet",
+  "contractId": "app.multiverse-near.testnet",
+  "wnear": "wnear.multiverse-near.testnet",
+  "usdc": "usdc.multiverse-near.testnet",
+  "reporter": "resolver.multiverse-near.testnet",
   "personas": {
-    "alice": "alice.multiverse-lending.testnet",
-    "bob": "bob.multiverse-lending.testnet",
-    "ravi": "ravi.multiverse-lending.testnet",
-    "sam": "sam.multiverse-lending.testnet",
-    "uma": "uma.multiverse-lending.testnet",
-    "carl": "carl.multiverse-lending.testnet",
-    "leo": "leo.multiverse-lending.testnet",
-    "resolver": "resolver.multiverse-lending.testnet"
+    "alice": "alice.multiverse-near.testnet",
+    "bob": "bob.multiverse-near.testnet",
+    "ravi": "ravi.multiverse-near.testnet",
+    "sam": "sam.multiverse-near.testnet",
+    "uma": "uma.multiverse-near.testnet",
+    "carl": "carl.multiverse-near.testnet",
+    "leo": "leo.multiverse-near.testnet",
+    "resolver": "resolver.multiverse-near.testnet"
   },
   "tokens": {
     "wnear": {
-      "accountId": "wnear.multiverse-lending.testnet",
+      "accountId": "wnear.multiverse-near.testnet",
       "name": "Mock Wrapped NEAR",
       "symbol": "wNEAR",
       "decimals": 24,
@@ -27,7 +27,7 @@
       "codeHash": "8afCVgFKDom2fYt5BZatMXPLXMiJ1vWHBiUTpN6AyggY"
     },
     "usdc": {
-      "accountId": "usdc.multiverse-lending.testnet",
+      "accountId": "usdc.multiverse-near.testnet",
       "name": "Mock USD Coin",
       "symbol": "USDC",
       "decimals": 6,
@@ -36,10 +36,10 @@
     }
   },
   "contract": {
-    "accountId": "app.multiverse-lending.testnet",
-    "codeHash": "GQ7Msqk6VmecysgY3rdakk69YiFEwGVs3FuGBER8kdSF",
-    "deployedAt": "2026-11-11T20:08:18.358Z",
+    "accountId": "app.multiverse-near.testnet",
+    "codeHash": "G6GtUs6AqHfxRb8YCdBx5dv1bgiQ3c1gDhPE9ygQTkEt",
+    "deployedAt": "2026-11-12T12:08:21.078Z",
     "disputeWindowSec": 30
   },
-  "updatedAt": "2026-11-11T20:08:18.360Z"
+  "updatedAt": "2026-11-12T12:08:21.080Z"
 }
