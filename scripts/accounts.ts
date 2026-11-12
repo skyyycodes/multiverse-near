@@ -180,9 +180,15 @@ async function sponsorCreate(sponsor: string, accountId: string, amount: bigint)
 }
 
 async function deleteInto(accountId: string, beneficiary: string): Promise<void> {
-  await sendTransaction(accountId, accountId, [actions.deleteAccount(beneficiary)], {
-    label: `delete ${accountId} into ${beneficiary}`,
-  });
+  try {
+    await sendTransaction(accountId, accountId, [actions.deleteAccount(beneficiary)], {
+      label: `delete ${accountId} into ${beneficiary}`,
+    });
+  } catch (err) {
+    // A resend after a timeout finds the account already deleted by the first attempt.
+    if (await accountExists(accountId)) throw err;
+    console.log(`  ${accountId} is gone: deleted into ${beneficiary}`);
+  }
 }
 
 async function prepareSponsor(): Promise<string | undefined> {
