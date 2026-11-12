@@ -1,8 +1,8 @@
-//! Differential test against the EVM libraries this crate ports.
+//! Differential test against reference vectors.
 //!
-//! `vectors/evm-vectors.txt` was written by `vectors/Vectors.t.sol` running the Solidity code itself (Uniswap v4
-//! `TickMath`, OpenZeppelin `Math.mulDiv`, and the protocol's `PriceMath`, `OddsTree`, `SharesMath`, `OrderMath`,
-//! `SwapFlow` and `TwapOracle`) under Foundry. Every line must come out the same here, bit for bit.
+//! `vectors/reference-vectors.txt` holds reference vectors generated from the prototype's maths (`TickMath`, the
+//! full-width `mulDiv`, and the protocol's `PriceMath`, `OddsTree`, `SharesMath`, `OrderMath`, `SwapFlow` and
+//! `TwapOracle`) from a fixed pseudo-random input chain. Every line must come out the same here, bit for bit.
 
 use std::collections::BTreeMap;
 use std::panic::{self, AssertUnwindSafe};
@@ -11,7 +11,7 @@ use multiverse_math::flow::SwapFlow;
 use multiverse_math::twap::TwapOracle;
 use multiverse_math::{fixed, odds, orders, price, shares, tick, Rounding, U256, WAD};
 
-const VECTORS: &str = include_str!("vectors/evm-vectors.txt");
+const VECTORS: &str = include_str!("vectors/reference-vectors.txt");
 
 fn u128_of(text: &str) -> u128 {
     text.parse()
@@ -39,7 +39,7 @@ fn ok_of(text: &str) -> bool {
     }
 }
 
-/// `Some(value)` when the EVM result fits a `u128`, which is when the port returns it rather than refusing.
+/// `Some(value)` when the reference result fits a `u128`, which is when this crate returns it rather than refusing.
 fn fits_u128(text: &str) -> Option<u128> {
     if text == "overflow" {
         return None;
@@ -66,7 +66,7 @@ fn panic_message(f: impl FnOnce() -> u128) -> String {
 }
 
 #[test]
-fn every_vector_matches_the_evm() {
+fn every_vector_matches_the_reference() {
     let mut checked: BTreeMap<&str, usize> = BTreeMap::new();
     let mut flow = SwapFlow::new();
     let mut oracle = TwapOracle::default();
@@ -146,7 +146,7 @@ fn every_vector_matches_the_evm() {
                 };
                 match fits_u128(v) {
                     Some(expected) => assert_eq!(f(x, ta, ts), expected, "{at}"),
-                    // Solidity has 256 bits of room; the port stores u128 and refuses anything larger.
+                    // The reference has 256 bits of room; this crate stores u128 and refuses anything larger.
                     None => assert_eq!(panic_message(|| f(x, ta, ts)), "MulDivOverflow", "{at}"),
                 }
             }
