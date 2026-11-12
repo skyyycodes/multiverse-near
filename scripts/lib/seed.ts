@@ -34,7 +34,7 @@ import {
 } from "./demo.ts";
 import { NETWORK } from "./near.ts";
 import { OWNER_STORAGE, Protocol, type DemoRecord } from "./protocol.ts";
-import { internalScale, u128, WAD } from "./units.ts";
+import { roundDownToStep, roundUpToStep, u128, WAD } from "./units.ts";
 
 export interface SeedOptions {
   shipsBps: number;
@@ -43,11 +43,6 @@ export interface SeedOptions {
   spotFrom: "2x2" | "binary";
   withRavi: boolean;
 }
-
-const roundUpToUnits = (internal: bigint, decimals: number): bigint => {
-  const scale = internalScale(decimals);
-  return ((internal + scale - 1n) / scale) * scale;
-};
 
 async function createEvents(p: Protocol, owner: string): Promise<Record<"glam" | "fed" | "pastFed", number>> {
   const ids: Partial<Record<"glam" | "fed" | "pastFed", number>> = {};
@@ -73,7 +68,7 @@ async function createScenario(p: Protocol, owner: string, eventIds: number[]): P
 /** Splits enough of both assets into every world, then opens each world's pool at its price. */
 async function seedWorlds(p: Protocol, owner: string, sid: number, seeds: readonly WorldSeed[]): Promise<void> {
   const maxWnear = seeds.reduce((m, s) => (s.depth > m ? s.depth : m), 0n);
-  const maxUsdc = roundUpToUnits(
+  const maxUsdc = roundUpToStep(
     seeds.reduce((m, s) => (wmul(s.depth, s.price) > m ? wmul(s.depth, s.price) : m), 0n),
     p.decimals("usdc"),
   );
@@ -112,7 +107,7 @@ async function seedSpot(p: Protocol, owner: string, implied: bigint): Promise<"s
   if (implied === 0n) throw new Error("the implied spot is 0: a pool or the odds are missing");
   const spot = await p.spotPool();
   if (spot === null) {
-    const usdc = (wmul(SPOT_DEPTH, implied) / internalScale(p.decimals("usdc"))) * internalScale(p.decimals("usdc"));
+    const usdc = roundDownToStep(wmul(SPOT_DEPTH, implied), p.decimals("usdc"));
     await p.mint(owner, "wnear", owner, SPOT_DEPTH);
     await p.send(owner, "wnear", SPOT_DEPTH, { action: "deposit" });
     await p.mint(owner, "usdc", owner, usdc);
@@ -124,10 +119,10 @@ async function seedSpot(p: Protocol, owner: string, implied: bigint): Promise<"s
   if (plan) {
     const asset = plan.wnearIn ? "wnear" : "usdc";
     // a little over the estimate; what is left stays in the owner's internal balance for the next move
-    const want = roundUpToUnits((plan.amountIn * 101n) / 100n, p.decimals(asset));
+    const want = roundUpToStep((plan.amountIn * 101n) / 100n, p.decimals(asset));
     const have = await p.realBalance(owner, asset);
     if (have < want) {
-      const top = roundUpToUnits(want - have, p.decimals(asset));
+      const top = roundUpToStep(want - have, p.decimals(asset));
       await p.mint(owner, asset, owner, top);
       await p.send(owner, asset, top, { action: "deposit" });
     }
@@ -141,7 +136,7 @@ async function postRaviBid(p: Protocol, owner: string, sid: number): Promise<str
   const ravi = p.d.personas.ravi;
   const poolPrice = SEED_2X2[3]?.price ?? 0n;
   const price = raviBidPrice(poolPrice);
-  const escrow = roundUpToUnits(orderCost(RAVI_BID_WNEAR, price), p.decimals("usdc"));
+  const escrow = roundUpToStep(orderCost(RAVI_BID_WNEAR, price), p.decimals("usdc"));
   const others = singles(SEED_2X2.length).filter((m) => m !== MASK_DELAYED_HOLDS);
   await p.mintAndSplit(owner, ravi, "usdc", sid, [MASK_DELAYED_HOLDS, ...others], escrow);
   const expiry = (await chainNowSec()) + RAVI_EXPIRY_SEC;

@@ -1,7 +1,22 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { formatNear, formatUnits, fromInternal, internalScale, parseNear, parseUnits, tgas, toInternal, u128 } from "./units.ts";
+import {
+  exactRaw,
+  formatNear,
+  formatUnits,
+  internalStep,
+  parseNear,
+  parseUnits,
+  roundDownToStep,
+  roundUpToStep,
+  splitByCap,
+  tgas,
+  toInternal,
+  toRaw,
+  u128,
+  WAD,
+} from "./units.ts";
 
 describe("parseUnits", () => {
   it("turns decimal strings into base units", () => {
@@ -79,17 +94,86 @@ describe("NEAR and gas", () => {
 });
 
 describe("internal 18-decimal units", () => {
-  it("scales by 10^(18 - decimals)", () => {
-    assert.equal(internalScale(6), 1_000_000_000_000n);
-    assert.equal(internalScale(18), 1n);
-    assert.throws(() => internalScale(24), /token decimals above 18/);
-    assert.equal(toInternal(3_000_000_000n, 6), 3_000n * 10n ** 18n);
+  it("scales up a token with 18 decimals or fewer", () => {
+    assert.equal(toInternal(3_000_000_000n, 6), 3_000n * WAD);
+    assert.equal(toInternal(5n, 18), 5n);
+    assert.equal(internalStep(6), 1_000_000_000_000n);
+    assert.equal(internalStep(18), 1n);
   });
 
-  it("floors when converting back, like the contract's payout", () => {
-    assert.equal(fromInternal(1_999_999_999_999n, 6), 1n);
-    assert.equal(fromInternal(999_999_999_999n, 6), 0n);
-    assert.equal(fromInternal(5n, 18), 5n);
+  it("floors when paying out a token with 18 decimals or fewer, like the contract", () => {
+    assert.equal(toRaw(1_999_999_999_999n, 6), 1n);
+    assert.equal(toRaw(999_999_999_999n, 6), 0n);
+    assert.equal(toRaw(5n, 18), 5n);
+  });
+
+  it("wNEAR (24 decimals): a whole deposit maps exactly, both ways", () => {
+    const twoThousand = parseUnits("2000", 24);
+    assert.equal(twoThousand, 2_000n * 10n ** 24n);
+    assert.equal(toInternal(twoThousand, 24), 2_000n * WAD);
+    assert.equal(toRaw(2_000n * WAD, 24), twoThousand);
+    assert.equal(toRaw(1n, 24), 1_000_000n);
+    assert.equal(internalStep(24), 1n);
+  });
+
+  it("wNEAR: a sub-internal remainder never enters the ledger", () => {
+    // 1.0000000000000000005 wNEAR: the last 500,000 yocto are below one internal unit
+    assert.equal(toInternal(10n ** 24n + 500_000n, 24), WAD);
+    assert.equal(toInternal(999_999n, 24), 0n);
+    assert.equal(toInternal(1_000_000n, 24), 1n);
+  });
+
+  it("wNEAR: a payout is exact, so every internal amount round-trips", () => {
+    for (const internal of [0n, 1n, 123_456_789n, 2_000n * WAD, 100_000n * WAD + 7n]) {
+      assert.equal(toInternal(toRaw(internal, 24), 24), internal);
+    }
+  });
+
+  it("refuses decimals above 24", () => {
+    assert.throws(() => toInternal(1n, 25), /token decimals above 24/);
+    assert.throws(() => toRaw(1n, 25), /token decimals above 24/);
+    assert.throws(() => internalStep(25), /token decimals above 24/);
+  });
+
+  it("rounds internal amounts to whole base units", () => {
+    assert.equal(roundUpToStep(1n, 6), 10n ** 12n);
+    assert.equal(roundUpToStep(10n ** 12n, 6), 10n ** 12n);
+    assert.equal(roundDownToStep(10n ** 12n + 1n, 6), 10n ** 12n);
+    // every internal amount is already a whole number of wNEAR base units
+    assert.equal(roundUpToStep(7n, 24), 7n);
+    assert.equal(roundDownToStep(7n, 24), 7n);
+  });
+
+  it("exactRaw: the token amount to transfer or mint, refusing dust", () => {
+    assert.equal(exactRaw(2_000n * WAD, 24), 2_000n * 10n ** 24n);
+    assert.equal(exactRaw(3_000n * WAD, 6), 3_000_000_000n);
+    assert.equal(exactRaw(1n, 24), 1_000_000n);
+    assert.throws(() => exactRaw(1n, 6, "usdc transfer"), /usdc transfer 1 is not a whole number of base units of a 6-decimal token/);
+  });
+});
+
+describe("faucet mints", () => {
+  const WNEAR_CAP = 10n ** 30n; // 1,000,000 wNEAR per call
+  const USDC_CAP = 10n ** 13n; // 10,000,000 USDC per call
+
+  it("the demo's wNEAR amounts fit one call each", () => {
+    for (const human of ["2000", "4000", "5000", "100000"]) {
+      const raw = exactRaw(toInternal(parseUnits(human, 24), 24), 24);
+      assert.deepEqual(splitByCap(raw, WNEAR_CAP), [raw], human);
+    }
+  });
+
+  it("a faucet drop of 2,000 wNEAR and 5,000 USDC is within each cap", () => {
+    assert.ok(parseUnits("2000", 24) <= WNEAR_CAP);
+    assert.ok(parseUnits("5000", 6) <= USDC_CAP);
+  });
+
+  it("splits a larger amount under the cap, in order", () => {
+    assert.deepEqual(splitByCap(2_500_000n * 10n ** 24n, WNEAR_CAP), [WNEAR_CAP, WNEAR_CAP, 500_000n * 10n ** 24n]);
+    assert.deepEqual(splitByCap(0n, WNEAR_CAP), []);
+    assert.deepEqual(splitByCap(USDC_CAP, USDC_CAP), [USDC_CAP]);
+    assert.throws(() => splitByCap(1n, 0n), /cap must be positive/);
+    assert.throws(() => splitByCap(-1n, 1n), /negative/);
   });
 });
 

@@ -32,7 +32,7 @@ import { reporterDeps } from "./lib/reporter.ts";
 import { resolveOnce, resolverEvents } from "./lib/resolver.ts";
 import { plan2x2, waitForTwap } from "./lib/sale.ts";
 import { seedDemo } from "./lib/seed.ts";
-import { tgas, u128, WAD } from "./lib/units.ts";
+import { internalStep, tgas, u128, WAD } from "./lib/units.ts";
 
 const { values: opts } = parseArgs({
   options: {
@@ -42,7 +42,6 @@ const { values: opts } = parseArgs({
 });
 
 const e18 = (n: bigint): bigint => n * WAD;
-const usdcUnits = (n: bigint): bigint => n * 10n ** 6n;
 
 class Pending extends Error {}
 
@@ -206,7 +205,7 @@ async function main(): Promise<void> {
 
   await flow.step("2. register and connect Alice", [], async () => {
     await p.ensureStorage(owner, alice);
-    const wnear = await p.walletBalance("wnear", alice);
+    const wnear = await p.walletInternal("wnear", alice);
     console.log(`    wallet: ${fmt2(wnear)} wNEAR`);
     check(wnear >= SALE_WNEAR, "Alice holds at least 2 wNEAR");
   });
@@ -242,7 +241,7 @@ async function main(): Promise<void> {
     check(before.worst === 3, "worst world DELAYED·HOLDS");
     const wallet = await p.walletBalance("usdc", alice);
     await p.call1y(alice, "borrow", { scenario_id: s, amount: e18(3000n).toString() }, "alice: borrow 3000 USDC");
-    check((await p.walletBalance("usdc", alice)) - wallet === usdcUnits(3000n), "3000 USDC paid to Alice's wallet");
+    check((await p.walletBalance("usdc", alice)) - wallet === p.rawOf("usdc", e18(3000n)), "3000 USDC paid to Alice's wallet");
     const { hf, worst } = await p.health(s, alice);
     const values = await p.collateralValues(s, alice);
     const lltv = u128((await p.appConfig()).lltv);
@@ -338,7 +337,7 @@ async function main(): Promise<void> {
     const debtBefore = await p.debt(s, carl);
     const pieces = (await p.collateral(s, carl)).map((c) => c.piece);
     // half the debt in whole USDC, with room for interest accrued until the transaction runs; the rest comes back
-    const scale = 10n ** 12n;
+    const scale = internalStep(p.decimals("usdc"));
     const send = ((debtBefore / 2n + debtBefore / 1000n + scale - 1n) / scale) * scale;
     await p.ensureStorage(owner, leo);
     await p.mint(owner, "usdc", leo, send);
@@ -412,7 +411,7 @@ async function main(): Promise<void> {
 
   await flow.step("11a. Alice closes her loan and redeems", ["3-4. sell in DELAYED·CUTS, SHIPS·HOLDS and DELAYED·HOLDS", "5. borrow 3000"], async () => {
     const debt = await p.debt(s, alice);
-    const scale = 10n ** 12n;
+    const scale = internalStep(p.decimals("usdc"));
     const send = ((debt + debt / 1000n + scale - 1n) / scale) * scale;
     await p.mint(owner, "usdc", alice, send);
     const wallet = await p.walletBalance("usdc", alice);
@@ -435,8 +434,7 @@ async function main(): Promise<void> {
     check(amount > 0n, `Ravi holds ${fmt2(amount)} ${asset.toUpperCase()}-if-DELAYED·HOLDS`);
     const wallet = await p.walletBalance(asset, ravi);
     await p.call1y(ravi, "redeem", { scenario_id: s, asset, mask: MASK_DELAYED_HOLDS, amount: amount.toString() }, `ravi: redeem ${asset}`);
-    const scale = asset === "usdc" ? 10n ** 12n : 1n;
-    check(((await p.walletBalance(asset, ravi)) - wallet) * scale === amount, "redeemed 1:1 into the wallet");
+    check(p.internalOf(asset, (await p.walletBalance(asset, ravi)) - wallet) === amount, "redeemed 1:1 into the wallet");
     await assertBacked(p, record);
   });
 
@@ -448,7 +446,7 @@ async function main(): Promise<void> {
         "a stale order after resolution cannot be filled",
       );
     }
-    const leoWnear = await p.walletBalance("wnear", leo);
+    const leoWnear = await p.walletInternal("wnear", leo);
     await expectFailure(p.send(leo, "wnear", leoWnear + e18(1000n), { action: "deposit" }), /balance|enough/i, "an amount above the wallet fails");
     await p.mint(owner, "usdc", leo, e18(1n));
     const leoUsdc = await p.walletBalance("usdc", leo);

@@ -3,7 +3,7 @@
 
 import type { Deployments } from "./deployments.ts";
 import { call, ensureStorage, ftTransferCall, ONE_YOCTO, view, type CallResult, type FtTransferCallOptions } from "./near.ts";
-import { fromInternal, parseNear, tgas, toInternal, u128 } from "./units.ts";
+import { exactRaw, parseNear, splitByCap, tgas, toInternal, toRaw, u128 } from "./units.ts";
 
 export type AssetName = "wnear" | "usdc";
 
@@ -152,21 +152,33 @@ export class Protocol {
     await ensureStorage(payer, this.contract, account, { minAvailable });
   }
 
+  /** The wallet's token balance in the token's own base units (24 decimals for wNEAR, 6 for USDC). */
   async walletBalance(asset: AssetName, account: string): Promise<bigint> {
     return u128(await view<string>(this.token(asset), "ft_balance_of", { account_id: account }), "ft_balance_of");
   }
 
+  /** The wallet's token balance in internal units, floored to what the contract would credit. */
+  async walletInternal(asset: AssetName, account: string): Promise<bigint> {
+    return this.internalOf(asset, await this.walletBalance(asset, account));
+  }
+
+  /** Token base units of `asset` to internal units. */
+  internalOf(asset: AssetName, raw: bigint): bigint {
+    return toInternal(raw, this.decimals(asset));
+  }
+
+  /** Internal units to token base units of `asset`, as the contract pays out. */
+  rawOf(asset: AssetName, internal: bigint): bigint {
+    return toRaw(internal, this.decimals(asset));
+  }
+
   /** Faucet-mints whole token units worth `internal` to `account`, in calls under the per-call cap. */
   async mint(signer: string, asset: AssetName, account: string, internal: bigint): Promise<void> {
-    let left = fromInternal(internal, this.decimals(asset));
-    if (toInternal(left, this.decimals(asset)) !== internal) throw new Error(`${internal} is not a whole number of ${asset} units`);
-    const cap = BigInt(this.d.tokens[asset].maxMintPerCall);
-    while (left > 0n) {
-      const amount = left > cap ? cap : left;
+    const raw = exactRaw(internal, this.decimals(asset), `${asset} mint`);
+    for (const amount of splitByCap(raw, BigInt(this.d.tokens[asset].maxMintPerCall))) {
       await call(signer, this.token(asset), "mint", { account_id: account, amount: amount.toString() }, {
         label: `mint ${amount} ${asset} base units to ${account}`,
       });
-      left -= amount;
     }
   }
 
@@ -178,8 +190,7 @@ export class Protocol {
     msg: Record<string, unknown>,
     options: FtTransferCallOptions = {},
   ): Promise<CallResult<string> & { used: bigint }> {
-    const amount = fromInternal(internal, this.decimals(asset));
-    if (toInternal(amount, this.decimals(asset)) !== internal) throw new Error(`${internal} is not a whole number of ${asset} units`);
+    const amount = exactRaw(internal, this.decimals(asset), `${asset} transfer`);
     const label = options.label ?? `${signer}: ${String(msg.action)} with ${amount} ${asset} base units`;
     return ftTransferCall(signer, this.token(asset), this.contract, amount, JSON.stringify(msg), { ...options, label });
   }
