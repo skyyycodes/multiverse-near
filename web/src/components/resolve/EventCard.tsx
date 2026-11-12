@@ -17,11 +17,13 @@ type Props = {
   /** The dispute window, for the countdown ring. */
   windowSec: number;
   kicker?: string;
+  /** False for an event outside the grid (the past Fed decision): resolving it removes no worlds. */
+  inGrid?: boolean;
   children?: ReactNode;
 };
 
 /** One event: question, outcomes, the precise rule, and where its resolution stands. */
-export function EventCard({ event: e, now, windowSec, kicker, children }: Props) {
+export function EventCard({ event: e, now, windowSec, kicker, inGrid = true, children }: Props) {
   const left = e.proposalOpen && now !== undefined ? e.finalizableAt - now : undefined;
   return (
     <article className="flex flex-col gap-3.5 rounded-[22px] border border-line bg-sheet p-5" data-demo="event-card" data-event={e.id}>
@@ -45,7 +47,7 @@ export function EventCard({ event: e, now, windowSec, kicker, children }: Props)
         ))}
       </div>
       <p className="text-[12px] leading-relaxed text-mute">{e.rule}</p>
-      <StatusLine event={e} now={now} />
+      <StatusLine event={e} now={now} inGrid={inGrid} />
       {children}
     </article>
   );
@@ -97,13 +99,13 @@ function Ring({ left, total }: { left: bigint; total: bigint }) {
   );
 }
 
-function StatusLine({ event: e, now }: { event: EventState; now?: bigint }) {
+function StatusLine({ event: e, now, inGrid }: { event: EventState; now?: bigint; inGrid: boolean }) {
   const by = e.proposedBy ? ` by ${SOURCE[e.proposedBy]}` : "";
   if (e.finalized) {
     return (
       <p className="text-[13px] text-ink" data-demo="event-status">
         Resolved <span className="font-semibold">{e.outcomeNames[e.outcome]}</span>
-        {by}. Worlds without it are gone for good.
+        {by}.{inGrid && " Worlds without it are gone for good."}
       </p>
     );
   }

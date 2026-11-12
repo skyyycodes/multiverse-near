@@ -48,8 +48,8 @@ function Admin({ config }: { config: AppConfig }) {
   const picked = (pick.key === pickKey ? pick.mask : 0) & (s?.possible ?? 0);
   const toggle = (m: number) => setPick({ key: pickKey, mask: picked === m ? 0 : m });
 
-  const card = (e: EventState, kicker: string) => (
-    <EventCard key={e.id} event={e} kicker={kicker} now={clock.now} windowSec={config.disputeWindowSec}>
+  const card = (e: EventState, kicker: string, inGrid = true) => (
+    <EventCard key={e.id} event={e} kicker={kicker} now={clock.now} windowSec={config.disputeWindowSec} inGrid={inGrid}>
       <ResolveControls event={e} now={clock.now} isOwner={isOwner} />
     </EventCard>
   );
@@ -84,7 +84,7 @@ function Admin({ config }: { config: AppConfig }) {
               inside its window.
             </p>
             {d.events.map((e, i) => card(e, `Event ${String.fromCharCode(65 + i)}`))}
-            {d.pastFedEvent && card(d.pastFedEvent, "Past Fed decision · resolver reads FRED")}
+            {d.pastFedEvent && card(d.pastFedEvent, "Past Fed decision · resolver reads FRED", false)}
           </Block>
         </>
       ) : (

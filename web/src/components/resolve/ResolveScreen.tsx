@@ -42,8 +42,8 @@ function Resolve({ config }: { config: AppConfig }) {
   const pending = d?.events.find((e) => e.proposalOpen);
   const pendingLeft = pending && clock.now !== undefined ? (pending.finalizableAt > clock.now ? pending.finalizableAt - clock.now : 0n) : undefined;
 
-  const card = (e: EventState, kicker: string) => (
-    <EventCard key={e.id} event={e} kicker={kicker} now={clock.now} windowSec={config.disputeWindowSec}>
+  const card = (e: EventState, kicker: string, inGrid = true) => (
+    <EventCard key={e.id} event={e} kicker={kicker} now={clock.now} windowSec={config.disputeWindowSec} inGrid={inGrid}>
       <FinalizeButton event={e} now={clock.now} blockTime={clock.blockTime} />
     </EventCard>
   );
@@ -104,7 +104,7 @@ function Resolve({ config }: { config: AppConfig }) {
                 The same resolver reads this event from FRED&apos;s federal funds target range (DFEDTARU and DFEDTARL must
                 agree). It is not part of the grid, so finalizing it removes no worlds.
               </p>
-              {card(d.pastFedEvent, "Past Fed decision · resolver reads FRED")}
+              {card(d.pastFedEvent, "Past Fed decision · resolver reads FRED", false)}
             </Block>
           )}
         </>
