@@ -11,17 +11,17 @@ import { ScenarioSwitch } from "./ScenarioSwitch";
 export function TopBar() {
   const path = usePathname();
   return (
-    <header className="mx-auto flex max-w-[1240px] items-center gap-6 px-8 pt-6 pb-2">
+    <header className="mx-auto flex max-w-[1240px] items-center gap-3 px-6 pt-6 pb-2 xl:gap-6 xl:px-8">
       <Link href="/" className="focus-ring shrink-0 rounded-full" aria-label="Multiverse Lending, home">
         <Wordmark />
       </Link>
       {/* Tested literally so a real build drops the chip, as it drops the fixtures themselves. */}
       {process.env.NEXT_PUBLIC_FIXTURES === "1" && (
-        <span className="rounded-full border border-dashed border-white/25 px-2.5 py-1 text-[11px] whitespace-nowrap text-white/60" title="Screens read design fixtures, not the chain">
+        <span className="hidden rounded-full border border-dashed border-white/25 px-2.5 py-1 xl:inline text-[11px] whitespace-nowrap text-white/60" title="Screens read design fixtures, not the chain">
           design data
         </span>
       )}
-      <nav className="flex items-center gap-1" aria-label="Screens">
+      <nav className="flex items-center gap-0.5 xl:gap-1" aria-label="Screens">
         {NAV.map((n) => {
           const sub = n.href === "/" && /^\/(sell|world)/.test(path ?? "");
           const active = samePath(path, n.href) || sub;
@@ -31,7 +31,7 @@ export function TopBar() {
               href={n.href}
               aria-current={active ? "page" : undefined}
               data-demo={n.demo}
-              className={`focus-ring rounded-full px-3 py-2 text-[14px] whitespace-nowrap transition-colors xl:px-3.5 ${
+              className={`focus-ring rounded-full px-2.5 py-2 text-[14px] whitespace-nowrap transition-colors xl:px-3.5 ${
                 active ? "bg-white/12 font-medium text-white" : "text-white/65 hover:text-white"
               }`}
             >
