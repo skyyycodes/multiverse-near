@@ -30,8 +30,9 @@ cargo test --locked
 ```
 
 `rust-toolchain.toml` pins Rust 1.86.0 with the `wasm32-wasip2` target, and
-`build.sh` remaps source paths, so the same lockfile gives the same bytes on
-any machine. It prints the SHA-256 the contract pins:
+`build.sh` remaps source paths, so the same toolchain and lockfile should give
+the same bytes on another machine (two builds here at different paths did). It
+prints the SHA-256 the contract pins:
 
 ```
 8c809e11f5b4b37627baa5c0a65a8587ef5f3e4918d1e0bb42cb2f87a5ae1660  target/wasm32-wasip2/release/fred-guest.wasm
@@ -146,7 +147,8 @@ near contract call-function as-transaction app.multiverse-near.testnet request_r
 
 The contract calls `request_execution` on `outlayer.testnet` with the pinned
 URL and hash, the limits, the stored dates as input, `response_format` Json and
-`<you>.testnet` as payer. About 10–15 s later OutLayer resumes the call and the
+`<you>.testnet` as payer. OutLayer resumes the call about 15 s later (15 s in the run of 2026-11-12, of which the guest
+ran 1.7 s) and the
 contract's callback either proposes the outcome with source `outlayer` (event
 `outcome_proposed`) or logs why not (event `outlayer_result`). Only one run per
 event can be in flight. Check it, then finalize once the dispute window is over:

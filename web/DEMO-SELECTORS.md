@@ -108,7 +108,7 @@ proposal with a countdown comes from the resolver's `report_outcome`.
 | Hook | What, and the text it carries |
 |---|---|
 | `trade` / `sell` / `orders` | The screen's `main` |
-| `hero-spot` | "NEAR SPOT" numeral ("$3.0378") and "implied by the four futures: $3.0378 ✓" (or the difference) |
+| `hero-spot` | "NEAR SPOT" numeral ("$3.0376" on the seeded chain, "$3.0378" in the design fixtures) and "implied by the four futures: $3.0376 ✓" (or the difference) |
 | `balance-chips` | Wallet wNEAR, USDC, and "In Multiverse" when non-zero |
 | `empty-wallet-hint`, `hint-test-tokens` | Testnet, connected wallet with no wNEAR and no USDC: the same "Get test tokens" button under the balances |
 | `scenario-status` | "scenario {id} · {n} resolved", plus " · paused: resolution pending" while halted |
@@ -130,7 +130,7 @@ proposal with a countdown comes from the resolver's `report_outcome`.
 | `order-panel`, `book-pick-grid`, `book-pick` | Order book; phone picker |
 | `ladder`, `ladder-row` (`data-side`), `ladder-pool`, `accept` | Ladder: asks above "pool price", bids below; `accept` per row ("Accept") |
 | `accept-box`, `accept-amount`, `accept-confirm` | "Buy from ask #2 at $3.7500" / "Sell into bid …"; input `aria-label="Amount of NEAR to trade with this order"`; "Confirm" |
-| `post-form`, `post-bid-tab`, `post-ask-tab`, `post-price`, `post-amount`, `post-life`, `post-bid`, `post-ask` | "Post bid" / "Post ask"; "Price (USDC per NEAR)", "Amount (NEAR)", "Good for"; the crossing warning "This bid crosses ask #… which is already there." sits in `post-form` |
+| `post-form`, `post-bid-tab`, `post-ask-tab`, `post-price`, `post-amount`, `post-life`, `post-bid`, `post-ask` | "Post bid" / "Post ask"; "Price (USDC per NEAR)", "Amount (NEAR)", "Good for"; the crossing warning "This bid crosses ask #… at $…, which is already there." sits in `post-form` |
 | `my-orders`, `cancel-order` | "Your orders here"; "Cancel" / "Cancel and take the escrow back" |
 
 ### World (`/world/?w=3`)

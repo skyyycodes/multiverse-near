@@ -10,7 +10,7 @@ Do not put real funds into it.
 |---|---|
 | Protocol contract: verse algebra, oracle, pools and TWAP, order book, router, lending, Root LP vault, NEP-141 receiver and payouts, NEP-245, NEP-145 storage, admin and views | `contracts/multiverse` |
 | Fixed-point maths, CPMM, tick maths, TWAP ring, order and share maths | `crates/multiverse-math` |
-| Mock NEP-141 token with an open faucet (testnet only) | `contracts/mock-ft` |
+| Mock NEP-141 token with an open mint capped per call (testnet only) | `contracts/mock-ft` |
 | Deploy, seed, demo sale, reset, e2e and the resolver that proposes outcomes | `scripts` |
 
 The web app is out of scope except where it relies on a contract view (`trade_view` in RT-2).
@@ -147,7 +147,7 @@ check the lending maths and not the price source. ECON-1 and ECON-2 are about th
   a 30 s dispute window unless the owner disputes it, so a wrong proposal that nobody watches becomes final.
 - **The demo's grid events resolve from a file in the repository** (`deployments/demo-outcomes.json`) that the team
   controls. Only the past FOMC event resolves from real FRED data.
-- **The tokens are mocks.** wNEAR and USDC are `mock-ft` deployments with an open, capped faucet. They have no value.
+- **The tokens are mocks.** wNEAR and USDC are `mock-ft` deployments with an open mint capped per call. They have no value.
 - **Liquidity is seeded by the team.** All pool liquidity, Bob's supply and Ravi's order come from the seed script.
   Prices are only as good as that seeding and whatever trading follows.
 - **Testnet only.** Nothing here has been deployed or tested on mainnet.

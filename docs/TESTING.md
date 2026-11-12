@@ -26,10 +26,10 @@ pools, the dynamic fee, the TWAP ring, odds, shares, order maths and worst-world
 
 | Binary | Tests | What it covers |
 |---|---|---|
-| unit tests in `src/` | 64 | Each module's own cases: rounding directions, overflow panics, fee window, TWAP spacing, serde forms |
-| `tests/reference_vectors.rs` | 2 | A differential test. `tests/vectors/reference-vectors.txt` (4,188 lines) holds reference vectors generated from the prototype's maths (`TickMath`, the full-width `mulDiv`, `PriceMath`, `OddsTree`, `SharesMath`, `OrderMath`, `SwapFlow` and `TwapOracle`) from a fixed pseudo-random input chain. Every line must come out the same here, bit for bit |
+| unit tests in `src/` | 64 | Each module's own cases: rounding directions, overflow panics, fee window, TWAP spacing (the 3 serde-form tests in `src/serde_impls.rs` run only with `cargo test -p multiverse-math --features serde`) |
+| `tests/reference_vectors.rs` | 2 | A differential test. `tests/vectors/reference-vectors.txt` (4,188 lines) holds reference vectors generated from the prototype's maths (tick maths, the full-width `mul_div`, price conversion, the odds tree, share, order and swap maths, and the TWAP oracle) from a fixed pseudo-random input chain. Every line must come out the same here, bit for bit |
 | `tests/libraries.rs` | 10 | The TWAP oracle and the price conversions against the reference test suite, same inputs and assertions; its fuzz tests run as proptests with 512 cases |
-| `tests/pools.rs` | 23 | The pool layer: the dynamic fee and the TWAP, the spot pool's price moves, the odds, and the demo's golden numbers at NEAR scale (a few USDC per NEAR, pools 100,000 NEAR deep), on the constant-product pool |
+| `tests/pools.rs` | 23 | The pool layer: the dynamic fee and the TWAP, the spot pool's price moves, the odds, and the demo's golden numbers at NEAR scale (a few USDC per NEAR, pools 100,000 NEAR deep, DELAYED·HOLDS 40,000), on the constant-product pool |
 | `tests/properties.rs` | 14 | Proptests (512 to 1,024 cases each): integer maths agrees with wide references, pools never lose value to rounding, fees stay within base and cap, share and order maths never favour the user, odds always add up to 1, a liquidation slice covers its repayment |
 
 ## Contract unit tests (`contracts/multiverse/src/tests`)
@@ -56,7 +56,7 @@ pools, order escrow, collateral and the Root LP vault hold.
 | `rootlp.rs` | Root LP deposits, joins, withdrawals, fees, behaviour across resolution |
 | `views.rs` | The per-screen snapshot views |
 | `outlayer.rs` | 16 tests: configuration, the request, and a callback that never panics on a failed, `null` or malformed result |
-| `security.rs` | One regression test per finding of `docs/SECURITY.md`, each first written as a failing test against the unfixed code |
+| `security.rs` | The 8 regression tests for eight of the ten findings of `docs/SECURITY.md` (STD-3's is in `scripts/lib/resolver.test.ts`, STD-4's in `contracts/mock-ft/src/lib.rs`), each first written as a failing test against the unfixed code |
 
 `golden_demo_sale` runs the demo end to end at NEAR scale: the seeded pools, Bob's supply, Ravi's bid, Alice's
 2,000 NEAR sale in the L-shape and her 3,000 USDC loan. It checks the per-world proceeds (5,865.05, 6,451.55,

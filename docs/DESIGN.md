@@ -178,8 +178,9 @@ pieces land in the liquidator's ledger, real pieces in the liquidator's internal
 coverage on random histories. When `C_min` is below the target, the liquidator takes everything and the shortfall
 is bad debt; the property test counts and prints those cases.
 
-In the e2e run, Carl borrows 1,799.50 USDC against 1,000 real wNEAR, the owner pushes DELAYED·HOLDS down by selling
-3,000 NEAR into it, and after the TWAP catches up Carl is at HF 0.86. Leo repays half the debt and Carl's HF rises to 0.93.
+In the sandbox e2e run of 2026-11-12, Carl borrows 1,799.32 USDC against 1,000 real wNEAR, the owner pushes
+DELAYED·HOLDS down by selling 3,000 NEAR into it, and after the TWAP catches up Carl is at HF 0.86. Leo repays half the
+debt and Carl's HF rises to 0.93 (on testnet the same flow borrowed 1,785.34 USDC and ended at 0.95).
 
 ## Root LP
 
