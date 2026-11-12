@@ -8,7 +8,7 @@ import { AccountButton, HelpLink, StatusBell } from "./HeaderActions";
 import { NAV, samePath } from "./nav";
 import { ScenarioSwitch } from "./ScenarioSwitch";
 
-/** Desktop header on the navy stage: wordmark, the five screens, scenario, status, account. */
+/** Desktop header on the navy stage: wordmark, the screens, scenario, status, account. */
 export function TopBar() {
   const path = usePathname();
   return (
@@ -23,15 +23,15 @@ export function TopBar() {
       )}
       <nav className="flex items-center gap-1" aria-label="Screens">
         {NAV.map((n) => {
-          const sub = n.href === "/" && /^\/(sell|orders|world)/.test(path ?? "");
+          const sub = n.href === "/" && /^\/(sell|world)/.test(path ?? "");
           const active = samePath(path, n.href) || sub;
           return (
             <Link
               key={n.href}
               href={n.href}
               aria-current={active ? "page" : undefined}
-              data-demo={`nav-${n.label.toLowerCase()}`}
-              className={`focus-ring rounded-full px-3.5 py-2 text-[14px] transition-colors ${
+              data-demo={n.demo}
+              className={`focus-ring rounded-full px-3 py-2 text-[14px] whitespace-nowrap transition-colors xl:px-3.5 ${
                 active ? "bg-white/12 font-medium text-white" : "text-white/65 hover:text-white"
               }`}
             >

@@ -69,8 +69,8 @@ The layout is chosen in script at 1024 px, so each screen renders one tree and t
 - Phone (< 1024 px, e.g. 390 × 844): the grid on `/` is replaced by the futures strip and list; picking worlds happens
   in the picker on `/sell/` (`[data-demo="world-pick"]`) and `/orders/` (`[data-demo="book-pick"]`). Navigation is
   the floating pill at the bottom (`nav-trade`, `nav-sell`, `nav-borrow`, `nav-more` → `more-*`).
-- Desktop: the grid cards (`[data-demo="world-card"]`) are the order form, as in the EVM app; the top bar has the
-  five links (`nav-trade`, `nav-borrow`, `nav-lend`, `nav-resolve`, `nav-admin`).
+- Desktop: the grid cards (`[data-demo="world-card"]`) are the order form; the top bar has six links (`nav-trade`,
+  `nav-orders`, `nav-borrow`, `nav-lend`, `nav-resolve`, `nav-admin`).
 
 World-specific elements carry `data-world="<LABEL>"` (e.g. `[data-demo="world-card"][data-world="DELAYED·HOLDS"]`).
 Ladder rows carry `data-side="bid|ask"`; event cards `data-event="<id>"`.
