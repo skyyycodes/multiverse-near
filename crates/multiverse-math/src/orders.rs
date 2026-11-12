@@ -29,8 +29,8 @@ mod tests {
 
     #[test]
     fn worked_examples() {
-        // A 3 wei bid at 1.5 escrows ceil(4.5) = 5; three 1 wei fills pay 1 each and the
-        // last one refunds the 2 wei of rounding dust to the maker.
+        // A 3-unit bid at 1.5 escrows ceil(4.5) = 5; three 1-unit fills pay 1 each and the
+        // last one refunds the 2 units of rounding dust to the maker.
         let price = 1_500_000_000_000_000_000;
         let mut escrow = cost(3, price);
         assert_eq!(escrow, 5);
@@ -40,12 +40,12 @@ mod tests {
             escrow -= paid;
         }
         assert_eq!(escrow, 2);
-        // An ask of 3 wei at 1.5: filling 1 wei costs ceil(1.5) = 2.
+        // An ask of 3 units at 1.5: filling 1 unit costs ceil(1.5) = 2.
         assert_eq!(cost(1, price), 2);
-        // A 1 wei sale into a bid at 0.5 pays nothing (the book rejects it with ZeroValue).
+        // A 1-unit sale into a bid at 0.5 pays nothing (the book rejects it with ZeroValue).
         assert_eq!(proceeds(1, 500_000_000_000_000_000), 0);
-        // Ravi's demo bid: 1 wNEAR at 2,450 escrows exactly 2,450 USDC.
-        assert_eq!(cost(WAD, 2_450 * WAD), 2_450 * WAD);
-        assert_eq!(cost(0, 2_450 * WAD), 0);
+        // Ravi's demo bid: 1,000 wNEAR at 2.45 escrows exactly 2,450 USDC.
+        assert_eq!(cost(1_000 * WAD, 2_450 * WAD / 1_000), 2_450 * WAD);
+        assert_eq!(cost(0, 2_450 * WAD / 1_000), 0);
     }
 }

@@ -10,7 +10,7 @@ pub use wide::{U256, U512};
 pub const WAD: u128 = 1_000_000_000_000_000_000;
 
 // uint 0.10: no_std, MSRV 1.56, builds for wasm32 on the pinned 1.86, and gives fixed-width U256/U512 with the
-// div_mod and integer_sqrt used here. primitive-types would only add Ethereum hash types on top of the same macro;
+// div_mod and integer_sqrt used here. primitive-types would only add hash types on top of the same macro;
 // ruint's current releases need a newer compiler than 1.86.
 mod wide {
     // The arithmetic in here comes from the uint macro, which predates these clippy lints.

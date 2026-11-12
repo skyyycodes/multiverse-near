@@ -12,7 +12,7 @@ use crate::fixed::{checked_mul_div, mul_div_down, mul_div_u256, Rounding, U256, 
 pub const CLOSE_FACTOR: u128 = WAD / 2;
 
 /// `floor(lowest * lltv / debt)` (WAD); `None` (infinitely healthy) without debt. Saturates at `u128::MAX` rather
-/// than overflow (1 wei of debt against real collateral).
+/// than overflow (1 unit of debt against real collateral).
 pub fn health_factor(lowest: u128, debt: u128, lltv: u128) -> Option<u128> {
     if debt == 0 {
         return None;
@@ -115,7 +115,7 @@ mod tests {
     fn health_factor_edges() {
         assert_eq!(health_factor(5 * WAD, 0, LLTV), None);
         assert_eq!(health_factor(0, 1, LLTV), Some(0));
-        // 1e30 of collateral against 1 wei of debt is 7.5e47, far above u128: saturate.
+        // 1e30 of collateral against 1 unit of debt is 7.5e47, far above u128: saturate.
         assert_eq!(health_factor(10u128.pow(30), 1, LLTV), Some(u128::MAX));
         assert!(is_healthy(None));
         assert!(is_healthy(Some(WAD)));
@@ -172,9 +172,10 @@ mod tests {
 
     #[test]
     fn dust_threshold_matches_the_spec() {
-        // 7 pieces at a max price of 3,700 need a repayment of at least 20 * 7 * 3,702 = 518,280 wei.
-        let max_price = 3_700 * WAD;
-        assert_eq!(dust_allowance(7, max_price), 7 * 3_702);
+        // 7 pieces at a max price of 3.70 (3 whole USDC per unit, plus 2) need a repayment of at least
+        // 20 * 7 * 5 = 700 units.
+        let max_price = 3_700 * WAD / 1_000;
+        assert_eq!(dust_allowance(7, max_price), 7 * 5);
         let lowest = 10_000 * WAD;
         let check = |repaid: u128| {
             is_too_small(
@@ -186,24 +187,24 @@ mod tests {
             )
         };
         assert!(check(1));
-        assert!(check(518_260));
-        assert!(check(518_279));
-        assert!(!check(518_280));
-        // 16 pieces at $4,000: allowance 64,032 wei, smallest cut 1,280,640 wei.
-        assert_eq!(dust_allowance(16, 4_000 * WAD), 64_032);
+        assert!(check(680));
+        assert!(check(699));
+        assert!(!check(700));
+        // 16 pieces at $4.00: allowance 96 units, smallest cut 1,920 units.
+        assert_eq!(dust_allowance(16, 4 * WAD), 96);
         let check16 = |repaid: u128| {
             is_too_small(
                 repaid,
                 liquidation_target(repaid, BONUS),
                 lowest,
                 16,
-                4_000 * WAD,
+                4 * WAD,
             )
         };
-        assert!(check16(1_280_639));
-        assert!(!check16(1_280_640));
+        assert!(check16(1_919));
+        assert!(!check16(1_920));
         // A full seizure is never too small.
-        assert!(!is_too_small(1, 2, 2, 16, 4_000 * WAD));
+        assert!(!is_too_small(1, 2, 2, 16, 4 * WAD));
     }
 
     #[test]
@@ -212,7 +213,7 @@ mod tests {
         assert_eq!(seize_amount(7, 1_300, 1_300), 7);
         assert_eq!(seize_amount(7, 0, 0), 7);
         assert_eq!(seize_amount(0, 5, 10), 0);
-        // One wei of debt cannot be liquidated: the close factor rounds the repayment to zero.
+        // One unit of debt cannot be liquidated: the close factor rounds the repayment to zero.
         assert_eq!(max_repay(1), 0);
         assert_eq!(max_repay(u128::MAX), u128::MAX / 2);
     }

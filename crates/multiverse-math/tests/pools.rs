@@ -1,8 +1,8 @@
-//! The pool layer at the maths level: the dynamic-fee and TWAP tests of `VerseHook.t.sol`, `PoolSeeder.t.sol`'s
-//! price moves, the odds tests of `MultiverseLens.t.sol`, and the demo's golden numbers,
-//! run against the constant-product pool that replaces Uniswap v4.
+//! The pool layer at the maths level: the dynamic fee and the TWAP, the spot pool's price moves, the odds, and the
+//! demo's golden numbers at NEAR scale (a few USDC per NEAR, pools 100,000 NEAR deep), run against the
+//! constant-product pool.
 //!
-//! Orientation as on NEAR: a within-world pool has wNEAR-if-w as token0 and USDC-if-w as token1, a between-world pool
+//! Orientation: a within-world pool has wNEAR-if-w as token0 and USDC-if-w as token1, a between-world pool
 //! has the lower mask as token0. The fee window measures token0 in both.
 
 use multiverse_math::cpmm::{Pool, Position, SwapResult};
@@ -14,14 +14,23 @@ use proptest::prelude::*;
 const BASE_FEE: u32 = 3000;
 const MAX_FEE: u32 = 15000;
 const LLTV: u128 = 750_000_000_000_000_000;
+/// 0.001 in WAD: demo prices are a few USDC per NEAR.
+const E15: u128 = 1_000_000_000_000_000;
+/// 1,000 NEAR.
+const K: u128 = 1_000 * WAD;
 
-/// The demo scripts' `_fmt`: integer part, a point, two decimals rounded down.
+/// The demo scripts' amount format: integer part, a point, two decimals rounded down.
 fn fmt(amount: u128) -> String {
     format!(
         "{}.{:02}",
         amount / WAD,
         amount % WAD / 10_000_000_000_000_000
     )
+}
+
+/// A NEAR price with five decimals, rounded down: at a few dollars, cents alone would hide the differences.
+fn fmt5(price: u128) -> String {
+    format!("{}.{:05}", price / WAD, price % WAD / 10_000_000_000_000)
 }
 
 /// A pool as the contract keeps it: curve and fees, the fee window and the TWAP.
@@ -34,7 +43,7 @@ struct VersePool {
 
 impl VersePool {
     /// Full range at `price` (USDC per wNEAR, WAD) with `depth` wNEAR and `floor(depth * price / 1e18)` USDC, as
-    /// SeedDemo seeds the world pools.
+    /// the demo seed opens the world pools.
     fn seed(price: u128, depth: u128) -> Self {
         let usdc = multiverse_math::mul_div_down(depth, price, WAD);
         Self::with_reserves(depth, usdc)
@@ -58,7 +67,7 @@ impl VersePool {
         self.flow.fee(BASE_FEE, MAX_FEE)
     }
 
-    /// What the hook did after every swap: a TWAP point at the post-swap tick, then the flow record.
+    /// What the contract does after every swap: a TWAP point at the post-swap tick, then the flow record.
     fn after_swap(&mut self, swap: &SwapResult) {
         self.oracle.write(self.now, self.pool.tick().unwrap());
         self.flow
@@ -103,59 +112,59 @@ impl VersePool {
 
 #[test]
 fn fee_base_without_history() {
-    let mut p = VersePool::seed(2_500 * WAD, 100 * WAD);
+    let mut p = VersePool::seed(2_500 * E15, 100_000 * WAD);
     assert_eq!(p.flow_of(), (0, 0, 0));
     assert_eq!(p.fee_of(), BASE_FEE);
-    let (swap, fee) = p.sell(WAD);
+    let (swap, fee) = p.sell(K);
     assert_eq!(fee, BASE_FEE);
-    assert_eq!(swap.fee_amount, 3_000_000_000_000_000);
-    // After one 1 wNEAR sale the window is [-1e18], entirely one-sided.
+    assert_eq!(swap.fee_amount, 3 * WAD);
+    // After one 1,000 wNEAR sale the window is [-1e21], entirely one-sided.
     assert_eq!(p.fee_of(), MAX_FEE);
 }
 
 #[test]
 fn fee_base_with_balanced_flow() {
-    let mut p = VersePool::seed(2_500 * WAD, 100 * WAD);
+    let mut p = VersePool::seed(2_500 * E15, 100_000 * WAD);
     for _ in 0..4 {
-        p.sell(WAD);
-        p.buy(WAD);
+        p.sell(K);
+        p.buy(K);
         assert_eq!(p.fee_of(), BASE_FEE);
     }
-    // netSold 0, total 8e18, 8 swaps (flowOf reports (net, total, swaps)).
-    assert_eq!(p.flow_of(), (0, 8 * WAD, 8));
-    assert_eq!(p.sell(WAD).1, BASE_FEE);
+    // net sold 0, total 8e21, 8 swaps (`flow_of` reports (net, total, swaps)).
+    assert_eq!(p.flow_of(), (0, 8 * K, 8));
+    assert_eq!(p.sell(K).1, BASE_FEE);
 }
 
 #[test]
 fn fee_rises_under_one_sided_flow() {
-    let mut p = VersePool::seed(2_500 * WAD, 100 * WAD);
+    let mut p = VersePool::seed(2_500 * E15, 100_000 * WAD);
     for _ in 0..4 {
-        p.buy(WAD);
+        p.buy(K);
     }
     for _ in 0..4 {
-        p.sell(WAD);
+        p.sell(K);
     }
     // Each sale pushes one buy out of the window: |net| / total = 0, 2/8, 4/8, 6/8, 8/8, 8/8.
-    let paid: Vec<u32> = (0..6).map(|_| p.sell(WAD).1).collect();
+    let paid: Vec<u32> = (0..6).map(|_| p.sell(K).1).collect();
     assert_eq!(paid, [3000, 6000, 9000, 12000, 15000, 15000]);
 }
 
 #[test]
 fn fee_rounds_up_in_the_pools_favour() {
-    let mut p = VersePool::seed(2_500 * WAD, 100 * WAD);
-    p.sell(WAD + 1);
-    p.buy(WAD);
-    // net 1, total 2e18 + 1: 3000 + ceil(12000 / (2e18 + 1)) = 3001.
-    assert_eq!(p.flow_of(), (1, 2 * WAD + 1, 2));
+    let mut p = VersePool::seed(2_500 * E15, 100_000 * WAD);
+    p.sell(K + 1);
+    p.buy(K);
+    // net 1, total 2e21 + 1: 3000 + ceil(12000 / (2e21 + 1)) = 3001.
+    assert_eq!(p.flow_of(), (1, 2 * K + 1, 2));
     assert_eq!(p.fee_of(), 3001);
 }
 
 #[test]
 fn fee_is_per_pool() {
-    let mut delayed_holds = VersePool::seed(2_500 * WAD, 100 * WAD);
-    let ships_cuts = VersePool::seed(3_700 * WAD, 100 * WAD);
+    let mut delayed_holds = VersePool::seed(2_500 * E15, 100_000 * WAD);
+    let ships_cuts = VersePool::seed(3_700 * E15, 100_000 * WAD);
     for _ in 0..3 {
-        delayed_holds.sell(WAD);
+        delayed_holds.sell(K);
     }
     assert_eq!(delayed_holds.fee_of(), MAX_FEE);
     assert_eq!(ships_cuts.fee_of(), BASE_FEE);
@@ -163,9 +172,9 @@ fn fee_is_per_pool() {
 
 #[test]
 fn fee_volume_is_the_wnear_side_whichever_way_it_moves() {
-    let mut p = VersePool::seed(3_000 * WAD, 100 * WAD);
-    p.sell(WAD);
-    assert_eq!(p.flow_of(), (WAD as i128, WAD, 1));
+    let mut p = VersePool::seed(3_000 * E15, 100_000 * WAD);
+    p.sell(K);
+    assert_eq!(p.flow_of(), (K as i128, K, 1));
     // Paying USDC in buys wNEAR out: the window records the wNEAR bought, not the USDC paid.
     let (swap, _) = p.sell_token1(3_000 * WAD);
     assert_eq!(p.flow.volumes()[1], swap.amount_out as i128);
@@ -185,26 +194,26 @@ fn fee_between_world_pool() {
 
 #[test]
 fn fee_dust_swaps_do_not_reset_the_window() {
-    let mut p = VersePool::seed(2_500 * WAD, 100 * WAD);
+    let mut p = VersePool::seed(2_500 * E15, 100_000 * WAD);
     for _ in 0..8 {
-        p.sell(WAD);
+        p.sell(K);
     }
     for _ in 0..8 {
-        // 1 wei of USDC-if-w in buys no wNEAR, so nothing is recorded (but the TWAP still gets a point).
+        // 1 unit of USDC-if-w in buys no wNEAR, so nothing is recorded (but the TWAP still gets a point).
         let (swap, _) = p.sell_token1(1);
         assert_eq!(swap.amount_out, 0);
     }
-    assert_eq!(p.flow_of(), (8 * WAD as i128, 8 * WAD, 8));
+    assert_eq!(p.flow_of(), (8 * K as i128, 8 * K, 8));
     assert_eq!(p.fee_of(), MAX_FEE);
 }
 
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(512))]
 
-    /// testFuzz_fee_oneSidedFromEmptyHistory: ten sales of 1e9..2e18; the first pays the base fee, the rest the cap.
+    /// Ten sales of 1e9..2e21; the first pays the base fee, the rest the cap.
     #[test]
-    fn fee_one_sided_from_empty_history(sizes in proptest::collection::vec(1_000_000_000u128..=2 * WAD, 10)) {
-        let mut p = VersePool::seed(2_500 * WAD, 100 * WAD);
+    fn fee_one_sided_from_empty_history(sizes in proptest::collection::vec(1_000_000_000u128..=2 * K, 10)) {
+        let mut p = VersePool::seed(2_500 * E15, 100_000 * WAD);
         let mut last = 0;
         for (i, size) in sizes.into_iter().enumerate() {
             let fee = p.sell(size).1;
@@ -214,11 +223,11 @@ proptest! {
         }
     }
 
-    /// testFuzz_fee_matchesTheFormula: twenty swaps of 1e9..3e18 either way (sales exact input, purchases exact
+    /// Twenty swaps of 1e9..3e21 either way (sales exact input, purchases exact
     /// output); every fee equals an independent evaluation of the formula over the previous eight recorded swaps.
     #[test]
-    fn fee_matches_the_formula(swaps in proptest::collection::vec((any::<bool>(), 1_000_000_000u128..=3 * WAD), 20)) {
-        let mut p = VersePool::seed(2_500 * WAD, 100 * WAD);
+    fn fee_matches_the_formula(swaps in proptest::collection::vec((any::<bool>(), 1_000_000_000u128..=3 * K), 20)) {
+        let mut p = VersePool::seed(2_500 * E15, 100_000 * WAD);
         let mut recorded: Vec<i128> = Vec::new();
         for (is_sale, size) in swaps {
             let window = &recorded[recorded.len().saturating_sub(8)..];
@@ -237,7 +246,7 @@ proptest! {
 
 #[test]
 fn mean_tick_needs_a_full_window_of_history() {
-    let mut p = VersePool::seed(2_500 * WAD, 100 * WAD);
+    let mut p = VersePool::seed(2_500 * E15, 100_000 * WAD);
     let seeded = p.pool.tick().unwrap();
     assert_eq!(p.oracle.mean_tick(p.now, 60), None);
     p.now += 59;
@@ -248,10 +257,10 @@ fn mean_tick_needs_a_full_window_of_history() {
 
 #[test]
 fn mean_tick_is_time_weighted() {
-    let mut p = VersePool::seed(2_500 * WAD, 100 * WAD);
+    let mut p = VersePool::seed(2_500 * E15, 100_000 * WAD);
     p.now += 100;
     let tick0 = p.pool.tick().unwrap();
-    p.sell(5 * WAD);
+    p.sell(5 * K);
     let tick1 = p.pool.tick().unwrap();
     assert!(tick1 < tick0);
     p.now += 30;
@@ -263,12 +272,12 @@ fn mean_tick_is_time_weighted() {
 fn same_second_swaps_count_once() {
     // A sale and its reversal inside one second: the deep tick in between carries no weight, only the tick the
     // second ends on does.
-    let mut p = VersePool::seed(2_500 * WAD, 100 * WAD);
+    let mut p = VersePool::seed(2_500 * E15, 100_000 * WAD);
     let seeded = p.pool.tick().unwrap();
     p.now += 30;
-    p.sell(10 * WAD);
+    p.sell(10 * K);
     let low = p.pool.tick().unwrap();
-    p.buy(10 * WAD);
+    p.buy(10 * K);
     let end = p.pool.tick().unwrap();
     assert!(low + 1_000 < end);
     assert_eq!(p.oracle.count(), 2);
@@ -281,92 +290,96 @@ fn same_second_swaps_count_once() {
 fn seeded_prices_match_the_spec() {
     // Every world pool sits exactly at its demo price, and L = sqrt(x * y).
     let worlds = [
-        (3_700, 100, 6_082),
-        (3_000, 100, 5_477),
-        (3_300, 100, 5_744),
-        (2_500, 40, 2_000),
+        (3_700, 100_000, 192_353),
+        (3_000, 100_000, 173_205),
+        (3_300, 100_000, 181_659),
+        (2_500, 40_000, 63_245),
     ];
     for (price, depth, liquidity) in worlds {
-        let p = VersePool::seed(price * WAD, depth * WAD);
-        assert_eq!(p.wnear_price(), price * WAD);
+        let p = VersePool::seed(price * E15, depth * WAD);
+        assert_eq!(p.wnear_price(), price * E15);
         assert_eq!(p.pool.liquidity() / WAD, liquidity);
-        // The v4 reading through the square-root price is within 1e-6 (here: one wei low or exact).
+        // The reading through the square-root price is within 1e-6 (here: one unit low or exact).
         let via_sqrt = price::from_sqrt_price_x96(p.pool.sqrt_price_x96().unwrap()).unwrap();
-        assert!(price * WAD - via_sqrt <= 1);
+        assert!(price * E15 - via_sqrt <= 1);
     }
 }
 
 #[test]
 fn demo_twap_prices() {
-    // With wNEAR-if-w as token0, the TWAP of a freshly seeded pool reads one tick below the seed price.
+    // With wNEAR-if-w as token0, the TWAP of a freshly seeded pool reads one tick below the seed price. At a few
+    // dollars the tick grid sits elsewhere than at the prototype's thousands, so 2.80 reads 2.79980 where the
+    // prototype's demo numbers had 2,799.79; the others carry over digit for digit.
     let expected = [
-        (3_700, "3699.63"),
-        (3_000, "2999.79"),
-        (3_300, "3299.72"),
-        (2_500, "2499.90"),
-        (3_400, "3399.87"),
-        (2_800, "2799.79"),
+        (3_700, "3.69963"),
+        (3_000, "2.99979"),
+        (3_300, "3.29972"),
+        (2_500, "2.49990"),
+        (3_400, "3.39987"),
+        (2_800, "2.79980"),
     ];
-    for (seed_price, twap_cents) in expected {
-        let mut p = VersePool::seed(seed_price * WAD, 100 * WAD);
+    for (seed_price, twap) in expected {
+        let mut p = VersePool::seed(seed_price * E15, 100_000 * WAD);
         p.now += 61;
         let mean = p.oracle.mean_tick(p.now, 60).unwrap();
-        let twap = price::wnear_price_at_tick(mean, true).unwrap();
-        assert_eq!(fmt(twap), twap_cents, "seeded at {seed_price}");
+        let read = price::wnear_price_at_tick(mean, true).unwrap();
+        assert_eq!(fmt5(read), twap, "seeded at {seed_price}");
     }
 }
 
 #[test]
 fn golden_demo_sale() {
-    // DELAYED·HOLDS is the thin pool: 40 wNEAR / 100,000 USDC at 2,500.
-    let pool_only = VersePool::seed(2_500 * WAD, 40 * WAD)
+    // DELAYED·HOLDS is the thin pool: 40,000 wNEAR / 100,000 USDC at 2.50. Alice sells 2,000 NEAR.
+    let sale = 2 * K;
+    let pool_only = VersePool::seed(2_500 * E15, 40_000 * WAD)
         .pool
-        .quote_exact_in(true, 2 * WAD, BASE_FEE)
+        .quote_exact_in(true, sale, BASE_FEE)
         .unwrap();
     assert_eq!(fmt(pool_only.amount_out), "4748.29");
-    // Averages per wNEAR: x * 1e18 / 2e18.
-    assert_eq!(fmt(pool_only.amount_out / 2), "2374.14");
+    // 2.37414 USDC per NEAR on average.
+    assert_eq!(fmt5(pool_only.amount_out / 2_000), "2.37414");
 
-    // Ravi's bid fills 1 wNEAR at 2% under 2,500, then the pool takes the second wNEAR.
-    let ravi_price = 2_500 * WAD * (10_000 - 200) / 10_000;
-    assert_eq!(ravi_price, 2_450 * WAD);
-    assert_eq!(orders::cost(WAD, ravi_price), 2_450 * WAD);
-    let mut delayed_holds = VersePool::seed(2_500 * WAD, 40 * WAD);
-    let (rest, fee) = delayed_holds.sell(WAD);
+    // Ravi's bid fills 1,000 wNEAR at 2% under 2.50, then the pool takes the other 1,000.
+    let ravi_price = 2_500 * E15 * (10_000 - 200) / 10_000;
+    assert_eq!(ravi_price, 2_450 * E15);
+    assert_eq!(orders::cost(K, ravi_price), 2_450 * WAD);
+    let mut delayed_holds = VersePool::seed(2_500 * E15, 40_000 * WAD);
+    let (rest, fee) = delayed_holds.sell(K);
     assert_eq!(fee, BASE_FEE);
-    let with_bid = orders::proceeds(WAD, ravi_price) + rest.amount_out;
-    // The EVM run's raw proceeds for world 3, to the wei.
+    let with_bid = orders::proceeds(K, ravi_price) + rest.amount_out;
+    // The prototype's demo number for world 3, to the unit.
     assert_eq!(with_bid, 4_881_885_259_897_065_638_949);
     assert!(with_bid > pool_only.amount_out);
     assert_eq!(fmt(with_bid), "4881.88");
-    assert_eq!(fmt(with_bid / 2), "2440.94");
-    // "push from 2,380": the pool price after the sale.
-    assert_eq!(fmt(delayed_holds.wnear_price()), "2379.88");
+    assert_eq!(fmt5(with_bid / 2_000), "2.44094");
+    // "push from 2.38": the pool price after the sale.
+    assert_eq!(fmt5(delayed_holds.wnear_price()), "2.37988");
     // The sold pool now charges the cap on its next swap.
     assert_eq!(delayed_holds.fee_of(), MAX_FEE);
 
-    // The other sold worlds (100 wNEAR deep) and the binary DELAYED world, against the EVM run's raw proceeds.
+    // The other sold worlds (100,000 wNEAR deep) and the binary DELAYED world, against the prototype's demo numbers.
     let sales = [
         (
             3_000,
             5_865_050_885_346_196_835_108u128,
             "5865.05",
-            "2883.84",
+            "2.88384",
         ),
-        (3_300, 6_451_555_973_880_816_518_618, "6451.55", "3172.23"),
-        (2_800, 5_474_047_492_989_783_712_767, "5474.04", "2691.58"),
+        (3_300, 6_451_555_973_880_816_518_618, "6451.55", "3.17223"),
+        (2_800, 5_474_047_492_989_783_712_767, "5474.04", "2.69158"),
     ];
-    for (seed_price, evm, proceeds, price_after) in sales {
-        let mut p = VersePool::seed(seed_price * WAD, 100 * WAD);
-        let (swap, _) = p.sell(2 * WAD);
-        // v4 steps through square-root prices and lands within a few wei of the closed form; here within 1 wei.
+    for (seed_price, proto, proceeds, price_after) in sales {
+        let mut p = VersePool::seed(seed_price * E15, 100_000 * WAD);
+        let (swap, _) = p.sell(sale);
+        // The prototype stepped through square-root prices and landed within a few units of the closed form; here
+        // within 1 unit.
         assert!(
-            swap.amount_out.abs_diff(evm) <= 1,
-            "{} vs {evm}",
+            swap.amount_out.abs_diff(proto) <= 1,
+            "{} vs {proto}",
             swap.amount_out
         );
         assert_eq!(fmt(swap.amount_out), proceeds);
-        assert_eq!(fmt(p.wnear_price()), price_after);
+        assert_eq!(fmt5(p.wnear_price()), price_after);
     }
 
     // Alice borrows 3,000 against the L-shape sale; her worst world holds 4,881.88 USDC-if-DELAYED·HOLDS.
@@ -380,9 +393,9 @@ fn golden_demo_sale() {
 
 #[test]
 fn quote_sell_matches_execution_on_the_l_shape() {
-    // MultiverseLens quoteSell(2x2, 2 wNEAR, L-shape) on the seed pools (all 100 wNEAR deep), EVM reference
-    // [0, 5865050885346196835108, 6451555973880816518618, 4887542404455164029256].
-    let evm = [
+    // The lens's quote_sell(2x2, 2,000 wNEAR, L-shape) on the seed pools (all 100,000 wNEAR deep), against the
+    // prototype's demo numbers [0, 5865050885346196835108, 6451555973880816518618, 4887542404455164029256].
+    let proto = [
         0u128,
         5_865_050_885_346_196_835_108,
         6_451_555_973_880_816_518_618,
@@ -391,24 +404,24 @@ fn quote_sell_matches_execution_on_the_l_shape() {
     let prices = [3_700, 3_000, 3_300, 2_500];
     let l_shape = 0b1110u8;
     for (w, seed_price) in prices.into_iter().enumerate() {
-        let mut p = VersePool::seed(seed_price * WAD, 100 * WAD);
+        let mut p = VersePool::seed(seed_price * E15, 100_000 * WAD);
         if l_shape & (1 << w) == 0 {
-            assert_eq!(evm[w], 0);
+            assert_eq!(proto[w], 0);
             continue;
         }
-        let quote = p.pool.quote_exact_in(true, 2 * WAD, p.fee_of()).unwrap();
-        let (swap, _) = p.sell(2 * WAD);
+        let quote = p.pool.quote_exact_in(true, 2 * K, p.fee_of()).unwrap();
+        let (swap, _) = p.sell(2 * K);
         assert_eq!(quote, swap);
         assert!(
-            swap.amount_out.abs_diff(evm[w]) <= 1,
+            swap.amount_out.abs_diff(proto[w]) <= 1,
             "world {w}: {} vs {}",
             swap.amount_out,
-            evm[w]
+            proto[w]
         );
     }
 }
 
-/// Configured odds of the 2x2 scenario from basis points: world = a + 2b, a = Glamsterdam, b = Fed.
+/// Configured odds of the 2x2 scenario from basis points: world = a + 2b, a = SPICE, b = Fed.
 fn independent_odds(ships_bps: u128, cuts_bps: u128) -> [u128; 4] {
     let e10 = 10_000_000_000;
     [
@@ -419,7 +432,7 @@ fn independent_odds(ships_bps: u128, cuts_bps: u128) -> [u128; 4] {
     ]
 }
 
-/// Between-world pools seeded at the configured odds (SeedDemo's `_seedOdds`, 1,000,000 deep), keyed by pair.
+/// Between-world pools seeded at the configured odds (as the demo seed does, 1,000,000 deep), keyed by pair.
 fn odds_pools(q: &[u128]) -> Vec<((u8, u8), Pool)> {
     let sum = |mask: u8| -> u128 {
         (0..q.len())
@@ -459,15 +472,15 @@ fn odds_2x2_match_configured_odds() {
         );
     }
     assert_eq!(read.iter().sum::<u128>(), WAD);
-    // Implied spot at the demo prices: 3,163.359 (MultiverseLens.t.sol, within 1e-10).
-    let prices = [3_700 * WAD, 3_000 * WAD, 3_300 * WAD, 2_500 * WAD];
+    // Implied spot at the demo prices: 3.163359 (within 1e-10).
+    let prices = [3_700 * E15, 3_000 * E15, 3_300 * E15, 2_500 * E15];
     let implied = odds::implied_spot(&read, 0b1111, |w| Some(prices[usize::from(w)])).unwrap();
-    let reference = 3_163_359_000_000_000_000_000u128;
+    let reference = 3_163_359_000_000_000_000u128;
     assert!(
         implied.abs_diff(reference) * 10_000_000_000 <= reference,
         "{implied}"
     );
-    // SeedDemo seeds the spot pool from the configured odds instead, which is exact.
+    // The demo seed prices the spot pool from the configured odds instead, which is exact.
     assert_eq!(
         odds::implied_spot(&q, 0b1111, |w| Some(prices[usize::from(w)])),
         Some(reference)
@@ -477,11 +490,11 @@ fn odds_2x2_match_configured_odds() {
 #[test]
 fn seeded_implied_spot_from_polymarket_odds() {
     // The seed table with SHIPS at 6667 bps: the Fed odds at 100, 104 and 119 bps.
-    let prices = [3_700 * WAD, 3_000 * WAD, 3_300 * WAD, 2_500 * WAD];
+    let prices = [3_700 * E15, 3_000 * E15, 3_300 * E15, 2_500 * E15];
     let cases = [
-        (100, 3_037_693_300_000_000_000_000u128),
-        (104, 3_037_866_632_000_000_000_000),
-        (119, 3_038_516_627_000_000_000_000),
+        (100, 3_037_693_300_000_000_000u128),
+        (104, 3_037_866_632_000_000_000),
+        (119, 3_038_516_627_000_000_000),
     ];
     for (cuts_bps, implied) in cases {
         let q = independent_odds(6667, cuts_bps);
@@ -491,13 +504,13 @@ fn seeded_implied_spot_from_polymarket_odds() {
             Some(implied)
         );
     }
-    // Binary scenario at 6667 bps and 3,400 / 2,800: 3,200.02.
+    // Binary scenario at 6667 bps and 3.40 / 2.80: 3.20002.
     let q = [6667 * 100_000_000_000_000, 3333 * 100_000_000_000_000];
     let implied = odds::implied_spot(&q, 0b11, |w| {
-        Some([3_400 * WAD, 2_800 * WAD][usize::from(w)])
+        Some([3_400 * E15, 2_800 * E15][usize::from(w)])
     })
     .unwrap();
-    assert_eq!(fmt(implied), "3200.02");
+    assert_eq!(fmt5(implied), "3.20002");
 }
 
 #[test]
@@ -543,7 +556,7 @@ fn odds_follow_trades() {
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(512))]
 
-    /// testFuzz_odds_matchSeededOdds: any configured odds read back within 10 wei per world, summing to 1e18.
+    /// Any configured odds read back within 10 units per world, summing to 1e18.
     #[test]
     fn odds_match_seeded_odds(ships in 1u128..=9999, cuts in 1u128..=9999) {
         let q = independent_odds(ships, cuts);
@@ -557,13 +570,12 @@ proptest! {
 
 #[test]
 fn move_to_up_and_down_lands_on_the_target() {
-    // PoolSeeder.t.sol: a 3,000 spot pool with L = 5,000e18, moved to 3,200 then 2,900. v4 lands on the target's
-    // square-root price exactly; a constant-product pool lands within its reserves' integer granularity.
-    let liquidity = U256::from(5_000 * WAD);
-    let reserve0 =
-        multiverse_math::isqrt_u256(liquidity * liquidity / U256::from(3_000u32)).low_u128();
-    let mut p = VersePool::with_reserves(reserve0, reserve0 * 3_000);
-    for target in [3_200 * WAD, 2_900 * WAD] {
+    // The spot pool at 3.00 with L = 5,000,000e18, moved to 3.20 then 2.90. A constant-product pool lands within its
+    // reserves' integer granularity.
+    let liquidity = U256::from(5_000_000 * WAD);
+    let reserve0 = multiverse_math::isqrt_u256(liquidity * liquidity / U256::from(3u32)).low_u128();
+    let mut p = VersePool::with_reserves(reserve0, reserve0 * 3);
+    for target in [3_200 * E15, 2_900 * E15] {
         let (before0, before1) = p.pool.reserves();
         let plan = p.pool.plan_move_to(target, BASE_FEE).unwrap().unwrap();
         let swap = p

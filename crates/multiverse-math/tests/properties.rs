@@ -84,7 +84,7 @@ proptest! {
         prop_assert!(big / (r + U512::one()) < r + U512::one());
     }
 
-    /// v4's test_fuzz_getTickAtSqrtPrice_getSqrtPriceAtTick_relation: a tick's own price, the middle of its range
+    /// The tick and square-root price relation: a tick's own price, the middle of its range
     /// and the last price below the next tick all map back to it, and the next tick's price to the next tick.
     #[test]
     fn tick_and_sqrt_price_round_trip(tick in MIN_TICK..MAX_TICK) {

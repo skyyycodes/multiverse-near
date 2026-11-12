@@ -100,20 +100,21 @@ mod tests {
     }
 
     #[test]
-    fn seeding_at_3700_reads_back_a_wei_low() {
-        // Both conversions floor, so 3700 comes back as 3699.999999999999999999.
+    fn seeding_at_3_70_reads_back_one_unit_low() {
+        // Both conversions floor, so 3.70 comes back as 3.699999999999999999.
+        let price = 3_700 * WAD / 1_000;
         assert_eq!(
-            from_sqrt_price_x96(to_sqrt_price_x96(3_700 * WAD)),
-            Some(3_700 * WAD - 1)
+            from_sqrt_price_x96(to_sqrt_price_x96(price)),
+            Some(price - 1)
         );
         // The same pool seeded from reserves has the identical square-root price.
         assert_eq!(
-            sqrt_price_x96_from_reserves(100 * WAD, 370_000 * WAD),
-            Some(to_sqrt_price_x96(3_700 * WAD))
+            sqrt_price_x96_from_reserves(100_000 * WAD, 370_000 * WAD),
+            Some(to_sqrt_price_x96(price))
         );
         assert_eq!(
-            price_from_reserves(100 * WAD, 370_000 * WAD),
-            Some(3_700 * WAD)
+            price_from_reserves(100_000 * WAD, 370_000 * WAD),
+            Some(price)
         );
     }
 
@@ -128,18 +129,19 @@ mod tests {
 
     #[test]
     fn twap_prices_of_the_demo_pools() {
-        // With wNEAR-if-w as token0, a pool seeded at 3,700 reads 3,699.63 from its TWAP, which is one
-        // tick's worth below; with wNEAR as token1 the same pool reads 3,700.00.
-        let tick = tick_from_reserves(100 * WAD, 370_000 * WAD).unwrap();
+        // With wNEAR-if-w as token0, a pool seeded at 3.70 reads 3.69963 from its TWAP, which is one
+        // tick's worth below; with wNEAR as token1 the same pool reads 3.70000.
+        let price = 3_700 * WAD / 1_000;
+        let tick = tick_from_reserves(100_000 * WAD, 370_000 * WAD).unwrap();
         let down = wnear_price_at_tick(tick, true).unwrap();
-        assert_eq!(down / 10u128.pow(16), 369_963);
-        let flipped = tick_from_reserves(370_000 * WAD, 100 * WAD).unwrap();
+        assert_eq!(down / 10u128.pow(13), 369_963);
+        let flipped = tick_from_reserves(370_000 * WAD, 100_000 * WAD).unwrap();
         let up = wnear_price_at_tick(flipped, false).unwrap();
-        assert_eq!(up / 10u128.pow(16), 370_000);
-        assert!(down < 3_700 * WAD && up >= 3_700 * WAD);
+        assert_eq!(up / 10u128.pow(13), 370_000);
+        assert!(down < price && up >= price);
         assert_eq!(
-            wnear_price_at_sqrt(to_sqrt_price_x96(3_700 * WAD), true),
-            Some(3_700 * WAD - 1)
+            wnear_price_at_sqrt(to_sqrt_price_x96(price), true),
+            Some(price - 1)
         );
         assert_eq!(wnear_price_at_sqrt(U256::MAX, true), None);
     }

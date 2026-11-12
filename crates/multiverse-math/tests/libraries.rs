@@ -1,5 +1,5 @@
-//! Port of the EVM suite's `test/Libraries.t.sol` (TwapOracleTest and PriceMathTest): same inputs, same assertions.
-//! The fuzz tests run as proptests with Foundry's 512 cases.
+//! The TWAP oracle and the price conversions against the reference test suite: same inputs, same assertions. The
+//! fuzz tests run as proptests with 512 cases.
 
 use multiverse_math::price::{
     from_sqrt_price_x96, from_tick, pool_price, to_sqrt_price_x96, wnear_price,
@@ -70,14 +70,14 @@ fn price_from_tick() {
     assert_eq!(from_tick(0), Some(WAD));
     let tick = get_tick_at_sqrt_ratio(to_sqrt_price_x96(2_500 * WAD));
     let price = from_tick(tick).unwrap();
-    // assertApproxEqRel(..., 1e14): within 1e-4 relative.
+    // Within 1e-4 relative.
     assert!(
         price.abs_diff(2_500 * WAD) <= 2_500 * WAD / 10_000,
         "{price}"
     );
 }
 
-/// `assertApproxEqRel(a, b, max)`: `|a - b| <= b * max / 1e18`.
+/// Relative closeness: `|a - b| <= b * max / 1e18`.
 fn approx_eq_rel(a: u128, b: u128, max_delta: u128) -> bool {
     U256::from(a.abs_diff(b)) * U256::from(WAD) <= U256::from(b) * U256::from(max_delta)
 }
@@ -85,7 +85,7 @@ fn approx_eq_rel(a: u128, b: u128, max_delta: u128) -> bool {
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(512))]
 
-    /// testFuzz_cumulativeMatchesBruteForce: 40 observations from t = 1.7e9, gaps of 1..50 s, the first tick in
+    /// 40 observations from t = 1.7e9, gaps of 1..50 s, the first tick in
     /// [-1000, 1000] and the rest in [-200000, 200000]; a target in [t0, t_last + 100]. The binary search agrees with
     /// a replay of the whole history.
     #[test]
@@ -119,7 +119,7 @@ proptest! {
         prop_assert_eq!(oracle.cumulative_at(target), Some(expected));
     }
 
-    /// testFuzz_roundTrip: price -> sqrt -> price comes back within 1e-9 relative and never above (both floor).
+    /// Price -> sqrt -> price comes back within 1e-9 relative and never above (both floor).
     #[test]
     fn price_round_trip(price in 1_000_000_000_000u128..=100_000_000_000_000_000_000_000_000) {
         let back = from_sqrt_price_x96(to_sqrt_price_x96(price)).unwrap();
@@ -127,7 +127,7 @@ proptest! {
         prop_assert!(back <= price);
     }
 
-    /// testFuzz_orientation: wNEAR as token0 is the identity; as token1 the double inversion stays within 1e-12.
+    /// wNEAR as token0 is the identity; as token1 the double inversion stays within 1e-12.
     #[test]
     fn price_orientation(price in 1_000_000_000_000_000u128..=1_000_000_000_000_000_000_000_000) {
         prop_assert_eq!(wnear_price(pool_price(price, true), true), price);

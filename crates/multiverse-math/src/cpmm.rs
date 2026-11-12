@@ -676,23 +676,24 @@ mod tests {
 
     #[test]
     fn golden_demo_sale() {
-        // The demo's thin pool: 2 wNEAR into 40 wNEAR / 100,000 USDC at 0.30% gives 4,748.29 USDC; 1 wNEAR gives 2,431.88.
-        let (thin, _) = pool(40 * WAD, 100_000 * WAD);
-        let two = thin.quote_exact_in(true, 2 * WAD, 3000).unwrap();
+        // The demo's thin pool: 2,000 wNEAR into 40,000 wNEAR / 100,000 USDC at 0.30% gives 4,748.29 USDC;
+        // 1,000 wNEAR gives 2,431.88.
+        let (thin, _) = pool(40_000 * WAD, 100_000 * WAD);
+        let two = thin.quote_exact_in(true, 2_000 * WAD, 3000).unwrap();
         assert_eq!(two.amount_out, 4_748_297_375_815_592_703_719);
-        assert_eq!(two.fee_amount, 6_000_000_000_000_000);
-        let one = thin.quote_exact_in(true, WAD, 3000).unwrap();
+        assert_eq!(two.fee_amount, 6 * WAD);
+        let one = thin.quote_exact_in(true, 1_000 * WAD, 3000).unwrap();
         assert_eq!(one.amount_out, 2_431_885_259_897_065_638_949);
     }
 
     #[test]
     fn first_deposit_sets_price_and_liquidity() {
-        let (pool, lp) = pool(100 * WAD, 370_000 * WAD);
+        let (pool, lp) = pool(100_000 * WAD, 370_000 * WAD);
         assert_eq!(pool.liquidity(), lp.liquidity());
-        // The seed table: L = sqrt(100 * 370,000) = 6,082.76e18.
-        assert_eq!(pool.liquidity() / WAD, 6_082);
-        assert_eq!(pool.price_wad(), Some(3_700 * WAD));
-        assert_eq!(pool.reserves(), (100 * WAD, 370_000 * WAD));
+        // The seed table: L = sqrt(100,000 * 370,000) = 192,353.84e18.
+        assert_eq!(pool.liquidity() / WAD, 192_353);
+        assert_eq!(pool.price_wad(), Some(3_700 * WAD / 1_000));
+        assert_eq!(pool.reserves(), (100_000 * WAD, 370_000 * WAD));
     }
 
     #[test]
@@ -773,7 +774,7 @@ mod tests {
 
     #[test]
     fn dust_swap_pays_only_the_fee() {
-        let (mut p, _) = pool(40 * WAD, 100_000 * WAD);
+        let (mut p, _) = pool(40_000 * WAD, 100_000 * WAD);
         let swap = p.swap_exact_in(false, 1, 3000).unwrap();
         assert_eq!(
             swap,
@@ -784,25 +785,25 @@ mod tests {
                 fee_amount: 1
             }
         );
-        assert_eq!(p.reserves(), (40 * WAD, 100_000 * WAD));
+        assert_eq!(p.reserves(), (40_000 * WAD, 100_000 * WAD));
         assert_eq!(p.fees(), (0, 1));
     }
 
     #[test]
     fn exact_out_pays_the_least_input_that_covers_the_output() {
-        let (mut p, _) = pool(40 * WAD, 100_000 * WAD);
-        let quote = p.quote_exact_out(false, WAD, 3000).unwrap();
-        // 100,000 * 1 / 39 USDC into the curve, rounded up, then grossed up for the 0.30% fee.
+        let (mut p, _) = pool(40_000 * WAD, 100_000 * WAD);
+        let quote = p.quote_exact_out(false, 1_000 * WAD, 3000).unwrap();
+        // 100,000 * 1,000 / 39,000 USDC into the curve, rounded up, then grossed up for the 0.30% fee.
         let into_curve = (100_000 * WAD).div_ceil(39);
         assert_eq!(quote.amount_in_after_fee(), into_curve);
         assert_eq!(quote.amount_in, (into_curve * 1_000_000).div_ceil(997_000));
         // The same input as an exact-input swap buys at least the output, and the fee is the same.
         let as_exact_in = p.quote_exact_in(false, quote.amount_in, 3000).unwrap();
-        assert!(as_exact_in.amount_out >= WAD);
+        assert!(as_exact_in.amount_out >= 1_000 * WAD);
         assert_eq!(as_exact_in.fee_amount, quote.fee_amount);
-        let swap = p.swap_exact_out(false, WAD, 3000).unwrap();
+        let swap = p.swap_exact_out(false, 1_000 * WAD, 3000).unwrap();
         assert_eq!(swap, quote);
-        assert_eq!(p.reserves(), (39 * WAD, 100_000 * WAD + into_curve));
+        assert_eq!(p.reserves(), (39_000 * WAD, 100_000 * WAD + into_curve));
         assert_eq!(p.fees(), (0, quote.fee_amount));
     }
 
@@ -853,11 +854,11 @@ mod tests {
 
     #[test]
     fn deposit_never_takes_more_than_offered() {
-        let (mut p, _) = pool(40 * WAD, 100_000 * WAD);
-        p.swap_exact_in(true, 3 * WAD, 3000).unwrap();
+        let (mut p, _) = pool(40_000 * WAD, 100_000 * WAD);
+        p.swap_exact_in(true, 3_000 * WAD, 3000).unwrap();
         let mut lp = Position::new();
-        let deposit = p.deposit(&mut lp, 5 * WAD, 9_000 * WAD).unwrap();
-        assert!(deposit.amount0 <= 5 * WAD && deposit.amount1 <= 9_000 * WAD);
+        let deposit = p.deposit(&mut lp, 5_000 * WAD, 9_000 * WAD).unwrap();
+        assert!(deposit.amount0 <= 5_000 * WAD && deposit.amount1 <= 9_000 * WAD);
         assert_eq!(lp.liquidity(), deposit.liquidity);
         // A deposit worth less than one liquidity unit on one side mints nothing.
         assert_eq!(
@@ -868,9 +869,14 @@ mod tests {
 
     #[test]
     fn move_to_lands_on_the_target() {
-        // The pool seeder's walk-through moves a 3,000 pool to 3,200 then 2,900; the spot reset moves it to the implied spot.
-        let (mut p, _) = pool(100 * WAD, 300_000 * WAD);
-        for target in [3_200 * WAD, 2_900 * WAD, 3_037_866_632_000_000_000_000] {
+        // The pool seeder's walk-through moves a 3.00 pool to 3.20 then 2.90; the spot reset moves it to the implied
+        // spot.
+        let (mut p, _) = pool(100_000 * WAD, 300_000 * WAD);
+        for target in [
+            3_200 * WAD / 1_000,
+            2_900 * WAD / 1_000,
+            3_037_866_632_000_000_000,
+        ] {
             let plan = p.plan_move_to(target, 3000).unwrap().expect("a move");
             p.swap_exact_in(plan.zero_for_one, plan.amount_in, 3000)
                 .unwrap();
