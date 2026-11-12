@@ -1,8 +1,8 @@
 //! Port of Uniswap v4's TickMath (MIT): square-root prices for ticks of 1.0001 and back, bit for bit.
 //!
 //! `get_sqrt_ratio_at_tick(t)` is `sqrt(1.0001^t) * 2^96` (Q64.96, rounded up) and `get_tick_at_sqrt_ratio(s)` is the
-//! greatest tick whose ratio is `<= s`. Out-of-range inputs panic with the v4 error names. The contract keeps a tick
-//! TWAP per pool, and lending prices collateral from the mean tick exactly as the prototype did.
+//! greatest tick whose ratio is `<= s`. Out-of-range inputs panic with the original error names. The contract keeps a
+//! tick TWAP per pool, and lending prices collateral from the mean tick exactly as the prototype did.
 
 use crate::fixed::U256;
 
@@ -16,7 +16,7 @@ pub const MIN_SQRT_RATIO: U256 = U256([4_295_128_739, 0, 0, 0]);
 pub const MAX_SQRT_RATIO: U256 =
     U256([0x5d95_1d52_6398_8d26, 0xefd1_fc6a_5064_8849, 0xfffd_8963, 0]);
 
-// 2^128 / sqrt(1.0001)^(2^i), Q128.128 rounded to nearest, for bit i of |tick|. Copied from v4-core.
+// 2^128 / sqrt(1.0001)^(2^i), Q128.128 rounded to nearest, for bit i of |tick|. Copied from the original TickMath.
 const RATIO_BIT_0: u128 = 0xfffc_b933_bd6f_ad37_aa2d_162d_1a59_4001;
 const RATIO_BITS: [u128; 19] = [
     0xfff9_7272_373d_4132_59a4_6990_580e_213a,
@@ -108,8 +108,8 @@ pub fn get_tick_at_sqrt_ratio(sqrt_ratio_x96: U256) -> i32 {
 
 /// [`get_tick_at_sqrt_ratio`] extended to every `s`: `MIN_TICK` below the range, `MAX_TICK` at or above its top.
 ///
-/// A constant-product pool with `u128` reserves can in principle sit outside v4's price range, and recording a TWAP
-/// observation must never fail a swap.
+/// A constant-product pool with `u128` reserves can in principle sit outside TickMath's price range, and recording a
+/// TWAP observation must never fail a swap.
 pub fn tick_at_sqrt_ratio_clamped(sqrt_ratio_x96: U256) -> i32 {
     if sqrt_ratio_x96 < MIN_SQRT_RATIO {
         MIN_TICK
@@ -207,7 +207,7 @@ mod tests {
 
     #[test]
     fn javascript_bounds() {
-        // sqrt(2^-127) * 2^96 and sqrt(2^127) * 2^96 from the v4 test suite.
+        // sqrt(2^-127) * 2^96 and sqrt(2^127) * 2^96 from the original TickMath test suite.
         assert!(get_sqrt_ratio_at_tick(MIN_TICK) < U256::from(6_085_630_636u64));
         assert!(
             get_sqrt_ratio_at_tick(MAX_TICK)
