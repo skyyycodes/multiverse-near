@@ -53,26 +53,28 @@ export function WorldThumb({ world, oddsKnown }: { world: World; oddsKnown: bool
   );
 }
 
-/** An outcome over a column or beside a row of the grid; struck through once its event resolved the other way. */
+/**
+ * An outcome over a column or beside a row of the grid; struck through once its event resolved the other way. The
+ * event's question is in the title; the grid prints each axis's question once, above it.
+ */
 export function AxisLabel({
   outcome,
   question,
   resolvedAway,
   vertical,
   onDark,
-  compact,
 }: {
   outcome: string;
   question?: string;
   resolvedAway: boolean;
   vertical?: boolean;
   onDark?: boolean;
-  compact?: boolean;
 }) {
   return (
     <div
-      className={`flex min-w-0 flex-col gap-0.5 ${vertical ? "justify-center pr-1" : "justify-end px-1 pb-1"}`}
+      className={`flex min-w-0 flex-col ${vertical ? "justify-center pr-1" : "justify-end px-1 pb-0.5"}`}
       title={question}
+      data-demo="axis-label"
     >
       <span
         className={`text-[12px] font-semibold tracking-[0.08em] ${
@@ -81,9 +83,6 @@ export function AxisLabel({
       >
         {outcome}
       </span>
-      {question && !compact && (
-        <span className={`truncate text-[11px] ${onDark ? "text-white/55" : "text-mute"}`}>{question.replace(/\?$/, "")}</span>
-      )}
     </div>
   );
 }

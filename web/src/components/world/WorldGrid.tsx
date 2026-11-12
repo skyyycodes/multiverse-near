@@ -33,30 +33,48 @@ function Axes({
   if (scenario.worldCount === 4 && events.length === 2 && worlds.length === 4) {
     const [a, b] = events;
     return (
-      <div className={`grid ${compact ? "grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)]" : "grid-cols-[8.5rem_minmax(0,1fr)_minmax(0,1fr)]"} ${gap}`}>
-        <div />
-        {b.outcomeNames.map((name) => (
-          <AxisLabel key={name} outcome={name} question={b.question} resolvedAway={resolvedAway(b, name)} onDark={onDark} compact={compact} />
-        ))}
-        {[0, 1].map((row) => (
-          <Fragment key={row}>
-            <AxisLabel
-              outcome={a.outcomeNames[row]}
-              question={a.question}
-              resolvedAway={resolvedAway(a, a.outcomeNames[row])}
-              vertical
-              onDark={onDark}
-              compact={compact}
-            />
-            {[0, 1].map((col) => (
-              <Fragment key={col}>{cell(worlds[row + 2 * col])}</Fragment>
-            ))}
-          </Fragment>
-        ))}
+      <div className="flex flex-col gap-3">
+        {!compact && <AxisCaptions rows={a} cols={b} onDark={onDark} />}
+        <div className={`grid grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)] ${gap}`}>
+          <div />
+          {b.outcomeNames.map((name) => (
+            <AxisLabel key={name} outcome={name} question={b.question} resolvedAway={resolvedAway(b, name)} onDark={onDark} />
+          ))}
+          {[0, 1].map((row) => (
+            <Fragment key={row}>
+              <AxisLabel
+                outcome={a.outcomeNames[row]}
+                question={a.question}
+                resolvedAway={resolvedAway(a, a.outcomeNames[row])}
+                vertical
+                onDark={onDark}
+              />
+              {[0, 1].map((col) => (
+                <Fragment key={col}>{cell(worlds[row + 2 * col])}</Fragment>
+              ))}
+            </Fragment>
+          ))}
+        </div>
       </div>
     );
   }
   return <div className={`grid grid-cols-2 ${gap}`}>{worlds.map((w) => <Fragment key={w.mask}>{cell(w)}</Fragment>)}</div>;
+}
+
+/** Each axis's question once and in full, above the grid: rows are event A's outcomes, columns event B's. */
+function AxisCaptions({ rows, cols, onDark }: { rows: EventState; cols: EventState; onDark?: boolean }) {
+  const line = (axis: string, e: EventState) => (
+    <p className="text-[12px] leading-snug" title={e.question}>
+      <span className={`label mr-1.5 ${onDark ? "text-white/45" : "text-faint"}`}>{axis}</span>
+      <span className={onDark ? "text-white/75" : "text-mute"}>{e.question}</span>
+    </p>
+  );
+  return (
+    <div className="flex flex-col gap-1" data-demo="grid-axes">
+      {line("Rows", rows)}
+      {line("Columns", cols)}
+    </div>
+  );
 }
 
 /** The big grid of aurora world cards (desktop trade, resolve, admin). */
