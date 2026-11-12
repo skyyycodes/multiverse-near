@@ -6,21 +6,21 @@ export const E18 = 10n ** 18n;
 
 export type Pool = { x: bigint; y: bigint; t: bigint; feePips: bigint };
 
-/** Output of selling `amountIn` of the X side (WETH-if-w) for the Y side (USDC-if-w). */
+/** Output of selling `amountIn` of the X side (wNEAR-if-w) for the Y side (USDC-if-w). */
 export function swapOut(reserveIn: bigint, reserveOut: bigint, amountIn: bigint, feePips: bigint): bigint {
   if (amountIn <= 0n || reserveIn === 0n || reserveOut === 0n) return 0n;
   const aEff = (amountIn * (PIPS - feePips)) / PIPS;
   return (reserveOut * aEff) / (reserveIn + aEff);
 }
 
-/** The pool after selling `amountIn` WETH-if-w into it, and what it paid. */
+/** The pool after selling `amountIn` wNEAR-if-w into it, and what it paid. */
 export function sellInto(p: Pool, amountIn: bigint, nextFee = p.feePips): { pool: Pool; out: bigint } {
   const out = swapOut(p.x, p.y, amountIn, p.feePips);
   const aEff = (amountIn * (PIPS - p.feePips)) / PIPS;
   return { pool: { x: p.x + aEff, y: p.y - out, t: p.t, feePips: nextFee }, out };
 }
 
-/** USDC per WETH, 18 decimals, floored. */
+/** USDC per NEAR, 18 decimals, floored. */
 export const priceOf = (p: Pool): bigint => (p.x === 0n ? 0n : (p.y * E18) / p.x);
 
 export function isqrt(n: bigint): bigint {
@@ -35,7 +35,7 @@ export function isqrt(n: bigint): bigint {
   }
 }
 
-/** A pool seeded at `price` with `depth` WETH (both 18 decimals), liquidity units √(x·y). */
+/** A pool seeded at `price` with `depth` NEAR (both 18 decimals), liquidity units √(x·y). */
 export function seededPool(depth: bigint, price: bigint, feePips = 3000n): Pool {
   const x = depth;
   const y = (depth * price) / E18;

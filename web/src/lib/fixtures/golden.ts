@@ -29,7 +29,7 @@ export const personaAccount = (p: Persona) => (p === "owner" ? ROOT_ACCOUNT : `$
 export const personaOf = (accountId: string | null | undefined): Persona | undefined =>
   PERSONAS.find((p) => personaAccount(p) === accountId);
 
-/** "3700" or "0.5" → 18-decimal bigint. */
+/** "3.70" or "0.5" → 18-decimal bigint. */
 export function wad(s: string): bigint {
   const [w, f = ""] = s.split(".");
   return BigInt(w) * E18 + BigInt((f + "0".repeat(18)).slice(0, 18));
@@ -49,17 +49,17 @@ const LLTV = wad("0.75");
 const BORROW_RATE = 1_585_489_599n;
 const SHIPS_BPS = 6667n;
 const CUTS_BPS = 104n;
-const SPOT = wad("3037.866632");
+const SPOT = wad("3.037866632");
 const SEEDED_AT = 1_794_337_200; // 2026-11-11 09:00 UTC
 const DAY = 86_400;
 
 const EVENTS: Record<number, Omit<EventViewJson, "proposed_at_sec" | "proposed_outcome" | "proposal_open" | "finalized" | "outcome" | "finalizable_at_sec" | "proposed_by">> = {
   1: {
     id: 1,
-    question: "Will Glamsterdam ship on mainnet by Dec 31, 2026?",
-    rule: "SHIPS if the Glamsterdam upgrade is active on Ethereum mainnet before 2027-01-01 00:00 UTC; otherwise DELAYED. During the hackathon this event is resolved from a team-controlled API (demo).",
+    question: "Will SPICE ship on NEAR mainnet by Mar 31, 2027?",
+    rule: "SHIPS if SPICE, NEAR's separation of consensus and execution, is active on NEAR mainnet before 2027-04-01 00:00 UTC; otherwise DELAYED. During the hackathon this event is resolved from a team-controlled outcomes file (demo).",
     outcome_names: ["SHIPS", "DELAYED"],
-    deadline_sec: 1798761599,
+    deadline_sec: 1806537599,
   },
   2: {
     id: 2,
@@ -79,7 +79,7 @@ const EVENTS: Record<number, Omit<EventViewJson, "proposed_at_sec" | "proposed_o
 
 type Book = { orders: OrderViewJson[] };
 type Positions = {
-  wallet: { wnear: bigint; usdc: bigint }; // token units: WETH 18 decimals, USDC 6
+  wallet: { wnear: bigint; usdc: bigint }; // token units: wNEAR 24 decimals, USDC 6
   verse: Record<number, { wnear: bigint[]; usdc: bigint[] }>;
   collateral: Record<number, { asset: "wnear" | "usdc"; mask: number; amount: bigint; real?: boolean }[]>;
   debt: Record<number, bigint>;
@@ -105,6 +105,7 @@ export type FixtureWorld = {
 };
 
 const usdcUnits = (x: bigint) => x / 10n ** 12n;
+const nearUnits = (x: bigint) => x * 10n ** 6n;
 const zeros = (n: number) => Array.from({ length: n }, () => 0n);
 
 function emptyPositions(): Positions {
@@ -127,12 +128,12 @@ const pricesOf = (pools: Pool[], possible: number): string[] =>
 export function buildWorld(stage: Stage, now = Math.floor(Date.now() / 1000)): FixtureWorld {
   const pools: Record<number, Pool[]> = {
     [S2X2]: [
-      seededPool(wad("100"), wad("3700")),
-      seededPool(wad("100"), wad("3000")),
-      seededPool(wad("100"), wad("3300")),
-      seededPool(wad("40"), wad("2500")),
+      seededPool(wad("100000"), wad("3.70")),
+      seededPool(wad("100000"), wad("3.00")),
+      seededPool(wad("100000"), wad("3.30")),
+      seededPool(wad("40000"), wad("2.50")),
     ],
-    [SBIN]: [seededPool(wad("100"), wad("3400")), seededPool(wad("100"), wad("2800"))],
+    [SBIN]: [seededPool(wad("100000"), wad("3.40")), seededPool(wad("100000"), wad("2.80"))],
   };
   const impact: Record<number, ImpactPointJson[]> = { [S2X2]: [], [SBIN]: [] };
   const accounts = Object.fromEntries(PERSONAS.map((p) => [p, emptyPositions()])) as Record<Persona, Positions>;
@@ -144,18 +145,18 @@ export function buildWorld(stage: Stage, now = Math.floor(Date.now() / 1000)): F
   const uma = accounts.uma;
   const carl = accounts.carl;
 
-  // Seeding: Alice holds 2 WETH and 50 USDC; Bob has supplied 100,000 to each market; Ravi bids 2,450 for 1 WETH in
-  // DELAYED·HOLDS, so his other three worlds keep 2,450 USDC each.
-  alice.wallet = { wnear: wad("2"), usdc: usdcUnits(wad("50")) };
+  // Seeding: Alice holds 2,000 NEAR and 50 USDC; Bob has supplied 100,000 to each market; Ravi bids 2.45 for 1,000 NEAR
+  // in DELAYED·HOLDS, so his other three worlds keep 2,450 USDC each.
+  alice.wallet = { wnear: nearUnits(wad("2000")), usdc: usdcUnits(wad("50")) };
   accounts.bob.wallet = { wnear: 0n, usdc: usdcUnits(wad("10000")) };
   accounts.bob.supplied = { [S2X2]: { amount: wad("100000"), principal: wad("100000") }, [SBIN]: { amount: wad("100000"), principal: wad("100000") } };
-  ravi.wallet = { wnear: wad("2"), usdc: usdcUnits(wad("5000")) };
+  ravi.wallet = { wnear: nearUnits(wad("2000")), usdc: usdcUnits(wad("5000")) };
   ravi.verse[S2X2].usdc = [wad("2450"), wad("2450"), wad("2450"), 0n];
   accounts.sam.wallet = { wnear: 0n, usdc: usdcUnits(wad("3000")) };
-  uma.wallet = { wnear: wad("5"), usdc: usdcUnits(wad("20000")) };
-  accounts.carl.wallet = { wnear: wad("2"), usdc: 0n };
-  accounts.owner.wallet = { wnear: wad("3"), usdc: 0n };
-  accounts.dana.wallet = { wnear: wad("1"), usdc: 0n };
+  uma.wallet = { wnear: nearUnits(wad("5000")), usdc: usdcUnits(wad("20000")) };
+  accounts.carl.wallet = { wnear: nearUnits(wad("2000")), usdc: 0n };
+  accounts.owner.wallet = { wnear: nearUnits(wad("3000")), usdc: 0n };
+  accounts.dana.wallet = { wnear: nearUnits(wad("1000")), usdc: 0n };
   accounts.dana.registered = false;
   accounts.dana.usdcRegistered = false;
   const raviBid: OrderViewJson = {
@@ -164,9 +165,9 @@ export function buildWorld(stage: Stage, now = Math.floor(Date.now() / 1000)): F
     scenario_id: S2X2,
     mask: 8,
     side: "bid",
-    price: wad("2450").toString(),
-    amount: wad("1").toString(),
-    remaining: wad("1").toString(),
+    price: wad("2.45").toString(),
+    amount: wad("1000").toString(),
+    remaining: wad("1000").toString(),
     escrow: wad("2450").toString(),
     expiry_sec: SEEDED_AT + 30 * DAY,
     epoch: 0,
@@ -174,11 +175,11 @@ export function buildWorld(stage: Stage, now = Math.floor(Date.now() / 1000)): F
   book.orders.push(raviBid);
 
   if (reached(stage, "sold")) {
-    // Alice sells 2 ETH in the L-shape (DELAYED or HOLDS) into lending. Ravi's bid takes 1 ETH in DELAYED·HOLDS.
+    // Alice sells 2,000 NEAR in the L-shape (DELAYED or HOLDS) into lending. Ravi's bid takes 1,000 in DELAYED·HOLDS.
     const p = pools[S2X2];
-    const r1 = sellInto(p[1], wad("2"), 15000n);
-    const r2 = sellInto(p[2], wad("2"), 15000n);
-    const r3 = sellInto(p[3], wad("1"), 15000n);
+    const r1 = sellInto(p[1], wad("2000"), 15000n);
+    const r2 = sellInto(p[2], wad("2000"), 15000n);
+    const r3 = sellInto(p[3], wad("1000"), 15000n);
     const fromBid = wad("2450");
     pools[S2X2] = [p[0], r1.pool, r2.pool, r3.pool];
     impact[S2X2].push(
@@ -188,14 +189,14 @@ export function buildWorld(stage: Stage, now = Math.floor(Date.now() / 1000)): F
     );
     alice.wallet.wnear = 0n;
     alice.collateral[S2X2] = [
-      { asset: "wnear", mask: 1, amount: wad("2") },
+      { asset: "wnear", mask: 1, amount: wad("2000") },
       { asset: "usdc", mask: 2, amount: r1.out },
       { asset: "usdc", mask: 4, amount: r2.out },
       { asset: "usdc", mask: 8, amount: fromBid + r3.out },
     ];
     raviBid.remaining = "0";
     raviBid.escrow = "0";
-    ravi.verse[S2X2].wnear[3] += wad("1");
+    ravi.verse[S2X2].wnear[3] += wad("1000");
   }
 
   if (reached(stage, "borrowed")) {
@@ -223,11 +224,11 @@ export function buildWorld(stage: Stage, now = Math.floor(Date.now() / 1000)): F
       expiry_sec: exp,
       epoch: 0,
     });
-    book.orders.push(order(2, "ravi", "ask", "3750", "0.5"), order(3, "ravi", "bid", "3600", "0.5"), order(4, "sam", "bid", "3525", "0.25"), order(5, "ravi", "ask", "3880", "0.4"));
-    ravi.wallet.wnear -= wad("0.9");
+    book.orders.push(order(2, "ravi", "ask", "3.75", "500"), order(3, "ravi", "bid", "3.60", "500"), order(4, "sam", "bid", "3.525", "250"), order(5, "ravi", "ask", "3.88", "400"));
+    ravi.wallet.wnear -= nearUnits(wad("900"));
     ravi.wallet.usdc -= usdcUnits(wad("1800"));
     for (const w of [1, 2, 3]) {
-      ravi.verse[S2X2].wnear[w] += wad("0.9");
+      ravi.verse[S2X2].wnear[w] += wad("900");
       ravi.verse[S2X2].usdc[w] += wad("1800");
     }
     accounts.sam.wallet.usdc -= usdcUnits(wad("881.25"));
@@ -235,8 +236,8 @@ export function buildWorld(stage: Stage, now = Math.floor(Date.now() / 1000)): F
   }
 
   if (reached(stage, "lp")) {
-    // Uma underwrites every world with 5 WETH and 20,000 USDC.
-    const deposit = { wnear: wad("5"), usdc: wad("20000") };
+    // Uma underwrites every world with 5,000 NEAR and 20,000 USDC.
+    const deposit = { wnear: wad("5000"), usdc: wad("20000") };
     const adds = pools[S2X2].map((p) => addLiquidity(p, deposit.wnear, deposit.usdc));
     pools[S2X2] = pools[S2X2].map((p, i) => ({ ...p, x: p.x + adds[i].keptWnear, y: p.y + adds[i].keptUsdc, t: p.t + adds[i].liquidity }));
     const backWnear = adds.map((a) => deposit.wnear - a.keptWnear);
@@ -244,7 +245,7 @@ export function buildWorld(stage: Stage, now = Math.floor(Date.now() / 1000)): F
     const min = (xs: bigint[]) => xs.reduce((m, x) => (x < m ? x : m));
     const realWnear = min(backWnear);
     const realUsdc = min(backUsdc);
-    uma.wallet = { wnear: realWnear, usdc: usdcUnits(realUsdc) };
+    uma.wallet = { wnear: nearUnits(realWnear), usdc: usdcUnits(realUsdc) };
     uma.verse[S2X2] = { wnear: backWnear.map((b) => b - realWnear), usdc: backUsdc.map((b) => b - realUsdc) };
     const liquidity = adds.map((a) => a.liquidity);
     const supply = min(liquidity);
@@ -255,29 +256,29 @@ export function buildWorld(stage: Stage, now = Math.floor(Date.now() / 1000)): F
   if (reached(stage, "pushed")) {
     // Carl hedges only SHIPS·CUTS and borrows close to the limit; then the operator pushes DELAYED·HOLDS down.
     const p = pools[S2X2];
-    const sale = sellInto(p[0], wad("2"), 15000n);
+    const sale = sellInto(p[0], wad("2000"), 15000n);
     pools[S2X2][0] = sale.pool;
     carl.wallet.wnear = 0n;
     carl.collateral[S2X2] = [
       { asset: "usdc", mask: 1, amount: sale.out },
-      { asset: "wnear", mask: 2, amount: wad("2") },
-      { asset: "wnear", mask: 4, amount: wad("2") },
-      { asset: "wnear", mask: 8, amount: wad("2") },
+      { asset: "wnear", mask: 2, amount: wad("2000") },
+      { asset: "wnear", mask: 4, amount: wad("2000") },
+      { asset: "wnear", mask: 8, amount: wad("2000") },
     ];
     const dhBefore = priceOf(pools[S2X2][3]);
-    const cmin = (wad("2") * dhBefore) / E18;
+    const cmin = (wad("2000") * dhBefore) / E18;
     const borrow = ((((cmin * 75n) / 100n) * 100n) / 106n / E18) * E18;
     carl.debt[S2X2] = borrow;
     carl.wallet.usdc = usdcUnits(borrow);
     market[S2X2].borrow += borrow;
     impact[S2X2].push({ at_sec: now - 300, prices: pricesOf(pools[S2X2], 15) });
 
-    const push = sellInto(pools[S2X2][3], wad("3"), 15000n);
-    const fee = (wad("3") * 15000n) / 1_000_000n;
+    const push = sellInto(pools[S2X2][3], wad("3000"), 15000n);
+    const fee = (wad("3000") * 15000n) / 1_000_000n;
     pools[S2X2][3] = push.pool;
     accounts.owner.wallet.wnear = 0n;
     accounts.owner.verse[S2X2].usdc[3] += push.out;
-    for (const w of [0, 1, 2]) accounts.owner.verse[S2X2].wnear[w] += wad("3");
+    for (const w of [0, 1, 2]) accounts.owner.verse[S2X2].wnear[w] += wad("3000");
     impact[S2X2].push({ at_sec: now - 240, prices: pricesOf(pools[S2X2], 15) });
     const v = vault[S2X2];
     if (v) v.fees[3] = { wnear: (fee * v.liquidity[3]) / pools[S2X2][3].t, usdc: 0n };
@@ -422,7 +423,7 @@ export function accountJson(world: FixtureWorld, sid: number, persona: Persona |
     world_price_ok: pools.map(() => true),
     collateral: coll.map((c) => ({
       token_id: c.real ? c.asset : `${sid}:${c.asset}:${c.mask}`,
-      label: c.real ? c.asset.toUpperCase() : `${c.asset.toUpperCase()}-if-${labelOf(sid, c.mask)}`,
+      label: c.real ? SYMBOL[c.asset] : `${SYMBOL[c.asset]}-if-${labelOf(sid, c.mask)}`,
       asset: c.asset,
       mask: c.real ? (sid === S2X2 ? 15 : 3) : c.mask,
       is_real: Boolean(c.real),
@@ -440,6 +441,8 @@ export function accountJson(world: FixtureWorld, sid: number, persona: Persona |
     unpriced_world: null,
   };
 }
+
+const SYMBOL = { wnear: "wNEAR", usdc: "USDC" } as const;
 
 function labelOf(sid: number, mask: number): string {
   const singles = LABELS[sid].filter((_, w) => (mask >> w) & 1);
@@ -494,7 +497,7 @@ export function appConfig(): AppConfigView {
   return {
     owner_id: ROOT_ACCOUNT,
     reporter_id: `resolver.${ROOT_ACCOUNT}`,
-    wnear: { token_id: FIXTURE_IDS.wnear, decimals: 18, symbol: "WETH" },
+    wnear: { token_id: FIXTURE_IDS.wnear, decimals: 24, symbol: "wNEAR" },
     usdc: { token_id: FIXTURE_IDS.usdc, decimals: 6, symbol: "USDC" },
     lltv: LLTV.toString(),
     liquidation_bonus: wad("0.05").toString(),

@@ -1,31 +1,37 @@
 import { describe, expect, it } from "vitest";
-import { fmt, fmtHf } from "../format";
+import { fmt, fmtHf, fmtPrice } from "../format";
 import { swapOut } from "./amm";
 import { accountJson, buildWorld, oddsOf, scenarioJson, wad } from "./golden";
 import { nextStage } from "./wallet";
 
 // The design fixtures must show the seeded demo's numbers, or the screenshots lie.
 const cents = (x: bigint | string) => fmt(BigInt(x));
+const price = (x: bigint | string) => fmtPrice(BigInt(x));
 
 describe("seeded demo", () => {
   const w = buildWorld("seeded", 1_800_000_000);
   const s = scenarioJson(w, 1, undefined);
 
-  it("prices the four worlds at 3,700 / 3,000 / 3,300 / 2,500", () => {
-    expect(s.worlds.map((x) => cents(x.wnear_price))).toEqual(["3,700.00", "3,000.00", "3,300.00", "2,500.00"]);
+  it("prices the four worlds at 3.70 / 3.00 / 3.30 / 2.50 USDC per NEAR", () => {
+    expect(s.worlds.map((x) => cents(x.wnear_price))).toEqual(["3.70", "3.00", "3.30", "2.50"]);
   });
 
-  it("odds sum to exactly 1e18 and the implied spot is 3,037.86", () => {
+  it("odds sum to exactly 1e18 and the implied spot is 3.0378", () => {
     const q = oddsOf(1, 0b1111);
     expect(q.reduce((a, b) => a + b, 0n)).toBe(10n ** 18n);
-    expect(cents(s.implied_spot)).toBe("3,037.86");
-    expect(cents(scenarioJson(w, 2, undefined).implied_spot)).toBe("3,200.02");
+    expect(price(s.implied_spot)).toBe("$3.0378");
+    expect(price(scenarioJson(w, 2, undefined).implied_spot)).toBe("$3.2000");
   });
 
-  it("sells 2 ETH into the thin DELAYED·HOLDS pool for 4,748.29 alone", () => {
+  it("sells 2,000 NEAR into the thin DELAYED·HOLDS pool for 4,748.29 alone", () => {
     const p = w.pools[1][3];
-    expect(cents(swapOut(p.x, p.y, wad("2"), p.feePips))).toBe("4,748.29");
-    expect(cents(swapOut(p.x, p.y, wad("1"), p.feePips))).toBe("2,431.88");
+    expect(cents(swapOut(p.x, p.y, wad("2000"), p.feePips))).toBe("4,748.29");
+    expect(cents(swapOut(p.x, p.y, wad("1000"), p.feePips))).toBe("2,431.88");
+  });
+
+  it("gives every persona's wallet its wNEAR in 24-decimal token units", () => {
+    expect(w.accounts.alice.wallet.wnear).toBe(2_000n * 10n ** 24n);
+    expect(w.accounts.uma.wallet.wnear).toBe(5_000n * 10n ** 24n);
   });
 });
 
@@ -33,9 +39,10 @@ describe("Alice's sale and loan", () => {
   it("keeps her proceeds as collateral: 5,865.05 / 6,451.55 / 4,881.88 with Ravi's bid", () => {
     const w = buildWorld("sold", 1_800_000_000);
     const a = accountJson(w, 1, "alice");
-    expect(a.collateral.map((c) => cents(c.amount))).toEqual(["2.00", "5,865.05", "6,451.55", "4,881.88"]);
+    expect(a.collateral.map((c) => cents(c.amount))).toEqual(["2,000.00", "5,865.05", "6,451.55", "4,881.88"]);
+    expect(a.collateral.map((c) => c.label)).toEqual(["wNEAR-if-SHIPS·CUTS", "USDC-if-DELAYED·CUTS", "USDC-if-SHIPS·HOLDS", "USDC-if-DELAYED·HOLDS"]);
     const s = scenarioJson(w, 1, "alice");
-    expect(s.worlds.slice(1).map((x) => cents(x.wnear_price))).toEqual(["2,883.84", "3,172.23", "2,379.88"]);
+    expect(s.worlds.slice(1).map((x) => price(x.wnear_price))).toEqual(["$2.8838", "$3.1722", "$2.3798"]);
   });
 
   it("borrows 3,000 at a worst-world health factor of 1.22", () => {

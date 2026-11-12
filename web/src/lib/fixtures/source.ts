@@ -62,7 +62,9 @@ export function createFixtureSource(stage?: Stage): ReadSource {
           case "ft_balance_of":
             return (me ? me.wallet[asset] : 0n).toString() as T;
           case "ft_metadata":
-            return { spec: "ft-1.0.0", name: asset === "wnear" ? "Wrapped Ether (test)" : "USD Coin (test)", symbol: asset.toUpperCase(), decimals: asset === "wnear" ? 18 : 6 } as T;
+            return asset === "wnear"
+              ? ({ spec: "ft-1.0.0", name: "Mock Wrapped NEAR", symbol: "wNEAR", decimals: 24 } as T)
+              : ({ spec: "ft-1.0.0", name: "Mock USD Coin", symbol: "USDC", decimals: 6 } as T);
           case "storage_balance_of":
             return (me && (asset === "wnear" || me.usdcRegistered) ? { total: "1250000000000000000000", available: "0" } : null) as T;
           case "storage_balance_bounds":
