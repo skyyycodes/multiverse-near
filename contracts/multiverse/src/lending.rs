@@ -1,7 +1,7 @@
 //! Money markets: one real-USDC market per scenario, with no creation step.
 //!
 //! Lenders supply USDC and earn one fixed per-second rate. Borrowers post
-//! collateral pieces (live verse tokens of the scenario, or real WETH/USDC)
+//! collateral pieces (live verse tokens of the scenario, or real wNEAR/USDC)
 //! and borrow USDC up to what the worst still-possible world carries:
 //! `HF = floor(C_min * lltv / debt)`. Below HF 1 anyone can liquidate: the
 //! repayment (at most half the debt) buys the same fraction of every piece,
@@ -64,7 +64,7 @@ impl CollateralKey {
         }
     }
 
-    /// `"weth"` / `"usdc"` for real assets, the NEP-245 token id otherwise.
+    /// `"wnear"` / `"usdc"` for real assets, the NEP-245 token id otherwise.
     pub fn piece_id(self, scenario_id: u64) -> String {
         match self {
             CollateralKey::Real(asset) => asset.as_str().to_string(),
@@ -158,7 +158,7 @@ pub enum LiquidationState {
 pub struct LiquidationStatusView {
     pub status: LiquidationState,
     /// The lowest possible world without a price in which the account holds
-    /// WETH-valued collateral, when that is what pauses liquidation.
+    /// wNEAR-valued collateral, when that is what pauses liquidation.
     pub unpriced_world: Option<u8>,
 }
 
@@ -166,9 +166,9 @@ pub struct LiquidationStatusView {
 pub(crate) struct Valuation {
     pub values: Vec<u128>,
     pub possible: u8,
-    /// Highest valid WETH price over all possible worlds.
+    /// Highest valid wNEAR price over all possible worlds.
     pub max_price: u128,
-    /// Possible worlds without a price in which the account holds WETH-valued pieces.
+    /// Possible worlds without a price in which the account holds wNEAR-valued pieces.
     pub unpriced: u8,
 }
 
@@ -335,7 +335,7 @@ impl Contract {
     }
 
     /// Posts `amount` of a piece the caller holds: a verse token id of this
-    /// scenario from the ledger, or `"weth"` / `"usdc"` from the internal
+    /// scenario from the ledger, or `"wnear"` / `"usdc"` from the internal
     /// real balance. Only for the caller's own account.
     #[payable]
     pub fn deposit_collateral(&mut self, scenario_id: u64, piece: String, amount: U128) {
@@ -1014,8 +1014,8 @@ impl Contract {
         )
     }
 
-    /// Every world of the scenario valued at its WETH price; worlds that can
-    /// no longer happen stay 0, and so does WETH in a world without a price.
+    /// Every world of the scenario valued at its wNEAR price; worlds that can
+    /// no longer happen stay 0, and so does wNEAR in a world without a price.
     pub(crate) fn valuation(&self, scenario_id: u64, account: &AccountId) -> Valuation {
         let s = self.scenario(scenario_id);
         let (worlds, possible, root) = (s.world_count, s.possible, s.root());
@@ -1049,7 +1049,7 @@ impl Contract {
                 let value = if usdc {
                     amount
                 } else {
-                    risk::weth_value(amount, prices[i])
+                    risk::wnear_value(amount, prices[i])
                 };
                 values[i] = add(values[i], value);
             }

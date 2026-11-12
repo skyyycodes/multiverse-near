@@ -1,9 +1,7 @@
-//! Edge cases probed against the EVM code and pinned here for the port. Probes about EVM
-//! plumbing with no NEAR counterpart (ABI-malformed reports, the asset
-//! allow-list) are left out.
+//! Edge cases probed against the reference behaviour and pinned here.
 
 use super::harness::*;
-use crate::types::Asset::{Usdc, Weth};
+use crate::types::Asset::{Usdc, Wnear};
 use crate::types::Source;
 
 #[test]
@@ -11,22 +9,22 @@ fn single_part_split_after_resolution() {
     let mut w = World::new();
     w.admin_resolve(w.fed, OUT_HOLDS).unwrap();
     // root's dead worlds need no cover, so one part is enough
-    w.split_ft(ALICE, 1, Weth, &[HOLDS], E18).unwrap();
-    w.split_ft(ALICE, 1, Weth, &[L_SHAPE], E18).unwrap();
-    w.redeem(ALICE, 1, Weth, HOLDS, E18).unwrap();
-    w.redeem(ALICE, 1, Weth, L_SHAPE, E18).unwrap();
-    assert_eq!(w.wallet(ALICE, Weth), FUND);
-    assert_eq!(w.reserves(1, Weth), 0);
+    w.split_ft(ALICE, 1, Wnear, &[HOLDS], E18).unwrap();
+    w.split_ft(ALICE, 1, Wnear, &[L_SHAPE], E18).unwrap();
+    w.redeem(ALICE, 1, Wnear, HOLDS, E18).unwrap();
+    w.redeem(ALICE, 1, Wnear, L_SHAPE, E18).unwrap();
+    assert_eq!(w.wallet(ALICE, Wnear), FUND);
+    assert_eq!(w.reserves(1, Wnear), 0);
 }
 
 #[test]
 fn single_live_world_root_split_into_one_part() {
     let mut w = World::new();
     w.admin_resolve(w.fed, OUT_HOLDS).unwrap();
-    w.admin_resolve(w.glam, OUT_DELAYED).unwrap();
-    w.split_ft(ALICE, 1, Weth, &[DELAYED_HOLDS], E18).unwrap();
+    w.admin_resolve(w.spice, OUT_DELAYED).unwrap();
+    w.split_ft(ALICE, 1, Wnear, &[DELAYED_HOLDS], E18).unwrap();
     fails(
-        w.split(ALICE, 1, Weth, DELAYED_HOLDS, &[DELAYED_HOLDS], 1),
+        w.split(ALICE, 1, Wnear, DELAYED_HOLDS, &[DELAYED_HOLDS], 1),
         "NotStrictSubset(8, 8)",
     );
 }
@@ -34,36 +32,36 @@ fn single_live_world_root_split_into_one_part() {
 #[test]
 fn merge_into_dead_to_mask() {
     let mut w = World::new();
-    w.split_ft(ALICE, 1, Weth, &SINGLES, E18).unwrap();
+    w.split_ft(ALICE, 1, Wnear, &SINGLES, E18).unwrap();
     w.admin_resolve(w.fed, OUT_HOLDS).unwrap();
     fails(
-        w.merge(ALICE, 1, Weth, &[SHIPS_CUTS, DELAYED_CUTS], CUTS, 1),
+        w.merge(ALICE, 1, Wnear, &[SHIPS_CUTS, DELAYED_CUTS], CUTS, 1),
         "DeadVerse(1)",
     );
-    fails(w.merge(ALICE, 1, Weth, &[], CUTS, 1), "EmptyPartition");
+    fails(w.merge(ALICE, 1, Wnear, &[], CUTS, 1), "EmptyPartition");
 }
 
 #[test]
 fn merge_live_into_mask_with_dead_worlds() {
     let mut w = World::new();
-    w.split_ft(ALICE, 1, Weth, &SINGLES, E18).unwrap();
+    w.split_ft(ALICE, 1, Wnear, &SINGLES, E18).unwrap();
     w.admin_resolve(w.fed, OUT_HOLDS).unwrap();
-    w.merge(ALICE, 1, Weth, &[SHIPS_HOLDS, DELAYED_HOLDS], 0xD, E18)
+    w.merge(ALICE, 1, Wnear, &[SHIPS_HOLDS, DELAYED_HOLDS], 0xD, E18)
         .unwrap();
-    assert_eq!(w.bal(ALICE, 1, Weth, 0xD), E18);
-    assert_eq!(w.reserves(1, Weth), E18);
+    assert_eq!(w.bal(ALICE, 1, Wnear, 0xD), E18);
+    assert_eq!(w.reserves(1, Wnear), E18);
     // 0xD covers every possible world, so it is collapsed and redeems 1:1
-    w.redeem(ALICE, 1, Weth, 0xD, E18).unwrap();
-    assert_eq!(w.reserves(1, Weth), 0);
+    w.redeem(ALICE, 1, Wnear, 0xD, E18).unwrap();
+    assert_eq!(w.reserves(1, Wnear), 0);
 }
 
 #[test]
 fn redeem_before_resolution() {
     let mut w = World::new();
-    w.split_ft(ALICE, 1, Weth, &[SHIPS, DELAYED], E18).unwrap();
+    w.split_ft(ALICE, 1, Wnear, &[SHIPS, DELAYED], E18).unwrap();
     for m in [SHIPS, DELAYED] {
         fails(
-            w.redeem(ALICE, 1, Weth, m, 1),
+            w.redeem(ALICE, 1, Wnear, m, 1),
             &format!("NotCollapsed({m})"),
         );
     }
@@ -72,17 +70,18 @@ fn redeem_before_resolution() {
 #[test]
 fn split_from_collapsed_token_burns_not_pulls() {
     let mut w = World::new();
-    w.split_ft(ALICE, 1, Weth, &[CUTS, HOLDS], 2 * E18).unwrap();
-    w.admin_resolve(w.fed, OUT_HOLDS).unwrap();
-    let (wallet, real) = (w.wallet(ALICE, Weth), w.real(ALICE, Weth));
-    // HOLDS is collapsed now: it splits like root, but burns the token
-    w.split(ALICE, 1, Weth, HOLDS, &[SHIPS_HOLDS, DELAYED_HOLDS], E18)
+    w.split_ft(ALICE, 1, Wnear, &[CUTS, HOLDS], 2 * E18)
         .unwrap();
-    assert_eq!(w.wallet(ALICE, Weth), wallet);
-    assert_eq!(w.real(ALICE, Weth), real);
-    assert_eq!(w.reserves(1, Weth), 2 * E18);
-    assert_eq!(w.bal(ALICE, 1, Weth, HOLDS), E18);
-    assert_eq!(w.bal(ALICE, 1, Weth, SHIPS_HOLDS), E18);
+    w.admin_resolve(w.fed, OUT_HOLDS).unwrap();
+    let (wallet, real) = (w.wallet(ALICE, Wnear), w.real(ALICE, Wnear));
+    // HOLDS is collapsed now: it splits like root, but burns the token
+    w.split(ALICE, 1, Wnear, HOLDS, &[SHIPS_HOLDS, DELAYED_HOLDS], E18)
+        .unwrap();
+    assert_eq!(w.wallet(ALICE, Wnear), wallet);
+    assert_eq!(w.real(ALICE, Wnear), real);
+    assert_eq!(w.reserves(1, Wnear), 2 * E18);
+    assert_eq!(w.bal(ALICE, 1, Wnear, HOLDS), E18);
+    assert_eq!(w.bal(ALICE, 1, Wnear, SHIPS_HOLDS), E18);
 }
 
 #[test]
@@ -150,7 +149,7 @@ fn huge_window_blocks_proposals_until_lowered() {
     w.report(fed, OUT_HOLDS).unwrap();
     w.call(OWNER, ONE_YOCTO, |c| c.set_dispute_window(u64::MAX))
         .unwrap();
-    // finalizable_at overflows u64, like the EVM's uint64 add
+    // finalizable_at overflows u64
     fails(w.try_view(|c| c.finalizable_at(fed)), "ArithmeticOverflow");
     fails(w.finalize(ALICE, fed), "ArithmeticOverflow");
     // dispute adds in a wider type and still works
@@ -241,11 +240,11 @@ fn views_on_odd_inputs() {
 #[test]
 fn reversed_event_order() {
     let mut w = World::new();
-    let (glam, fed) = (w.glam, w.fed);
-    let rev = w.create_scenario(&[fed, glam]).unwrap();
+    let (spice, fed) = (w.spice, w.fed);
+    let rev = w.create_scenario(&[fed, spice]).unwrap();
     // Fed is digit 0 now
     assert_eq!(w.view(|c| c.worlds_with(rev, fed, OUT_HOLDS)), 0xA);
-    assert_eq!(w.view(|c| c.worlds_with(rev, glam, OUT_DELAYED)), 0xC);
+    assert_eq!(w.view(|c| c.worlds_with(rev, spice, OUT_DELAYED)), 0xC);
     assert_eq!(w.view(|c| c.verse_label(rev, 0x2)), "HOLDS·SHIPS");
 }
 
@@ -276,18 +275,18 @@ fn split_order_of_checks() {
     // UnknownScenario before ZeroAmount, ZeroAmount before the mask, the
     // mask before liveness, liveness before the partition, the partition
     // before the balance.
-    fails(w.split(ALICE, 9, Weth, 0, &[], 0), "UnknownScenario(9)");
-    fails(w.split(ALICE, 1, Weth, 0, &[], 0), "ZeroAmount");
-    fails(w.split(ALICE, 1, Weth, 0, &[], 1), "InvalidMask(0)");
+    fails(w.split(ALICE, 9, Wnear, 0, &[], 0), "UnknownScenario(9)");
+    fails(w.split(ALICE, 1, Wnear, 0, &[], 0), "ZeroAmount");
+    fails(w.split(ALICE, 1, Wnear, 0, &[], 1), "InvalidMask(0)");
     w.admin_resolve(w.fed, OUT_HOLDS).unwrap();
-    fails(w.split(ALICE, 1, Weth, CUTS, &[], 1), "DeadVerse(3)");
-    fails(w.split(ALICE, 1, Weth, ROOT, &[], 1), "EmptyPartition");
+    fails(w.split(ALICE, 1, Wnear, CUTS, &[], 1), "DeadVerse(3)");
+    fails(w.split(ALICE, 1, Wnear, ROOT, &[], 1), "EmptyPartition");
     fails(
-        w.split(ALICE, 1, Weth, ROOT, &[HOLDS], 1),
-        "ERC20InsufficientBalance(alice.near, 0, 1)",
+        w.split(ALICE, 1, Wnear, ROOT, &[HOLDS], 1),
+        "InsufficientBalance(alice.near, 0, 1)",
     );
     fails(
-        w.split(ALICE, 1, Weth, HOLDS, &[SHIPS_HOLDS, DELAYED_HOLDS], 1),
+        w.split(ALICE, 1, Wnear, HOLDS, &[SHIPS_HOLDS, DELAYED_HOLDS], 1),
         "InvalidMask(12)",
     );
 }
@@ -295,22 +294,22 @@ fn split_order_of_checks() {
 #[test]
 fn create_scenario_after_partial_use() {
     let mut w = World::new();
-    w.admin_resolve(w.glam, OUT_SHIPS).unwrap();
-    fails(w.create_scenario(&[w.glam, w.fed]), "EventNotOpen(1)");
-    fails(w.create_scenario(&[w.fed, w.glam]), "EventNotOpen(1)");
+    w.admin_resolve(w.spice, OUT_SHIPS).unwrap();
+    fails(w.create_scenario(&[w.spice, w.fed]), "EventNotOpen(1)");
+    fails(w.create_scenario(&[w.fed, w.spice]), "EventNotOpen(1)");
 }
 
 #[test]
 fn duplicate_scenario_allowed() {
     let mut w = World::new();
-    let again = w.create_scenario(&[w.glam, w.fed]).unwrap();
+    let again = w.create_scenario(&[w.spice, w.fed]).unwrap();
     assert_eq!(again, 3);
-    w.split_ft(ALICE, again, Weth, &SINGLES, E18).unwrap();
+    w.split_ft(ALICE, again, Wnear, &SINGLES, E18).unwrap();
     // its own reserves and tokens
-    assert_eq!(w.reserves(again, Weth), E18);
-    assert_eq!(w.reserves(1, Weth), 0);
-    assert_eq!(w.bal(ALICE, again, Weth, SHIPS_CUTS), E18);
-    assert_eq!(w.bal(ALICE, 1, Weth, SHIPS_CUTS), 0);
+    assert_eq!(w.reserves(again, Wnear), E18);
+    assert_eq!(w.reserves(1, Wnear), 0);
+    assert_eq!(w.bal(ALICE, again, Wnear, SHIPS_CUTS), E18);
+    assert_eq!(w.bal(ALICE, 1, Wnear, SHIPS_CUTS), 0);
     // resolving the shared events resolves every copy
     w.admin_resolve(w.fed, OUT_HOLDS).unwrap();
     assert_eq!(w.possible(again), HOLDS);

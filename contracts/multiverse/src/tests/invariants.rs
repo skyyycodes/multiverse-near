@@ -1,6 +1,6 @@
-//! `CoreInvariants.t.sol` + `CoreHandler.sol` as property tests. Each case
-//! builds the fixture with three scenarios that share events (2x2 [glam,
-//! fed], binary [glam], binary [fed]) and three users, then runs 50 to 200
+//! The core invariants as property tests. Each case
+//! builds the fixture with three scenarios that share events (2x2 [spice,
+//! fed], binary [spice], binary [fed]) and three users, then runs 50 to 200
 //! random actions: split (from the wallet, from the internal balance or from
 //! a held token), merge, merge back, redeem, transfer (dead tokens included),
 //! attempts on dead verses, deposits and withdrawals, and the whole oracle
@@ -9,9 +9,9 @@
 //! always fail (she is not registered with the tokens), so the books also go
 //! through `on_payout`'s re-credit.
 //!
-//! Choices come from bit ranges of one seed per action, as in the handler;
-//! actions that would be pointless are skipped, and calls that fail are
-//! rolled back, like Foundry's `fail_on_revert = false`.
+//! Choices come from bit ranges of one seed per action; actions that would
+//! be pointless are skipped, and calls that fail are rolled back and the run
+//! goes on.
 
 use std::cell::RefCell;
 use std::collections::BTreeMap;
@@ -21,12 +21,12 @@ use proptest::test_runner::{Config, TestRunner};
 
 use super::harness::*;
 use crate::masks::single_worlds;
-use crate::types::Asset::{self, Usdc, Weth};
+use crate::types::Asset::{self, Usdc, Wnear};
 use crate::types::VerseKey;
 
 const MAX_AMOUNT: u128 = 1_000_000_000_000_000_000_000_000_000_000; // 1e30
 const ACTORS: [&str; 3] = [ALICE, BOB, CAROL];
-const ASSETS: [Asset; 2] = [Weth, Usdc];
+const ASSETS: [Asset; 2] = [Wnear, Usdc];
 const CASES: u32 = 256;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -68,7 +68,7 @@ fn actions() -> impl Strategy<Value = Vec<(Op, u64, u128)>> {
     proptest::collection::vec((op(), any::<u64>(), any::<u128>()), 50..=200)
 }
 
-/// Foundry's `bound` for the amounts.
+/// Clamps a random amount into `lo..=hi`.
 fn bound(x: u128, lo: u128, hi: u128) -> u128 {
     lo + x % (hi - lo + 1)
 }
@@ -108,19 +108,18 @@ impl Campaign {
         w.fund(CAROL);
         w.ft_unregistered.insert(acc(CAROL));
         let s_fed = w.create_scenario(&[w.fed]).unwrap();
-        let (glam, fed, s2x2, s_bin) = (w.glam, w.fed, w.s2x2, w.s_bin);
+        let (spice, fed, s2x2, s_bin) = (w.spice, w.fed, w.s2x2, w.s_bin);
         Campaign {
             w,
             scenarios: [s2x2, s_bin, s_fed],
-            events: [glam, fed],
+            events: [spice, fed],
             last_split: BTreeMap::new(),
             dead_ops_succeeded: 0,
             dead: Vec::new(),
         }
     }
 
-    /// Two thirds of the actions go to the 2x2 scenario, as in the handler
-    /// (its comment says half; the code gives 4/6).
+    /// Two thirds of the actions go to the 2x2 scenario.
     fn pick(&mut self, seed: u64) -> Pick {
         let actor = ACTORS[(seed % 3) as usize];
         let s = (seed >> 8) % 6;

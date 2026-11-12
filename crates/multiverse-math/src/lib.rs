@@ -4,13 +4,13 @@
 //! native tests. There are no floats and no NEAR dependencies. Amounts are `u128` in 18-decimal units, prices are
 //! WAD-scaled (`1e18` = 1.0), fees are in pips (`1_000_000` = 100%) and time is whole seconds.
 //!
-//! Every formula is a port of the Solidity version in the EVM project (OpenZeppelin `mulDiv`, Uniswap v4 `TickMath`,
-//! the protocol's `SharesMath`, `OrderMath`, `PriceMath`, `SwapFlow`, `TwapOracle` and `OddsTree`) or, for the pools,
-//! the constant-product equivalent of a v4 full-range position. Rounding always favours the protocol: what users
+//! Every formula follows the protocol's reference maths (full-width `mul_div`, the `TickMath` port, `SharesMath`,
+//! `OrderMath`, `PriceMath`, `SwapFlow`, `TwapOracle` and `OddsTree`) or, for the pools, the constant-product
+//! equivalent of a full-range concentrated-liquidity position. Rounding always favours the protocol: what users
 //! receive rounds down, what they pay rounds up.
 //!
-//! Failure model. Functions that mirror a Solidity revert panic with the Solidity error name (`InvalidTick(-887273)`,
-//! `MulDivOverflow`), the same way checked arithmetic reverts on the EVM; near-sdk turns the panic into a readable
+//! Failure model. Functions that cannot carry on panic with a short error name (`InvalidTick(-887273)`,
+//! `MulDivOverflow`); near-sdk turns the panic into a readable
 //! failure that rolls the receipt back. Where a caller has to carry on instead (quotes and views), there is a
 //! `checked_*` variant returning `Option`, and pool operations return [`cpmm::CpmmError`].
 //!

@@ -6,10 +6,10 @@
 //! That keeps invariant 1: in every possible world, the supply of the verse
 //! tokens covering that world equals the reserves.
 //!
-//! Check orders follow the EVM contract exactly; tests assert the first error.
-//! On NEAR there is no `to` (the caller receives everything) and the asset is
-//! one of the two configured tokens by type, so `ZeroAddress` and
-//! `AssetNotAllowed` cannot happen here (`ft_on_transfer` raises the latter).
+//! Check orders are fixed; tests assert the first error. There is no `to`
+//! (the caller receives everything) and the asset is one of the two
+//! configured tokens by type, so `AssetNotAllowed` cannot happen here
+//! (`ft_on_transfer` raises it).
 
 use near_sdk::json_types::U128;
 use near_sdk::{assert_one_yocto, env, near, AccountId};
@@ -141,8 +141,8 @@ impl Contract {
         self.charge_storage(&account, before);
     }
 
-    /// Makes a verse token exist before anything is minted (the EVM
-    /// `deployVerseToken`), so its id resolves in `mt_supply` and pools can be
+    /// Makes a verse token exist before anything is minted (an explicit
+    /// creation step), so its id resolves in `mt_supply` and pools can be
     /// set up first. Anyone may call it; it is idempotent and the caller pays
     /// the storage.
     pub fn register_verse(&mut self, scenario_id: u64, asset: Asset, mask: u8) -> String {
@@ -208,7 +208,7 @@ impl Contract {
     }
 
     /// Whether `mask` pays in `world` and that world can still happen. Bits
-    /// above the scenario's worlds are ignored, as in the EVM view.
+    /// above the scenario's worlds are ignored.
     pub fn value_in(&self, scenario_id: u64, mask: u8, world: u8) -> bool {
         let s = self.scenario(scenario_id);
         world < s.world_count && masks::contains(mask, world) && masks::contains(s.possible, world)
@@ -253,7 +253,7 @@ impl Contract {
         format!("0b{bits}")
     }
 
-    /// The token's display name, `"{SYMBOL}-if-{label}"`, e.g. `"WETH-if-DELAYED·HOLDS"`.
+    /// The token's display name, `"{SYMBOL}-if-{label}"`, e.g. `"wNEAR-if-DELAYED·HOLDS"`.
     /// Not unique across scenarios.
     pub fn verse_name(&self, scenario_id: u64, asset: Asset, mask: u8) -> String {
         let label = self.verse_label(scenario_id, mask);
@@ -281,19 +281,19 @@ impl Contract {
     /// tokens held by pools, escrow, collateral and the Root LP too.
     pub fn backing(&self, scenario_id: u64) -> BackingView {
         let s = self.scenario(scenario_id);
-        let weth_reserves = self.reserve(scenario_id, Asset::Weth);
+        let wnear_reserves = self.reserve(scenario_id, Asset::Wnear);
         let usdc_reserves = self.reserve(scenario_id, Asset::Usdc);
         let worlds = (0..s.world_count)
             .map(|w| {
                 let possible = masks::contains(s.possible, w);
-                let weth = self.supply_in_world(scenario_id, s.root(), Asset::Weth, w);
+                let wnear = self.supply_in_world(scenario_id, s.root(), Asset::Wnear, w);
                 let usdc = self.supply_in_world(scenario_id, s.root(), Asset::Usdc, w);
                 WorldBacking {
                     world: w,
                     possible,
-                    weth_supply: U128(weth),
+                    wnear_supply: U128(wnear),
                     usdc_supply: U128(usdc),
-                    weth_backed: !possible || weth == weth_reserves,
+                    wnear_backed: !possible || wnear == wnear_reserves,
                     usdc_backed: !possible || usdc == usdc_reserves,
                 }
             })
@@ -301,7 +301,7 @@ impl Contract {
         BackingView {
             scenario_id,
             possible: s.possible,
-            weth_reserves: U128(weth_reserves),
+            wnear_reserves: U128(wnear_reserves),
             usdc_reserves: U128(usdc_reserves),
             worlds,
         }
@@ -479,8 +479,8 @@ impl Contract {
     }
 
     /// Applies an event's outcome to one scenario. Only the oracle's finalize
-    /// path calls this, once per scenario using the event, so the EVM's
-    /// `OnlyOracle` check has no counterpart.
+    /// path calls this, once per scenario using the event, so there is no
+    /// separate caller check.
     pub(crate) fn resolve(&mut self, scenario_id: u64, event_id: u64, outcome: u8) {
         let mut s = self.scenario(scenario_id).clone();
         let k = s.event_index(scenario_id, event_id);

@@ -49,7 +49,7 @@ impl MultiverseEvent for Swap<'_> {
 
 /// Liquidity added, removed, or only fees collected. `amount0/1` is what
 /// went into (add) or came out of (remove) the reserves; `fees0/1` the fees
-/// paid out with it, as v4 pays a position's fees on every change to it.
+/// paid out with it, as every change to a position pays its fees.
 #[derive(Serialize, Debug)]
 #[serde(crate = "near_sdk::serde")]
 pub struct Liquidity<'a> {

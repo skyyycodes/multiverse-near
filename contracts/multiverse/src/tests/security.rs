@@ -8,7 +8,7 @@ use near_sdk::{NearToken, PromiseResult};
 use super::amm::pool_world;
 use super::harness::*;
 use crate::core::MAX_SCENARIOS_PER_EVENT;
-use crate::types::Asset::{Usdc, Weth};
+use crate::types::Asset::{Usdc, Wnear};
 
 /// RT-1: with nothing attached, an owner function-call key could move the
 /// owner's balances into a pool at any price.
@@ -16,9 +16,9 @@ use crate::types::Asset::{Usdc, Weth};
 fn owner_creation_methods_need_an_attached_deposit() {
     let mut w = pool_world();
     let sid = w.s2x2;
-    w.split_ft(OWNER, sid, Weth, &SINGLES, 100 * E18).unwrap();
+    w.split_ft(OWNER, sid, Wnear, &SINGLES, 100 * E18).unwrap();
     w.split_ft(OWNER, sid, Usdc, &SINGLES, 100 * E18).unwrap();
-    w.deposit(OWNER, Weth, 10 * E18).unwrap();
+    w.deposit(OWNER, Wnear, 10 * E18).unwrap();
     w.deposit(OWNER, Usdc, 40_000 * E18).unwrap();
 
     fails(
@@ -45,12 +45,12 @@ fn owner_creation_methods_need_an_attached_deposit() {
         }),
         "DepositRequired",
     );
-    let glam = w.glam;
+    let spice = w.spice;
     fails(
-        w.call(OWNER, NO_DEPOSIT, |c| c.create_scenario(vec![glam])),
+        w.call(OWNER, NO_DEPOSIT, |c| c.create_scenario(vec![spice])),
         "DepositRequired",
     );
-    assert_eq!(w.bal(OWNER, sid, Weth, SHIPS_CUTS), 100 * E18);
+    assert_eq!(w.bal(OWNER, sid, Wnear, SHIPS_CUTS), 100 * E18);
 
     // One yoctoNEAR proves a full-access key; storage then comes from the
     // owner's NEP-145 balance.
@@ -69,18 +69,18 @@ fn owner_creation_methods_need_an_attached_deposit() {
 #[test]
 fn scenarios_per_event_are_capped_so_resolution_always_fits() {
     let mut w = World::new();
-    let glam = w.glam;
-    let used = w.view(|c| c.scenarios_of_event(glam).len());
+    let spice = w.spice;
+    let used = w.view(|c| c.scenarios_of_event(spice).len());
     for _ in used..MAX_SCENARIOS_PER_EVENT {
-        w.create_scenario(&[glam]).unwrap();
+        w.create_scenario(&[spice]).unwrap();
     }
     fails(
-        w.create_scenario(&[glam]),
-        &format!("TooManyScenarios({glam})"),
+        w.create_scenario(&[spice]),
+        &format!("TooManyScenarios({spice})"),
     );
-    w.report(glam, OUT_SHIPS).unwrap();
+    w.report(spice, OUT_SHIPS).unwrap();
     w.warp(DISPUTE_WINDOW + 1);
-    w.finalize(CAROL, glam).unwrap();
+    w.finalize(CAROL, spice).unwrap();
     assert!(w.last.logs.len() <= 100);
     assert!(!w.view(|c| c.is_halted(1)));
 }
@@ -145,15 +145,15 @@ fn resolve_last(w: &mut World, result: PromiseResult) -> Vec<u128> {
 fn resolve_refund_is_charged_to_the_sender() {
     const MARKET: &str = "market.near";
     let mut w = World::new();
-    w.split_ft(ALICE, 1, Weth, &[SHIPS, DELAYED], 10 * E18)
+    w.split_ft(ALICE, 1, Wnear, &[SHIPS, DELAYED], 10 * E18)
         .unwrap();
     w.register(MARKET, NearToken::from_near(1));
-    let ships = token_id(1, Weth, SHIPS);
-    // The receiver keeps 1 wei, so its own entry survives every refund.
+    let ships = token_id(1, Wnear, SHIPS);
+    // The receiver keeps 1 unit, so its own entry survives every refund.
     w.mt_transfer(ALICE, MARKET, &ships, 1).unwrap();
     let used = w.storage_used(ALICE);
     for _ in 0..3 {
-        let bal = w.bal(ALICE, 1, Weth, SHIPS);
+        let bal = w.bal(ALICE, 1, Wnear, SHIPS);
         let s = ships.clone();
         w.call(ALICE, ONE_YOCTO, |c| {
             c.mt_transfer_call(acc(MARKET), s, U128(bal), None, None, String::new());
@@ -162,10 +162,10 @@ fn resolve_refund_is_charged_to_the_sender() {
         assert_eq!(resolve_last(&mut w, PromiseResult::Failed), vec![0]);
         assert_eq!(w.storage_used(ALICE), used);
     }
-    assert_eq!(w.bal(ALICE, 1, Weth, SHIPS), 10 * E18 - 1);
+    assert_eq!(w.bal(ALICE, 1, Wnear, SHIPS), 10 * E18 - 1);
 }
 
-/// RT-2 (a): price-1 bids escrowed one wei each, and `trade_view` showed
+/// RT-2 (a): price-1 bids escrowed one unit each, and `trade_view` showed
 /// the first 200 open ids, so dust posted early hid every later order.
 #[test]
 fn dust_orders_cannot_hide_the_book_from_trade_view() {
@@ -251,7 +251,7 @@ fn closed_orders_do_not_grow_unregister_or_trade_view_gas() {
     let sid = w.s2x2;
     let expiry = T0 + 365 * DAY;
     w.register(RAVI, NearToken::from_near(5));
-    give(&mut w, RAVI, sid, Weth, DELAYED_HOLDS, MIN_ORDER_AMOUNT);
+    give(&mut w, RAVI, sid, Wnear, DELAYED_HOLDS, MIN_ORDER_AMOUNT);
     let gas = |w: &mut World| -> (u64, u64) {
         w.view(|c| {
             let g0 = env::used_gas().as_gas();
@@ -302,13 +302,13 @@ fn lending_world() -> (World, u64, Vec<u64>) {
     (w, s, pools)
 }
 
-fn post_weth(w: &mut World, who: &str, s: u64, amount: u128) {
+fn post_wnear(w: &mut World, who: &str, s: u64, amount: u128) {
     let msg = format!(r#"{{"action":"deposit_collateral","scenario_id":{s}}}"#);
-    w.ft_transfer_call(who, Weth, amount, &msg).unwrap();
+    w.ft_transfer_call(who, Wnear, amount, &msg).unwrap();
 }
 
 /// ECON-1: one root USDC split pumps every world's pool; held for one 60 s
-/// window, the TWAP followed and 24 WETH borrowed the whole market.
+/// window, the TWAP followed and 24 wNEAR borrowed the whole market.
 #[test]
 fn pumping_every_world_for_a_minute_does_not_unlock_borrowing() {
     let (mut w, s, pools) = lending_world();
@@ -322,11 +322,11 @@ fn pumping_every_world_for_a_minute_does_not_unlock_borrowing() {
         .unwrap();
     }
     w.warp(61);
-    post_weth(&mut w, CAROL, s, 24 * E18);
+    post_wnear(&mut w, CAROL, s, 24 * E18);
     let borrowed = w.call(CAROL, ONE_YOCTO, |c| c.borrow(s, U128(100_000 * E18)));
     assert!(borrowed.is_err(), "{borrowed:?}");
     // While the pools sit this far from their TWAP the worlds are unpriced,
-    // so nothing borrows against WETH there.
+    // so nothing borrows against wNEAR there.
     w.call(CAROL, ONE_YOCTO, |c| c.borrow(s, U128(10_000 * E18)))
         .unwrap_err();
     for i in 0..2 {
@@ -339,10 +339,10 @@ fn pumping_every_world_for_a_minute_does_not_unlock_borrowing() {
 #[test]
 fn dumping_one_world_for_a_minute_does_not_liquidate_a_healthy_borrower() {
     let (mut w, s, pools) = lending_world();
-    post_weth(&mut w, ALICE, s, 10 * E18);
+    post_wnear(&mut w, ALICE, s, 10 * E18);
     w.call(ALICE, ONE_YOCTO, |c| c.borrow(s, U128(18_000 * E18)))
         .unwrap();
-    w.split_ft(CAROL, s, Weth, &[1, 2], 19 * E18).unwrap();
+    w.split_ft(CAROL, s, Wnear, &[1, 2], 19 * E18).unwrap();
     w.call(CAROL, ONE_YOCTO, |c| {
         c.swap(pools[1], true, U128(18_380_000_000_000_000_000), U128(0))
     })
@@ -353,5 +353,5 @@ fn dumping_one_world_for_a_minute_does_not_liquidate_a_healthy_borrower() {
     );
     let liquidated = w.ft_transfer_call(CAROL, Usdc, 9_001 * E18 / scale(Usdc), &msg);
     assert!(liquidated.is_err(), "{liquidated:?}");
-    assert_eq!(w.real(CAROL, Weth), 0);
+    assert_eq!(w.real(CAROL, Wnear), 0);
 }

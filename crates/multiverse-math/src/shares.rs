@@ -4,8 +4,8 @@
 //! pick the direction that favours the protocol: lenders get shares rounded down and burn them rounded up, borrowers
 //! owe debt rounded up. From an empty market the round trip is exact: `a` assets mint `a * 1e6` shares, worth `a`.
 //!
-//! All four panic with `MulDivOverflow` if the result does not fit a `u128` (Solidity reverts on the same inputs only
-//! past 2^256, but no amount the contract stores can exceed `u128`).
+//! All four panic with `MulDivOverflow` if the result does not fit a `u128` (the 256-bit intermediate only
+//! overflows past 2^256, but no amount the contract stores can exceed `u128`).
 
 use crate::fixed::{mul_div_u256, Rounding, U256};
 

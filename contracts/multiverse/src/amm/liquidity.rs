@@ -1,6 +1,6 @@
 //! Full-range liquidity: add, remove, collect fees. None of these is ever
 //! blocked: not while the scenario is halted, not in a pool touching a dead
-//! verse (the EVM hook never saw liquidity changes). As in v4, every change
+//! verse. Every change
 //! to a position also pays out the fees it has earned.
 
 use multiverse_math::cpmm;

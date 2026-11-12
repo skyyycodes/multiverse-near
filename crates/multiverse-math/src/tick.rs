@@ -1,8 +1,8 @@
-//! Uniswap v4 `TickMath`: square-root prices for ticks of 1.0001 and back, bit for bit.
+//! Port of Uniswap v4's TickMath (MIT): square-root prices for ticks of 1.0001 and back, bit for bit.
 //!
 //! `get_sqrt_ratio_at_tick(t)` is `sqrt(1.0001^t) * 2^96` (Q64.96, rounded up) and `get_tick_at_sqrt_ratio(s)` is the
 //! greatest tick whose ratio is `<= s`. Out-of-range inputs panic with the v4 error names. The contract keeps a tick
-//! TWAP per pool, and lending prices collateral from the mean tick exactly as the EVM did.
+//! TWAP per pool, and lending prices collateral from the mean tick exactly as the prototype did.
 
 use crate::fixed::U256;
 
@@ -170,7 +170,7 @@ mod tests {
 
     #[test]
     fn canonical_values() {
-        // From v4-core TickMath.t.sol.
+        // From the TickMath reference tests.
         assert_eq!(get_sqrt_ratio_at_tick(MIN_TICK), MIN_SQRT_RATIO);
         assert_eq!(
             get_sqrt_ratio_at_tick(MIN_TICK),

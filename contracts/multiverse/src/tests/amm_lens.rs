@@ -1,8 +1,8 @@
-//! The lens over the pools (`MultiverseLens.t.sol`: odds, implied spot,
-//! quotes) and the demo's golden numbers from SeedDemo and DemoSale. The
-//! EVM pools were seeded through sqrt prices and v4's stepwise rounding; the
-//! NEAR pools hold the exact reserve ratio, so the printed numbers (two
-//! decimals, rounded down) match and the raw values agree to a few wei.
+//! The lens over the pools (odds, implied spot, quotes) and the demo's golden
+//! numbers from the seed and sale scripts. The prototype's pools were seeded
+//! through sqrt prices with stepwise rounding; these pools hold the exact
+//! reserve ratio, so the printed numbers (two decimals, rounded down) match
+//! the prototype's demo numbers and the raw values agree to a few units.
 
 use multiverse_math::fixed::WAD;
 use multiverse_math::price;
@@ -14,10 +14,10 @@ use crate::amm::views::SellPart;
 use crate::amm::PoolKind;
 use crate::types::Asset::Usdc;
 
-/// The EVM run's raw proceeds (WETH-if-w as token0).
-const EVM_W1_2ETH: u128 = 5_865_050_885_346_196_835_108;
-const EVM_W2_2ETH: u128 = 6_451_555_973_880_816_518_618;
-const EVM_W3_RAVI_THEN_POOL: u128 = 4_881_885_259_897_065_638_949;
+/// The prototype's demo numbers, raw (wNEAR-if-w as token0).
+const PROTO_W1_SALE: u128 = 5_865_050_885_346_196_835_108;
+const PROTO_W2_SALE: u128 = 6_451_555_973_880_816_518_618;
+const PROTO_W3_RAVI_THEN_POOL: u128 = 4_881_885_259_897_065_638_949;
 const RAVI_PRICE: u128 = 2450 * E18;
 
 fn odds_view(w: &mut World, sid: u64) -> (Vec<u128>, bool) {
@@ -39,7 +39,7 @@ fn weighted(q: &[u128], prices: &[u128], possible: u8) -> u128 {
         .sum()
 }
 
-/// The lens's `_assertOdds`: known, each world within 10 wei, dead worlds
+/// The odds check: known, each world within 10 units, dead worlds
 /// 0, the router-facing read agrees, and the sum is exactly 1e18.
 fn assert_odds(w: &mut World, sid: u64, expected: &[u128]) {
     let (q, known) = odds_view(w, sid);
@@ -75,21 +75,21 @@ fn assert_implied(w: &mut World, sid: u64, pools: &[u64]) -> u128 {
 // Golden numbers
 
 #[test]
-fn golden_two_eth_sale_in_the_thin_pool() {
+fn golden_sale_in_the_thin_pool() {
     let mut w = pool_world();
     seed_demo_thin(&mut w);
     let s = w.s2x2;
     let pool_only = w.view(|c| c.quote_sell(s, U128(2 * E18), DELAYED_HOLDS))[3].0;
     assert_eq!(cents(pool_only), 474829);
     assert_eq!(cents(pool_only / 2), 237414);
-    // Ravi's 1 WETH at 2,450, then 1 WETH into the pool
+    // Ravi's 1 wNEAR at 2,450, then 1 wNEAR into the pool
     let slice = w.view(|c| c.quote_sell(s, U128(E18), DELAYED_HOLDS))[3].0;
     assert_eq!(cents(slice), 243188);
     let with_bid = RAVI_PRICE + slice;
     assert_eq!(cents(with_bid), 488188);
     assert_eq!(cents(with_bid / 2), 244094);
-    assert!(with_bid.abs_diff(EVM_W3_RAVI_THEN_POOL) <= 1_000_000);
-    // even the pool's first WETH averages under the bid
+    assert!(with_bid.abs_diff(PROTO_W3_RAVI_THEN_POOL) <= 1_000_000);
+    // even the pool's first wNEAR averages under the bid
     assert!(slice < RAVI_PRICE && pool_only / 2 < RAVI_PRICE);
 }
 
@@ -105,10 +105,10 @@ fn golden_l_shape_sale_and_the_prices_after_it() {
         .map(|q| q.0)
         .collect();
     assert_eq!(quotes[0], 0);
-    assert!(quotes[1].abs_diff(EVM_W1_2ETH) <= 1_000_000);
-    assert!(quotes[2].abs_diff(EVM_W2_2ETH) <= 1_000_000);
+    assert!(quotes[1].abs_diff(PROTO_W1_SALE) <= 1_000_000);
+    assert!(quotes[2].abs_diff(PROTO_W2_SALE) <= 1_000_000);
     assert_eq!((cents(quotes[1]), cents(quotes[2])), (586505, 645155));
-    // worlds 1 and 2 sell 2 WETH; world 3 sells the 1 WETH Ravi's bid leaves
+    // worlds 1 and 2 sell 2 wNEAR; world 3 sells the 1 wNEAR Ravi's bid leaves
     assert_eq!(sell(&mut w, ALICE, pools[1], 2 * E18).0, quotes[1]);
     assert_eq!(sell(&mut w, ALICE, pools[2], 2 * E18).0, quotes[2]);
     sell(&mut w, ALICE, pools[3], E18);
@@ -185,7 +185,7 @@ fn golden_binary_implied_spot() {
     assert!(within_rel(got, 3_200_020 * E18 / 1000, 10_000_000_000));
 }
 
-// MultiverseLens.t.sol
+// The lens
 
 #[test]
 fn scenario_pools_before_and_after_a_sale() {
@@ -240,23 +240,23 @@ fn quote_sell_parts_and_bounds() {
     let parts = vec![
         SellPart {
             world: 3,
-            weth_amount: U128(E18),
+            wnear_amount: U128(E18),
         },
         SellPart {
             world: 3,
-            weth_amount: U128(2 * E18),
+            wnear_amount: U128(2 * E18),
         },
         SellPart {
             world: 0,
-            weth_amount: U128(E18),
+            wnear_amount: U128(E18),
         },
         SellPart {
             world: 7,
-            weth_amount: U128(E18),
+            wnear_amount: U128(E18),
         },
         SellPart {
             world: 1,
-            weth_amount: U128(0),
+            wnear_amount: U128(0),
         },
     ];
     let got = w.view(|c| c.quote_sell_parts(s, parts));
@@ -378,9 +378,9 @@ fn odds_renormalize_after_holds() {
 fn odds_renormalize_after_delayed() {
     let mut w = pool_world();
     let pools = seed_demo_2x2(&mut w);
-    let (s, glam) = (w.s2x2, w.glam);
+    let (s, spice) = (w.s2x2, w.spice);
     seed_odds(&mut w, s, &independent_odds(4, 6667, 3000), ODDS_DEPTH);
-    w.admin_resolve(glam, OUT_DELAYED).unwrap();
+    w.admin_resolve(spice, OUT_DELAYED).unwrap();
     assert_odds(&mut w, s, &[0, 3 * E18 / 10, 0, 7 * E18 / 10]);
     let got = assert_implied(&mut w, s, &pools);
     assert!(within_rel(
@@ -394,10 +394,10 @@ fn odds_renormalize_after_delayed() {
 fn odds_after_both_resolutions() {
     let mut w = pool_world();
     let pools = seed_demo_2x2(&mut w);
-    let (s, glam, fed) = (w.s2x2, w.glam, w.fed);
+    let (s, spice, fed) = (w.s2x2, w.spice, w.fed);
     seed_odds(&mut w, s, &independent_odds(4, 6667, 3000), ODDS_DEPTH);
     w.admin_resolve(fed, OUT_HOLDS).unwrap();
-    w.admin_resolve(glam, OUT_DELAYED).unwrap();
+    w.admin_resolve(spice, OUT_DELAYED).unwrap();
     assert_eq!(odds_view(&mut w, s), (vec![0, 0, 0, WAD], true));
     assert_eq!(implied(&mut w, s), price_of(&mut w, pools[3]));
 }
@@ -406,7 +406,7 @@ fn odds_after_both_resolutions() {
 fn odds_after_resolution_need_only_live_pools() {
     let mut w = pool_world();
     seed_demo_2x2(&mut w);
-    let (s, sb, glam, fed) = (w.s2x2, w.s_bin, w.glam, w.fed);
+    let (s, sb, spice, fed) = (w.s2x2, w.s_bin, w.spice, w.fed);
     seed_odds_pool(
         &mut w,
         s,
@@ -421,7 +421,7 @@ fn odds_after_resolution_need_only_live_pools() {
     assert_odds(&mut w, s, &[0, 0, 6667 * E18 / 10_000, 3333 * E18 / 10_000]);
     // the binary scenario has no pool at all
     assert!(!odds_view(&mut w, sb).1);
-    w.admin_resolve(glam, OUT_SHIPS).unwrap();
+    w.admin_resolve(spice, OUT_SHIPS).unwrap();
     assert_eq!(odds_view(&mut w, sb), (vec![WAD, 0], true));
     // no world pools: the implied spot is unknown even with known odds
     assert_eq!(implied(&mut w, sb), 0);

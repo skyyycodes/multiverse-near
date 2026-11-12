@@ -1,11 +1,11 @@
-//! Constant-product pool with Uniswap v4 full-range semantics.
+//! Constant-product pool with full-range concentrated-liquidity semantics.
 //!
 //! Every pool the protocol creates holds full-range liquidity only, which behaves as `x * y = L^2`. This module keeps
-//! the parts of v4 the protocol relies on:
+//! the parts of that design the protocol relies on:
 //!
 //! - the LP fee is charged on the input and kept out of the curve:
 //!   `a_eff = floor(a * (1e6 - f) / 1e6)`, `out = floor(R_out * a_eff / (R_in + a_eff))`;
-//! - fees accrue per unit of liquidity (Q128 fee growth, wrapping like v4), so positions earn them separately and the
+//! - fees accrue per unit of liquidity (Q128 fee growth, wrapping), so positions earn them separately and the
 //!   Root LP can see "fees earned" apart from principal;
 //! - adding liquidity takes amounts rounded up, removing pays them rounded down;
 //! - a quote is the swap computed on the same state, so quote equals execution.
@@ -13,8 +13,8 @@
 //! Reserves are the pool's actual balances. The tokens a pool owns are `reserve + fees` per side, where `fees` is
 //! what swaps paid in fees and positions have not collected yet (plus rounding dust that nobody can claim).
 //!
-//! v4 pays a position's fees out on every liquidity change. Here a change credits them to the position's owed
-//! tokens and [`Pool::collect`] pays them, so a caller that wants the v4 behaviour collects right after.
+//! A liquidity change does not pay a position's fees out. It credits them to the position's owed tokens and
+//! [`Pool::collect`] pays them, so a caller that wants them paid at once collects right after.
 //!
 //! Every operation validates before it changes anything: on `Err` neither the pool nor the position moved.
 
@@ -494,7 +494,7 @@ impl Pool {
     }
 
     /// Exact-output swap at `fee_pips`: the swapper receives exactly `amount_out` and pays the least input that
-    /// covers it on the curve plus the fee, both rounded up (v4's exact-output rule). Only tests and order-flow
+    /// covers it on the curve plus the fee, both rounded up (the usual exact-output rule). Only tests and order-flow
     /// fixtures need it; protocol trades are exact input.
     pub fn swap_exact_out(
         &mut self,
@@ -649,7 +649,7 @@ impl Position {
     }
 }
 
-/// `floor((growth - last) * liquidity / 2^128)`, the subtraction wrapping as in v4's `Position.update`.
+/// `floor((growth - last) * liquidity / 2^128)`, the subtraction wrapping.
 fn fees_for(growth: U256, last: U256, liquidity: u128) -> u128 {
     let delta = growth.overflowing_sub(last).0;
     // Only a position checkpointed against another pool could owe more than a u128.
@@ -676,7 +676,7 @@ mod tests {
 
     #[test]
     fn golden_demo_sale() {
-        // The demo's thin pool: 2 WETH into 40 WETH / 100,000 USDC at 0.30% gives 4,748.29 USDC; 1 WETH gives 2,431.88.
+        // The demo's thin pool: 2 wNEAR into 40 wNEAR / 100,000 USDC at 0.30% gives 4,748.29 USDC; 1 wNEAR gives 2,431.88.
         let (thin, _) = pool(40 * WAD, 100_000 * WAD);
         let two = thin.quote_exact_in(true, 2 * WAD, 3000).unwrap();
         assert_eq!(two.amount_out, 4_748_297_375_815_592_703_719);
@@ -868,7 +868,7 @@ mod tests {
 
     #[test]
     fn move_to_lands_on_the_target() {
-        // PoolSeeder.t.sol moves a 3,000 pool to 3,200 then 2,900; the spot reset moves it to the implied spot.
+        // The pool seeder's walk-through moves a 3,000 pool to 3,200 then 2,900; the spot reset moves it to the implied spot.
         let (mut p, _) = pool(100 * WAD, 300_000 * WAD);
         for target in [3_200 * WAD, 2_900 * WAD, 3_037_866_632_000_000_000_000] {
             let plan = p.plan_move_to(target, 3000).unwrap().expect("a move");

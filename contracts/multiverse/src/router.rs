@@ -9,7 +9,7 @@
 //! heaviest plan the app builds (four worlds, five fills each) stays inside a
 //! receipt's log limits.
 //!
-//! Plans are strict, as on the EVM: an order that was taken, cancelled,
+//! Plans are strict: an order that was taken, cancelled,
 //! expired or went stale fails the whole trade, and the app replans.
 
 use multiverse_math::orders::cost;
@@ -30,7 +30,7 @@ use crate::types::Asset;
 use crate::{Contract, ContractExt};
 
 /// One order fill in a sale plan: `{"order_id":"1","amount":"1000000000000000000"}`.
-/// `amount` is always WETH, for bids and asks alike.
+/// `amount` is always wNEAR, for bids and asks alike.
 #[near(serializers = [json])]
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -83,7 +83,7 @@ impl MultiverseEvent for Closed<'_> {
     const NAME: &'static str = "closed";
 }
 
-/// A sale gives WETH and takes bids; a buy gives USDC and takes asks.
+/// A sale gives wNEAR and takes bids; a buy gives USDC and takes asks.
 #[derive(Clone, Copy)]
 struct Trade {
     scenario_id: u64,
@@ -98,14 +98,14 @@ impl Trade {
         if self.buy {
             Asset::Usdc
         } else {
-            Asset::Weth
+            Asset::Wnear
         }
     }
 }
 
 #[near]
 impl Contract {
-    /// Sells `amount` WETH (from the internal balance) in the worlds of
+    /// Sells `amount` wNEAR (from the internal balance) in the worlds of
     /// `sell_mask` and keeps it in every other possible world. Returns the
     /// USDC-if-w each world paid (0 where not sold).
     #[payable]
@@ -133,8 +133,8 @@ impl Contract {
         out
     }
 
-    /// Buys WETH-if-w with `amount` USDC (from the internal balance) in the
-    /// worlds of `buy_mask`, filling asks first. Returns the WETH-if-w bought.
+    /// Buys wNEAR-if-w with `amount` USDC (from the internal balance) in the
+    /// worlds of `buy_mask`, filling asks first. Returns the wNEAR-if-w bought.
     #[payable]
     pub fn conditional_buy(
         &mut self,
@@ -183,7 +183,7 @@ impl Contract {
         amount: u128,
         msg: ConditionalSellMsg,
     ) {
-        require_asset(asset, Asset::Weth);
+        require_asset(asset, Asset::Wnear);
         let t = Trade {
             scenario_id: msg.scenario_id,
             amount,
@@ -220,7 +220,7 @@ impl Contract {
         amount: u128,
         msg: SellAndBorrowMsg,
     ) {
-        require_asset(asset, Asset::Weth);
+        require_asset(asset, Asset::Wnear);
         let t = Trade {
             scenario_id: msg.scenario_id,
             amount,
@@ -232,7 +232,7 @@ impl Contract {
         self.borrow_for(sender, msg.scenario_id, msg.borrow_amount.0);
     }
 
-    /// Posts an order from real assets: USDC for a bid, WETH for an ask. The
+    /// Posts an order from real assets: USDC for a bid, wNEAR for an ask. The
     /// escrow is split into `[mask, every other possible world]`; the mask
     /// piece goes into the order and the sender keeps the rest. Whatever the
     /// transfer brought beyond the escrow is returned.
@@ -285,7 +285,7 @@ impl Contract {
     }
 
     /// The shared pipeline of sell, buy and sell-and-borrow. Returns what
-    /// each traded world got (0 elsewhere). Checks run in the EVM's order.
+    /// each traded world got (0 elsewhere). Checks run in a fixed order.
     fn conditional_trade(
         &mut self,
         user: &AccountId,
@@ -371,7 +371,7 @@ impl Contract {
             let pool_id = self
                 .world_pool(t.scenario_id, w)
                 .unwrap_or_else(|| fail!("PoolNotInitialized({w})"));
-            // token0 is WETH-if-w: a sale goes 0 -> 1, a buy 1 -> 0
+            // token0 is wNEAR-if-w: a sale goes 0 -> 1, a buy 1 -> 0
             let got = self.swap_exact_in_for(user, pool_id, !t.buy, to_pool[i], 0);
             out[i] = add(out[i], got);
         }
@@ -387,7 +387,7 @@ impl Contract {
             }
             // the traded leg is the other asset; untraded worlds keep the input
             let (asset, amount) = if traded {
-                (if t.buy { Asset::Weth } else { Asset::Usdc }, out[i])
+                (if t.buy { Asset::Wnear } else { Asset::Usdc }, out[i])
             } else {
                 (t.asset_in(), t.amount)
             };
@@ -491,7 +491,7 @@ impl Contract {
 
 fn asset_index(asset: Asset) -> usize {
     match asset {
-        Asset::Weth => 0,
+        Asset::Wnear => 0,
         Asset::Usdc => 1,
     }
 }

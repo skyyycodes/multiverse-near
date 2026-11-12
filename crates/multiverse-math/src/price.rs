@@ -1,8 +1,8 @@
-//! Prices (`PriceMath`): Q64.96 square-root prices, WAD prices and the WETH/USDC orientation.
+//! Prices (`PriceMath`): Q64.96 square-root prices, WAD prices and the wNEAR/USDC orientation.
 //!
-//! Within-world pools put WETH-if-w on the token0 side, so a pool's "token1 per token0" is already USDC per WETH and
+//! Within-world pools put wNEAR-if-w on the token0 side, so a pool's "token1 per token0" is already USDC per wNEAR and
 //! a price read from the mean tick rounds down, in the protocol's favour. The orientation helpers are kept for the
-//! other order (and to reproduce the EVM numbers, where the order depended on token addresses).
+//! other order (and to reproduce the reference vectors, where the order varies).
 //!
 //! Both sides are 18-decimal internal units, so a raw reserve ratio is the human price.
 
@@ -30,7 +30,7 @@ pub fn to_sqrt_price_x96(price: u128) -> U256 {
 /// does not fit a `u128` (above ~3.4e20 per unit, beyond any real pool).
 pub fn from_sqrt_price_x96(sqrt_price_x96: U256) -> Option<u128> {
     let s = U512::from(sqrt_price_x96);
-    // Dividing by 2^96 is a right shift; both floors match the two mulDivs of the Solidity code.
+    // Dividing by 2^96 is a right shift; both floors match the two mul-divs of the reference maths.
     let price_x96 = (s * s) >> 96;
     let price = (price_x96 * U512::from(WAD)) >> 96;
     u128::try_from(price).ok()
@@ -43,33 +43,33 @@ pub fn from_tick(tick: i32) -> Option<u128> {
     from_sqrt_price_x96(get_sqrt_ratio_at_tick(tick))
 }
 
-/// USDC per WETH from a token1-per-token0 price: unchanged when WETH is token0, else `floor(1e36 / p)` (0 stays 0).
-pub fn weth_price(token1_per_token0: u128, weth_is_token0: bool) -> u128 {
-    if weth_is_token0 || token1_per_token0 == 0 {
+/// USDC per wNEAR from a token1-per-token0 price: unchanged when wNEAR is token0, else `floor(1e36 / p)` (0 stays 0).
+pub fn wnear_price(token1_per_token0: u128, wnear_is_token0: bool) -> u128 {
+    if wnear_is_token0 || token1_per_token0 == 0 {
         return token1_per_token0;
     }
     mul_div_down(WAD, WAD, token1_per_token0)
 }
 
-/// USDC per WETH at a square-root price, for either orientation: [`weth_price`] of [`from_sqrt_price_x96`]. `None`
+/// USDC per wNEAR at a square-root price, for either orientation: [`wnear_price`] of [`from_sqrt_price_x96`]. `None`
 /// if the token1-per-token0 price does not fit a `u128`.
-pub fn weth_price_at_sqrt(sqrt_price_x96: U256, weth_is_token0: bool) -> Option<u128> {
-    from_sqrt_price_x96(sqrt_price_x96).map(|p| weth_price(p, weth_is_token0))
+pub fn wnear_price_at_sqrt(sqrt_price_x96: U256, wnear_is_token0: bool) -> Option<u128> {
+    from_sqrt_price_x96(sqrt_price_x96).map(|p| wnear_price(p, wnear_is_token0))
 }
 
-/// USDC per WETH at a (mean) tick, for either orientation: what lending reads from a pool's TWAP. With WETH as
-/// token0 it rounds down by up to one tick; with WETH as token1 the inversion rounds it up by up to one tick, as on
-/// the EVM. Panics with `InvalidTick` outside the tick range.
+/// USDC per wNEAR at a (mean) tick, for either orientation: what lending reads from a pool's TWAP. With wNEAR as
+/// token0 it rounds down by up to one tick; with wNEAR as token1 the inversion rounds it up by up to one tick, as in
+/// the reference maths. Panics with `InvalidTick` outside the tick range.
 #[track_caller]
-pub fn weth_price_at_tick(tick: i32, weth_is_token0: bool) -> Option<u128> {
-    weth_price_at_sqrt(get_sqrt_ratio_at_tick(tick), weth_is_token0)
+pub fn wnear_price_at_tick(tick: i32, wnear_is_token0: bool) -> Option<u128> {
+    wnear_price_at_sqrt(get_sqrt_ratio_at_tick(tick), wnear_is_token0)
 }
 
-/// Token1 per token0 for a USDC-per-WETH `price`, the inverse of [`weth_price`] (used to seed or move a pool).
-/// Panics with `DivisionByZero` for a zero price when WETH is token1, as the Solidity code reverts.
+/// Token1 per token0 for a USDC-per-wNEAR `price`, the inverse of [`wnear_price`] (used to seed or move a pool).
+/// Panics with `DivisionByZero` for a zero price when wNEAR is token1.
 #[track_caller]
-pub fn pool_price(price: u128, weth_is_token0: bool) -> u128 {
-    if weth_is_token0 {
+pub fn pool_price(price: u128, wnear_is_token0: bool) -> u128 {
+    if wnear_is_token0 {
         return price;
     }
     mul_div_down(WAD, WAD, price)
@@ -119,34 +119,34 @@ mod tests {
 
     #[test]
     fn orientation() {
-        assert_eq!(weth_price(3_000 * WAD, true), 3_000 * WAD);
-        assert_eq!(weth_price(0, false), 0);
+        assert_eq!(wnear_price(3_000 * WAD, true), 3_000 * WAD);
+        assert_eq!(wnear_price(0, false), 0);
         let inverse = pool_price(3_000 * WAD, false);
         assert_eq!(inverse, 333_333_333_333_333);
-        assert_eq!(weth_price(inverse, false), 3_000_000_000_000_003_000_000);
+        assert_eq!(wnear_price(inverse, false), 3_000_000_000_000_003_000_000);
     }
 
     #[test]
     fn twap_prices_of_the_demo_pools() {
-        // With WETH-if-w as token0, a pool seeded at 3,700 reads 3,699.63 from its TWAP, which is one
-        // tick's worth below; with WETH as token1 the same pool reads 3,700.00.
+        // With wNEAR-if-w as token0, a pool seeded at 3,700 reads 3,699.63 from its TWAP, which is one
+        // tick's worth below; with wNEAR as token1 the same pool reads 3,700.00.
         let tick = tick_from_reserves(100 * WAD, 370_000 * WAD).unwrap();
-        let down = weth_price_at_tick(tick, true).unwrap();
+        let down = wnear_price_at_tick(tick, true).unwrap();
         assert_eq!(down / 10u128.pow(16), 369_963);
         let flipped = tick_from_reserves(370_000 * WAD, 100 * WAD).unwrap();
-        let up = weth_price_at_tick(flipped, false).unwrap();
+        let up = wnear_price_at_tick(flipped, false).unwrap();
         assert_eq!(up / 10u128.pow(16), 370_000);
         assert!(down < 3_700 * WAD && up >= 3_700 * WAD);
         assert_eq!(
-            weth_price_at_sqrt(to_sqrt_price_x96(3_700 * WAD), true),
+            wnear_price_at_sqrt(to_sqrt_price_x96(3_700 * WAD), true),
             Some(3_700 * WAD - 1)
         );
-        assert_eq!(weth_price_at_sqrt(U256::MAX, true), None);
+        assert_eq!(wnear_price_at_sqrt(U256::MAX, true), None);
     }
 
     #[test]
     #[should_panic(expected = "DivisionByZero")]
-    fn zero_pool_price_with_weth_as_token1_panics() {
+    fn zero_pool_price_with_wnear_as_token1_panics() {
         pool_price(0, false);
     }
 

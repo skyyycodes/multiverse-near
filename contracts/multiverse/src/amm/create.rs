@@ -29,8 +29,8 @@ pub struct SpotMove {
 
 #[near]
 impl Contract {
-    /// Opens world `world`'s pool of WETH-if-w and USDC-if-w, priced at
-    /// `usdc_amount / weth_amount`, with both amounts taken from the owner's
+    /// Opens world `world`'s pool of wNEAR-if-w and USDC-if-w, priced at
+    /// `usdc_amount / wnear_amount`, with both amounts taken from the owner's
     /// verse balances. The attached deposit (or the owner's storage balance)
     /// pays for the new state.
     #[payable]
@@ -38,7 +38,7 @@ impl Contract {
         &mut self,
         scenario_id: u64,
         world: u8,
-        weth_amount: U128,
+        wnear_amount: U128,
         usdc_amount: U128,
     ) -> u64 {
         self.assert_owner();
@@ -48,10 +48,10 @@ impl Contract {
         }
         let mask = 1 << world;
         let kind = self.admit_pair(
-            VerseKey::new(scenario_id, Asset::Weth, mask),
+            VerseKey::new(scenario_id, Asset::Wnear, mask),
             VerseKey::new(scenario_id, Asset::Usdc, mask),
         );
-        self.open_pool(scenario_id, kind, weth_amount.0, usdc_amount.0)
+        self.open_pool(scenario_id, kind, wnear_amount.0, usdc_amount.0)
     }
 
     /// Opens the pool of USDC-if-`mask_x` against USDC-if-`mask_y` (disjoint),
@@ -80,18 +80,18 @@ impl Contract {
         self.open_pool(scenario_id, kind, amount0, amount1)
     }
 
-    /// Opens the one spot pool of real WETH and USDC, with both amounts taken
+    /// Opens the one spot pool of real wNEAR and USDC, with both amounts taken
     /// from the owner's internal real balances. It outlives every scenario.
     #[payable]
-    pub fn create_spot_pool(&mut self, weth_amount: U128, usdc_amount: U128) -> u64 {
+    pub fn create_spot_pool(&mut self, wnear_amount: U128, usdc_amount: U128) -> u64 {
         self.assert_owner();
         if let Some(id) = self.spot_pool {
             fail!("AlreadyInitialized({id})");
         }
-        self.open_pool(0, PoolKind::Spot, weth_amount.0, usdc_amount.0)
+        self.open_pool(0, PoolKind::Spot, wnear_amount.0, usdc_amount.0)
     }
 
-    /// Moves the spot pool to `price` (USDC per WETH, WAD) with the one
+    /// Moves the spot pool to `price` (USDC per wNEAR, WAD) with the one
     /// exact-input swap at 0.30% that lands there, paid from and received into
     /// the owner's internal real balances. Null when the pool is already at
     /// the price. A demo reset re-prices the spot pool this way, since it
@@ -120,12 +120,12 @@ impl Contract {
 }
 
 impl Contract {
-    /// The EVM hook's admission rule for a pool of `a` and `b`, without the fee
+    /// The admission rule for a pool of `a` and `b`, without the fee
     /// and tick-spacing checks, which mean nothing here. In order: both are
     /// verse tokens (the root mask is the real asset itself); of one scenario;
-    /// within-world (WETH-if-w and USDC-if-w of one world) or between-world
+    /// within-world (wNEAR-if-w and USDC-if-w of one world) or between-world
     /// (two disjoint USDC verses, siblings or not); both live; no pool for the
-    /// pair yet. Token0 is the lower key: WETH in a within-world pool, the
+    /// pair yet. Token0 is the lower key: wNEAR in a within-world pool, the
     /// lower mask in a between-world pool.
     pub(crate) fn admit_pair(&self, a: VerseKey, b: VerseKey) -> PoolKind {
         let (k0, k1) = if a <= b { (a, b) } else { (b, a) };
@@ -135,7 +135,7 @@ impl Contract {
             fail!("DifferentScenarios({}, {})", k0.scenario, k1.scenario);
         }
         let kind = if k0.mask == k1.mask
-            && k0.asset == Asset::Weth
+            && k0.asset == Asset::Wnear
             && k1.asset == Asset::Usdc
             && masks::is_single_world(k0.mask)
         {

@@ -1,14 +1,13 @@
-//! `OrderBookInvariants.t.sol` + `OrderBookHandler.sol` as property tests:
+//! The order-book invariants as property tests:
 //! four makers and takers on the 2x2 and binary scenarios post, fill (also
 //! orders made stale by a resolution), cancel (strangers try first now and
 //! then), warp time and resolve events, with no pools. A ghost model tracks
 //! every order's escrow. Fills go straight to the book; the router path joins
 //! once the router exists.
 //!
-//! Funds are minted to the actor's wallet right before they are needed, as
-//! the handler mints its mocks, then split into `[mask, other possible
-//! singles]`. Calls that fail are rolled back, like `fail_on_revert = false`,
-//! and counted when the model says they should have worked.
+//! Funds are minted to the actor's wallet right before they are needed, then
+//! split into `[mask, other possible singles]`. Calls that fail are rolled
+//! back and counted when the model says they should have worked.
 
 use std::cell::RefCell;
 use std::collections::BTreeMap;
@@ -21,7 +20,7 @@ use super::harness::*;
 use super::orders::{cancel, fill, post, RAVI};
 use crate::masks::single_worlds;
 use crate::orders::{Order, Side, MIN_ORDER_AMOUNT};
-use crate::types::Asset::{self, Usdc, Weth};
+use crate::types::Asset::{self, Usdc, Wnear};
 use crate::types::VerseKey;
 
 const MAX_AMOUNT: u128 = 1_000_000_000_000_000_000_000_000_000_000; // 1e30
@@ -76,7 +75,7 @@ struct Counters {
     expired_fills_succeeded: u64,
     unexpected_successes: u64,
     foreign_cancels_succeeded: u64,
-    unexpected_reverts: u64,
+    unexpected_fails: u64,
     wrong_refunds: u64,
 }
 
@@ -92,11 +91,11 @@ impl Campaign {
     fn new() -> Self {
         let mut w = World::new();
         w.register(RAVI, near_sdk::NearToken::from_near(1));
-        let (glam, fed, s2x2, s_bin) = (w.glam, w.fed, w.s2x2, w.s_bin);
+        let (spice, fed, s2x2, s_bin) = (w.spice, w.fed, w.s2x2, w.s_bin);
         Campaign {
             w,
             scenarios: [s2x2, s_bin],
-            events: [glam, fed],
+            events: [spice, fed],
             ghost: BTreeMap::new(),
             n: Counters::default(),
         }
@@ -183,7 +182,7 @@ impl Campaign {
             Side::Bid => cost(amount, price),
         };
         if !self.mint_and_give(maker, sid, side.escrow_asset(), mask, escrow) {
-            self.n.unexpected_reverts += 1;
+            self.n.unexpected_fails += 1;
             return;
         }
         match post(&mut self.w, maker, sid, mask, side, price, amount, expiry) {
@@ -191,7 +190,7 @@ impl Campaign {
                 self.ghost.insert(id, escrow);
                 st.posts += 1;
             }
-            Err(_) => self.n.unexpected_reverts += 1,
+            Err(_) => self.n.unexpected_fails += 1,
         }
     }
 
@@ -214,12 +213,12 @@ impl Campaign {
         let allowed = live && !stale && !expired && !zero_value;
         if live {
             let (asset, pay) = if is_bid {
-                (Weth, amount)
+                (Wnear, amount)
             } else {
                 (Usdc, usdc_leg)
             };
             if !self.mint_and_give(taker, o.scenario_id, asset, o.mask, pay) {
-                self.n.unexpected_reverts += 1;
+                self.n.unexpected_fails += 1;
                 return;
             }
         }
@@ -229,7 +228,7 @@ impl Campaign {
         match fill(&mut self.w, taker, id, amount, o.price) {
             Err(_) => {
                 if allowed {
-                    self.n.unexpected_reverts += 1;
+                    self.n.unexpected_fails += 1;
                 }
             }
             Ok(_) => {
@@ -278,7 +277,7 @@ impl Campaign {
                 self.ghost.insert(id, 0);
                 st.cancels += 1;
             }
-            Err(_) => self.n.unexpected_reverts += 1,
+            Err(_) => self.n.unexpected_fails += 1,
         }
     }
 
@@ -300,8 +299,8 @@ impl Campaign {
     }
 
     /// Invariant 5: every order's escrow matches the model; closed orders
-    /// hold nothing; an open bid covers `cost(remaining)` (stronger than the
-    /// EVM's `proceeds`), an open ask exactly `remaining`; per token, supply
+    /// hold nothing; an open bid covers `cost(remaining)` (stronger than
+    /// `proceeds`), an open ask exactly `remaining`; per token, supply
     /// equals what the actors hold plus the open escrow, so the book's bucket
     /// is exactly the sum of open escrow; the contract's own account holds
     /// no verse or real balance; every refund matched the model.
@@ -330,7 +329,7 @@ impl Campaign {
         let actors: Vec<_> = ACTORS.iter().map(|a| acc(a)).collect();
         let contract = acc(CONTRACT);
         let broken = self.w.view(|c| {
-            for asset in [Weth, Usdc] {
+            for asset in [Wnear, Usdc] {
                 if c.real_balance(&contract, asset) != 0 {
                     return Some(format!("contract holds real {asset:?}"));
                 }
@@ -362,7 +361,7 @@ impl Campaign {
         prop_assert_eq!(self.n.expired_fills_succeeded, 0);
         prop_assert_eq!(self.n.unexpected_successes, 0);
         prop_assert_eq!(self.n.foreign_cancels_succeeded, 0);
-        prop_assert_eq!(self.n.unexpected_reverts, 0);
+        prop_assert_eq!(self.n.unexpected_fails, 0);
         Ok(())
     }
 }

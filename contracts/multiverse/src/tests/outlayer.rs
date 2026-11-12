@@ -298,7 +298,7 @@ fn request_input_comes_only_from_stored_config() {
 #[test]
 fn request_refusals() {
     let mut w = World::new();
-    let (glam, fed) = (w.glam, w.fed);
+    let (spice, fed) = (w.spice, w.fed);
     fails(
         request(&mut w, ALICE, DEPOSIT, fed),
         "OutLayerNotConfigured",
@@ -309,7 +309,7 @@ fn request_refusals() {
         &format!("NoOutLayerDates({fed})"),
     );
     set_dates(&mut w, fed).unwrap();
-    set_dates(&mut w, glam).unwrap();
+    set_dates(&mut w, spice).unwrap();
     fails(
         request(&mut w, ALICE, DEPOSIT - 1, fed),
         &format!("InsufficientDeposit({DEPOSIT}, {})", DEPOSIT - 1),
@@ -323,10 +323,10 @@ fn request_refusals() {
         request(&mut w, ALICE, DEPOSIT, fed),
         &format!("ProposalAlreadyOpen({fed})"),
     );
-    w.admin_resolve(glam, OUT_SHIPS).unwrap();
+    w.admin_resolve(spice, OUT_SHIPS).unwrap();
     fails(
-        request(&mut w, ALICE, DEPOSIT, glam),
-        &format!("AlreadyFinalized({glam})"),
+        request(&mut w, ALICE, DEPOSIT, spice),
+        &format!("AlreadyFinalized({spice})"),
     );
     // nothing was left pending by the refusals
     assert!(!dates(&mut w, fed).pending);
@@ -335,15 +335,15 @@ fn request_refusals() {
 #[test]
 fn one_request_in_flight_per_event() {
     let mut w = ready();
-    let (glam, fed) = (w.glam, w.fed);
-    set_dates(&mut w, glam).unwrap();
+    let (spice, fed) = (w.spice, w.fed);
+    set_dates(&mut w, spice).unwrap();
     request(&mut w, ALICE, DEPOSIT, fed).unwrap();
     fails(
         request(&mut w, BOB, DEPOSIT, fed),
         &format!("RequestInFlight({fed})"),
     );
     // another event is independent
-    request(&mut w, BOB, DEPOSIT, glam).unwrap();
+    request(&mut w, BOB, DEPOSIT, spice).unwrap();
 
     assert_eq!(callback(&mut w, fed, 1, answer("null")), None);
     assert!(!dates(&mut w, fed).pending);
@@ -498,10 +498,10 @@ fn a_stale_result_is_dropped_and_leaves_the_newer_run_pending() {
 #[test]
 fn callback_for_an_event_without_dates_is_a_no_op() {
     let mut w = ready();
-    let glam = w.glam;
-    assert_eq!(callback(&mut w, glam, 1, answer(HOLDS_JSON)), None);
+    let spice = w.spice;
+    assert_eq!(callback(&mut w, spice, 1, answer(HOLDS_JSON)), None);
     assert_eq!(last_result(&w)["note"], "stale request");
-    assert_eq!(w.view(|c| c.get_outlayer_dates(glam)), None);
+    assert_eq!(w.view(|c| c.get_outlayer_dates(spice)), None);
 }
 
 #[test]

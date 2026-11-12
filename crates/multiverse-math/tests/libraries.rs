@@ -2,7 +2,7 @@
 //! The fuzz tests run as proptests with Foundry's 512 cases.
 
 use multiverse_math::price::{
-    from_sqrt_price_x96, from_tick, pool_price, to_sqrt_price_x96, weth_price,
+    from_sqrt_price_x96, from_tick, pool_price, to_sqrt_price_x96, wnear_price,
 };
 use multiverse_math::tick::get_tick_at_sqrt_ratio;
 use multiverse_math::twap::TwapOracle;
@@ -127,11 +127,11 @@ proptest! {
         prop_assert!(back <= price);
     }
 
-    /// testFuzz_orientation: WETH as token0 is the identity; as token1 the double inversion stays within 1e-12.
+    /// testFuzz_orientation: wNEAR as token0 is the identity; as token1 the double inversion stays within 1e-12.
     #[test]
     fn price_orientation(price in 1_000_000_000_000_000u128..=1_000_000_000_000_000_000_000_000) {
-        prop_assert_eq!(weth_price(pool_price(price, true), true), price);
-        let back = weth_price(pool_price(price, false), false);
+        prop_assert_eq!(wnear_price(pool_price(price, true), true), price);
+        let back = wnear_price(pool_price(price, false), false);
         prop_assert!(approx_eq_rel(back, price, 1_000_000), "{} vs {}", back, price);
     }
 }

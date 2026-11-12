@@ -1,4 +1,4 @@
-//! Root LP vault: one deposit of real WETH and USDC provides liquidity in
+//! Root LP vault: one deposit of real wNEAR and USDC provides liquidity in
 //! every world of a scenario.
 //!
 //! A deposit is split from root into every live world and added to each
@@ -36,7 +36,7 @@ use crate::{Contract, ContractExt};
 /// Whether the Root LP is live; served to the app by `get_app_config`.
 pub const ENABLED: bool = true;
 
-/// Locked on the first deposit (Uniswap v2's MINIMUM_LIQUIDITY): nobody can
+/// Locked on the first deposit (the usual minimum liquidity): nobody can
 /// make a single share worth more than a later deposit.
 pub const MINIMUM_SHARES: u128 = 1_000;
 
@@ -50,7 +50,7 @@ pub struct Vault {
     /// Share supply, the locked shares included.
     pub supply: u128,
     pub positions: Vec<Position>,
-    pub weth_idle: Vec<u128>,
+    pub wnear_idle: Vec<u128>,
     pub usdc_idle: Vec<u128>,
 }
 
@@ -60,7 +60,7 @@ impl Vault {
         Self {
             supply: MINIMUM_SHARES,
             positions: vec![Position::default(); n],
-            weth_idle: vec![0; n],
+            wnear_idle: vec![0; n],
             usdc_idle: vec![0; n],
         }
     }
@@ -73,12 +73,12 @@ pub struct RootLpHolding {
     /// The vault's liquidity units in the world pool.
     pub liquidity: U128,
     /// What that liquidity is worth at the pool's current price, rounded down.
-    pub weth_in_pool: U128,
+    pub wnear_in_pool: U128,
     pub usdc_in_pool: U128,
-    pub weth_idle: U128,
+    pub wnear_idle: U128,
     pub usdc_idle: U128,
     /// Fees the position earned and the vault has not collected yet.
-    pub weth_fees: U128,
+    pub wnear_fees: U128,
     pub usdc_fees: U128,
 }
 
@@ -88,7 +88,7 @@ pub struct LpDepositPreview {
     pub shares: U128,
     /// Per world (0 for dead worlds): what the vault keeps of the deposit.
     /// The depositor gets `amount - kept` back in that world.
-    pub weth_kept: Vec<U128>,
+    pub wnear_kept: Vec<U128>,
     pub usdc_kept: Vec<U128>,
 }
 
@@ -96,7 +96,7 @@ pub struct LpDepositPreview {
 #[near(serializers = [json])]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WorldAmounts {
-    pub weth: Vec<U128>,
+    pub wnear: Vec<U128>,
     pub usdc: Vec<U128>,
 }
 
@@ -126,11 +126,11 @@ pub struct RootLpView {
 pub struct LpDeposited<'a> {
     pub scenario_id: u64,
     pub account_id: &'a AccountId,
-    pub weth_amount: U128,
+    pub wnear_amount: U128,
     pub usdc_amount: U128,
     pub shares: U128,
     /// Real assets merged back; the other leftovers stay as world tokens.
-    pub weth_refund: U128,
+    pub wnear_refund: U128,
     pub usdc_refund: U128,
 }
 
@@ -145,7 +145,7 @@ pub struct LpWithdrawn<'a> {
     pub account_id: &'a AccountId,
     pub shares: U128,
     /// Real assets paid out; the rest stays as world tokens.
-    pub weth_out: U128,
+    pub wnear_out: U128,
     pub usdc_out: U128,
 }
 
@@ -158,7 +158,7 @@ impl MultiverseEvent for LpWithdrawn<'_> {
 pub struct LpFeesCollected {
     pub scenario_id: u64,
     pub world: u8,
-    pub weth_fees: U128,
+    pub wnear_fees: U128,
     pub usdc_fees: U128,
 }
 
@@ -185,9 +185,9 @@ struct LiveWorld {
     pool_id: u64,
     amm: cpmm::Pool,
     position: Position,
-    weth_idle: u128,
+    wnear_idle: u128,
     usdc_idle: u128,
-    weth_fees: u128,
+    wnear_fees: u128,
     usdc_fees: u128,
 }
 
@@ -200,7 +200,7 @@ impl LiveWorld {
     /// position.
     fn held(&self) -> (u128, u128) {
         (
-            add(self.weth_idle, self.weth_fees),
+            add(self.wnear_idle, self.wnear_fees),
             add(self.usdc_idle, self.usdc_fees),
         )
     }
@@ -218,10 +218,10 @@ impl LiveWorld {
     /// current price plus the share of idle and fees, all rounded down.
     fn withdrawal(&self, shares: u128, supply: u128) -> (u128, u128) {
         let liquidity = mul_div(shares, self.position.liquidity(), supply, Rounding::Down);
-        let (weth, usdc) = self.amounts(liquidity, Rounding::Down);
-        let (weth_held, usdc_held) = self.held();
+        let (wnear, usdc) = self.amounts(liquidity, Rounding::Down);
+        let (wnear_held, usdc_held) = self.held();
         (
-            add(weth, mul_div(shares, weth_held, supply, Rounding::Down)),
+            add(wnear, mul_div(shares, wnear_held, supply, Rounding::Down)),
             add(usdc, mul_div(shares, usdc_held, supply, Rounding::Down)),
         )
     }
@@ -232,10 +232,10 @@ impl LiveWorld {
 struct Leg {
     liquidity: u128,
     /// The pool's pay-in for `liquidity`, rounded up.
-    weth_pool: u128,
+    wnear_pool: u128,
     usdc_pool: u128,
     /// The buy-in to idle tokens and uncollected fees, rounded up.
-    weth_idle: u128,
+    wnear_idle: u128,
     usdc_idle: u128,
 }
 
@@ -261,14 +261,14 @@ fn affordable(amount: u128, unit: u128, need: u128, supply: u128) -> u128 {
 
 #[near]
 impl Contract {
-    /// Deposits `weth_amount` and `usdc_amount` from the caller's internal
+    /// Deposits `wnear_amount` and `usdc_amount` from the caller's internal
     /// real balances; the `lp_deposit` action does the same with attached
     /// USDC. Returns the shares minted.
     #[payable]
     pub fn lp_deposit(
         &mut self,
         scenario_id: u64,
-        weth_amount: U128,
+        wnear_amount: U128,
         usdc_amount: U128,
         min_shares: U128,
     ) -> U128 {
@@ -278,7 +278,7 @@ impl Contract {
         let shares = self.lp_deposit_for(
             &account,
             scenario_id,
-            weth_amount.0,
+            wnear_amount.0,
             usdc_amount.0,
             min_shares.0,
         );
@@ -287,7 +287,7 @@ impl Contract {
     }
 
     /// Burns `shares` of the caller's and pays out their claim: what every
-    /// live world has in common as real WETH and USDC, the rest as world
+    /// live world has in common as real wNEAR and USDC, the rest as world
     /// tokens. Minimums are per world (length `world_count`, dead worlds
     /// ignored) and apply before merging. Returns the real amounts.
     #[payable]
@@ -295,23 +295,23 @@ impl Contract {
         &mut self,
         scenario_id: u64,
         shares: U128,
-        min_weth_out: Vec<U128>,
+        min_wnear_out: Vec<U128>,
         min_usdc_out: Vec<U128>,
     ) -> (U128, U128) {
         assert_one_yocto();
         let account = env::predecessor_account_id();
         let before = env::storage_usage();
-        let (weth, usdc) = self.lp_withdraw_for(
+        let (wnear, usdc) = self.lp_withdraw_for(
             &account,
             scenario_id,
             shares.0,
-            &min_weth_out,
+            &min_wnear_out,
             &min_usdc_out,
         );
-        self.payout(&account, Asset::Weth, weth);
+        self.payout(&account, Asset::Wnear, wnear);
         self.payout(&account, Asset::Usdc, usdc);
         self.charge_storage(&account, before);
-        (U128(weth), U128(usdc))
+        (U128(wnear), U128(usdc))
     }
 
     /// Moves shares to another registered account.
@@ -353,25 +353,25 @@ impl Contract {
     pub fn preview_lp_deposit(
         &self,
         scenario_id: u64,
-        weth_amount: U128,
+        wnear_amount: U128,
         usdc_amount: U128,
     ) -> LpDepositPreview {
-        if weth_amount.0 == 0 || usdc_amount.0 == 0 {
+        if wnear_amount.0 == 0 || usdc_amount.0 == 0 {
             fail("ZeroAmount");
         }
         let n = usize::from(self.scenario(scenario_id).world_count);
         let worlds = self.live_worlds(scenario_id);
-        let plan = self.plan_deposit(scenario_id, &worlds, weth_amount.0, usdc_amount.0);
-        let mut weth_kept = vec![U128(0); n];
+        let plan = self.plan_deposit(scenario_id, &worlds, wnear_amount.0, usdc_amount.0);
+        let mut wnear_kept = vec![U128(0); n];
         let mut usdc_kept = vec![U128(0); n];
         for (x, leg) in worlds.iter().zip(&plan.legs) {
             let w = usize::from(x.world);
-            weth_kept[w] = U128(add(leg.weth_pool, leg.weth_idle));
+            wnear_kept[w] = U128(add(leg.wnear_pool, leg.wnear_idle));
             usdc_kept[w] = U128(add(leg.usdc_pool, leg.usdc_idle));
         }
         LpDepositPreview {
             shares: U128(plan.shares),
-            weth_kept,
+            wnear_kept,
             usdc_kept,
         }
     }
@@ -409,7 +409,7 @@ impl Contract {
         self.lp_deposit_for(
             sender,
             msg.scenario_id,
-            msg.weth_amount.0,
+            msg.wnear_amount.0,
             amount,
             msg.min_shares.0,
         );
@@ -421,15 +421,15 @@ impl Contract {
         &mut self,
         account: &AccountId,
         scenario_id: u64,
-        weth_amount: u128,
+        wnear_amount: u128,
         usdc_amount: u128,
         min_shares: u128,
     ) -> u128 {
-        if weth_amount == 0 || usdc_amount == 0 {
+        if wnear_amount == 0 || usdc_amount == 0 {
             fail("ZeroAmount");
         }
         let worlds = self.live_worlds(scenario_id);
-        let plan = self.plan_deposit(scenario_id, &worlds, weth_amount, usdc_amount);
+        let plan = self.plan_deposit(scenario_id, &worlds, wnear_amount, usdc_amount);
         if plan.shares < min_shares {
             fail!("TooFewShares({}, {min_shares})", plan.shares);
         }
@@ -450,10 +450,10 @@ impl Contract {
         self.internal_split(
             account,
             scenario_id,
-            Asset::Weth,
+            Asset::Wnear,
             root,
             &singles,
-            weth_amount,
+            wnear_amount,
         );
         self.internal_split(
             account,
@@ -476,43 +476,46 @@ impl Contract {
                 (r.amount0.0, r.amount1.0)
             };
             vault.positions[w] = position;
-            vault.weth_idle[w] = add(vault.weth_idle[w], leg.weth_idle);
+            vault.wnear_idle[w] = add(vault.wnear_idle[w], leg.wnear_idle);
             vault.usdc_idle[w] = add(vault.usdc_idle[w], leg.usdc_idle);
-            let weth_kept = add(moved.0, leg.weth_idle);
+            let wnear_kept = add(moved.0, leg.wnear_idle);
             let usdc_kept = add(moved.1, leg.usdc_idle);
-            kept.push((VerseKey::new(scenario_id, Asset::Weth, x.mask()), weth_kept));
+            kept.push((
+                VerseKey::new(scenario_id, Asset::Wnear, x.mask()),
+                wnear_kept,
+            ));
             kept.push((VerseKey::new(scenario_id, Asset::Usdc, x.mask()), usdc_kept));
-            back.push((sub(weth_amount, weth_kept), sub(usdc_amount, usdc_kept)));
+            back.push((sub(wnear_amount, wnear_kept), sub(usdc_amount, usdc_kept)));
         }
         kept.retain(|(_, a)| *a > 0);
         if !kept.is_empty() {
             self.take_into_custody(account, &kept, None);
         }
         self.vaults.insert(scenario_id, vault);
-        let (weth_refund, usdc_refund) = self.merge_common(account, scenario_id, &singles, &back);
-        self.real_credit(account, Asset::Weth, weth_refund);
+        let (wnear_refund, usdc_refund) = self.merge_common(account, scenario_id, &singles, &back);
+        self.real_credit(account, Asset::Wnear, wnear_refund);
         self.real_credit(account, Asset::Usdc, usdc_refund);
         LpDeposited {
             scenario_id,
             account_id: account,
-            weth_amount: U128(weth_amount),
+            wnear_amount: U128(wnear_amount),
             usdc_amount: U128(usdc_amount),
             shares: U128(plan.shares),
-            weth_refund: U128(weth_refund),
+            wnear_refund: U128(wnear_refund),
             usdc_refund: U128(usdc_refund),
         }
         .emit();
         plan.shares
     }
 
-    /// The withdrawal up to the payout: returns the real WETH and USDC the
+    /// The withdrawal up to the payout: returns the real wNEAR and USDC the
     /// caller pays out; world tokens are already in `account`'s ledger.
     pub(crate) fn lp_withdraw_for(
         &mut self,
         account: &AccountId,
         scenario_id: u64,
         shares: u128,
-        min_weth_out: &[U128],
+        min_wnear_out: &[U128],
         min_usdc_out: &[U128],
     ) -> (u128, u128) {
         if shares == 0 {
@@ -524,7 +527,7 @@ impl Contract {
             .cloned()
             .unwrap_or_else(|| fail!("NoDeposits({scenario_id})"));
         let n = usize::from(self.scenario(scenario_id).world_count);
-        if min_weth_out.len() != n || min_usdc_out.len() != n {
+        if min_wnear_out.len() != n || min_usdc_out.len() != n {
             fail("LengthMismatch");
         }
         let worlds = self.live_worlds(scenario_id);
@@ -538,26 +541,26 @@ impl Contract {
             let w = usize::from(x.world);
             let mut position = x.position.clone();
             let liquidity = mul_div(shares, position.liquidity(), supply, Rounding::Down);
-            let (mut weth_held, mut usdc_held) = (vault.weth_idle[w], vault.usdc_idle[w]);
+            let (mut wnear_held, mut usdc_held) = (vault.wnear_idle[w], vault.usdc_idle[w]);
             let mut principal = (0, 0);
             if liquidity != 0 || !position.is_empty() {
                 let r = self.remove_liquidity_held(x.pool_id, &mut position, liquidity);
                 self.book_fees(scenario_id, x.world, &mut vault, r.fees0.0, r.fees1.0);
-                weth_held = add(weth_held, r.fees0.0);
+                wnear_held = add(wnear_held, r.fees0.0);
                 usdc_held = add(usdc_held, r.fees1.0);
                 principal = (r.amount0.0, r.amount1.0);
             }
-            let weth_part = mul_div(shares, weth_held, supply, Rounding::Down);
+            let wnear_part = mul_div(shares, wnear_held, supply, Rounding::Down);
             let usdc_part = mul_div(shares, usdc_held, supply, Rounding::Down);
             vault.positions[w] = position;
-            vault.weth_idle[w] = weth_held - weth_part;
+            vault.wnear_idle[w] = wnear_held - wnear_part;
             vault.usdc_idle[w] = usdc_held - usdc_part;
-            outs.push((add(principal.0, weth_part), add(principal.1, usdc_part)));
+            outs.push((add(principal.0, wnear_part), add(principal.1, usdc_part)));
         }
         for (x, out) in worlds.iter().zip(&outs) {
             let w = usize::from(x.world);
             for (asset, amount, min) in [
-                (Asset::Weth, out.0, min_weth_out[w].0),
+                (Asset::Wnear, out.0, min_wnear_out[w].0),
                 (Asset::Usdc, out.1, min_usdc_out[w].0),
             ] {
                 if amount < min {
@@ -570,7 +573,7 @@ impl Contract {
 
         let mut released = Vec::new();
         for (x, out) in worlds.iter().zip(&outs) {
-            released.push((VerseKey::new(scenario_id, Asset::Weth, x.mask()), out.0));
+            released.push((VerseKey::new(scenario_id, Asset::Wnear, x.mask()), out.0));
             released.push((VerseKey::new(scenario_id, Asset::Usdc, x.mask()), out.1));
         }
         released.retain(|(_, a)| *a > 0);
@@ -578,16 +581,16 @@ impl Contract {
             self.release_from_custody(account, &released, None);
         }
         let singles: Vec<u8> = worlds.iter().map(LiveWorld::mask).collect();
-        let (weth_out, usdc_out) = self.merge_common(account, scenario_id, &singles, &outs);
+        let (wnear_out, usdc_out) = self.merge_common(account, scenario_id, &singles, &outs);
         LpWithdrawn {
             scenario_id,
             account_id: account,
             shares: U128(shares),
-            weth_out: U128(weth_out),
+            wnear_out: U128(wnear_out),
             usdc_out: U128(usdc_out),
         }
         .emit();
-        (weth_out, usdc_out)
+        (wnear_out, usdc_out)
     }
 
     /// Must be true while `account_id` holds Root LP shares; it blocks
@@ -640,7 +643,7 @@ impl Contract {
         self.vaults
             .get(&key.scenario)
             .map_or(0, |v| match key.asset {
-                Asset::Weth => v.weth_idle.get(w).copied().unwrap_or(0),
+                Asset::Wnear => v.wnear_idle.get(w).copied().unwrap_or(0),
                 Asset::Usdc => v.usdc_idle.get(w).copied().unwrap_or(0),
             })
     }
@@ -664,7 +667,7 @@ impl Contract {
     fn burn_shares(&mut self, account: &AccountId, scenario_id: u64, shares: u128) {
         let balance = self.shares_of(scenario_id, account);
         if balance < shares {
-            fail!("ERC20InsufficientBalance({account}, {balance}, {shares})");
+            fail!("InsufficientBalance({account}, {balance}, {shares})");
         }
         self.set_shares(scenario_id, account, balance - shares);
     }
@@ -685,14 +688,16 @@ impl Contract {
                 let position = vault
                     .and_then(|v| v.positions.get(w).cloned())
                     .unwrap_or_default();
-                let (weth_fees, usdc_fees) = position.pending_fees(&amm);
+                let (wnear_fees, usdc_fees) = position.pending_fees(&amm);
                 LiveWorld {
                     world,
                     pool_id,
                     position,
-                    weth_idle: vault.and_then(|v| v.weth_idle.get(w).copied()).unwrap_or(0),
+                    wnear_idle: vault
+                        .and_then(|v| v.wnear_idle.get(w).copied())
+                        .unwrap_or(0),
                     usdc_idle: vault.and_then(|v| v.usdc_idle.get(w).copied()).unwrap_or(0),
-                    weth_fees,
+                    wnear_fees,
                     usdc_fees,
                     amm,
                 }
@@ -702,15 +707,15 @@ impl Contract {
 
     fn holding(x: &LiveWorld) -> RootLpHolding {
         let liquidity = x.position.liquidity();
-        let (weth, usdc) = x.amounts(liquidity, Rounding::Down);
+        let (wnear, usdc) = x.amounts(liquidity, Rounding::Down);
         RootLpHolding {
             world: x.world,
             liquidity: U128(liquidity),
-            weth_in_pool: U128(weth),
+            wnear_in_pool: U128(wnear),
             usdc_in_pool: U128(usdc),
-            weth_idle: U128(x.weth_idle),
+            wnear_idle: U128(x.wnear_idle),
             usdc_idle: U128(x.usdc_idle),
-            weth_fees: U128(x.weth_fees),
+            wnear_fees: U128(x.wnear_fees),
             usdc_fees: U128(x.usdc_fees),
         }
     }
@@ -718,15 +723,15 @@ impl Contract {
     fn preview_withdraw(&self, scenario_id: u64, shares: u128, supply: u128) -> WorldAmounts {
         let n = usize::from(self.scenario(scenario_id).world_count);
         let mut out = WorldAmounts {
-            weth: vec![U128(0); n],
+            wnear: vec![U128(0); n],
             usdc: vec![U128(0); n],
         };
         if shares == 0 {
             return out;
         }
         for x in self.live_worlds(scenario_id) {
-            let (weth, usdc) = x.withdrawal(shares, supply);
-            out.weth[usize::from(x.world)] = U128(weth);
+            let (wnear, usdc) = x.withdrawal(shares, supply);
+            out.wnear[usize::from(x.world)] = U128(wnear);
             out.usdc[usize::from(x.world)] = U128(usdc);
         }
         out
@@ -737,11 +742,17 @@ impl Contract {
     /// join mints what both amounts afford in every world and takes the
     /// matching slice of each position and of the idle tokens and fees.
     /// Shares round down, everything the vault takes rounds up.
-    fn plan_deposit(&self, scenario_id: u64, worlds: &[LiveWorld], weth: u128, usdc: u128) -> Plan {
+    fn plan_deposit(
+        &self,
+        scenario_id: u64,
+        worlds: &[LiveWorld],
+        wnear: u128,
+        usdc: u128,
+    ) -> Plan {
         let Some(vault) = self.vaults.get(&scenario_id) else {
             let liquidity: Vec<u128> = worlds
                 .iter()
-                .map(|x| x.amm.liquidity_for_amounts(weth, usdc))
+                .map(|x| x.amm.liquidity_for_amounts(wnear, usdc))
                 .collect();
             let total = liquidity.iter().copied().min().unwrap_or(0);
             if total <= MINIMUM_SHARES {
@@ -751,10 +762,10 @@ impl Contract {
                 .iter()
                 .zip(liquidity)
                 .map(|(x, l)| {
-                    let (weth_pool, usdc_pool) = x.amounts(l, Rounding::Up);
+                    let (wnear_pool, usdc_pool) = x.amounts(l, Rounding::Up);
                     Leg {
                         liquidity: l,
-                        weth_pool,
+                        wnear_pool,
                         usdc_pool,
                         ..Leg::default()
                     }
@@ -766,21 +777,19 @@ impl Contract {
             };
         };
         let supply = vault.supply;
-        let shares = worlds
-            .iter()
-            .map(|x| {
-                let (weth_pos, usdc_pos) = x.amounts(x.position.liquidity(), Rounding::Up);
-                let (weth_unit, usdc_unit) = x.amounts(1, Rounding::Up);
-                let (weth_held, usdc_held) = x.held();
-                affordable(weth, weth_unit, add(weth_pos, weth_held), supply).min(affordable(
-                    usdc,
-                    usdc_unit,
-                    add(usdc_pos, usdc_held),
-                    supply,
-                ))
-            })
-            .min()
-            .unwrap_or(0);
+        let shares =
+            worlds
+                .iter()
+                .map(|x| {
+                    let (wnear_pos, usdc_pos) = x.amounts(x.position.liquidity(), Rounding::Up);
+                    let (wnear_unit, usdc_unit) = x.amounts(1, Rounding::Up);
+                    let (wnear_held, usdc_held) = x.held();
+                    affordable(wnear, wnear_unit, add(wnear_pos, wnear_held), supply).min(
+                        affordable(usdc, usdc_unit, add(usdc_pos, usdc_held), supply),
+                    )
+                })
+                .min()
+                .unwrap_or(0);
         if shares == 0 {
             fail("DepositTooSmall");
         }
@@ -789,13 +798,13 @@ impl Contract {
             .iter()
             .map(|x| {
                 let liquidity = up(x.position.liquidity());
-                let (weth_pool, usdc_pool) = x.amounts(liquidity, Rounding::Up);
-                let (weth_held, usdc_held) = x.held();
+                let (wnear_pool, usdc_pool) = x.amounts(liquidity, Rounding::Up);
+                let (wnear_held, usdc_held) = x.held();
                 Leg {
                     liquidity,
-                    weth_pool,
+                    wnear_pool,
                     usdc_pool,
-                    weth_idle: up(weth_held),
+                    wnear_idle: up(wnear_held),
                     usdc_idle: up(usdc_held),
                 }
             })
@@ -809,19 +818,19 @@ impl Contract {
         scenario_id: u64,
         world: u8,
         vault: &mut Vault,
-        weth: u128,
+        wnear: u128,
         usdc: u128,
     ) {
-        if weth == 0 && usdc == 0 {
+        if wnear == 0 && usdc == 0 {
             return;
         }
         let w = usize::from(world);
-        vault.weth_idle[w] = add(vault.weth_idle[w], weth);
+        vault.wnear_idle[w] = add(vault.wnear_idle[w], wnear);
         vault.usdc_idle[w] = add(vault.usdc_idle[w], usdc);
         LpFeesCollected {
             scenario_id,
             world,
-            weth_fees: U128(weth),
+            wnear_fees: U128(wnear),
             usdc_fees: U128(usdc),
         }
         .emit();
@@ -838,13 +847,13 @@ impl Contract {
         amounts: &[(u128, u128)],
     ) -> (u128, u128) {
         let root = self.scenario(scenario_id).root();
-        let weth = amounts.iter().map(|a| a.0).min().unwrap_or(0);
+        let wnear = amounts.iter().map(|a| a.0).min().unwrap_or(0);
         let usdc = amounts.iter().map(|a| a.1).min().unwrap_or(0);
-        for (asset, amount) in [(Asset::Weth, weth), (Asset::Usdc, usdc)] {
+        for (asset, amount) in [(Asset::Wnear, wnear), (Asset::Usdc, usdc)] {
             if amount > 0 {
                 self.internal_merge(account, scenario_id, asset, singles, root, amount);
             }
         }
-        (weth, usdc)
+        (wnear, usdc)
     }
 }

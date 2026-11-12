@@ -1,5 +1,5 @@
-//! `EventOracle.t.sol`, test by test. The CRE `onReport` path becomes the
-//! reporter's `report_outcome`; `exposedPropose` becomes a report.
+//! The event oracle, test by test. The automated path is the reporter's
+//! `report_outcome`.
 
 use super::harness::*;
 use crate::Contract;
@@ -7,7 +7,7 @@ use crate::Contract;
 #[test]
 fn create_event_stores_everything() {
     let mut w = World::new();
-    let (glam, fed) = (w.glam, w.fed);
+    let (spice, fed) = (w.spice, w.fed);
     let e = w.view(|c| c.get_event(fed));
     assert_eq!(e.question, FED_QUESTION);
     assert_eq!(
@@ -17,12 +17,12 @@ fn create_event_stores_everything() {
     assert!(!e.finalized);
     assert!(!e.proposal_open);
     assert_eq!(w.view(|c| c.outcome_count(fed)), 2);
-    assert_eq!(w.view(|c| c.outcome_name(glam, OUT_DELAYED)), "DELAYED");
+    assert_eq!(w.view(|c| c.outcome_name(spice, OUT_DELAYED)), "DELAYED");
     assert_eq!(w.view(|c| c.event_count()), 2);
 }
 
 #[test]
-fn create_event_reverts() {
+fn create_event_fails() {
     let mut w = World::new();
     let names = || vec!["A".to_string(), "B".to_string()];
     fails(
@@ -75,15 +75,14 @@ fn unknown_event_views() {
     fails(w.try_view(|c| c.get_event(42)), "UnknownEvent(42)");
 }
 
-/// The EVM wired core to the oracle once (`setCore`, `CoreAlreadySet`). On
-/// NEAR they are one contract; the one-time step left is `new`, which only
+/// Core and oracle are one contract; the one-time step is `new`, which only
 /// the contract account itself may run (the deploy transaction).
 #[test]
 fn init_only_by_the_contract_itself() {
     let mut w = World::new();
     fails(
         w.call(ALICE, NO_DEPOSIT, |_| {
-            Contract::new(acc(ALICE), None, weth_cfg(), usdc_cfg(), DISPUTE_WINDOW);
+            Contract::new(acc(ALICE), None, wnear_cfg(), usdc_cfg(), DISPUTE_WINDOW);
         }),
         "InitNotSelf",
     );
@@ -92,15 +91,15 @@ fn init_only_by_the_contract_itself() {
     usdc.decimals = 19;
     fails(
         w.call(CONTRACT, NO_DEPOSIT, |_| {
-            Contract::new(acc(OWNER), None, weth_cfg(), usdc, 30).event_count
+            Contract::new(acc(OWNER), None, wnear_cfg(), usdc, 30).event_count
         }),
         "BadDecimals(19)",
     );
     fails(
         w.call(CONTRACT, NO_DEPOSIT, |_| {
-            Contract::new(acc(OWNER), None, weth_cfg(), weth_cfg(), 30).event_count
+            Contract::new(acc(OWNER), None, wnear_cfg(), wnear_cfg(), 30).event_count
         }),
-        "SameToken(weth.near)",
+        "SameToken(wnear.near)",
     );
 }
 
@@ -121,11 +120,11 @@ fn set_dispute_window_only_owner() {
 #[test]
 fn admin_resolve_resolves_every_scenario_using_the_event() {
     let mut w = World::new();
-    let glam = w.glam;
-    w.admin_resolve(glam, OUT_DELAYED).unwrap();
-    assert!(w.view(|c| c.is_finalized(glam)));
-    assert!(!w.view(|c| c.has_open_proposal(glam)));
-    assert_eq!(w.view(|c| c.get_event(glam)).outcome, OUT_DELAYED);
+    let spice = w.spice;
+    w.admin_resolve(spice, OUT_DELAYED).unwrap();
+    assert!(w.view(|c| c.is_finalized(spice)));
+    assert!(!w.view(|c| c.has_open_proposal(spice)));
+    assert_eq!(w.view(|c| c.get_event(spice)).outcome, OUT_DELAYED);
     assert_eq!(w.possible(1), DELAYED);
     assert_eq!(w.possible(2), BIN_DELAYED);
 }
@@ -141,7 +140,7 @@ fn admin_resolve_replaces_an_open_proposal() {
 }
 
 #[test]
-fn admin_resolve_reverts() {
+fn admin_resolve_fails() {
     let mut w = World::new();
     let fed = w.fed;
     fails(
@@ -203,7 +202,7 @@ fn dispute_cancels_inside_window() {
 }
 
 #[test]
-fn dispute_reverts() {
+fn dispute_fails() {
     let mut w = World::new();
     let fed = w.fed;
     fails(w.dispute(fed), "NoOpenProposal(2)");
@@ -217,14 +216,14 @@ fn dispute_reverts() {
 }
 
 #[test]
-fn propose_reverts() {
+fn propose_fails() {
     let mut w = World::new();
-    let (glam, fed) = (w.glam, w.fed);
+    let (spice, fed) = (w.spice, w.fed);
     w.report(fed, OUT_CUTS).unwrap();
     fails(w.report(fed, OUT_HOLDS), "ProposalAlreadyOpen(2)");
-    fails(w.report(glam, 5), "InvalidOutcome(5)");
-    w.admin_resolve(glam, OUT_SHIPS).unwrap();
-    fails(w.report(glam, OUT_SHIPS), "AlreadyFinalized(1)");
+    fails(w.report(spice, 5), "InvalidOutcome(5)");
+    w.admin_resolve(spice, OUT_SHIPS).unwrap();
+    fails(w.report(spice, OUT_SHIPS), "AlreadyFinalized(1)");
 }
 
 // Reporter path (the CRE onReport)
@@ -260,7 +259,7 @@ fn report_rejects_other_senders() {
     fails(w.report(fed, OUT_HOLDS), "NotReporter(resolver.near)");
 }
 
-/// `target` is the NEAR replay guard that `chainId` was on EVM: a report
+/// `target` is the replay guard: a report
 /// signed for another deployment of the contract is refused.
 #[test]
 fn report_rejects_other_targets_and_stale_reports() {
@@ -276,15 +275,14 @@ fn report_rejects_other_targets_and_stale_reports() {
     fails(w.report(fed, OUT_CUTS), "ProposalAlreadyOpen(2)");
 }
 
-/// The workflow id the EVM logged from report metadata becomes the evidence
-/// string, logged right after `outcome_proposed`.
+/// The evidence string is logged right after `outcome_proposed`.
 #[test]
 fn report_logs_evidence() {
     let mut w = World::new();
-    let glam = w.glam;
-    let evidence = "team-controlled outcomes file (demo): glamsterdam-2026 = DELAYED";
+    let spice = w.spice;
+    let evidence = "team-controlled outcomes file (demo): spice-2027 = DELAYED";
     w.call(REPORTER, NO_DEPOSIT, |c| {
-        c.report_outcome(glam, OUT_DELAYED, acc(CONTRACT), evidence.into())
+        c.report_outcome(spice, OUT_DELAYED, acc(CONTRACT), evidence.into())
     })
     .unwrap();
     let names: Vec<String> = w.last.event_names().into_iter().map(|(_, e)| e).collect();
@@ -343,8 +341,7 @@ fn set_reporter_only_owner() {
     assert_eq!(w.view(|c| c.get_app_config()).reporter_id, Some(acc(BOB)));
 }
 
-/// The EVM checked `CoreNotSet` on a bare oracle. One contract has no such
-/// state; the related case is an event no scenario uses (the past-FOMC
+/// An oracle cannot be unwired from the core; the related case is an event no scenario uses (the past-FOMC
 /// event), which finalizes on its own and resolves nothing.
 #[test]
 fn finalize_event_without_scenarios() {

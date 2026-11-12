@@ -27,19 +27,19 @@ pub struct WorldView {
     pub label: String,
     pub possible: bool,
     pub pool_initialized: bool,
-    /// Current pool price, USDC per WETH; "0" without a pool. Dead worlds
+    /// Current pool price, USDC per wNEAR; "0" without a pool. Dead worlds
     /// keep their last price.
-    pub weth_price: U128,
+    pub wnear_price: U128,
     /// Invariant 1 for this world, both assets.
     pub backed: bool,
-    pub weth_token_id: String,
+    pub wnear_token_id: String,
     pub usdc_token_id: String,
     /// The account's single-world tokens outside lending.
-    pub user_weth: U128,
+    pub user_wnear: U128,
     pub user_usdc: U128,
     /// The account's verse collateral paying in this world (any mask that
     /// contains it; real pieces are not counted).
-    pub collateral_weth: U128,
+    pub collateral_wnear: U128,
     pub collateral_usdc: U128,
     pub odds: U128,
     pub pool_id: Option<u64>,
@@ -63,7 +63,7 @@ pub struct ScenarioView {
 #[near(serializers = [json])]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CollateralPiece {
-    /// `"weth"` / `"usdc"` for real pieces, the NEP-245 id otherwise.
+    /// `"wnear"` / `"usdc"` for real pieces, the NEP-245 id otherwise.
     pub token_id: String,
     pub label: String,
     pub asset: Asset,
@@ -98,7 +98,7 @@ pub struct AccountView {
 #[near(serializers = [json])]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RootLpWithdrawPreview {
-    pub weth: Vec<U128>,
+    pub wnear: Vec<U128>,
     pub usdc: Vec<U128>,
 }
 
@@ -106,9 +106,9 @@ pub struct RootLpWithdrawPreview {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RootLpHoldingView {
     pub world: u8,
-    pub weth_idle: U128,
+    pub wnear_idle: U128,
     pub usdc_idle: U128,
-    pub weth_fees: U128,
+    pub wnear_fees: U128,
     pub usdc_fees: U128,
 }
 
@@ -277,7 +277,7 @@ impl Contract {
         let worlds = (0..s.world_count)
             .map(|w| {
                 let mask = 1u8 << w;
-                let weth_key = VerseKey::new(scenario_id, Asset::Weth, mask);
+                let wnear_key = VerseKey::new(scenario_id, Asset::Wnear, mask);
                 let usdc_key = VerseKey::new(scenario_id, Asset::Usdc, mask);
                 let pool_id = self.world_pool(scenario_id, w);
                 let price = self.world_spot_price(scenario_id, w);
@@ -301,13 +301,13 @@ impl Contract {
                     label: self.verse_label(scenario_id, mask),
                     possible: masks::contains(s.possible, w),
                     pool_initialized: price.is_some(),
-                    weth_price: U128(price.unwrap_or(0)),
-                    backed: b.weth_backed && b.usdc_backed,
-                    weth_token_id: weth_key.token_id(),
+                    wnear_price: U128(price.unwrap_or(0)),
+                    backed: b.wnear_backed && b.usdc_backed,
+                    wnear_token_id: wnear_key.token_id(),
                     usdc_token_id: usdc_key.token_id(),
-                    user_weth: U128(held(&weth_key)),
+                    user_wnear: U128(held(&wnear_key)),
                     user_usdc: U128(held(&usdc_key)),
-                    collateral_weth: U128(posted(Asset::Weth)),
+                    collateral_wnear: U128(posted(Asset::Wnear)),
                     collateral_usdc: U128(posted(Asset::Usdc)),
                     odds: U128(q[usize::from(w)]),
                     pool_id,
@@ -411,7 +411,7 @@ impl Contract {
             your_shares: v.your_shares,
             share_decimals: v.share_decimals,
             preview_withdraw: v.preview_withdraw.map(|p| RootLpWithdrawPreview {
-                weth: p.weth,
+                wnear: p.wnear,
                 usdc: p.usdc,
             }),
             holdings: v
@@ -419,9 +419,9 @@ impl Contract {
                 .into_iter()
                 .map(|h| RootLpHoldingView {
                     world: h.world,
-                    weth_idle: h.weth_idle,
+                    wnear_idle: h.wnear_idle,
                     usdc_idle: h.usdc_idle,
-                    weth_fees: h.weth_fees,
+                    wnear_fees: h.wnear_fees,
                     usdc_fees: h.usdc_fees,
                 })
                 .collect(),

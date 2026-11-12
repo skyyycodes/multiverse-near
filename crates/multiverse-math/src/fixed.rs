@@ -1,7 +1,7 @@
 //! Fixed-point basics: `WAD`, 256- and 512-bit integers, `mul_div` with explicit rounding and integer square roots.
 //!
-//! `mul_div` follows OpenZeppelin's `Math.mulDiv`: the product is formed at full width, so only the final quotient
-//! has to fit. The plain functions panic like the Solidity revert (`DivisionByZero`, `MulDivOverflow`); the
+//! `mul_div` is the classic full-width multiply-divide: the product is formed at full width, so only the final quotient
+//! has to fit. The plain functions panic with an error name (`DivisionByZero`, `MulDivOverflow`); the
 //! `checked_*` ones return `None` instead.
 
 pub use wide::{U256, U512};
@@ -152,7 +152,7 @@ pub fn isqrt_u512(x: U512) -> U512 {
     x.integer_sqrt()
 }
 
-/// Checked `u128` addition that panics with `Overflow`, the way Solidity 0.8 reverts.
+/// Checked `u128` addition that panics with `Overflow`.
 #[track_caller]
 pub(crate) fn add(a: u128, b: u128) -> u128 {
     a.checked_add(b).unwrap_or_else(|| panic!("Overflow"))

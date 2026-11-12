@@ -1,4 +1,4 @@
-//! Real WETH/USDC going out. Callers finish every state change first, then
+//! Real wNEAR/USDC going out. Callers finish every state change first, then
 //! call `payout`, which sends whole token units with `ft_transfer` and keeps
 //! the sub-unit remainder in the internal balance. If the transfer fails
 //! (typically: the receiver is not registered with the token), `on_payout`

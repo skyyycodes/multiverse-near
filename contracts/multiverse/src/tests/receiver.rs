@@ -10,7 +10,7 @@ use crate::lending::{MaxKeyword, RepayAmount};
 use crate::orders::Side;
 use crate::receiver::{parse_msg, Action};
 use crate::router::PlanFill;
-use crate::types::Asset::{Usdc, Weth};
+use crate::types::Asset::{Usdc, Wnear};
 
 const USDC_UNIT: u128 = 1_000_000_000_000; // one micro-USDC in internal units
 
@@ -67,25 +67,25 @@ fn malformed_messages_are_refunded() {
         (r#""deposit""#, "BadMessage(invalid type: string"),
     ];
     for (msg, expected) in cases {
-        fails_starting(w.ft_transfer_call(ALICE, Weth, E18, msg), expected);
+        fails_starting(w.ft_transfer_call(ALICE, Wnear, E18, msg), expected);
     }
-    assert_eq!(w.wallet(ALICE, Weth), FUND);
-    assert_eq!(w.held_by_contract(Weth), 0);
-    assert_eq!(w.real(ALICE, Weth), 0);
+    assert_eq!(w.wallet(ALICE, Wnear), FUND);
+    assert_eq!(w.held_by_contract(Wnear), 0);
+    assert_eq!(w.real(ALICE, Wnear), 0);
 }
 
 #[test]
 fn empty_message_is_a_deposit() {
     let mut w = World::new();
     for msg in ["", "  ", r#"{"action":"deposit"}"#] {
-        assert_eq!(w.ft_transfer_call(ALICE, Weth, E18, msg).unwrap(), 0);
+        assert_eq!(w.ft_transfer_call(ALICE, Wnear, E18, msg).unwrap(), 0);
     }
-    assert_eq!(w.real(ALICE, Weth), 3 * E18);
-    assert_eq!(w.held_by_contract(Weth), 3 * E18);
+    assert_eq!(w.real(ALICE, Wnear), 3 * E18);
+    assert_eq!(w.held_by_contract(Wnear), 3 * E18);
     assert_eq!(
         w.last.logs,
         vec![
-            r#"EVENT_JSON:{"standard":"multiverse","version":"1.0.0","event":"real_deposit","data":[{"account_id":"alice.near","asset":"weth","amount":"1000000000000000000"}]}"#
+            r#"EVENT_JSON:{"standard":"multiverse","version":"1.0.0","event":"real_deposit","data":[{"account_id":"alice.near","asset":"wnear","amount":"1000000000000000000"}]}"#
         ]
     );
 }
@@ -95,7 +95,7 @@ fn zero_amount_and_unregistered_sender_are_refunded() {
     let mut w = World::new();
     let alice = acc(ALICE);
     fails(
-        w.call(WETH_TOKEN, NO_DEPOSIT, |c| {
+        w.call(WNEAR_TOKEN, NO_DEPOSIT, |c| {
             c.ft_on_transfer(alice, U128(0), String::new())
         }),
         "ZeroAmount",
@@ -167,9 +167,9 @@ fn usdc_is_scaled_to_18_decimals() {
     assert_eq!(w.reserves(1, Usdc), 25 * E18 / 10);
     // the split used exactly what came in: no change in the internal balance
     assert_eq!(w.real(ALICE, Usdc), 1_234_567_891 * USDC_UNIT);
-    // and WETH has 18 decimals already: 1 wei is 1 internal unit
-    w.ft_transfer_call(ALICE, Weth, 1, "").unwrap();
-    assert_eq!(w.real(ALICE, Weth), 1);
+    // and this wNEAR has 18 decimals already: 1 raw unit is 1 internal unit
+    w.ft_transfer_call(ALICE, Wnear, 1, "").unwrap();
+    assert_eq!(w.real(ALICE, Wnear), 1);
     // the split action's logs: the NEP-245 mint and the split, nothing else
     w.ft_transfer_call(ALICE, Usdc, 1, msg).unwrap();
     let names: Vec<String> = w.last.event_names().into_iter().map(|(_, e)| e).collect();
@@ -211,10 +211,10 @@ fn unused_part_is_refunded_and_dust_stays() {
     let carol = acc(CAROL);
     let refund = w
         .call(CONTRACT, NO_DEPOSIT, |c| {
-            c.real_credit(&carol, Weth, 10 * E18);
-            c.real_credit(&carol, Weth, E18);
-            c.real_debit(&carol, Weth, 3 * E18);
-            c.settle_unused(&carol, Weth, E18, 10 * E18)
+            c.real_credit(&carol, Wnear, 10 * E18);
+            c.real_credit(&carol, Wnear, E18);
+            c.real_debit(&carol, Wnear, 3 * E18);
+            c.settle_unused(&carol, Wnear, E18, 10 * E18)
         })
         .unwrap();
     assert_eq!(refund, 0);
@@ -225,7 +225,7 @@ fn ft_on_transfer_returns_a_value_not_a_promise() {
     let mut w = World::new();
     let alice = acc(ALICE);
     let out = w
-        .call(WETH_TOKEN, NO_DEPOSIT, |c| {
+        .call(WNEAR_TOKEN, NO_DEPOSIT, |c| {
             c.ft_on_transfer(alice, U128(5), String::new())
         })
         .unwrap();
@@ -266,7 +266,7 @@ const DESIGN_MESSAGES: [(&str, &str); 11] = [
     ),
     (
         "lp_deposit",
-        r#"{"action":"lp_deposit","scenario_id":1,"weth_amount":"5000000000000000000","min_shares":"0"}"#,
+        r#"{"action":"lp_deposit","scenario_id":1,"wnear_amount":"5000000000000000000","min_shares":"0"}"#,
     ),
     ("spot_swap", r#"{"action":"spot_swap","min_out":"0"}"#),
 ];

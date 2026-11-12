@@ -1,5 +1,4 @@
-//! MaskLib has no direct tests in the EVM repo; these pin its table of
-//! verses and masks.
+//! The mask helpers: these pin the table of verses and masks.
 
 use crate::masks::*;
 
@@ -12,12 +11,12 @@ fn root_of_world_counts() {
 
 #[test]
 fn worlds_with_matches_the_2x2_table() {
-    // [glam, fed]: glam is digit 0 (stride 1), fed digit 1 (stride 2).
+    // [spice, fed]: spice is digit 0 (stride 1), fed digit 1 (stride 2).
     assert_eq!(worlds_with(4, 1, 2, 0), 0x5); // SHIPS
     assert_eq!(worlds_with(4, 1, 2, 1), 0xA); // DELAYED
     assert_eq!(worlds_with(4, 2, 2, 0), 0x3); // CUTS
     assert_eq!(worlds_with(4, 2, 2, 1), 0xC); // HOLDS
-                                              // Binary [glam].
+                                              // Binary [spice].
     assert_eq!(worlds_with(2, 1, 2, 0), 0x1);
     assert_eq!(worlds_with(2, 1, 2, 1), 0x2);
 }

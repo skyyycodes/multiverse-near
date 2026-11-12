@@ -28,8 +28,8 @@ pub struct PoolView {
     pub token1: String,
     pub reserve0: U128,
     pub reserve1: U128,
-    /// Null in a between-world pool, which holds no WETH side.
-    pub weth_reserve: Option<U128>,
+    /// Null in a between-world pool, which holds no wNEAR side.
+    pub wnear_reserve: Option<U128>,
     pub usdc_reserve: Option<U128>,
     pub liquidity: U128,
     /// Fees held for liquidity providers, outside the reserves.
@@ -39,7 +39,7 @@ pub struct PoolView {
     pub fee_pips: u32,
     /// Swaps recorded in the fee window since creation.
     pub swap_count: u64,
-    /// Token1 per token0 (USDC per WETH where WETH is token0), WAD, rounded
+    /// Token1 per token0 (USDC per wNEAR where wNEAR is token0), WAD, rounded
     /// down; "0" while the pool is empty.
     pub price: U128,
     /// Token1 per token0 at the mean tick of the TWAP window; null until the
@@ -74,7 +74,7 @@ pub struct OddsView {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SellPart {
     pub world: u8,
-    pub weth_amount: U128,
+    pub wnear_amount: U128,
 }
 
 #[near(serializers = [json])]
@@ -123,17 +123,17 @@ impl Contract {
         })
     }
 
-    /// For each world in `sell_mask`, the USDC-if-w that selling `weth_amount`
-    /// WETH-if-w into its pool pays now; "0" for worlds not sold, without a
+    /// For each world in `sell_mask`, the USDC-if-w that selling `wnear_amount`
+    /// wNEAR-if-w into its pool pays now; "0" for worlds not sold, without a
     /// pool, dead or halted. Worlds are quoted independently, without orders.
-    pub fn quote_sell(&self, scenario_id: u64, weth_amount: U128, sell_mask: u8) -> Vec<U128> {
+    pub fn quote_sell(&self, scenario_id: u64, wnear_amount: U128, sell_mask: u8) -> Vec<U128> {
         let world_count = self.scenario(scenario_id).world_count;
         (0..world_count)
             .map(|w| {
                 if sell_mask & (1 << w) == 0 {
                     return U128(0);
                 }
-                U128(self.quote_world_sale(scenario_id, w, weth_amount.0))
+                U128(self.quote_world_sale(scenario_id, w, wnear_amount.0))
             })
             .collect()
     }
@@ -147,7 +147,7 @@ impl Contract {
                 if p.world >= world_count {
                     return U128(0);
                 }
-                U128(self.quote_world_sale(scenario_id, p.world, p.weth_amount.0))
+                U128(self.quote_world_sale(scenario_id, p.world, p.wnear_amount.0))
             })
             .collect()
     }
@@ -214,7 +214,7 @@ impl Contract {
         odds::implied_spot(&q, possible, |w| self.world_spot_price(scenario_id, w)).unwrap_or(0)
     }
 
-    /// USDC per WETH in the spot pool, WAD; 0 without one.
+    /// USDC per wNEAR in the spot pool, WAD; 0 without one.
     pub(crate) fn spot_price_wad(&self) -> u128 {
         self.spot_pool
             .and_then(|id| self.pools.get(&id))
@@ -222,9 +222,9 @@ impl Contract {
             .unwrap_or(0)
     }
 
-    fn quote_world_sale(&self, scenario_id: u64, world: u8, weth_amount: u128) -> u128 {
+    fn quote_world_sale(&self, scenario_id: u64, world: u8, wnear_amount: u128) -> u128 {
         self.world_pool(scenario_id, world)
-            .and_then(|id| self.quote_exact_in(id, true, weth_amount))
+            .and_then(|id| self.quote_exact_in(id, true, wnear_amount))
             .unwrap_or(0)
     }
 
@@ -237,7 +237,7 @@ impl Contract {
             PoolToken::Verse(key) => key.token_id(),
             PoolToken::Real(asset) => self.asset_cfg(asset).token_id.to_string(),
         };
-        let (world, weth_reserve, usdc_reserve) = match pool.kind {
+        let (world, wnear_reserve, usdc_reserve) = match pool.kind {
             PoolKind::Within { world } => (Some(world), Some(U128(r0)), Some(U128(r1))),
             PoolKind::Spot => (None, Some(U128(r0)), Some(U128(r1))),
             PoolKind::Between { .. } => (None, None, None),
@@ -263,7 +263,7 @@ impl Contract {
             token1: token_id(t1),
             reserve0: U128(r0),
             reserve1: U128(r1),
-            weth_reserve,
+            wnear_reserve,
             usdc_reserve,
             liquidity: U128(pool.amm.liquidity()),
             fees0: U128(fees0),

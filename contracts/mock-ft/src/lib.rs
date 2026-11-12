@@ -327,7 +327,7 @@ mod tests {
     #[should_panic(expected = "max_mint_per_call must be positive")]
     fn new_rejects_a_zero_cap() {
         as_caller(owner(), NearToken::from_yoctonear(0));
-        Contract::new(owner(), "Mock WETH".into(), "WETH".into(), 18, U128(0));
+        Contract::new(owner(), "Mock wNEAR".into(), "wNEAR".into(), 18, U128(0));
     }
 
     #[test]

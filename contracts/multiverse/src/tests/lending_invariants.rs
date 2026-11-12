@@ -1,5 +1,5 @@
 //! Invariants 3 and 4 of the money markets as stateful property tests, with
-//! the handlers of `LendingInvariants.t.sol` and `LiquidationInvariants.t.sol`.
+//! random lending and liquidation actions.
 //!
 //! There are no pools on the test chain, so each world pool is modelled by
 //! its reserves: sales and price moves are constant-product swaps on them,
@@ -25,7 +25,7 @@ use super::liquidation::slice_value;
 use crate::amm::TEST_WORLD_PRICES;
 use crate::lending::CollateralKey;
 use crate::masks::single_worlds;
-use crate::types::Asset::{Usdc, Weth};
+use crate::types::Asset::{Usdc, Wnear};
 use multiverse_math::risk::{dust_allowance, liquidation_target};
 use multiverse_math::{mul_div_down, U256};
 
@@ -80,14 +80,14 @@ fn ops4() -> impl Strategy<Value = Op> {
     ]
 }
 
-/// Foundry's `bound`.
+/// Clamps a random amount into `lo..=hi`.
 fn bound(x: u128, lo: u128, hi: u128) -> u128 {
     lo + x % (hi - lo + 1)
 }
 
 /// A world pool as its reserves; `held` is the removable LP part (binary only).
 struct Pool {
-    weth: u128,
+    wnear: u128,
     usdc: u128,
     held: u128,
 }
@@ -110,7 +110,7 @@ struct Stats {
     dust_rejected: u64,
     skipped_halted: u64,
     skipped_no_price: u64,
-    unexpected_reverts: Vec<String>,
+    unexpected_fails: Vec<String>,
     guard_mismatches: u64,
     sizing_mismatches: u64,
 }
@@ -150,14 +150,14 @@ impl Campaign {
             pools.insert(
                 (sids[0], i as u8),
                 Pool {
-                    weth: DEPTH,
+                    wnear: DEPTH,
                     usdc: mul_div_down(DEPTH, *p, E18),
                     held: 0,
                 },
             );
         }
         for (i, p) in PRICES_BIN.iter().enumerate() {
-            let (weth, held) = if liquidation {
+            let (wnear, held) = if liquidation {
                 (DEPTH, REMOVABLE)
             } else {
                 (DEPTH, 0)
@@ -165,14 +165,14 @@ impl Campaign {
             pools.insert(
                 (sids[1], i as u8),
                 Pool {
-                    weth,
-                    usdc: mul_div_down(weth, *p, E18),
+                    wnear,
+                    usdc: mul_div_down(wnear, *p, E18),
                     held,
                 },
             );
         }
         let mut c = Campaign {
-            events: [w.glam, w.fed],
+            events: [w.spice, w.fed],
             w,
             sids,
             pools,
@@ -192,8 +192,8 @@ impl Campaign {
         c
     }
 
-    /// Each actor sells 2 WETH into lending in each scenario, posts 1 real
-    /// WETH, and borrows 99% of what the worst world carries.
+    /// Each actor sells 2 wNEAR into lending in each scenario, posts 1 real
+    /// wNEAR, and borrows 99% of what the worst world carries.
     fn open_loans(&mut self) {
         let masks = [
             [L_SHAPE, BIN_DELAYED],
@@ -203,7 +203,7 @@ impl Campaign {
         for (i, who) in ACTORS.iter().enumerate() {
             for (j, s) in self.sids.into_iter().enumerate() {
                 self.sell_into_lending(who, s, masks[i][j], 2 * E18);
-                self.w.post_real(who, s, Weth, E18).unwrap();
+                self.w.post_real(who, s, Wnear, E18).unwrap();
             }
         }
         self.w.warp(61);
@@ -219,24 +219,24 @@ impl Campaign {
     /// Model price and depth gate into the price table lending reads.
     fn sync(&mut self, key: (u64, u8)) {
         let p = &self.pools[&key];
-        let price = mul_div_down(p.usdc, E18, p.weth);
+        let price = mul_div_down(p.usdc, E18, p.wnear);
         let ok = p.usdc >= GATE;
         TEST_WORLD_PRICES.with(|m| m.borrow_mut().insert(key, (price, ok)));
     }
 
     /// Constant-product swap at the base fee; returns the output.
-    fn swap(&mut self, key: (u64, u8), weth_in: bool, amount: u128) -> u128 {
+    fn swap(&mut self, key: (u64, u8), wnear_in: bool, amount: u128) -> u128 {
         let p = self.pools.get_mut(&key).unwrap();
         let after_fee = amount * 997 / 1000;
-        let out = if weth_in {
-            let out = mul_div_down(p.usdc, after_fee, p.weth + after_fee);
-            p.weth += after_fee;
+        let out = if wnear_in {
+            let out = mul_div_down(p.usdc, after_fee, p.wnear + after_fee);
+            p.wnear += after_fee;
             p.usdc -= out;
             out
         } else {
-            let out = mul_div_down(p.weth, after_fee, p.usdc + after_fee);
+            let out = mul_div_down(p.wnear, after_fee, p.usdc + after_fee);
             p.usdc += after_fee;
-            p.weth -= out;
+            p.wnear -= out;
             out
         };
         self.sync(key);
@@ -254,13 +254,13 @@ impl Campaign {
         )
     }
 
-    /// The router's sale into lending: WETH split into the live worlds, the
+    /// The router's sale into lending: wNEAR split into the live worlds, the
     /// worlds in `sell_mask` swapped to USDC-if-w, every piece posted.
     fn sell_into_lending(&mut self, who: &str, s: u64, sell_mask: u8, amount: u128) -> bool {
         let possible = self.w.possible(s);
         let root = self.w.view(|c| c.get_scenario(s).root);
         let singles = single_worlds(possible);
-        if self.w.split_ft(who, s, Weth, &singles, amount).is_err() {
+        if self.w.split_ft(who, s, Wnear, &singles, amount).is_err() {
             return false;
         }
         let mut ok = true;
@@ -269,7 +269,7 @@ impl Campaign {
             if sell_mask & single == 0 {
                 ok &= self
                     .w
-                    .post(who, s, &token_id(s, Weth, single), amount)
+                    .post(who, s, &token_id(s, Wnear, single), amount)
                     .is_ok();
                 continue;
             }
@@ -308,8 +308,8 @@ impl Campaign {
             Op::DepositVerse => {
                 self.steps += 1;
                 let (who, s) = self.pick(seed);
-                let weth = (seed >> 16) & 1 == 0;
-                let asset = if weth { Weth } else { Usdc };
+                let wnear = (seed >> 16) & 1 == 0;
+                let asset = if wnear { Wnear } else { Usdc };
                 let (root, possible) = self.w.view(|c| {
                     let sc = c.get_scenario(s);
                     (sc.root, sc.possible)
@@ -321,9 +321,9 @@ impl Campaign {
                 let mut amount = bound(
                     amount,
                     1_000_000_000_000,
-                    if weth { 5 * E18 } else { 10_000 * E18 },
+                    if wnear { 5 * E18 } else { 10_000 * E18 },
                 );
-                if !weth {
+                if !wnear {
                     amount = amount / USDC_UNIT * USDC_UNIT;
                 }
                 let part = parts[((seed >> 32) % parts.len() as u64) as usize];
@@ -336,18 +336,18 @@ impl Campaign {
             Op::DepositReal => {
                 self.steps += 1;
                 let (who, s) = self.pick(seed);
-                let weth = (seed >> 16) & 1 == 0;
+                let wnear = (seed >> 16) & 1 == 0;
                 let mut amount = bound(
                     amount,
                     1_000_000_000_000,
-                    if weth { 3 * E18 } else { 5_000 * E18 },
+                    if wnear { 3 * E18 } else { 5_000 * E18 },
                 );
-                if !weth {
+                if !wnear {
                     amount = amount / USDC_UNIT * USDC_UNIT;
                 }
                 let r = self
                     .w
-                    .post_real(who, s, if weth { Weth } else { Usdc }, amount);
+                    .post_real(who, s, if wnear { Wnear } else { Usdc }, amount);
                 st.ok("deposit_real", r);
             }
             Op::Borrow => {
@@ -527,7 +527,7 @@ impl Campaign {
         let old = PERMANENT + p.held;
         p.held = if pull { p.held - delta } else { p.held + delta };
         let new = PERMANENT + p.held;
-        p.weth = mul_div_down(p.weth, new, old);
+        p.wnear = mul_div_down(p.wnear, new, old);
         p.usdc = mul_div_down(p.usdc, new, old);
         self.sync((s, wd));
         *st.calls
@@ -548,16 +548,16 @@ impl Campaign {
             let sc = c.get_scenario(s);
             (sc.root, sc.possible, sc.world_count)
         });
-        let weth_worlds = self
+        let wnear_worlds = self
             .w
             .pieces(s, who)
             .iter()
             .map(|(p, _)| CollateralKey::parse(s, p).unwrap())
-            .filter(|k| k.asset() == Weth)
+            .filter(|k| k.asset() == Wnear)
             .fold(0u8, |m, k| m | k.mask(root));
         (0..worlds)
             .find(|wd| {
-                possible & weth_worlds & (1 << wd) != 0 && !super::liquidation::price_of(s, *wd).1
+                possible & wnear_worlds & (1 << wd) != 0 && !super::liquidation::price_of(s, *wd).1
             })
             .map(|wd| format!("PriceUnavailable({wd})"))
     }
@@ -627,7 +627,7 @@ impl Campaign {
             .iter()
             .map(|k| match *k {
                 CollateralKey::Verse { asset, mask } => self.w.bal(LIQUIDATOR, s, asset, mask),
-                CollateralKey::Real(Weth) => self.w.real(LIQUIDATOR, Weth),
+                CollateralKey::Real(Wnear) => self.w.real(LIQUIDATOR, Wnear),
                 CollateralKey::Real(Usdc) => 0,
             })
             .collect();
@@ -644,7 +644,7 @@ impl Campaign {
                 if dust && e == format!("LiquidationTooSmall({repay})") {
                     st.dust_rejected += 1;
                 } else {
-                    st.unexpected_reverts.push(e);
+                    st.unexpected_fails.push(e);
                 }
                 return;
             }
@@ -668,7 +668,7 @@ impl Campaign {
                 CollateralKey::Verse { asset, mask } => {
                     self.w.bal(LIQUIDATOR, s, asset, mask) - liq_before[i]
                 }
-                CollateralKey::Real(Weth) => self.w.real(LIQUIDATOR, Weth) - liq_before[i],
+                CollateralKey::Real(Wnear) => self.w.real(LIQUIDATOR, Wnear) - liq_before[i],
                 CollateralKey::Real(Usdc) => {
                     usdc_seized = liq.seized[i];
                     expected
@@ -792,7 +792,7 @@ fn invariant_4_liquidation_covers_repayment() {
     println!(
         "invariant_4_liquidation_covers_repayment: {} cases, {} actions; successful calls {:?}; liquidations {}, \
          precondition held {}, coverage failures {}, bad-debt cases {}, bad-debt shortfalls {}, worst shortfall {} \
-         bps, full seizures {}, dust rejected {}, skipped halted {}, skipped no price {}, unexpected reverts {}, \
+         bps, full seizures {}, dust rejected {}, skipped halted {}, skipped no price {}, unexpected failures {}, \
          guard mismatches {}, sizing mismatches {}, resolutions {}",
         s.cases,
         s.actions,
@@ -807,7 +807,7 @@ fn invariant_4_liquidation_covers_repayment() {
         s.dust_rejected,
         s.skipped_halted,
         s.skipped_no_price,
-        s.unexpected_reverts.len(),
+        s.unexpected_fails.len(),
         s.guard_mismatches,
         s.sizing_mismatches,
         s.resolutions
@@ -817,9 +817,9 @@ fn invariant_4_liquidation_covers_repayment() {
     }
     assert_eq!(s.coverage_failures, 0);
     assert!(
-        s.unexpected_reverts.is_empty(),
-        "unexpected reverts: {:?}",
-        s.unexpected_reverts
+        s.unexpected_fails.is_empty(),
+        "unexpected failures: {:?}",
+        s.unexpected_fails
     );
     assert_eq!(s.guard_mismatches, 0);
     assert_eq!(s.sizing_mismatches, 0);

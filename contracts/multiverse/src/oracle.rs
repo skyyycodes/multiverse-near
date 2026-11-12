@@ -4,7 +4,7 @@
 //! While a proposal is open, exactly one of `dispute` (owner, before
 //! `proposed_at + window`) and `finalize` (anyone, from that second on) is
 //! possible. The window is read at call time, so changing it also moves
-//! open proposals. `report_outcome` replaces the EVM's CRE `onReport`: one
+//! open proposals. `report_outcome` is the automated path: one
 //! reporter account, ideally holding only a function-call key for it.
 //! Times are whole seconds of block time.
 
@@ -92,8 +92,8 @@ impl Contract {
     }
 
     /// The resolver's entry point; no deposit, so a function-call key can
-    /// sign it. `target` must be this contract (the replay guard the chain id
-    /// was on EVM), and the evidence (e.g. the FRED rows used) is logged.
+    /// sign it. `target` must be this contract (a replay guard
+    /// against other deployments), and the evidence (e.g. the FRED rows used) is logged.
     pub fn report_outcome(
         &mut self,
         event_id: u64,
@@ -260,7 +260,7 @@ impl Contract {
     }
 
     /// 0 unless a proposal is open; otherwise `proposed_at + window` with the
-    /// current window, failing on u64 overflow like the EVM view.
+    /// current window, failing on u64 overflow.
     pub fn finalizable_at(&self, event_id: u64) -> u64 {
         match self.events.get(&event_id) {
             Some(e) if e.proposal_open => e

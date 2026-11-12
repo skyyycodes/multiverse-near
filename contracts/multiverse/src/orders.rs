@@ -1,6 +1,6 @@
 //! Order book: limit orders on any live non-root verse of a scenario.
 //!
-//! A bid buys WETH-if-mask and escrows USDC-if-mask; an ask sells WETH-if-mask
+//! A bid buys wNEAR-if-mask and escrows USDC-if-mask; an ask sells wNEAR-if-mask
 //! and escrows it. Escrow leaves the maker's ledger balance and is held in the
 //! order record itself. Only the USDC leg rounds: whoever pays USDC pays the
 //! ceiling, whoever is paid from a bid's escrow gets the floor, so an open
@@ -29,13 +29,13 @@ use crate::{now_sec, Contract, ContractExt};
 /// Whether the order book is live; served to the app by `get_app_config`.
 pub const ENABLED: bool = true;
 
-/// 0.001 WETH. Every order costs its maker storage, and dust orders would
+/// 0.001 wNEAR. Every order costs its maker storage, and dust orders would
 /// only clutter the book.
 pub const MIN_ORDER_AMOUNT: u128 = 1_000_000_000_000_000;
 
 /// Smallest order notional, 0.0001 USDC. It rules out bids that escrow a
-/// few wei; the EVM rounding cases (0.5 USDC per WETH on the smallest
-/// order) stay valid.
+/// few internal units; the rounding cases (0.5 USDC per wNEAR on the
+/// smallest order) stay valid.
 pub const MIN_ORDER_VALUE: u128 = 100_000_000_000_000;
 
 /// Open orders one maker may have across all scenarios.
@@ -53,11 +53,11 @@ pub enum Side {
 }
 
 impl Side {
-    /// What the order escrows: USDC for a bid, WETH for an ask.
+    /// What the order escrows: USDC for a bid, wNEAR for an ask.
     pub fn escrow_asset(self) -> Asset {
         match self {
             Side::Bid => Asset::Usdc,
-            Side::Ask => Asset::Weth,
+            Side::Ask => Asset::Wnear,
         }
     }
 }
@@ -74,13 +74,13 @@ pub struct Order {
     pub side: Side,
     pub scenario_id: u64,
     pub mask: u8,
-    /// USDC per WETH, 18 decimals.
+    /// USDC per wNEAR, 18 decimals.
     pub price: u128,
-    /// WETH size at post.
+    /// wNEAR size at post.
     pub amount: u128,
-    /// WETH still to trade; 0 once filled or cancelled.
+    /// wNEAR still to trade; 0 once filled or cancelled.
     pub remaining: u128,
-    /// An ask holds `remaining` WETH-if-mask, a bid at least
+    /// An ask holds `remaining` wNEAR-if-mask, a bid at least
     /// `cost(remaining, price)` USDC-if-mask.
     pub escrow: u128,
 }
@@ -135,7 +135,7 @@ pub struct WorldBook {
     pub asks: Vec<OrderView>,
 }
 
-/// `paid` is what the taker gave (WETH-if-mask into a bid, USDC-if-mask for
+/// `paid` is what the taker gave (wNEAR-if-mask into a bid, USDC-if-mask for
 /// an ask), `received` the other leg.
 #[near(serializers = [json])]
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -222,7 +222,7 @@ impl Contract {
         U64(id)
     }
 
-    /// Takes `amount` WETH of the order. `limit_price` guards against filling
+    /// Takes `amount` wNEAR of the order. `limit_price` guards against filling
     /// a different price than the one seen: a bid must pay at least it, an
     /// ask cost at most it.
     #[payable]
@@ -477,7 +477,7 @@ impl Contract {
             fail!("PriceBeyondLimit({order_id}, {}, {limit_price})", o.price);
         }
 
-        let weth = VerseKey::new(o.scenario_id, Asset::Weth, o.mask);
+        let wnear = VerseKey::new(o.scenario_id, Asset::Wnear, o.mask);
         let usdc = VerseKey::new(o.scenario_id, Asset::Usdc, o.mask);
         o.remaining -= amount;
         let (paid, received, usdc_amount, refund) = match o.side {
@@ -519,7 +519,7 @@ impl Contract {
         .emit();
         match side {
             Side::Bid => {
-                self.transfer_verse(taker, &maker, &[(weth, amount)], None);
+                self.transfer_verse(taker, &maker, &[(wnear, amount)], None);
                 self.release_from_custody(taker, &[(usdc, received)], None);
                 if refund > 0 {
                     self.release_from_custody(&maker, &[(usdc, refund)], None);
@@ -527,7 +527,7 @@ impl Contract {
             }
             Side::Ask => {
                 self.transfer_verse(taker, &maker, &[(usdc, paid)], None);
-                self.release_from_custody(taker, &[(weth, amount)], None);
+                self.release_from_custody(taker, &[(wnear, amount)], None);
             }
         }
         (paid, received)

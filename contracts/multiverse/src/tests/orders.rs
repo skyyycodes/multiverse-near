@@ -1,12 +1,12 @@
-//! `VerseOrderBook.t.sol`, test by test, plus the views and storage charging.
+//! The order book, test by test, plus the views and storage charging.
 //!
 //! The book lives in the contract, so there is no approval step: escrow and
 //! fill payments are debited from the ledger, and a short balance fails as
-//! `ERC20InsufficientBalance`. The EVM router stub (`postFor`) becomes a
-//! crate-internal call made inside some other account's receipt. Orders must
-//! be at least 0.001 WETH, so the wei-sized rounding cases keep their shape on
-//! a 0.001 WETH order: a bid of 1e15 + 3 at 1.5 escrows 1.5e15 + 5 and its
-//! last three 1 wei fills leave 2 wei of dust for the maker.
+//! `InsufficientBalance`. Posting for another account is a crate-internal
+//! call made inside that account's receipt. Orders must be at least 0.001
+//! wNEAR, so the unit-sized rounding cases keep their shape on a 0.001 wNEAR
+//! order: a bid of 1e15 + 3 at 1.5 escrows 1.5e15 + 5 and its last three
+//! 1-unit fills leave 2 units of dust for the maker.
 
 use near_sdk::json_types::{U128, U64};
 use near_sdk::serde_json::json;
@@ -16,7 +16,7 @@ use proptest::prelude::*;
 use super::harness::*;
 use crate::masks::single_worlds;
 use crate::orders::{OrderView, Side, MIN_ORDER_AMOUNT};
-use crate::types::Asset::{self, Usdc, Weth};
+use crate::types::Asset::{self, Usdc, Wnear};
 use crate::types::VerseKey;
 
 pub const RAVI: &str = "ravi.near";
@@ -89,7 +89,7 @@ fn expiry(w: &World) -> u64 {
     w.now + DAY
 }
 
-/// Ravi's bid: 1 WETH-if-DELAYED·HOLDS at 2,450.
+/// Ravi's bid: 1 wNEAR-if-DELAYED·HOLDS at 2,450.
 fn ravi_bid(w: &mut World) -> u64 {
     let (s, e) = (w.s2x2, expiry(w));
     give(w, RAVI, s, Usdc, DELAYED_HOLDS, PRICE);
@@ -98,7 +98,7 @@ fn ravi_bid(w: &mut World) -> u64 {
 
 fn ask(w: &mut World, who: &str, mask: u8, price: u128, amount: u128) -> u64 {
     let (s, e) = (w.s2x2, expiry(w));
-    give(w, who, s, Weth, mask, amount);
+    give(w, who, s, Wnear, mask, amount);
     post(w, who, s, mask, Side::Ask, price, amount, e).unwrap()
 }
 
@@ -158,7 +158,7 @@ fn post_bid_escrows_usdc() {
 }
 
 #[test]
-fn post_ask_escrows_weth() {
+fn post_ask_escrows_wnear() {
     let mut w = book();
     let s = w.s2x2;
     let id = ask(&mut w, RAVI, DELAYED_HOLDS, 2_800 * E18, 2 * E18);
@@ -166,9 +166,9 @@ fn post_ask_escrows_weth() {
     assert_eq!(o.side, Side::Ask);
     assert_eq!(o.escrow, U128(2 * E18));
     let key = w.view(|c| c.order(id).unwrap().escrow_key());
-    assert_eq!(key, VerseKey::new(s, Weth, DELAYED_HOLDS));
-    assert_eq!(held(&mut w, s, Weth, DELAYED_HOLDS), 2 * E18);
-    assert_eq!(w.bal(RAVI, s, Weth, DELAYED_HOLDS), 0);
+    assert_eq!(key, VerseKey::new(s, Wnear, DELAYED_HOLDS));
+    assert_eq!(held(&mut w, s, Wnear, DELAYED_HOLDS), 2 * E18);
+    assert_eq!(w.bal(RAVI, s, Wnear, DELAYED_HOLDS), 0);
 }
 
 #[test]
@@ -215,7 +215,7 @@ fn post_for_records_the_caller_as_maker() {
 }
 
 #[test]
-fn post_reverts() {
+fn post_fails() {
     let mut w = book();
     let (s, b, e) = (w.s2x2, w.s_bin, expiry(&w));
     let now = w.now;
@@ -260,7 +260,7 @@ fn post_reverts() {
     );
     fails(
         post(&mut w, RAVI, s, DELAYED_HOLDS, Side::Ask, PRICE, E18, e),
-        &format!("ERC20InsufficientBalance({RAVI}, 0, {E18})"),
+        &format!("InsufficientBalance({RAVI}, 0, {E18})"),
     );
     let fed = w.fed;
     w.admin_resolve(fed, OUT_CUTS).unwrap();
@@ -278,9 +278,9 @@ fn fill_bid_full() {
     let mut w = book();
     let s = w.s2x2;
     let id = ravi_bid(&mut w);
-    give(&mut w, ALICE, s, Weth, DELAYED_HOLDS, E18);
-    let (ravi_weth, alice_usdc) = (
-        w.bal(RAVI, s, Weth, DELAYED_HOLDS),
+    give(&mut w, ALICE, s, Wnear, DELAYED_HOLDS, E18);
+    let (ravi_wnear, alice_usdc) = (
+        w.bal(RAVI, s, Wnear, DELAYED_HOLDS),
         w.bal(ALICE, s, Usdc, DELAYED_HOLDS),
     );
     assert_eq!(fill(&mut w, ALICE, id, E18, PRICE), Ok((E18, PRICE)));
@@ -291,7 +291,7 @@ fn fill_bid_full() {
             "usdc_amount": PRICE.to_string(), "remaining": "0"
         })]
     );
-    assert_eq!(w.bal(RAVI, s, Weth, DELAYED_HOLDS), ravi_weth + E18);
+    assert_eq!(w.bal(RAVI, s, Wnear, DELAYED_HOLDS), ravi_wnear + E18);
     assert_eq!(w.bal(ALICE, s, Usdc, DELAYED_HOLDS), alice_usdc + PRICE);
     assert_eq!(held(&mut w, s, Usdc, DELAYED_HOLDS), 0);
     let o = order(&mut w, id);
@@ -305,7 +305,7 @@ fn fill_bid_partial_rounds_down_and_refunds_dust() {
     let s = w.s2x2;
     let size = MIN_ORDER_AMOUNT + 3;
     let id = bid(&mut w, RAVI, DELAYED_HOLDS, ONE_HALF, size);
-    give(&mut w, ALICE, s, Weth, DELAYED_HOLDS, size);
+    give(&mut w, ALICE, s, Wnear, DELAYED_HOLDS, size);
     let alice_usdc = w.bal(ALICE, s, Usdc, DELAYED_HOLDS);
     let ravi_usdc = w.bal(RAVI, s, Usdc, DELAYED_HOLDS);
     assert_eq!(
@@ -319,10 +319,10 @@ fn fill_bid_partial_rounds_down_and_refunds_dust() {
         w.bal(ALICE, s, Usdc, DELAYED_HOLDS),
         alice_usdc + 1_500_000_000_000_003
     );
-    // 5 wei escrowed for the 3 wei tail, 3 paid out: the maker gets 2 back
+    // 5 units escrowed for the 3-unit tail, 3 paid out: the maker gets 2 back
     assert_eq!(w.bal(RAVI, s, Usdc, DELAYED_HOLDS), ravi_usdc + 2);
     assert_eq!(held(&mut w, s, Usdc, DELAYED_HOLDS), 0);
-    assert_eq!(w.bal(RAVI, s, Weth, DELAYED_HOLDS), size);
+    assert_eq!(w.bal(RAVI, s, Wnear, DELAYED_HOLDS), size);
     assert_eq!(order(&mut w, id).escrow, U128(0));
 }
 
@@ -333,7 +333,7 @@ fn fill_ask_partial_cost_rounds_up() {
     let id = ask(&mut w, ALICE, DELAYED_HOLDS, ONE_HALF, MIN_ORDER_AMOUNT);
     give(&mut w, RAVI, s, Usdc, DELAYED_HOLDS, 2);
     let alice_usdc = w.bal(ALICE, s, Usdc, DELAYED_HOLDS);
-    let ravi_weth = w.bal(RAVI, s, Weth, DELAYED_HOLDS);
+    let ravi_wnear = w.bal(RAVI, s, Wnear, DELAYED_HOLDS);
     assert_eq!(fill(&mut w, RAVI, id, 1, ONE_HALF), Ok((2, 1)));
     let left = MIN_ORDER_AMOUNT - 1;
     assert_eq!(
@@ -344,14 +344,14 @@ fn fill_ask_partial_cost_rounds_up() {
         })]
     );
     assert_eq!(w.bal(ALICE, s, Usdc, DELAYED_HOLDS), alice_usdc + 2);
-    assert_eq!(w.bal(RAVI, s, Weth, DELAYED_HOLDS), ravi_weth + 1);
+    assert_eq!(w.bal(RAVI, s, Wnear, DELAYED_HOLDS), ravi_wnear + 1);
     let o = order(&mut w, id);
     assert_eq!((o.remaining, o.escrow), (U128(left), U128(left)));
-    assert_eq!(held(&mut w, s, Weth, DELAYED_HOLDS), left);
+    assert_eq!(held(&mut w, s, Wnear, DELAYED_HOLDS), left);
 }
 
 #[test]
-fn fill_reverts_not_open() {
+fn fill_fails_not_open() {
     let mut w = book();
     let s = w.s2x2;
     fails(fill(&mut w, ALICE, 7, E18, 0), "OrderNotOpen(7)");
@@ -371,7 +371,7 @@ fn fill_reverts_not_open() {
 }
 
 #[test]
-fn fill_reverts_amount() {
+fn fill_fails_amount() {
     let mut w = book();
     let id = ravi_bid(&mut w);
     fails(fill(&mut w, ALICE, id, 0, 0), "ZeroAmount");
@@ -384,12 +384,12 @@ fn fill_reverts_amount() {
 }
 
 #[test]
-fn fill_reverts_expired() {
+fn fill_fails_expired() {
     let mut w = book();
     let s = w.s2x2;
     let id = ravi_bid(&mut w);
     let e = order(&mut w, id).expiry_sec;
-    give(&mut w, ALICE, s, Weth, DELAYED_HOLDS, E18);
+    give(&mut w, ALICE, s, Wnear, DELAYED_HOLDS, E18);
     w.now = e;
     fails(
         fill(&mut w, ALICE, id, E18, 0),
@@ -401,11 +401,11 @@ fn fill_reverts_expired() {
 }
 
 #[test]
-fn fill_reverts_stale_after_resolution() {
+fn fill_fails_stale_after_resolution() {
     let mut w = book();
     let s = w.s2x2;
     let id = ravi_bid(&mut w);
-    give(&mut w, ALICE, s, Weth, DELAYED_HOLDS, E18);
+    give(&mut w, ALICE, s, Wnear, DELAYED_HOLDS, E18);
     let fed = w.fed;
     w.admin_resolve(fed, OUT_HOLDS).unwrap();
     assert!(w.view(|c| c.is_live(s, DELAYED_HOLDS)));
@@ -416,23 +416,23 @@ fn fill_reverts_stale_after_resolution() {
 }
 
 #[test]
-fn fill_reverts_dead_verse() {
+fn fill_fails_dead_verse() {
     let mut w = book();
     let s = w.s2x2;
     let id = ravi_bid(&mut w);
-    give(&mut w, ALICE, s, Weth, DELAYED_HOLDS, E18);
-    let glam = w.glam;
-    w.admin_resolve(glam, OUT_SHIPS).unwrap();
+    give(&mut w, ALICE, s, Wnear, DELAYED_HOLDS, E18);
+    let spice = w.spice;
+    w.admin_resolve(spice, OUT_SHIPS).unwrap();
     // dead wins over stale
     fails(fill(&mut w, ALICE, id, E18, 0), "DeadVerse(8)");
 }
 
 #[test]
-fn fill_reverts_while_resolution_pending() {
+fn fill_fails_while_resolution_pending() {
     let mut w = book();
     let s = w.s2x2;
     let id = ravi_bid(&mut w);
-    give(&mut w, ALICE, s, Weth, DELAYED_HOLDS, E18);
+    give(&mut w, ALICE, s, Wnear, DELAYED_HOLDS, E18);
     let fed = w.fed;
     w.report(fed, OUT_HOLDS).unwrap();
     fails(
@@ -460,12 +460,12 @@ fn post_and_cancel_work_while_halted() {
 }
 
 #[test]
-fn fill_reverts_beyond_limit_price() {
+fn fill_fails_beyond_limit_price() {
     let mut w = book();
     let s = w.s2x2;
     let b = ravi_bid(&mut w);
     let a = ask(&mut w, RAVI, DELAYED_HOLDS, 2_800 * E18, E18);
-    give(&mut w, ALICE, s, Weth, DELAYED_HOLDS, E18);
+    give(&mut w, ALICE, s, Wnear, DELAYED_HOLDS, E18);
     give(&mut w, ALICE, s, Usdc, DELAYED_HOLDS, 2_800 * E18);
     fails(
         fill(&mut w, ALICE, b, E18, 2_451 * E18),
@@ -481,27 +481,27 @@ fn fill_reverts_beyond_limit_price() {
 }
 
 #[test]
-fn fill_reverts_zero_value() {
+fn fill_fails_zero_value() {
     let mut w = book();
     let s = w.s2x2;
     let id = bid(&mut w, RAVI, DELAYED_HOLDS, HALF, MIN_ORDER_AMOUNT);
-    give(&mut w, ALICE, s, Weth, DELAYED_HOLDS, E18);
+    give(&mut w, ALICE, s, Wnear, DELAYED_HOLDS, E18);
     fails(fill(&mut w, ALICE, id, 1, 0), "ZeroValue");
     assert_eq!(fill(&mut w, ALICE, id, 2, 0), Ok((2, 1)));
 }
 
 #[test]
-fn fill_reverts_without_payment() {
+fn fill_fails_without_payment() {
     let mut w = book();
     let b = ravi_bid(&mut w);
     let a = ask(&mut w, RAVI, DELAYED_HOLDS, PRICE, E18);
     fails(
         fill(&mut w, ALICE, b, E18, 0),
-        &format!("ERC20InsufficientBalance({ALICE}, 0, {E18})"),
+        &format!("InsufficientBalance({ALICE}, 0, {E18})"),
     );
     fails(
         fill(&mut w, ALICE, a, E18, PRICE),
-        &format!("ERC20InsufficientBalance({ALICE}, 0, {PRICE})"),
+        &format!("InsufficientBalance({ALICE}, 0, {PRICE})"),
     );
 }
 
@@ -510,11 +510,11 @@ fn self_fill_works() {
     let mut w = book();
     let s = w.s2x2;
     let id = ravi_bid(&mut w);
-    give(&mut w, RAVI, s, Weth, DELAYED_HOLDS, E18);
+    give(&mut w, RAVI, s, Wnear, DELAYED_HOLDS, E18);
     let before = w.bal(RAVI, s, Usdc, DELAYED_HOLDS);
     assert_eq!(fill(&mut w, RAVI, id, E18, 0), Ok((E18, PRICE)));
     assert_eq!(w.bal(RAVI, s, Usdc, DELAYED_HOLDS), before + PRICE);
-    assert_eq!(w.bal(RAVI, s, Weth, DELAYED_HOLDS), E18);
+    assert_eq!(w.bal(RAVI, s, Wnear, DELAYED_HOLDS), E18);
 }
 
 #[test]
@@ -527,7 +527,7 @@ fn multi_world_ask_fills_directly() {
         fill(&mut w, ALICE, id, E18, 3_000 * E18),
         Ok((3_000 * E18, E18))
     );
-    assert_eq!(w.bal(ALICE, s, Weth, L_SHAPE), E18);
+    assert_eq!(w.bal(ALICE, s, Wnear, L_SHAPE), E18);
 }
 
 // Cancel
@@ -537,7 +537,7 @@ fn cancel_returns_remaining_escrow() {
     let mut w = book();
     let s = w.s2x2;
     let id = bid(&mut w, RAVI, DELAYED_HOLDS, PRICE, 2 * E18);
-    give(&mut w, ALICE, s, Weth, DELAYED_HOLDS, HALF);
+    give(&mut w, ALICE, s, Wnear, DELAYED_HOLDS, HALF);
     fill(&mut w, ALICE, id, HALF, PRICE).unwrap();
     let before = w.bal(RAVI, s, Usdc, DELAYED_HOLDS);
     assert_eq!(cancel(&mut w, RAVI, id), Ok(3_675 * E18));
@@ -565,18 +565,18 @@ fn cancel_after_resolution_and_expiry() {
     let s = w.s2x2;
     let b = ravi_bid(&mut w);
     let a = ask(&mut w, RAVI, SHIPS_CUTS, 3_700 * E18, E18);
-    let glam = w.glam;
-    w.admin_resolve(glam, OUT_SHIPS).unwrap();
+    let spice = w.spice;
+    w.admin_resolve(spice, OUT_SHIPS).unwrap();
     w.warp(2 * DAY);
     // the dead token comes back as it is
     assert_eq!(cancel(&mut w, RAVI, b), Ok(PRICE));
     assert_eq!(w.bal(RAVI, s, Usdc, DELAYED_HOLDS), PRICE);
     assert_eq!(cancel(&mut w, RAVI, a), Ok(E18));
-    assert_eq!(w.bal(RAVI, s, Weth, SHIPS_CUTS), E18);
+    assert_eq!(w.bal(RAVI, s, Wnear, SHIPS_CUTS), E18);
 }
 
 #[test]
-fn cancel_reverts() {
+fn cancel_fails() {
     let mut w = book();
     let s = w.s2x2;
     let id = ravi_bid(&mut w);
@@ -586,7 +586,7 @@ fn cancel_reverts() {
     cancel(&mut w, RAVI, id).unwrap();
     fails(cancel(&mut w, RAVI, id), &format!("OrderNotOpen({id})"));
     let filled = ravi_bid(&mut w);
-    give(&mut w, ALICE, s, Weth, DELAYED_HOLDS, E18);
+    give(&mut w, ALICE, s, Wnear, DELAYED_HOLDS, E18);
     fill(&mut w, ALICE, filled, E18, 0).unwrap();
     fails(
         cancel(&mut w, RAVI, filled),
@@ -655,7 +655,7 @@ fn orders_for_world_sorts_best_first() {
     assert_eq!((ids(top.bids), ids(top.asks)), (vec![b2], vec![a2]));
 
     // filled and cancelled orders leave the index
-    give(&mut w, ALICE, s, Weth, DELAYED_HOLDS, E18);
+    give(&mut w, ALICE, s, Wnear, DELAYED_HOLDS, E18);
     fill(&mut w, ALICE, b2, E18, 0).unwrap();
     cancel(&mut w, BOB, a2).unwrap();
     let book = w.view(|c| c.orders_for_world(s, 3, None));
@@ -703,7 +703,7 @@ fn open_orders_and_orders_by_maker() {
     let o2 = ask(&mut w, BOB, L_SHAPE, PRICE, E18);
     let o3 = bid(&mut w, RAVI, HOLDS, PRICE, E18);
     let e = expiry(&w);
-    give(&mut w, RAVI, b, Weth, BIN_SHIPS, E18);
+    give(&mut w, RAVI, b, Wnear, BIN_SHIPS, E18);
     let o4 = post(&mut w, RAVI, b, BIN_SHIPS, Side::Ask, PRICE, E18, e).unwrap();
     cancel(&mut w, RAVI, o3).unwrap();
     let ids = |v: Vec<OrderView>| v.into_iter().map(|o| o.id.0).collect::<Vec<_>>();
@@ -755,12 +755,12 @@ fn fill_charges_the_taker() {
     let mut w = book();
     let s = w.s2x2;
     let id = ravi_bid(&mut w);
-    give(&mut w, ALICE, s, Weth, DELAYED_HOLDS, 2 * E18);
+    give(&mut w, ALICE, s, Wnear, DELAYED_HOLDS, 2 * E18);
     let alice = w.storage_used(ALICE);
     let ravi = w.storage_used(RAVI);
     fill(&mut w, ALICE, id, E18, 0).unwrap();
     // the taker pays for her new USDC-if-w entry and for the maker's new
-    // WETH-if-w entry
+    // wNEAR-if-w entry
     assert!(w.storage_used(ALICE) > alice);
     assert_eq!(w.storage_used(RAVI), ravi);
 }
@@ -822,7 +822,7 @@ fn fuzz_case(
         return Ok(());
     }
     let escrow = if is_ask { amount } else { cost(amount, price) };
-    let (esc_asset, pay_asset) = if is_ask { (Weth, Usdc) } else { (Usdc, Weth) };
+    let (esc_asset, pay_asset) = if is_ask { (Wnear, Usdc) } else { (Usdc, Wnear) };
     give(&mut w, RAVI, s, esc_asset, mask, escrow);
     let id = post(&mut w, RAVI, s, mask, side, price, amount, e).unwrap();
     prop_assert_eq!(held(&mut w, s, esc_asset, mask), escrow);

@@ -310,7 +310,7 @@ impl Contract {
         }
     }
 
-    /// Names follow the EVM tokens: `"WETH-if-DELAYED·HOLDS"`, `"USDC-if-0b1110"`.
+    /// Names read as `"wNEAR-if-DELAYED·HOLDS"`, `"USDC-if-0b1110"`.
     /// Not unique across scenarios; the id is.
     pub fn mt_metadata_base_by_token_id(
         &self,

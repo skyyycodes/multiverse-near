@@ -86,7 +86,7 @@ fn every_vector_matches_the_evm() {
             }
             ("to_sqrt", [p, s]) => {
                 assert_eq!(price::to_sqrt_price_x96(u128_of(p)), u256_of(s), "{at}");
-                // A pool holding 1 WETH against p USDC has the same square-root price.
+                // A pool holding 1 wNEAR against p USDC has the same square-root price.
                 assert_eq!(
                     price::sqrt_price_x96_from_reserves(WAD, u128_of(p)),
                     Some(u256_of(s)),
@@ -119,9 +119,9 @@ fn every_vector_matches_the_evm() {
                 assert_eq!(price::pool_price(u128_of(p), false), u128_of(q), "{at}");
                 assert_eq!(price::pool_price(u128_of(p), true), u128_of(p), "{at}");
             }
-            ("weth_price_inv", [p, q]) => {
-                assert_eq!(price::weth_price(u128_of(p), false), u128_of(q), "{at}");
-                assert_eq!(price::weth_price(u128_of(p), true), u128_of(p), "{at}");
+            ("wnear_price_inv", [p, q]) => {
+                assert_eq!(price::wnear_price(u128_of(p), false), u128_of(q), "{at}");
+                assert_eq!(price::wnear_price(u128_of(p), true), u128_of(p), "{at}");
             }
             ("sqrt_for_odds", [a, b, s]) => {
                 assert_eq!(
@@ -234,7 +234,7 @@ fn every_vector_matches_the_evm() {
         ("seed_tick", 8),
         ("from_tick", 80),
         ("pool_price_inv", 40),
-        ("weth_price_inv", 40),
+        ("wnear_price_inv", 40),
         ("sqrt_for_odds", 40),
         ("share0", 40),
         ("to_shares_down", 60),

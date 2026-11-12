@@ -89,7 +89,7 @@ pub struct EventFinalized<'a> {
 }
 named!(EventFinalized<'_>, "event_finalized");
 
-/// Logged after `outcome_proposed`, where the EVM logged ReportReceived.
+/// Logged after `outcome_proposed`: who reported and with what evidence.
 #[derive(Serialize, Debug)]
 #[serde(crate = "near_sdk::serde")]
 pub struct ReportReceived<'a> {
@@ -169,7 +169,7 @@ pub struct Redeemed<'a> {
 }
 named!(Redeemed<'_>, "redeemed");
 
-/// Real WETH/USDC credited to the internal balance by a plain deposit.
+/// Real wNEAR/USDC credited to the internal balance by a plain deposit.
 #[derive(Serialize, Debug)]
 #[serde(crate = "near_sdk::serde")]
 pub struct RealDeposit<'a> {

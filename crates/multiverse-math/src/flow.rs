@@ -1,6 +1,6 @@
 //! Dynamic LP fee from recent order flow (`SwapFlow`).
 //!
-//! A pool remembers the signed volume of its last 8 swaps, measured in one token (token0: the WETH side of a
+//! A pool remembers the signed volume of its last 8 swaps, measured in one token (token0: the wNEAR side of a
 //! within-world pool, the first verse of a between-world pool) as the swapper's delta: negative when that token was
 //! sold into the pool (the full input, fee included), positive when it was bought out. The next swap pays
 //! `base + ceil((cap - base) * |net| / total)`: balanced flow pays the base fee, one-sided flow pays the cap.

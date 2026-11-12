@@ -1,4 +1,4 @@
-//! `VerseLendingLiquidation.t.sol`: amendment 8 sizing (one fraction of
+//! Liquidation: amendment 8 sizing (one fraction of
 //! every piece), the close factor and dust rule, both pauses, gaps below the
 //! repayment, plus the NEAR side of the `liquidate` action (refunds, what
 //! the liquidator receives, the status view).
@@ -12,7 +12,7 @@ use super::harness::*;
 use super::lending::*;
 use crate::amm::TEST_WORLD_PRICES;
 use crate::lending::{check_liquidation_bonus, CollateralKey, Liquidation, LiquidationState};
-use crate::types::Asset::{Usdc, Weth};
+use crate::types::Asset::{Usdc, Wnear};
 use multiverse_math::risk::liquidation_target;
 use multiverse_math::{mul_div_down, mul_div_up};
 
@@ -66,25 +66,25 @@ fn unhealthy_usdc_loan(w: &mut World) {
     age_to(w, s, ALICE, 975_000_000_000_000_000);
 }
 
-/// L-shape + 0.5 real WETH + 200 real USDC + 0.3 WETH-if-HOLDS: 7 pieces.
+/// L-shape + 0.5 real wNEAR + 200 real USDC + 0.3 wNEAR-if-HOLDS: 7 pieces.
 fn mixed_loan(w: &mut World) {
     let s = w.s2x2;
     w.l_shape(ALICE);
-    w.post_real(ALICE, s, Weth, E18 / 2).unwrap();
+    w.post_real(ALICE, s, Wnear, E18 / 2).unwrap();
     w.post_real(ALICE, s, Usdc, 200 * E18).unwrap();
-    w.split_ft(ALICE, s, Weth, &[HOLDS, CUTS], 3 * E18 / 10)
+    w.split_ft(ALICE, s, Wnear, &[HOLDS, CUTS], 3 * E18 / 10)
         .unwrap();
-    w.post(ALICE, s, &token_id(s, Weth, HOLDS), 3 * E18 / 10)
+    w.post(ALICE, s, &token_id(s, Wnear, HOLDS), 3 * E18 / 10)
         .unwrap();
     assert_eq!(w.pieces(s, ALICE).len(), 7);
     borrow_near_max(w, s, ALICE);
     age_to(w, s, ALICE, 980_000_000_000_000_000);
 }
 
-/// 1 real WETH, borrowed near the max, then world 3 crashes to 1/16 of 2,500.
-fn crashed_weth_loan(w: &mut World) {
+/// 1 real wNEAR, borrowed near the max, then world 3 crashes to 1/16 of 2,500.
+fn crashed_wnear_loan(w: &mut World) {
     let s = w.s2x2;
-    w.post_real(ALICE, s, Weth, E18).unwrap();
+    w.post_real(ALICE, s, Wnear, E18).unwrap();
     borrow_near_max(w, s, ALICE);
     set_price(s, 3, PRICES_2X2[3] / 16);
 }
@@ -94,7 +94,7 @@ pub fn price_of(sid: u64, world: u8) -> (u128, bool) {
 }
 
 /// The seized slice valued in every world, independently of the contract:
-/// USDC at par, WETH at the world price, 0 outside a piece's worlds or for
+/// USDC at par, wNEAR at the world price, 0 outside a piece's worlds or for
 /// worlds that can no longer happen.
 pub fn slice_value(
     w: &mut World,
@@ -114,7 +114,7 @@ pub fn slice_value(
                 .filter(|(k, _)| k.mask(s.root) & (1 << wd) != 0)
                 .map(|(k, a)| match k.asset() {
                     Usdc => *a,
-                    Weth => {
+                    Wnear => {
                         let (p, ok) = price_of(sid, wd);
                         if ok {
                             mul_div_down(*a, p, E18)
@@ -170,7 +170,7 @@ fn liquidate_in(w: &mut World, sid: u64, account: &str, repay: Option<u128>) -> 
     let debt = w.debt(sid, account);
     let hf_before = w.hf(sid, account).0.unwrap();
     let usdc_before = w.usdc_total(LIQ);
-    let weth_before = w.real(LIQ, Weth);
+    let wnear_before = w.real(LIQ, Wnear);
     let verse_before: Vec<u128> = held
         .iter()
         .map(|(p, _)| match CollateralKey::parse(sid, p).unwrap() {
@@ -196,7 +196,7 @@ fn liquidate_in(w: &mut World, sid: u64, account: &str, repay: Option<u128>) -> 
             CollateralKey::Verse { asset, mask } => {
                 assert_eq!(w.bal(LIQ, sid, asset, mask), verse_before[i] + expected);
             }
-            CollateralKey::Real(Weth) => assert_eq!(w.real(LIQ, Weth), weth_before + expected),
+            CollateralKey::Real(Wnear) => assert_eq!(w.real(LIQ, Wnear), wnear_before + expected),
             CollateralKey::Real(Usdc) => usdc_seized = expected,
         }
     }
@@ -217,7 +217,7 @@ fn liquidate_in(w: &mut World, sid: u64, account: &str, repay: Option<u128>) -> 
 }
 
 #[test]
-fn liquidate_reverts_while_healthy() {
+fn liquidate_fails_while_healthy() {
     let mut w = liq_world();
     let s = w.s2x2;
     w.post_real(ALICE, s, Usdc, 1_300 * E18).unwrap();
@@ -234,7 +234,7 @@ fn liquidate_reverts_while_healthy() {
 }
 
 #[test]
-fn liquidate_reverts_above_the_close_factor() {
+fn liquidate_fails_above_the_close_factor() {
     let mut w = liq_world();
     let s = w.s2x2;
     unhealthy_usdc_loan(&mut w);
@@ -248,7 +248,7 @@ fn liquidate_reverts_above_the_close_factor() {
 }
 
 #[test]
-fn liquidate_reverts_on_zero_amount() {
+fn liquidate_fails_on_zero_amount() {
     let mut w = liq_world();
     let s = w.s2x2;
     unhealthy_usdc_loan(&mut w);
@@ -256,7 +256,7 @@ fn liquidate_reverts_on_zero_amount() {
 }
 
 #[test]
-fn liquidate_reverts_on_unknown_scenario() {
+fn liquidate_fails_on_unknown_scenario() {
     let mut w = liq_world();
     fails(
         w.liquidate(LIQ, 999, ALICE, Some(E18)),
@@ -265,7 +265,7 @@ fn liquidate_reverts_on_unknown_scenario() {
 }
 
 #[test]
-fn liquidate_reverts_on_dust() {
+fn liquidate_fails_on_dust() {
     let mut w = liq_world();
     let s = w.s2x2;
     mixed_loan(&mut w);
@@ -372,7 +372,7 @@ proptest! {
 fn liquidate_gap_below_the_repayment_takes_everything() {
     let mut w = liq_world();
     let s = w.s2x2;
-    crashed_weth_loan(&mut w);
+    crashed_wnear_loan(&mut w);
     let done = liquidate_in(&mut w, s, ALICE, None);
     assert!(done.target >= done.c_min);
     assert_eq!(done.liq.seized, vec![E18]);
@@ -389,14 +389,14 @@ fn liquidate_gap_below_the_repayment_takes_everything() {
 fn liquidate_gap_smallest_repayment_that_caps_f_takes_everything() {
     let mut w = liq_world();
     let s = w.s2x2;
-    crashed_weth_loan(&mut w);
+    crashed_wnear_loan(&mut w);
     let c_min = w.lowest(s, ALICE);
     let repay = mul_div_up(c_min, E18, E18 + BONUS);
     assert!(liquidation_target(repay - 1, BONUS) < c_min);
     let done = liquidate_in(&mut w, s, ALICE, Some(repay));
     assert!(done.target >= c_min);
     assert_eq!(done.liq.seized, vec![E18]);
-    // DELAYED·CUTS still values the WETH at 3,000
+    // DELAYED·CUTS still values the wNEAR at 3,000
     assert!(done.slice[1] >= 2_999 * E18);
     let left = w.debt(s, ALICE);
     assert!(left.abs_diff(done.debt - repay) <= 2);
@@ -410,7 +410,7 @@ fn liquidate_gap_smallest_repayment_that_caps_f_takes_everything() {
 fn liquidate_gap_within_the_bonus_takes_everything_and_covers() {
     let mut w = liq_world();
     let s = w.s2x2;
-    crashed_weth_loan(&mut w);
+    crashed_wnear_loan(&mut w);
     let c_min = w.lowest(s, ALICE);
     let repay = c_min * 100 / 103;
     let done = liquidate_in(&mut w, s, ALICE, Some(repay));
@@ -422,7 +422,7 @@ fn liquidate_gap_within_the_bonus_takes_everything_and_covers() {
 
 fn binary_market(w: &mut World) -> u64 {
     let ev = w
-        .create_event(GLAM_QUESTION, &["A", "B"], GLAM_RULE, T0 + 90 * DAY)
+        .create_event(SPICE_QUESTION, &["A", "B"], SPICE_RULE, T0 + 90 * DAY)
         .unwrap();
     let sid = w.create_scenario(&[ev]).unwrap();
     w.lend(BOB, sid, 50_000 * E18).unwrap();
@@ -435,7 +435,7 @@ fn liquidate_pauses_while_a_pool_is_under_the_gate() {
     let sid = binary_market(&mut w);
     set_price(sid, 0, PRICES_BIN[0]);
     set_price(sid, 1, PRICES_BIN[1]);
-    w.post_real(ALICE, sid, Weth, E18).unwrap();
+    w.post_real(ALICE, sid, Wnear, E18).unwrap();
     w.borrow(ALICE, sid, 2_079 * E18).unwrap();
     let hf = w.hf(sid, ALICE).0.unwrap();
     assert!(hf > E18 && hf < 1_011_000_000_000_000_000);
@@ -466,9 +466,9 @@ fn liquidate_pauses_without_twap_history() {
     set_unpriced(sid, 0);
     set_price(sid, 1, PRICES_BIN[1]);
     w.post_real(ALICE, sid, Usdc, 1_000 * E18).unwrap();
-    w.split_ft(ALICE, sid, Weth, &[BIN_SHIPS, BIN_DELAYED], E18)
+    w.split_ft(ALICE, sid, Wnear, &[BIN_SHIPS, BIN_DELAYED], E18)
         .unwrap();
-    w.post(ALICE, sid, &token_id(sid, Weth, BIN_SHIPS), E18)
+    w.post(ALICE, sid, &token_id(sid, Wnear, BIN_SHIPS), E18)
         .unwrap();
     w.borrow(ALICE, sid, 740 * E18).unwrap();
     assert_eq!(w.values(sid, ALICE)[0], 1_000 * E18);
@@ -543,19 +543,19 @@ fn liquidate_cuts_dead_pieces_too() {
     let fed = w.fed;
     w.admin_resolve(fed, OUT_HOLDS).unwrap();
     age_to(&mut w, s, ALICE, 980_000_000_000_000_000);
-    let held_weth = w.held(s, ALICE, &token_id(s, Weth, SHIPS_CUTS));
+    let held_wnear = w.held(s, ALICE, &token_id(s, Wnear, SHIPS_CUTS));
     let held_usdc = w.held(s, ALICE, &token_id(s, Usdc, DELAYED_CUTS));
     let repay = w.debt(s, ALICE) * 2 / 5;
     let done = liquidate_in(&mut w, s, ALICE, Some(repay));
     assert_eq!(done.possible, HOLDS);
     done.assert_covers();
-    let dead_weth = mul_div_down(held_weth, done.target, done.c_min);
+    let dead_wnear = mul_div_down(held_wnear, done.target, done.c_min);
     let dead_usdc = mul_div_down(held_usdc, done.target, done.c_min);
-    assert!(dead_weth > 0 && dead_usdc > 0);
-    assert_eq!(done.liq.seized[0], dead_weth);
+    assert!(dead_wnear > 0 && dead_usdc > 0);
+    assert_eq!(done.liq.seized[0], dead_wnear);
     assert_eq!(done.liq.seized[1], dead_usdc);
     assert_eq!(
-        w.bal(LIQ, s, Weth, SHIPS_CUTS),
+        w.bal(LIQ, s, Wnear, SHIPS_CUTS),
         mul_div_down(2 * E18, done.target, done.c_min)
     );
 }
@@ -665,7 +665,10 @@ fn liquidate_ft_needs_enough_usdc_and_refunds_the_rest() {
         w.ft_transfer_call(LIQ, Usdc, 100_000_000, &msg),
         &format!("InsufficientRepayment({}, {max_repay})", 100 * E18),
     );
-    fails(w.ft_transfer_call(LIQ, Weth, E18, &msg), "WrongAsset(weth)");
+    fails(
+        w.ft_transfer_call(LIQ, Wnear, E18, &msg),
+        "WrongAsset(wnear)",
+    );
     assert_eq!(w.wallet(LIQ, Usdc), wallet);
     // 10,000 attached: half the debt is used, the rest comes back
     let usdc = w.usdc_total(LIQ);
@@ -685,16 +688,16 @@ fn liquidating_a_debt_without_pieces_or_of_one_unit() {
     let mut w = liq_world();
     let s = w.s2x2;
     // debt of 1: nothing can be repaid under the close factor
-    w.post_real(DAVE, s, Weth, E18).unwrap();
+    w.post_real(DAVE, s, Wnear, E18).unwrap();
     w.borrow(DAVE, s, 1).unwrap();
     set_price(s, 3, 0);
     assert_eq!(w.hf(s, DAVE), (Some(0), 3));
     fails(w.liquidate(LIQ, s, DAVE, None), "ZeroAmount");
     fails(w.liquidate(LIQ, s, DAVE, Some(1)), "AboveCloseFactor(1, 0)");
-    // a real WETH loan whose only world crashes to zero is a pure repayment
+    // a real wNEAR loan whose only world crashes to zero is a pure repayment
     // once its pieces are gone; it can still be "liquidated", seizing nothing
     set_price(s, 3, PRICES_2X2[3]);
-    crashed_weth_loan(&mut w);
+    crashed_wnear_loan(&mut w);
     set_price(s, 3, 0);
     liquidate_in(&mut w, s, ALICE, None);
     assert!(w.pieces(s, ALICE).is_empty());

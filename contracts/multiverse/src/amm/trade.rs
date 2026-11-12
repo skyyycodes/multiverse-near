@@ -32,7 +32,7 @@ impl Contract {
 impl Contract {
     /// Exact-input swap for `account`: takes `amount_in` from its verse (or,
     /// in the spot pool, internal real) balance and credits the output there.
-    /// Check order as on the EVM: a zero amount, an unknown pool, then the
+    /// Check order: a zero amount, an unknown pool, then the
     /// hook's halt and dead-verse checks. Any input fills completely (dust can
     /// buy nothing, and is still taken); an empty pool fails `NoLiquidity`.
     pub(crate) fn swap_exact_in_for(
@@ -80,8 +80,8 @@ impl Contract {
 
 #[cfg(test)]
 impl Contract {
-    /// Exact-output swap, which only the fee tests need (the EVM suite buys
-    /// exact amounts back to balance the fee window). Same gate and booking
+    /// Exact-output swap, which only the fee tests need (they buy exact
+    /// amounts back to balance the fee window). Same gate and booking
     /// as an exact-input swap.
     pub(crate) fn swap_exact_out_for(
         &mut self,

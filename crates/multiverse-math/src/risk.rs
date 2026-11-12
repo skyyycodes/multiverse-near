@@ -47,10 +47,10 @@ pub fn worst_world(values: &[u128], possible: u8) -> Option<(u8, u128)> {
     worst
 }
 
-/// Value of a WETH-denominated piece in a world: `floor(amount * price / 1e18)`. Panics with `MulDivOverflow` past
+/// Value of a wNEAR-denominated piece in a world: `floor(amount * price / 1e18)`. Panics with `MulDivOverflow` past
 /// `u128::MAX`.
 #[track_caller]
-pub fn weth_value(amount: u128, price: u128) -> u128 {
+pub fn wnear_value(amount: u128, price: u128) -> u128 {
     mul_div_down(amount, price, WAD)
 }
 
@@ -91,7 +91,7 @@ pub fn dust_allowance(pieces: u32, max_price: u128) -> u128 {
         .unwrap_or_else(|| panic!("Overflow"))
 }
 
-/// True when a liquidation must revert `LiquidationTooSmall(repaid)`: it is a cut (`target < lowest`) and the bonus
+/// True when a liquidation must fail `LiquidationTooSmall(repaid)`: it is a cut (`target < lowest`) and the bonus
 /// margin `target - repaid` is below the rounding allowance. Equality passes. A full seizure is never too small.
 #[track_caller]
 pub fn is_too_small(

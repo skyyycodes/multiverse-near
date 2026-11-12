@@ -1,12 +1,12 @@
-//! `VerseLending.t.sol` (same names in snake_case, same assertions), plus
-//! what is new on NEAR: the `ft_on_transfer` actions and their refunds,
+//! The money markets: supply, borrow, repay, collateral and health, plus
+//! the `ft_on_transfer` actions and their refunds,
 //! payouts, interest over time, the router's internal API and storage.
 //!
 //! World prices come from the test price table instead of pool TWAPs, so
 //! valuations are exact rather than within one tick. The router's L-shape
-//! sale into lending is rebuilt from splits: the user keeps 2 WETH-if-SHIPS·CUTS
-//! and gets the USDC-if-w a constant-product pool of 100 WETH depth would pay
-//! for 2 WETH in worlds 1 to 3 (`proceeds[w]`; no assertion hard-codes them).
+//! sale into lending is rebuilt from splits: the user keeps 2 wNEAR-if-SHIPS·CUTS
+//! and gets the USDC-if-w a constant-product pool of 100 wNEAR depth would pay
+//! for 2 wNEAR in worlds 1 to 3 (`proceeds[w]`; no assertion hard-codes them).
 
 use near_sdk::json_types::U128;
 use near_sdk::NearToken;
@@ -14,7 +14,7 @@ use near_sdk::NearToken;
 use super::harness::*;
 use crate::amm::TEST_WORLD_PRICES;
 use crate::lending::{CollateralKey, Liquidation, LiquidationState};
-use crate::types::Asset::{self, Usdc, Weth};
+use crate::types::Asset::{self, Usdc, Wnear};
 
 pub const PRICES_2X2: [u128; 4] = [3_700 * E18, 3_000 * E18, 3_300 * E18, 2_500 * E18];
 pub const PRICES_BIN: [u128; 2] = [3_400 * E18, 2_800 * E18];
@@ -253,7 +253,7 @@ impl Lend for World {
         self.wallet(who, Usdc) + self.real(who, Usdc)
     }
 
-    /// The router's `conditionalSell(s2x2, 2 WETH, L_SHAPE, into lending)`,
+    /// The router's `conditionalSell(s2x2, 2 wNEAR, L_SHAPE, into lending)`,
     /// rebuilt from splits. Returns `proceeds` (world 0 unused).
     fn l_shape(&mut self, who: &str) -> [u128; 4] {
         let s = self.s2x2;
@@ -263,9 +263,9 @@ impl Lend for World {
         }
         let total: u128 = proceeds.iter().sum();
         self.deposit(who, Usdc, total.div_ceil(E18) * E18).unwrap();
-        self.split_ft(who, s, Weth, &[SHIPS_CUTS, L_SHAPE], 2 * E18)
+        self.split_ft(who, s, Wnear, &[SHIPS_CUTS, L_SHAPE], 2 * E18)
             .unwrap();
-        self.post(who, s, &token_id(s, Weth, SHIPS_CUTS), 2 * E18)
+        self.post(who, s, &token_id(s, Wnear, SHIPS_CUTS), 2 * E18)
             .unwrap();
         for w in 1..4u8 {
             let single = 1u8 << w;
@@ -343,7 +343,7 @@ fn lenders_earn_the_borrow_rate() {
 }
 
 #[test]
-fn withdraw_reverts() {
+fn withdraw_fails() {
     let mut w = lending_world(50_000 * E18);
     let s = w.s2x2;
     fails(
@@ -380,7 +380,7 @@ fn alice_borrows_worst_world_is_delayed_holds() {
 }
 
 #[test]
-fn borrow_reverts_below_health_factor_one() {
+fn borrow_fails_below_health_factor_one() {
     let mut w = lending_world(50_000 * E18);
     let s = w.s2x2;
     let proceeds = w.l_shape(ALICE);
@@ -395,19 +395,19 @@ fn real_assets_count_in_every_world() {
     let mut w = lending_world(50_000 * E18);
     let s = w.s2x2;
     w.post_real(ALICE, s, Usdc, 1_000 * E18).unwrap();
-    w.post_real(ALICE, s, Weth, E18).unwrap();
+    w.post_real(ALICE, s, Wnear, E18).unwrap();
     let values = w.values(s, ALICE);
     for (wd, price) in PRICES_2X2.iter().enumerate() {
         assert_eq!(values[wd], 1_000 * E18 + price);
     }
     assert_eq!(
         w.pieces(s, ALICE),
-        vec![("usdc".into(), 1_000 * E18), ("weth".into(), E18)]
+        vec![("usdc".into(), 1_000 * E18), ("wnear".into(), E18)]
     );
 }
 
 #[test]
-fn deposit_collateral_reverts() {
+fn deposit_collateral_fails() {
     let mut w = lending_world(50_000 * E18);
     let (s, bin) = (w.s2x2, w.s_bin);
     // neither a real asset nor a token id
@@ -422,24 +422,27 @@ fn deposit_collateral_reverts() {
     );
     // root is the real asset, never a token
     fails(
-        w.post(ALICE, s, "1:weth:15", E18),
-        "NotCollateral(1:weth:15)",
+        w.post(ALICE, s, "1:wnear:15", E18),
+        "NotCollateral(1:wnear:15)",
     );
-    fails(w.post(ALICE, s, "1:weth:0", E18), "NotCollateral(1:weth:0)");
-    fails(w.post(ALICE, 999, "weth", E18), "UnknownScenario(999)");
+    fails(
+        w.post(ALICE, s, "1:wnear:0", E18),
+        "NotCollateral(1:wnear:0)",
+    );
+    fails(w.post(ALICE, 999, "wnear", E18), "UnknownScenario(999)");
     // a verse that died
-    w.split_ft(ALICE, s, Weth, &[CUTS, HOLDS], E18).unwrap();
+    w.split_ft(ALICE, s, Wnear, &[CUTS, HOLDS], E18).unwrap();
     let fed = w.fed;
     w.admin_resolve(fed, OUT_HOLDS).unwrap();
     fails(
-        w.post(ALICE, s, &token_id(s, Weth, CUTS), E18),
+        w.post(ALICE, s, &token_id(s, Wnear, CUTS), E18),
         &format!("DeadVerse({CUTS})"),
     );
-    fails(w.post(ALICE, s, "weth", 0), "ZeroAmount");
+    fails(w.post(ALICE, s, "wnear", 0), "ZeroAmount");
     // the internal balance must hold it
     fails(
-        w.post(ALICE, s, "weth", E18),
-        &format!("ERC20InsufficientBalance({ALICE}, 0, {E18})"),
+        w.post(ALICE, s, "wnear", E18),
+        &format!("InsufficientBalance({ALICE}, 0, {E18})"),
     );
 }
 
@@ -476,16 +479,16 @@ fn repay_then_withdraw_everything() {
     assert_eq!(w.hf(s, ALICE).0, None);
 }
 
-/// The EVM's `test_worldPrice_needsTwapHistory` and
-/// `test_worldPrice_belowLiquidityGateCountsZero`, seen from lending: a world
+/// World prices that need TWAP history and the depth gate, seen from
+/// lending: a world
 /// whose pool has no valid price (too young or under the depth gate) values
-/// WETH at 0, and the price counts again once it is valid.
+/// wNEAR at 0, and the price counts again once it is valid.
 #[test]
 fn world_without_price_counts_zero() {
     let mut w = lending_world(50_000 * E18);
     let bin = w.s_bin;
     set_unpriced(bin, 0);
-    w.post_real(ALICE, bin, Weth, E18).unwrap();
+    w.post_real(ALICE, bin, Wnear, E18).unwrap();
     assert_eq!(w.values(bin, ALICE), vec![0, PRICES_BIN[1]]);
     set_price(bin, 0, PRICES_BIN[0]);
     assert_eq!(w.values(bin, ALICE), vec![PRICES_BIN[0], PRICES_BIN[1]]);
@@ -498,12 +501,12 @@ fn resolution_never_lowers_health_factor() {
     w.l_shape(ALICE);
     w.borrow(ALICE, s, 3_000 * E18).unwrap();
     let (hf0, _) = w.hf(s, ALICE);
-    let (fed, glam) = (w.fed, w.glam);
+    let (fed, spice) = (w.fed, w.spice);
     w.admin_resolve(fed, OUT_HOLDS).unwrap();
     let (hf1, worst1) = w.hf(s, ALICE);
     assert!(hf1 >= hf0);
     assert_eq!(worst1, 3);
-    w.admin_resolve(glam, OUT_DELAYED).unwrap();
+    w.admin_resolve(spice, OUT_DELAYED).unwrap();
     let (hf2, worst2) = w.hf(s, ALICE);
     assert!(hf2 >= hf1);
     assert_eq!(worst2, 3);
@@ -584,13 +587,13 @@ fn ft_actions_refund_what_they_do_not_use() {
     // USDC only
     let msg = format!(r#"{{"action":"supply","scenario_id":{s}}}"#);
     fails(
-        w.ft_transfer_call(ALICE, Weth, E18, &msg),
-        "WrongAsset(weth)",
+        w.ft_transfer_call(ALICE, Wnear, E18, &msg),
+        "WrongAsset(wnear)",
     );
     let msg = format!(r#"{{"action":"repay","scenario_id":{s},"all":false}}"#);
     fails(
-        w.ft_transfer_call(ALICE, Weth, E18, &msg),
-        "WrongAsset(weth)",
+        w.ft_transfer_call(ALICE, Wnear, E18, &msg),
+        "WrongAsset(wnear)",
     );
     fails(w.lend(ALICE, 999, E18), "UnknownScenario(999)");
 }
@@ -609,13 +612,13 @@ fn repay_from_balance_and_one_yocto() {
     );
     fails(
         w.call(ALICE, NO_DEPOSIT, |c| {
-            c.deposit_collateral(s, "weth".into(), U128(1))
+            c.deposit_collateral(s, "wnear".into(), U128(1))
         }),
         yocto,
     );
     fails(
         w.call(ALICE, NO_DEPOSIT, |c| {
-            c.withdraw_collateral(s, "weth".into(), U128(1))
+            c.withdraw_collateral(s, "wnear".into(), U128(1))
         }),
         yocto,
     );
@@ -635,7 +638,7 @@ fn repay_from_balance_and_one_yocto() {
     let (real, debt) = (w.real(ALICE, Usdc), w.debt(s, ALICE));
     fails(
         w.call(ALICE, ONE_YOCTO, |c| c.repay_from_balance(s, None)),
-        &format!("ERC20InsufficientBalance({ALICE}, {real}, {debt})"),
+        &format!("InsufficientBalance({ALICE}, {real}, {debt})"),
     );
 }
 
@@ -643,14 +646,14 @@ fn repay_from_balance_and_one_yocto() {
 fn real_collateral_is_paid_out_and_verse_goes_back_to_the_ledger() {
     let mut w = lending_world(50_000 * E18);
     let s = w.s2x2;
-    let wallet = w.wallet(ALICE, Weth);
-    w.post_real(ALICE, s, Weth, 2 * E18).unwrap();
-    assert_eq!(w.wallet(ALICE, Weth), wallet - 2 * E18);
-    w.unpost(ALICE, s, "weth", E18).unwrap();
-    assert_eq!(w.wallet(ALICE, Weth), wallet - E18);
-    assert_eq!(w.held(s, ALICE, "weth"), E18);
+    let wallet = w.wallet(ALICE, Wnear);
+    w.post_real(ALICE, s, Wnear, 2 * E18).unwrap();
+    assert_eq!(w.wallet(ALICE, Wnear), wallet - 2 * E18);
+    w.unpost(ALICE, s, "wnear", E18).unwrap();
+    assert_eq!(w.wallet(ALICE, Wnear), wallet - E18);
+    assert_eq!(w.held(s, ALICE, "wnear"), E18);
     fails(
-        w.unpost(ALICE, s, "weth", 2 * E18),
+        w.unpost(ALICE, s, "wnear", 2 * E18),
         &format!("InsufficientCollateral({}, {})", 2 * E18, E18),
     );
     fails(
@@ -659,19 +662,19 @@ fn real_collateral_is_paid_out_and_verse_goes_back_to_the_ledger() {
     );
     fails(w.unpost(ALICE, s, "nope", 1), "NotCollateral(nope)");
     // verse pieces move through the ledger, with NEP-245 logs
-    w.split_ft(ALICE, s, Weth, &[SHIPS, DELAYED], 3 * E18)
+    w.split_ft(ALICE, s, Wnear, &[SHIPS, DELAYED], 3 * E18)
         .unwrap();
-    let ships = token_id(s, Weth, SHIPS);
+    let ships = token_id(s, Wnear, SHIPS);
     w.post(ALICE, s, &ships, 3 * E18).unwrap();
-    assert_eq!(w.bal(ALICE, s, Weth, SHIPS), 0);
+    assert_eq!(w.bal(ALICE, s, Wnear, SHIPS), 0);
     let moves = w.last.data_of("mt_transfer");
     assert_eq!(moves[0]["new_owner_id"], CONTRACT);
-    assert_eq!(w.supply(s, Weth, SHIPS), 3 * E18);
+    assert_eq!(w.supply(s, Wnear, SHIPS), 3 * E18);
     w.assert_conservation(&[ALICE, BOB, CAROL, DAVE, OWNER]);
     w.unpost(ALICE, s, &ships, 3 * E18).unwrap();
-    assert_eq!(w.bal(ALICE, s, Weth, SHIPS), 3 * E18);
+    assert_eq!(w.bal(ALICE, s, Wnear, SHIPS), 3 * E18);
     assert_eq!(w.last.data_of("mt_transfer")[0]["old_owner_id"], CONTRACT);
-    assert_eq!(w.pieces(s, ALICE), vec![("weth".into(), E18)]);
+    assert_eq!(w.pieces(s, ALICE), vec![("wnear".into(), E18)]);
     w.assert_conservation(&[ALICE, BOB, CAROL, DAVE, OWNER]);
 }
 
@@ -679,10 +682,10 @@ fn real_collateral_is_paid_out_and_verse_goes_back_to_the_ledger() {
 fn piece_list_is_capped_and_swap_popped() {
     let mut w = lending_world(50_000 * E18);
     let s = w.s2x2;
-    w.deposit(ALICE, Weth, 100 * E18).unwrap();
+    w.deposit(ALICE, Wnear, 100 * E18).unwrap();
     w.deposit(ALICE, Usdc, 100 * E18).unwrap();
-    let mut ids = vec!["weth".to_string(), "usdc".to_string()];
-    for asset in [Weth, Usdc] {
+    let mut ids = vec!["wnear".to_string(), "usdc".to_string()];
+    for asset in [Wnear, Usdc] {
         for mask in 1..ROOT {
             if ids.len() == 16 {
                 break;
@@ -701,7 +704,7 @@ fn piece_list_is_capped_and_swap_popped() {
         "TooManyCollateralTokens",
     );
     // topping up an existing piece is fine
-    w.post(ALICE, s, "weth", E18).unwrap();
+    w.post(ALICE, s, "wnear", E18).unwrap();
     // removing the second piece moves the last one into its place
     w.unpost(ALICE, s, "usdc", E18).unwrap();
     let list: Vec<String> = w.pieces(s, ALICE).into_iter().map(|(p, _)| p).collect();
@@ -714,13 +717,13 @@ fn router_api() {
     let mut w = lending_world(50_000 * E18);
     let s = w.s2x2;
     let alice = acc(ALICE);
-    w.deposit(ALICE, Weth, 2 * E18).unwrap();
+    w.deposit(ALICE, Wnear, 2 * E18).unwrap();
     w.deposit(ALICE, Usdc, 500 * E18).unwrap();
     w.split_ft(ALICE, s, Usdc, &[HOLDS, CUTS], 1_000 * E18)
         .unwrap();
     let a = alice.clone();
     w.call(ALICE, ONE_YOCTO, |c| {
-        c.deposit_collateral_for(&a, s, CollateralKey::Real(Weth), 2 * E18);
+        c.deposit_collateral_for(&a, s, CollateralKey::Real(Wnear), 2 * E18);
         c.deposit_collateral_for(
             &a,
             s,
@@ -767,7 +770,7 @@ fn router_api() {
     assert_eq!(
         back,
         vec![
-            (CollateralKey::Real(Weth), 2 * E18),
+            (CollateralKey::Real(Wnear), 2 * E18),
             (
                 CollateralKey::Verse {
                     asset: Usdc,
@@ -777,7 +780,7 @@ fn router_api() {
             )
         ]
     );
-    assert_eq!(w.real(ALICE, Weth), 2 * E18);
+    assert_eq!(w.real(ALICE, Wnear), 2 * E18);
     assert_eq!(w.real(ALICE, Usdc), real_before - debt);
     assert_eq!(w.bal(ALICE, s, Usdc, HOLDS), 1_000 * E18);
     // nothing posted: nothing to do
@@ -797,10 +800,10 @@ fn router_api() {
 fn storage_is_charged_and_unregister_waits_for_positions() {
     let mut w = lending_world(50_000 * E18);
     let s = w.s2x2;
-    w.split_ft(DAVE, s, Weth, &[SHIPS, DELAYED], 2 * E18)
+    w.split_ft(DAVE, s, Wnear, &[SHIPS, DELAYED], 2 * E18)
         .unwrap();
     let before = w.storage_used(DAVE);
-    let ships = token_id(s, Weth, SHIPS);
+    let ships = token_id(s, Wnear, SHIPS);
     w.post(DAVE, s, &ships, E18).unwrap();
     let posted = w.storage_used(DAVE);
     assert!(posted > before, "a new piece list costs storage");
@@ -817,7 +820,7 @@ fn storage_is_charged_and_unregister_waits_for_positions() {
         &format!("AccountNotEmpty({DAVE})"),
     );
     w.withdraw_lent(DAVE, s, None).unwrap();
-    w.merge(DAVE, s, Weth, &[SHIPS, DELAYED], ROOT, 2 * E18)
+    w.merge(DAVE, s, Wnear, &[SHIPS, DELAYED], ROOT, 2 * E18)
         .unwrap();
     assert!(w
         .call(DAVE, ONE_YOCTO, |c| c.storage_unregister(None))

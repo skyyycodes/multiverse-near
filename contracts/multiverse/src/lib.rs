@@ -88,7 +88,7 @@ pub struct Contract {
     owner_id: AccountId,
     /// The only account `report_outcome` accepts; None accepts nobody.
     reporter_id: Option<AccountId>,
-    weth: AssetCfg,
+    wnear: AssetCfg,
     usdc: AssetCfg,
     params: Params,
 
@@ -111,7 +111,7 @@ pub struct Contract {
     supply: LookupMap<VerseKey, u128>,
     /// Keys ever minted or registered; burning an unknown key is `InvalidMask`.
     created: LookupSet<VerseKey>,
-    /// Internal real WETH/USDC balances: deposits, failed payouts, dust.
+    /// Internal real wNEAR/USDC balances: deposits, failed payouts, dust.
     real: LookupMap<(AccountId, Asset), u128>,
 
     // amm
@@ -161,14 +161,14 @@ impl Contract {
     pub fn new(
         owner_id: AccountId,
         reporter_id: Option<AccountId>,
-        weth: AssetCfg,
+        wnear: AssetCfg,
         usdc: AssetCfg,
         dispute_window_sec: u64,
     ) -> Self {
         if env::predecessor_account_id() != env::current_account_id() {
             fail("InitNotSelf");
         }
-        for cfg in [&weth, &usdc] {
+        for cfg in [&wnear, &usdc] {
             if cfg.decimals > 18 {
                 fail!("BadDecimals({})", cfg.decimals);
             }
@@ -176,14 +176,14 @@ impl Contract {
                 fail("EmptyText");
             }
         }
-        if weth.token_id == usdc.token_id {
-            fail!("SameToken({})", weth.token_id);
+        if wnear.token_id == usdc.token_id {
+            fail!("SameToken({})", wnear.token_id);
         }
         DisputeWindowSet { dispute_window_sec }.emit();
         Self {
             owner_id,
             reporter_id,
-            weth,
+            wnear,
             usdc,
             params: Params::new(dispute_window_sec),
             events: LookupMap::new(StorageKey::Events),
@@ -223,7 +223,7 @@ impl Contract {
 impl Contract {
     pub(crate) fn asset_cfg(&self, asset: Asset) -> &AssetCfg {
         match asset {
-            Asset::Weth => &self.weth,
+            Asset::Wnear => &self.wnear,
             Asset::Usdc => &self.usdc,
         }
     }

@@ -142,7 +142,7 @@ mod tests {
 
     #[test]
     fn spec_vector() {
-        // Same as the EVM lens: shareOfToken0(sqrtPriceForOdds(2, 1)) = 666666666666666666.
+        // Same as the reference lens: shareOfToken0(sqrtPriceForOdds(2, 1)) = 666666666666666666.
         assert_eq!(
             share_of_token0(sqrt_price_for_odds(2, 1)),
             666_666_666_666_666_666

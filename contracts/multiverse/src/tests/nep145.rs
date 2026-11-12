@@ -7,7 +7,7 @@ use near_sdk::NearToken;
 
 use super::harness::*;
 use crate::storage::StorageBalance;
-use crate::types::Asset::{Usdc, Weth};
+use crate::types::Asset::{Usdc, Wnear};
 use crate::types::VerseKey;
 
 const BYTE: u128 = 10_000_000_000_000_000_000; // 1e19 yoctoNEAR
@@ -105,7 +105,7 @@ fn growth_is_charged_to_the_caller_and_shrinkage_credited_back() {
     let bob = w.storage_used(BOB);
     let total = balance(&mut w, ALICE).unwrap().total.0;
 
-    w.split_ft(ALICE, 1, Weth, &SINGLES, E18).unwrap();
+    w.split_ft(ALICE, 1, Wnear, &SINGLES, E18).unwrap();
     let after_split = w.storage_used(ALICE);
     assert!(after_split > start);
     assert_eq!(
@@ -115,7 +115,7 @@ fn growth_is_charged_to_the_caller_and_shrinkage_credited_back() {
     // nobody else paid
     assert_eq!(w.storage_used(BOB), bob);
 
-    w.merge(ALICE, 1, Weth, &SINGLES, ROOT, E18).unwrap();
+    w.merge(ALICE, 1, Wnear, &SINGLES, ROOT, E18).unwrap();
     let after_merge = w.storage_used(ALICE);
     // the balances and supplies are gone; the created markers and the
     // scenario's reserves slot stay, paid by whoever made them first
@@ -123,23 +123,23 @@ fn growth_is_charged_to_the_caller_and_shrinkage_credited_back() {
     assert!(after_merge > start);
 
     // splitting again only pays for the balances and supplies
-    w.split_ft(ALICE, 1, Weth, &SINGLES, E18).unwrap();
+    w.split_ft(ALICE, 1, Wnear, &SINGLES, E18).unwrap();
     assert_eq!(w.storage_used(ALICE), after_split);
 }
 
 #[test]
 fn a_transfer_pays_for_the_receivers_new_entry() {
     let mut w = World::new();
-    w.split_ft(ALICE, 1, Weth, &[SHIPS, DELAYED], E18).unwrap();
+    w.split_ft(ALICE, 1, Wnear, &[SHIPS, DELAYED], E18).unwrap();
     let (alice, bob) = (w.storage_used(ALICE), w.storage_used(BOB));
-    w.mt_transfer(ALICE, BOB, &token_id(1, Weth, SHIPS), 1)
+    w.mt_transfer(ALICE, BOB, &token_id(1, Wnear, SHIPS), 1)
         .unwrap();
     let entry = w.storage_used(ALICE) - alice;
     assert!(entry > 0);
     assert_eq!(w.storage_used(BOB), bob);
     // whoever frees an entry gets its bytes back, down to zero: the sum of
     // what accounts are charged never falls below the bytes they use
-    w.mt_transfer(BOB, ALICE, &token_id(1, Weth, SHIPS), 1)
+    w.mt_transfer(BOB, ALICE, &token_id(1, Wnear, SHIPS), 1)
         .unwrap();
     assert_eq!(w.storage_used(BOB), bob.saturating_sub(entry));
     assert_eq!(w.storage_used(ALICE), alice + entry);
@@ -153,15 +153,15 @@ fn insufficient_storage_rolls_the_call_back() {
         .unwrap();
     assert_eq!(balance(&mut w, "dave.near").unwrap().available, U128(0));
     w.fund("dave.near");
-    let wallet = w.wallet("dave.near", Weth);
+    let wallet = w.wallet("dave.near", Wnear);
     let err = fails_starting(
-        w.split_ft("dave.near", 1, Weth, &SINGLES, E18),
+        w.split_ft("dave.near", 1, Wnear, &SINGLES, E18),
         "InsufficientStorage(",
     );
     assert!(err.ends_with(", 0)"), "{err}");
     // the token contract refunds the whole transfer
-    assert_eq!(w.wallet("dave.near", Weth), wallet);
-    assert_eq!(w.reserves(1, Weth), 0);
+    assert_eq!(w.wallet("dave.near", Wnear), wallet);
+    assert_eq!(w.reserves(1, Wnear), 0);
 }
 
 #[test]
@@ -169,15 +169,15 @@ fn unregistered_sender_is_refunded() {
     let mut w = World::new();
     w.fund("dave.near");
     fails(
-        w.split_ft("dave.near", 1, Weth, &SINGLES, E18),
+        w.split_ft("dave.near", 1, Wnear, &SINGLES, E18),
         "NotRegistered(dave.near)",
     );
     fails(
         w.deposit("dave.near", Usdc, E18),
         "NotRegistered(dave.near)",
     );
-    assert_eq!(w.wallet("dave.near", Weth), FUND);
-    assert_eq!(w.held_by_contract(Weth), 0);
+    assert_eq!(w.wallet("dave.near", Wnear), FUND);
+    assert_eq!(w.held_by_contract(Wnear), 0);
 }
 
 #[test]
@@ -235,12 +235,12 @@ fn storage_unregister() {
     assert_eq!(balance(&mut w, CAROL), None);
 
     // holding verse tokens or a real balance blocks it
-    w.split_ft(ALICE, 1, Weth, &[SHIPS, DELAYED], E18).unwrap();
+    w.split_ft(ALICE, 1, Wnear, &[SHIPS, DELAYED], E18).unwrap();
     fails(
         w.call(ALICE, ONE_YOCTO, |c| c.storage_unregister(None)),
         "AccountNotEmpty(alice.near)",
     );
-    w.merge(ALICE, 1, Weth, &[SHIPS, DELAYED], ROOT, E18)
+    w.merge(ALICE, 1, Wnear, &[SHIPS, DELAYED], ROOT, E18)
         .unwrap();
     w.deposit(ALICE, Usdc, E18).unwrap();
     fails(
@@ -269,7 +269,7 @@ fn storage_unregister_sweeps_sub_unit_dust() {
     let mut w = World::new();
     w.split_ft(ALICE, 1, Usdc, &[SHIPS, DELAYED], 3 * E18)
         .unwrap();
-    w.admin_resolve(w.glam, OUT_SHIPS).unwrap();
+    w.admin_resolve(w.spice, OUT_SHIPS).unwrap();
     // 1.5 USDC goes out, 123 internal units stay behind as dust
     w.redeem(ALICE, 1, Usdc, SHIPS, 15 * E18 / 10 + 123)
         .unwrap();
@@ -355,7 +355,7 @@ fn demo_record_is_charged_to_the_owner() {
     let mut w = World::new();
     assert_eq!(w.view(|c| c.get_app_config()).demo, None);
     let before = w.storage_used(OWNER);
-    let record = r#"{"glam_event":1,"fed_event":2,"past_fed_event":null,"scenario_2x2":1,"scenario_binary":2}"#;
+    let record = r#"{"spice_event":1,"fed_event":2,"past_fed_event":null,"scenario_2x2":1,"scenario_binary":2}"#;
     w.call(OWNER, ONE_YOCTO, |c| c.set_demo_record(record.into()))
         .unwrap();
     assert!(w.storage_used(OWNER) > before);
@@ -392,7 +392,7 @@ fn app_config_reports_the_configuration() {
     let cfg = w.view(|c| c.get_app_config());
     assert_eq!(cfg.owner_id, acc(OWNER));
     assert_eq!(cfg.reporter_id, Some(acc(REPORTER)));
-    assert_eq!(cfg.weth, weth_cfg());
+    assert_eq!(cfg.wnear, wnear_cfg());
     assert_eq!(cfg.usdc, usdc_cfg());
     assert_eq!(cfg.lltv, U128(750_000_000_000_000_000));
     assert_eq!(cfg.liquidation_bonus, U128(50_000_000_000_000_000));

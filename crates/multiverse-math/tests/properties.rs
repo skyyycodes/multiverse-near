@@ -400,17 +400,17 @@ proptest! {
     }
 }
 
-/// One collateral piece: USDC-valued or WETH-valued, over a mask of worlds (root = the real asset).
+/// One collateral piece: USDC-valued or wNEAR-valued, over a mask of worlds (root = the real asset).
 #[derive(Clone, Debug)]
 struct Piece {
-    weth: bool,
+    wnear: bool,
     mask: u8,
     held: u128,
 }
 
 fn piece() -> impl Strategy<Value = Piece> {
-    (any::<bool>(), 1u8..=0b1111, 1u128..=100_000 * WAD).prop_map(|(weth, mask, held)| Piece {
-        weth,
+    (any::<bool>(), 1u8..=0b1111, 1u128..=100_000 * WAD).prop_map(|(wnear, mask, held)| Piece {
+        wnear,
         mask,
         held,
     })
@@ -420,8 +420,8 @@ fn piece() -> impl Strategy<Value = Piece> {
 fn value_in(piece: &Piece, amount: u128, w: usize, prices: &[u128; 4]) -> u128 {
     if piece.mask & (1 << w) == 0 {
         0
-    } else if piece.weth {
-        risk::weth_value(amount, prices[w])
+    } else if piece.wnear {
+        risk::wnear_value(amount, prices[w])
     } else {
         amount
     }

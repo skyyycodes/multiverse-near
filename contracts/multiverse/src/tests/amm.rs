@@ -1,9 +1,8 @@
-//! The pool layer: `VerseHook.t.sol` (admission, halts, dead worlds, the
-//! dynamic fee, the TWAP) and `PoolSeeder.t.sol` (moving the spot pool) test
-//! by test, plus what the NEAR pools add: liquidity positions, the spot pool
-//! and its `ft_on_transfer` action, lending's world price and the Impact
-//! Meter ring. Every pool here has WETH-if-w as token0, so the EVM tests'
-//! orientation branches collapse to that case.
+//! The pool layer: admission, halts, dead worlds, the dynamic fee, the TWAP
+//! and moving the spot pool, plus liquidity positions, the spot pool and its
+//! `ft_on_transfer` action, lending's world price and the Impact Meter ring.
+//! Every pool here has wNEAR-if-w as token0, so the orientation branches of
+//! the reference maths collapse to that case.
 
 use multiverse_math::fixed::{mul_div_down, WAD};
 use multiverse_math::{odds, price};
@@ -12,7 +11,7 @@ use near_sdk::NearToken;
 
 use super::harness::*;
 use crate::amm::IMPACT_POINTS;
-use crate::types::Asset::{self, Usdc, Weth};
+use crate::types::Asset::{self, Usdc, Wnear};
 use crate::types::VerseKey;
 
 pub const DEMO_2X2: [u128; 4] = [3700 * E18, 3000 * E18, 3300 * E18, 2500 * E18];
@@ -43,10 +42,10 @@ fn whole_usdc(internal: u128) -> u128 {
     internal.div_ceil(scale(Usdc)) * scale(Usdc)
 }
 
-/// The EVM `seedWorld`s: the owner splits enough WETH and USDC into every
-/// world, then opens each world's pool at `prices[w]` with `depths[w]` WETH.
+/// Seeds the worlds: the owner splits enough wNEAR and USDC into every
+/// world, then opens each world's pool at `prices[w]` with `depths[w]` wNEAR.
 pub fn seed_worlds(w: &mut World, sid: u64, prices: &[u128], depths: &[u128]) -> Vec<u64> {
-    let max_weth = *depths.iter().max().unwrap();
+    let max_wnear = *depths.iter().max().unwrap();
     let max_usdc = prices
         .iter()
         .zip(depths)
@@ -54,7 +53,7 @@ pub fn seed_worlds(w: &mut World, sid: u64, prices: &[u128], depths: &[u128]) ->
         .max()
         .unwrap();
     let masks = singles(prices.len());
-    w.split_ft(OWNER, sid, Weth, &masks, max_weth).unwrap();
+    w.split_ft(OWNER, sid, Wnear, &masks, max_wnear).unwrap();
     w.split_ft(OWNER, sid, Usdc, &masks, whole_usdc(max_usdc))
         .unwrap();
     (0..prices.len())
@@ -76,7 +75,7 @@ pub fn seed_demo_2x2(w: &mut World) -> Vec<u64> {
     seed_worlds(w, sid, &DEMO_2X2, &[DEPTH; 4])
 }
 
-/// The demo's 2x2 pools: DELAYED·HOLDS is the thin one, 40 WETH deep.
+/// The demo's 2x2 pools: DELAYED·HOLDS is the thin one, 40 wNEAR deep.
 pub fn seed_demo_thin(w: &mut World) -> Vec<u64> {
     let sid = w.s2x2;
     seed_worlds(w, sid, &DEMO_2X2, &[DEPTH, DEPTH, DEPTH, 40 * E18])
@@ -140,10 +139,10 @@ pub fn seed_odds(w: &mut World, sid: u64, q: &[u128], depth: u128) -> Vec<u64> {
         .collect()
 }
 
-/// The spot pool at `price` with `depth` WETH, from the owner's deposits.
+/// The spot pool at `price` with `depth` wNEAR, from the owner's deposits.
 pub fn seed_spot(w: &mut World, price: u128, depth: u128) -> u64 {
     let usdc = wmul(depth, price);
-    w.deposit(OWNER, Weth, depth).unwrap();
+    w.deposit(OWNER, Wnear, depth).unwrap();
     w.deposit(OWNER, Usdc, usdc).unwrap();
     w.call(OWNER, POOL_FEE, |c| {
         c.create_spot_pool(U128(depth), U128(usdc))
@@ -151,10 +150,10 @@ pub fn seed_spot(w: &mut World, price: u128, depth: u128) -> u64 {
     .unwrap()
 }
 
-/// Gives `who` WETH-if-w and USDC-if-w in every world of the scenario.
-pub fn give_world_tokens(w: &mut World, who: &str, sid: u64, weth: u128, usdc: u128) {
+/// Gives `who` wNEAR-if-w and USDC-if-w in every world of the scenario.
+pub fn give_world_tokens(w: &mut World, who: &str, sid: u64, wnear: u128, usdc: u128) {
     let n = w.view(|c| c.scenario(sid).world_count) as usize;
-    for (asset, amount) in [(Weth, weth), (Usdc, usdc)] {
+    for (asset, amount) in [(Wnear, wnear), (Usdc, usdc)] {
         if amount > 0 {
             w.split_ft(who, sid, asset, &singles(n), amount).unwrap();
         }
@@ -221,12 +220,12 @@ fn single_swap_fee(w: &World, expected: u32) -> u32 {
     fee
 }
 
-/// Sell WETH-if-w into its world pool.
+/// Sell wNEAR-if-w into its world pool.
 pub fn sell(w: &mut World, who: &str, pool: u64, amount: u128) -> (u128, u32) {
     swap(w, who, pool, true, amount).unwrap()
 }
 
-/// Buy exactly `amount` WETH-if-w out of its world pool.
+/// Buy exactly `amount` wNEAR-if-w out of its world pool.
 pub fn buy(w: &mut World, who: &str, pool: u64, amount: u128) -> (u128, u32) {
     swap_out(w, who, pool, false, amount)
 }
@@ -244,7 +243,7 @@ fn all_holders() -> [&'static str; 4] {
     [OWNER, ALICE, BOB, CAROL]
 }
 
-// VerseHook.t.sol: admission
+// Pool admission
 
 #[test]
 fn registers_within_world_pool() {
@@ -256,7 +255,7 @@ fn registers_within_world_pool() {
     assert_eq!((p.mask0, p.mask1), (DELAYED_HOLDS, DELAYED_HOLDS));
     assert_eq!(
         (p.token0.as_str(), p.token1.as_str()),
-        ("1:weth:8", "1:usdc:8")
+        ("1:wnear:8", "1:usdc:8")
     );
     assert_eq!(w.view(|c| c.pool(pools[3]).twap.count()), 1);
     assert_eq!(p.swap_count, 0);
@@ -279,7 +278,7 @@ fn registers_between_world_pool() {
         (p.token0.as_str(), p.token1.as_str()),
         ("1:usdc:3", "1:usdc:12")
     );
-    assert_eq!((p.weth_reserve, p.usdc_reserve), (None, None));
+    assert_eq!((p.wnear_reserve, p.usdc_reserve), (None, None));
     // HOLDS (q 7) is likelier, so CUTS holds the full depth
     assert_eq!(p.reserve0.0, ODDS_DEPTH);
     assert_eq!(p.reserve1.0, ODDS_DEPTH * 3 / 7);
@@ -304,7 +303,7 @@ fn rejects_different_scenarios() {
     fails(
         w.try_view(|c| {
             c.admit_pair(
-                VerseKey::new(s2, Weth, SHIPS_CUTS),
+                VerseKey::new(s2, Wnear, SHIPS_CUTS),
                 VerseKey::new(sb, Usdc, BIN_SHIPS),
             )
         }),
@@ -317,17 +316,17 @@ fn rejects_unsupported_pairs() {
     let mut w = pool_world();
     let s = w.s2x2;
     let cases = [
-        // two WETH verses
+        // two wNEAR verses
         (
-            (Weth, SHIPS_CUTS),
-            (Weth, DELAYED_CUTS),
-            "UnsupportedPair(1:weth:1, 1:weth:2)",
+            (Wnear, SHIPS_CUTS),
+            (Wnear, DELAYED_CUTS),
+            "UnsupportedPair(1:wnear:1, 1:wnear:2)",
         ),
-        // WETH and USDC of different worlds
+        // wNEAR and USDC of different worlds
         (
-            (Weth, SHIPS_CUTS),
+            (Wnear, SHIPS_CUTS),
             (Usdc, DELAYED_CUTS),
-            "UnsupportedPair(1:weth:1, 1:usdc:2)",
+            "UnsupportedPair(1:wnear:1, 1:usdc:2)",
         ),
         // overlapping USDC verses
         (
@@ -335,11 +334,11 @@ fn rejects_unsupported_pairs() {
             (Usdc, CUTS),
             "UnsupportedPair(1:usdc:3, 1:usdc:6)",
         ),
-        // a single-world WETH against a two-world USDC
+        // a single-world wNEAR against a two-world USDC
         (
-            (Weth, SHIPS_CUTS),
+            (Wnear, SHIPS_CUTS),
             (Usdc, HOLDS),
-            "UnsupportedPair(1:weth:1, 1:usdc:12)",
+            "UnsupportedPair(1:wnear:1, 1:usdc:12)",
         ),
     ];
     for ((a0, m0), (a1, m1), expected) in cases {
@@ -423,7 +422,7 @@ fn rejects_a_second_pool_bad_worlds_and_strangers() {
 fn pool_creation_logs_and_takes_the_owners_tokens() {
     let mut w = pool_world();
     let s = w.s2x2;
-    w.split_ft(OWNER, s, Weth, &singles(4), 10 * E18).unwrap();
+    w.split_ft(OWNER, s, Wnear, &singles(4), 10 * E18).unwrap();
     w.split_ft(OWNER, s, Usdc, &singles(4), 30_000 * E18)
         .unwrap();
     let id = seed_world(&mut w, s, 1, 3000 * E18, 10 * E18);
@@ -432,7 +431,7 @@ fn pool_creation_logs_and_takes_the_owners_tokens() {
     assert_eq!(logs[0]["kind"], "within");
     assert_eq!(logs[0]["pool_id"], id);
     assert_eq!(logs[0]["price"], (3000 * E18).to_string());
-    assert_eq!(w.bal(OWNER, s, Weth, DELAYED_CUTS), 0);
+    assert_eq!(w.bal(OWNER, s, Wnear, DELAYED_CUTS), 0);
     assert_eq!(w.bal(OWNER, s, Usdc, DELAYED_CUTS), 0);
     let moved = w
         .last
@@ -444,7 +443,7 @@ fn pool_creation_logs_and_takes_the_owners_tokens() {
     w.assert_conservation(&all_holders());
 }
 
-// VerseHook.t.sol: halts and dead worlds
+// Halts and dead worlds
 
 #[test]
 fn swap_pays_the_base_fee() {
@@ -457,7 +456,7 @@ fn swap_pays_the_base_fee() {
 }
 
 #[test]
-fn swap_reverts_while_halted() {
+fn swap_fails_while_halted() {
     let mut w = pool_world();
     let pools = seed_demo_2x2(&mut w);
     let (s, sb, fed) = (w.s2x2, w.s_bin, w.fed);
@@ -488,17 +487,17 @@ fn swap_reverts_while_halted() {
 }
 
 #[test]
-fn swap_reverts_in_dead_world() {
+fn swap_fails_in_dead_world() {
     let mut w = pool_world();
     let pools = seed_demo_2x2(&mut w);
-    let (s, fed, glam) = (w.s2x2, w.fed, w.glam);
+    let (s, fed, spice) = (w.s2x2, w.fed, w.spice);
     give_world_tokens(&mut w, ALICE, s, 10 * E18, 10_000 * E18);
     w.admin_resolve(fed, OUT_HOLDS).unwrap();
     fails(swap(&mut w, ALICE, pools[0], true, E18), "DeadVerse(1)");
     fails(swap(&mut w, ALICE, pools[1], false, E18), "DeadVerse(2)");
     sell(&mut w, ALICE, pools[2], E18);
     // a halt is reported before death
-    w.report(glam, OUT_SHIPS).unwrap();
+    w.report(spice, OUT_SHIPS).unwrap();
     fails(
         swap(&mut w, ALICE, pools[0], true, E18),
         "ScenarioHalted(1)",
@@ -508,13 +507,13 @@ fn swap_reverts_in_dead_world() {
 #[test]
 fn between_pool_reports_the_dead_side() {
     let mut w = pool_world();
-    let (s, fed, glam) = (w.s2x2, w.fed, w.glam);
+    let (s, fed, spice) = (w.s2x2, w.fed, w.spice);
     let id = seed_odds_pool(&mut w, s, SHIPS_HOLDS, DELAYED_HOLDS, 2, 1, ODDS_DEPTH);
     w.split_ft(ALICE, s, Usdc, &singles(4), 10_000 * E18)
         .unwrap();
     w.admin_resolve(fed, OUT_HOLDS).unwrap();
     swap(&mut w, ALICE, id, true, E18).unwrap();
-    w.admin_resolve(glam, OUT_SHIPS).unwrap();
+    w.admin_resolve(spice, OUT_SHIPS).unwrap();
     // token0 (SHIPS·HOLDS) lives; token1 died
     fails(swap(&mut w, ALICE, id, true, E18), "DeadVerse(8)");
 }
@@ -550,7 +549,7 @@ fn swap_enforces_min_out_and_one_yocto() {
         .unwrap();
     assert_eq!(out.0, quote);
     assert_eq!(w.bal(ALICE, s, Usdc, DELAYED_HOLDS), quote);
-    assert_eq!(w.bal(ALICE, s, Weth, DELAYED_HOLDS), 9 * E18);
+    assert_eq!(w.bal(ALICE, s, Wnear, DELAYED_HOLDS), 9 * E18);
     assert!(w
         .call(ALICE, NO_DEPOSIT, |c| c.swap(
             pools[3],
@@ -564,7 +563,7 @@ fn swap_enforces_min_out_and_one_yocto() {
     w.assert_conservation(&all_holders());
 }
 
-// VerseHook.t.sol: TWAP
+// TWAP
 
 #[test]
 fn mean_tick_needs_a_full_window_of_history() {
@@ -632,12 +631,12 @@ fn seeded_price_matches_spec() {
         // reserves carry the exact ratio, so the NEAR pools hit the price
         assert_eq!(p, DEMO_2X2[i]);
         let v = w.view(|c| c.get_pool(*id).unwrap());
-        assert_eq!(v.weth_reserve, Some(U128(DEPTH)));
+        assert_eq!(v.wnear_reserve, Some(U128(DEPTH)));
         assert_eq!(v.usdc_reserve, Some(U128(wmul(DEPTH, DEMO_2X2[i]))));
     }
 }
 
-// VerseHook.t.sol: the dynamic fee
+// The dynamic fee
 
 #[test]
 fn fee_base_without_history() {
@@ -782,14 +781,14 @@ fn fee_is_per_pool() {
 }
 
 #[test]
-fn fee_within_world_volume_is_weth() {
+fn fee_within_world_volume_is_wnear() {
     let mut w = pool_world();
     let pools = seed_demo_2x2(&mut w);
     let s = w.s2x2;
     give_world_tokens(&mut w, ALICE, s, 10 * E18, 10_000 * E18);
     sell(&mut w, ALICE, pools[0], E18);
     assert_eq!(flow_of(&mut w, pools[0]), (E18 as i128, E18, 1));
-    // a USDC-in buy records the WETH that came out
+    // a USDC-in buy records the wNEAR that came out
     let (out, _) = swap(&mut w, ALICE, pools[1], false, 3000 * E18).unwrap();
     assert_eq!(flow_of(&mut w, pools[1]), (-(out as i128), out, 1));
 }
@@ -840,13 +839,13 @@ fn fee_dust_swaps_do_not_reset_the_window() {
     assert_eq!(twap.latest().unwrap().timestamp, w.now);
 }
 
-// PoolSeeder.t.sol: moving the spot pool
+// Moving the spot pool
 
 fn spot_world() -> (World, u64) {
     let mut w = pool_world();
     let id = seed_spot(&mut w, 3000 * E18, 1_000 * E18);
     // working balances for the moves
-    w.deposit(OWNER, Weth, 1_000 * E18).unwrap();
+    w.deposit(OWNER, Wnear, 1_000 * E18).unwrap();
     w.deposit(OWNER, Usdc, 10_000_000 * E18).unwrap();
     (w, id)
 }
@@ -858,26 +857,26 @@ fn move_spot(w: &mut World, price: u128) -> Result<Option<crate::amm::create::Sp
 #[test]
 fn move_to_up_and_down_lands_on_the_target() {
     let (mut w, id) = spot_world();
-    let held = w.held_by_contract(Weth) + w.held_by_contract(Usdc);
+    let held = w.held_by_contract(Wnear) + w.held_by_contract(Usdc);
     for target in [3200 * E18, 2900 * E18] {
-        let (weth0, usdc0) = (w.real(OWNER, Weth), w.real(OWNER, Usdc));
+        let (wnear0, usdc0) = (w.real(OWNER, Wnear), w.real(OWNER, Usdc));
         let m = move_spot(&mut w, target).unwrap().unwrap();
         let p = w.view(|c| c.spot_price()).0;
-        // the closed form lands within a few wei of the target
+        // the closed form lands within a few units of the target
         assert!(p.abs_diff(target) <= 1_000_000, "{p} vs {target}");
-        let (weth1, usdc1) = (w.real(OWNER, Weth), w.real(OWNER, Usdc));
+        let (wnear1, usdc1) = (w.real(OWNER, Wnear), w.real(OWNER, Usdc));
         if target > 3000 * E18 {
             assert!(!m.zero_for_one);
             assert_eq!(usdc0 - usdc1, m.amount_in.0);
-            assert_eq!(weth1 - weth0, m.amount_out.0);
+            assert_eq!(wnear1 - wnear0, m.amount_out.0);
         } else {
             assert!(m.zero_for_one);
-            assert_eq!(weth0 - weth1, m.amount_in.0);
+            assert_eq!(wnear0 - wnear1, m.amount_in.0);
             assert_eq!(usdc1 - usdc0, m.amount_out.0);
         }
         // the spot pool's holdings are the only real tokens beyond balances
-        let spot = w.view(|c| c.spot_holdings(Weth) + c.spot_holdings(Usdc));
-        let balances = w.real(OWNER, Weth) + w.real(OWNER, Usdc);
+        let spot = w.view(|c| c.spot_holdings(Wnear) + c.spot_holdings(Usdc));
+        let balances = w.real(OWNER, Wnear) + w.real(OWNER, Usdc);
         assert_eq!(spot + balances, held);
     }
     // the spot pool keeps a static fee and no TWAP
@@ -892,10 +891,10 @@ fn move_to_up_and_down_lands_on_the_target() {
 fn move_to_at_the_target_is_a_no_op() {
     let (mut w, _) = spot_world();
     let p = w.view(|c| c.spot_price()).0;
-    let weth = w.real(OWNER, Weth);
+    let wnear = w.real(OWNER, Wnear);
     assert_eq!(move_spot(&mut w, p).unwrap(), None);
     assert_eq!(w.view(|c| c.spot_price()).0, p);
-    assert_eq!(w.real(OWNER, Weth), weth);
+    assert_eq!(w.real(OWNER, Wnear), wnear);
 }
 
 #[test]
@@ -915,15 +914,15 @@ fn move_to_only_owner() {
 fn spot_pool_is_created_once_from_real_balances() {
     let mut w = pool_world();
     let id = seed_spot(&mut w, 3000 * E18, 100 * E18);
-    assert_eq!(w.real(OWNER, Weth), 0);
+    assert_eq!(w.real(OWNER, Wnear), 0);
     let v = w.view(|c| c.get_spot_pool().unwrap());
     assert_eq!((v.id, v.kind.as_str(), v.scenario_id), (id, "spot", None));
     assert_eq!(
         (v.token0.as_str(), v.token1.as_str()),
-        (WETH_TOKEN, USDC_TOKEN)
+        (WNEAR_TOKEN, USDC_TOKEN)
     );
     assert_eq!(w.view(|c| c.spot_price()).0, 3000 * E18);
-    w.deposit(OWNER, Weth, E18).unwrap();
+    w.deposit(OWNER, Wnear, E18).unwrap();
     w.deposit(OWNER, Usdc, E18).unwrap();
     fails(
         w.call(OWNER, POOL_FEE, |c| {
@@ -943,10 +942,10 @@ fn spot_swap_action_credits_the_internal_balance() {
     w.report(fed, OUT_HOLDS).unwrap();
     let quote = w.view(|c| c.quote_exact_in(id, true, E18)).unwrap();
     let msg = r#"{"action":"spot_swap","min_out":"0"}"#;
-    assert_eq!(w.ft_transfer_call(ALICE, Weth, E18, msg).unwrap(), 0);
+    assert_eq!(w.ft_transfer_call(ALICE, Wnear, E18, msg).unwrap(), 0);
     assert_eq!(w.real(ALICE, Usdc), quote);
-    assert_eq!(w.real(ALICE, Weth), 0);
-    assert_eq!(w.wallet(ALICE, Weth), FUND - E18);
+    assert_eq!(w.real(ALICE, Wnear), 0);
+    assert_eq!(w.wallet(ALICE, Wnear), FUND - E18);
     let swaps = w.last.data_of("swap");
     assert_eq!(swaps[0]["fee_pips"], 3000);
     // static fee: one-sided flow changes nothing
@@ -957,28 +956,28 @@ fn spot_swap_action_credits_the_internal_balance() {
     let msg = format!(r#"{{"action":"spot_swap","min_out":"{quote}"}}"#);
     w.ft_transfer_call(ALICE, Usdc, usdc_in / scale(Usdc), &msg)
         .unwrap();
-    assert_eq!(w.real(ALICE, Weth), quote);
+    assert_eq!(w.real(ALICE, Wnear), quote);
     // too little out: the transfer is refunded in full
-    let wallet = w.wallet(ALICE, Weth);
+    let wallet = w.wallet(ALICE, Wnear);
     let msg = r#"{"action":"spot_swap","min_out":"1000000000000000000000000"}"#;
     assert!(w
-        .ft_transfer_call(ALICE, Weth, E18, msg)
+        .ft_transfer_call(ALICE, Wnear, E18, msg)
         .unwrap_err()
         .starts_with("TooLittleReceived("));
-    assert_eq!(w.wallet(ALICE, Weth), wallet);
+    assert_eq!(w.wallet(ALICE, Wnear), wallet);
 }
 
 #[test]
 fn spot_swap_through_the_method_uses_internal_balances() {
     let mut w = pool_world();
     let id = seed_spot(&mut w, 3000 * E18, 100 * E18);
-    w.deposit(ALICE, Weth, 2 * E18).unwrap();
+    w.deposit(ALICE, Wnear, 2 * E18).unwrap();
     let (out, fee) = swap(&mut w, ALICE, id, true, E18).unwrap();
     assert_eq!(fee, 3000);
     assert_eq!(w.real(ALICE, Usdc), out);
-    assert_eq!(w.real(ALICE, Weth), E18);
-    let held = w.held_by_contract(Weth);
-    let inside = w.real(ALICE, Weth) + w.real(OWNER, Weth) + w.view(|c| c.spot_holdings(Weth));
+    assert_eq!(w.real(ALICE, Wnear), E18);
+    let held = w.held_by_contract(Wnear);
+    let inside = w.real(ALICE, Wnear) + w.real(OWNER, Wnear) + w.view(|c| c.spot_holdings(Wnear));
     assert_eq!(held, inside);
 }
 
@@ -999,7 +998,7 @@ fn liquidity_add_collect_remove() {
         })
         .unwrap();
     assert!(w.storage_used(BOB) > storage);
-    // binding side: 50 WETH at 2500 needs 125,000 USDC
+    // binding side: 50 wNEAR at 2500 needs 125,000 USDC
     assert!(added.amount0.0 <= 50 * E18 && added.amount0.0 > 50 * E18 - 1_000);
     assert!(within_rel(
         added.amount1.0,
@@ -1018,7 +1017,7 @@ fn liquidity_add_collect_remove() {
     // the price did not move
     assert_eq!(price_of(&mut w, id), 2500 * E18);
 
-    // a sale pays its fee in WETH, shared by liquidity
+    // a sale pays its fee in wNEAR, shared by liquidity
     sell(&mut w, ALICE, id, 10 * E18);
     let fee_total = 10 * E18 * 3000 / 1_000_000;
     let pool = w.view(|c| c.get_pool(id).unwrap());
@@ -1035,10 +1034,10 @@ fn liquidity_add_collect_remove() {
         1_000_000_000
     ));
 
-    let weth = w.bal(BOB, s, Weth, DELAYED_HOLDS);
+    let wnear = w.bal(BOB, s, Wnear, DELAYED_HOLDS);
     let got = w.call(BOB, ONE_YOCTO, |c| c.collect_fees(id)).unwrap();
     assert_eq!(got.fees0.0, bob.fees0.0);
-    assert_eq!(w.bal(BOB, s, Weth, DELAYED_HOLDS), weth + bob.fees0.0);
+    assert_eq!(w.bal(BOB, s, Wnear, DELAYED_HOLDS), wnear + bob.fees0.0);
     assert_eq!(w.view(|c| c.position_of(id, acc(BOB)).unwrap().fees0.0), 0);
 
     let before = w.view(|c| c.position_of(id, acc(BOB)).unwrap());
@@ -1110,10 +1109,10 @@ fn liquidity_checks() {
 fn liquidity_is_never_blocked() {
     let mut w = pool_world();
     let pools = seed_demo_2x2(&mut w);
-    let (s, fed, glam) = (w.s2x2, w.fed, w.glam);
+    let (s, fed, spice) = (w.s2x2, w.fed, w.spice);
     give_world_tokens(&mut w, BOB, s, 10 * E18, 40_000 * E18);
     w.admin_resolve(fed, OUT_HOLDS).unwrap();
-    w.report(glam, OUT_SHIPS).unwrap();
+    w.report(spice, OUT_SHIPS).unwrap();
     // halted, and world 0 is dead
     for id in [pools[0], pools[3]] {
         let p = price_of(&mut w, id);
@@ -1135,7 +1134,7 @@ fn liquidity_is_never_blocked() {
 fn a_drained_pool_takes_a_new_price() {
     let mut w = pool_world();
     let s = w.s2x2;
-    w.split_ft(OWNER, s, Weth, &singles(4), 10 * E18).unwrap();
+    w.split_ft(OWNER, s, Wnear, &singles(4), 10 * E18).unwrap();
     w.split_ft(OWNER, s, Usdc, &singles(4), 40_000 * E18)
         .unwrap();
     let id = seed_world(&mut w, s, 0, 3000 * E18, E18);
@@ -1172,7 +1171,7 @@ fn world_price_needs_twap_history() {
     w.warp(60);
     let (p, ok) = w.view(|c| c.world_price(sb, 0));
     assert!(ok);
-    // WETH is token0, so the floored mean tick prices it down, by at most a tick
+    // wNEAR is token0, so the floored mean tick prices it down, by at most a tick
     assert!(p <= 3400 * E18 && within_rel(p, 3400 * E18, 10_000));
     assert_eq!(cents(p), 339_987);
     assert_eq!(cents(w.view(|c| c.world_price(sb, 1)).0), 279_979);
@@ -1186,7 +1185,7 @@ fn world_price_below_liquidity_gate_counts_zero() {
     let sb = w.s_bin;
     seed_worlds(&mut w, sb, &DEMO_BIN, &[E18, DEPTH]);
     w.warp(60);
-    // 1 WETH deep at 3400 holds 3,400 USDC, under the 10,000 gate
+    // 1 wNEAR deep at 3400 holds 3,400 USDC, under the 10,000 gate
     assert_eq!(w.view(|c| c.world_price(sb, 0)), (0, false));
     assert!(!w.view(|c| c.get_pool(1).unwrap().twap_ok));
     assert!(w.view(|c| c.world_price(sb, 1)).1);
@@ -1211,7 +1210,7 @@ fn world_price_follows_liquidity_in_and_out() {
     .unwrap();
     w.warp(60);
     assert!(w.view(|c| c.world_price(sb, 0)).1);
-    // Bob pulls all but 2 WETH: under the gate
+    // Bob pulls all but 2 wNEAR: under the gate
     let keep = added.liquidity.0 / 150;
     w.call(BOB, ONE_YOCTO, |c| {
         c.remove_liquidity(pools[0], U128(added.liquidity.0 - keep), U128(0), U128(0))

@@ -184,7 +184,7 @@ contract VectorsTest is Test {
             uint256 digits = 15 + rnd() % 9;
             uint256 p = 10 ** digits + rnd() % (9 * 10 ** digits);
             line(string.concat("pool_price_inv ", s(p), " ", s(PriceMath.poolPrice(p, false))));
-            line(string.concat("weth_price_inv ", s(p), " ", s(PriceMath.wethPrice(p, false))));
+            line(string.concat("wnear_price_inv ", s(p), " ", s(PriceMath.wnearPrice(p, false))));
         }
     }
 

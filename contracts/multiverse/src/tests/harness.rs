@@ -1,13 +1,13 @@
 //! A small in-memory chain around the contract. Each call runs the way a
 //! receipt does (read the state, run the method, write the state back); a
 //! panic rolls storage back to where it was, like a failed receipt. Real
-//! WETH/USDC live in a simulated pair of NEP-141 ledgers: `ft_transfer_call`
+//! wNEAR/USDC live in a simulated pair of NEP-141 ledgers: `ft_transfer_call`
 //! moves wallet balances into the contract, and the `ft_transfer` receipts a
 //! call creates are carried out (or failed, for accounts not registered with
 //! the token) together with their `on_payout` callbacks.
 //!
-//! The fixture is the EVM `BaseTest`: two events (Glamsterdam, Fed), the 2x2
-//! scenario and the binary Glamsterdam scenario, and funded users. USDC has
+//! The fixture: two events (SPICE, Fed), the 2x2 scenario and the binary
+//! SPICE scenario, and funded users. USDC has
 //! 6 decimals here, as on testnet, so every USDC path crosses the scaling.
 
 use std::any::Any;
@@ -31,7 +31,7 @@ use crate::Contract;
 pub const CONTRACT: &str = "multiverse.near";
 pub const OWNER: &str = "admin.near";
 pub const REPORTER: &str = "resolver.near";
-pub const WETH_TOKEN: &str = "weth.near";
+pub const WNEAR_TOKEN: &str = "wnear.near";
 pub const USDC_TOKEN: &str = "usdc.near";
 pub const ALICE: &str = "alice.near";
 pub const BOB: &str = "bob.near";
@@ -40,14 +40,14 @@ pub const CAROL: &str = "carol.near";
 pub const NO_DEPOSIT: NearToken = NearToken::from_yoctonear(0);
 pub const ONE_YOCTO: NearToken = NearToken::from_yoctonear(1);
 pub const E18: u128 = 1_000_000_000_000_000_000;
-/// What each user starts with, in internal units (1e36, as in the EVM fixture).
+/// What each user starts with, in internal units (1e36).
 pub const FUND: u128 = 1_000_000_000_000_000_000 * E18;
 pub const DISPUTE_WINDOW: u64 = 30;
 /// Block time at the start of every test (2026-09-21).
 pub const T0: u64 = 1_790_000_000;
 pub const DAY: u64 = 86_400;
 
-// 2x2 scenario: world = glam + 2·fed, glam 0 SHIPS / 1 DELAYED, fed 0 CUTS / 1 HOLDS.
+// 2x2 scenario: world = spice + 2·fed, spice 0 SHIPS / 1 DELAYED, fed 0 CUTS / 1 HOLDS.
 pub const ROOT: u8 = 0xF;
 pub const SHIPS: u8 = 0x5;
 pub const DELAYED: u8 = 0xA;
@@ -60,7 +60,7 @@ pub const DELAYED_HOLDS: u8 = 0x8;
 pub const L_SHAPE: u8 = 0xE;
 pub const SINGLES: [u8; 4] = [SHIPS_CUTS, DELAYED_CUTS, SHIPS_HOLDS, DELAYED_HOLDS];
 
-// Binary scenario (Glamsterdam only).
+// Binary scenario (SPICE only).
 pub const BIN_ROOT: u8 = 0x3;
 pub const BIN_SHIPS: u8 = 0x1;
 pub const BIN_DELAYED: u8 = 0x2;
@@ -70,9 +70,9 @@ pub const OUT_DELAYED: u8 = 1;
 pub const OUT_CUTS: u8 = 0;
 pub const OUT_HOLDS: u8 = 1;
 
-pub const GLAM_QUESTION: &str = "Will Glamsterdam ship on mainnet by Dec 31, 2026?";
-pub const GLAM_RULE: &str =
-    "SHIPS if the Glamsterdam fork activates on mainnet before 2027-01-01 00:00 UTC; otherwise DELAYED.";
+pub const SPICE_QUESTION: &str = "Will SPICE ship on NEAR mainnet by Mar 31, 2027?";
+pub const SPICE_RULE: &str =
+    "SHIPS if SPICE, NEAR's separation of consensus and execution, is active on NEAR mainnet before 2027-04-01 00:00 UTC; otherwise DELAYED.";
 pub const FED_QUESTION: &str = "Will the Fed cut at its December meeting?";
 pub const FED_RULE: &str =
     "CUTS iff DFEDTARU after the Dec 8-9, 2026 FOMC meeting is lower than before it; otherwise HOLDS.";
@@ -87,15 +87,15 @@ pub fn token_id(scenario: u64, asset: Asset, mask: u8) -> String {
 
 pub fn scale(asset: Asset) -> u128 {
     match asset {
-        Asset::Weth => 1,
+        Asset::Wnear => 1,
         Asset::Usdc => 1_000_000_000_000,
     }
 }
 
-pub fn weth_cfg() -> AssetCfg {
+pub fn wnear_cfg() -> AssetCfg {
     AssetCfg {
-        token_id: acc(WETH_TOKEN),
-        symbol: "WETH".into(),
+        token_id: acc(WNEAR_TOKEN),
+        symbol: "wNEAR".into(),
         decimals: 18,
     }
 }
@@ -271,7 +271,7 @@ pub struct World {
     pub prepaid_tgas: u64,
     pub last: Outcome,
     pub callbacks: Vec<Outcome>,
-    pub glam: u64,
+    pub spice: u64,
     pub fed: u64,
     pub s2x2: u64,
     pub s_bin: u64,
@@ -289,7 +289,7 @@ impl World {
             prepaid_tgas: 300,
             last: Outcome::default(),
             callbacks: Vec::new(),
-            glam: 0,
+            spice: 0,
             fed: 0,
             s2x2: 0,
             s_bin: 0,
@@ -299,7 +299,7 @@ impl World {
             let c = Contract::new(
                 acc(OWNER),
                 Some(acc(REPORTER)),
-                weth_cfg(),
+                wnear_cfg(),
                 usdc_cfg(),
                 DISPUTE_WINDOW,
             );
@@ -314,23 +314,23 @@ impl World {
         w
     }
 
-    /// The EVM `BaseTest`: events glam = 1 and fed = 2, scenarios 2x2 = 1
+    /// The base fixture: events spice = 1 and fed = 2, scenarios 2x2 = 1
     /// and binary = 2.
     pub fn new() -> Self {
         let mut w = Self::bare();
-        w.glam = w
+        w.spice = w
             .create_event(
-                GLAM_QUESTION,
+                SPICE_QUESTION,
                 &["SHIPS", "DELAYED"],
-                GLAM_RULE,
+                SPICE_RULE,
                 T0 + 60 * DAY,
             )
             .unwrap();
         w.fed = w
             .create_event(FED_QUESTION, &["CUTS", "HOLDS"], FED_RULE, T0 + 40 * DAY)
             .unwrap();
-        w.s2x2 = w.create_scenario(&[w.glam, w.fed]).unwrap();
-        w.s_bin = w.create_scenario(&[w.glam]).unwrap();
+        w.s2x2 = w.create_scenario(&[w.spice, w.fed]).unwrap();
+        w.s_bin = w.create_scenario(&[w.spice]).unwrap();
         w
     }
 
@@ -476,7 +476,7 @@ impl World {
 
     fn asset_of_token(&self, token: &AccountId) -> Asset {
         match token.as_str() {
-            WETH_TOKEN => Asset::Weth,
+            WNEAR_TOKEN => Asset::Wnear,
             USDC_TOKEN => Asset::Usdc,
             other => panic!("not a token: {other}"),
         }
@@ -526,7 +526,7 @@ impl World {
             "test setup: {sender} holds {wallet} < {token_amount}"
         );
         let token = match asset {
-            Asset::Weth => WETH_TOKEN,
+            Asset::Wnear => WNEAR_TOKEN,
             Asset::Usdc => USDC_TOKEN,
         };
         let sender_id = acc(sender);
@@ -566,7 +566,7 @@ impl World {
     }
 
     /// Root split paid straight from the wallet (`ft_transfer_call` with the
-    /// `split` action), the NEAR form of the EVM `split(root, ...)`.
+    /// `split` action).
     pub fn split_ft(
         &mut self,
         who: &str,
@@ -680,7 +680,7 @@ impl World {
         self.call(OWNER, ONE_YOCTO, |c| c.admin_resolve(event, outcome))
     }
 
-    /// The reporter's proposal, the NEAR form of the EVM harness's `exposedPropose`.
+    /// The reporter's proposal.
     pub fn report(&mut self, event: u64, outcome: u8) -> Result<(), String> {
         self.call(REPORTER, NO_DEPOSIT, |c| {
             c.report_outcome(event, outcome, acc(CONTRACT), String::new())
@@ -785,7 +785,7 @@ pub fn fails<R>(result: Result<R, String>, expected: &str) {
     }
 }
 
-/// The EVM tests' `PartitionLib.next`; any decent mixer will do (splitmix64).
+/// The next seed for random partitions; any decent mixer will do (splitmix64).
 pub fn next_seed(seed: u64) -> u64 {
     let mut z = seed.wrapping_add(0x9E37_79B9_7F4A_7C15);
     z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);

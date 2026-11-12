@@ -1,16 +1,16 @@
-//! Pools. Each one is a constant-product pool with Uniswap v4 full-range
+//! Pools. Each one is a constant-product pool with full-range
 //! semantics (the maths crate's `cpmm`): the fee is charged on the input and
 //! kept outside the curve for the liquidity providers, outputs round down.
 //!
-//! - Within-world: WETH-if-w (token0) against USDC-if-w (token1), one per
+//! - Within-world: wNEAR-if-w (token0) against USDC-if-w (token1), one per
 //!   world. Lending prices collateral from its tick TWAP; the app reads its
 //!   current price, its quotes and the Impact Meter.
 //! - Between-world: two disjoint USDC verses of one scenario, the lower mask
 //!   as token0. Its price is the odds of one verse against the other.
-//! - Spot: real WETH against real USDC drawn from internal balances, a static
+//! - Spot: real wNEAR against real USDC drawn from internal balances, a static
 //!   0.30% fee, no TWAP, never halted.
 //!
-//! Verse pools keep the rules the EVM hook enforced: no swap while the
+//! Verse pools keep these rules: no swap while the
 //! scenario is halted, none in a pool touching a dead verse (halt checked
 //! first), a fee from the last 8 swaps' flow computed before the swap and
 //! recorded after it, and a TWAP observation after every swap. Liquidity can
@@ -18,7 +18,7 @@
 //!
 //! What a verse pool holds (reserves, plus fees not collected yet) stays in
 //! the verse supply and leaves the holders' balances through the ledger's
-//! custody helpers. The spot pool's WETH and USDC come out of internal real
+//! custody helpers. The spot pool's wNEAR and USDC come out of internal real
 //! balances, so the contract's token holdings are the internal balances, the
 //! scenario reserves and the spot pool's reserves and fees.
 
@@ -56,9 +56,9 @@ pub const TWAP_MIN_AGE_SEC: u64 = 60;
 /// mispriced pool against arbitrage for a whole window.
 pub const MAX_SPOT_TWAP_TICKS: i32 = 953;
 
-/// What a pool trades. Token0 is WETH-if-w in a within-world pool and the
+/// What a pool trades. Token0 is wNEAR-if-w in a within-world pool and the
 /// lower mask in a between-world pool, so the fee window and the TWAP always
-/// measure token0 and a within-world price is USDC per WETH, rounded down.
+/// measure token0 and a within-world price is USDC per wNEAR, rounded down.
 #[near(serializers = [borsh])]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PoolKind {
@@ -108,13 +108,13 @@ impl Pool {
         let verse = |asset, mask| PoolToken::Verse(VerseKey::new(self.scenario_id, asset, mask));
         match self.kind {
             PoolKind::Within { world } => (
-                verse(Asset::Weth, 1 << world),
+                verse(Asset::Wnear, 1 << world),
                 verse(Asset::Usdc, 1 << world),
             ),
             PoolKind::Between { mask0, mask1 } => {
                 (verse(Asset::Usdc, mask0), verse(Asset::Usdc, mask1))
             }
-            PoolKind::Spot => (PoolToken::Real(Asset::Weth), PoolToken::Real(Asset::Usdc)),
+            PoolKind::Spot => (PoolToken::Real(Asset::Wnear), PoolToken::Real(Asset::Usdc)),
         }
     }
 
@@ -140,7 +140,7 @@ pub struct ImpactRing {
     points: Vec<ImpactSample>,
 }
 
-/// Every world's current pool price (USDC per WETH, 0 without a pool).
+/// Every world's current pool price (USDC per wNEAR, 0 without a pool).
 #[near(serializers = [borsh])]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ImpactSample {
@@ -176,7 +176,7 @@ thread_local! {
 }
 
 impl Contract {
-    /// WETH price in `world` of `scenario_id` for lending: the world pool's
+    /// wNEAR price in `world` of `scenario_id` for lending: the world pool's
     /// tick TWAP behind the depth gate and the spot-to-TWAP band, or
     /// `(0, false)` when there is no valid price.
     pub(crate) fn world_price(&self, scenario_id: u64, world: u8) -> (u128, bool) {
@@ -204,8 +204,8 @@ impl Contract {
         if pool.amm.reserve1() < self.params.min_pool_depth {
             return (0, false);
         }
-        // WETH is token0, so the floored mean tick prices it down by at most a tick.
-        match price::weth_price_at_tick(tick, true) {
+        // wNEAR is token0, so the floored mean tick prices it down by at most a tick.
+        match price::wnear_price_at_tick(tick, true) {
             Some(p) => (p, true),
             None => (0, false),
         }
@@ -240,7 +240,13 @@ impl Contract {
         msg: crate::receiver::SpotSwapMsg,
     ) {
         let pool_id = self.spot_pool.unwrap_or_else(|| fail("NoSpotPool"));
-        self.swap_exact_in_for(sender, pool_id, asset == Asset::Weth, amount, msg.min_out.0);
+        self.swap_exact_in_for(
+            sender,
+            pool_id,
+            asset == Asset::Wnear,
+            amount,
+            msg.min_out.0,
+        );
     }
 
     /// True while `account_id` has liquidity or uncollected fees in any pool;
@@ -263,7 +269,7 @@ impl Contract {
             .sum()
     }
 
-    /// Real WETH or USDC held by the spot pool (reserve plus uncollected
+    /// Real wNEAR or USDC held by the spot pool (reserve plus uncollected
     /// fees), which the contract holds on the token beyond internal balances
     /// and scenario reserves.
     #[cfg(test)]
@@ -299,7 +305,7 @@ impl Contract {
         self.within.get(&(scenario_id, world)).copied()
     }
 
-    /// The current price of `world`'s pool (USDC per WETH, WAD, rounded down),
+    /// The current price of `world`'s pool (USDC per wNEAR, WAD, rounded down),
     /// as the grid shows it; None without a pool.
     pub(crate) fn world_spot_price(&self, scenario_id: u64, world: u8) -> Option<u128> {
         let id = self.world_pool(scenario_id, world)?;
@@ -315,7 +321,7 @@ impl Contract {
             .fee(self.params.fee_base_pips, self.params.fee_cap_pips)
     }
 
-    /// The checks the EVM hook ran before every swap, in its order, then the
+    /// The checks run before every swap, in this order, then the
     /// fee the swap pays: a halted scenario, then a dead verse on either side
     /// (token0 first). The spot pool has neither and a static fee.
     pub(crate) fn swap_gate(&self, pool: &Pool) -> Result<u32, String> {

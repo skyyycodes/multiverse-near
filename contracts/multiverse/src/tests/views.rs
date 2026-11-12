@@ -1,7 +1,7 @@
 //! The screen snapshots: every view's JSON against the keys and types the
-//! app decodes, and the `MultiverseLens.t.sol` scenario and account checks
-//! (`userRealWeth` is not a contract field on NEAR: the app reads the
-//! token's `ft_balance_of`).
+//! app decodes, and the lens's scenario and account checks
+//! (a user's real wNEAR is not a contract field: the app reads the token's
+//! `ft_balance_of`).
 
 use std::collections::BTreeSet;
 
@@ -14,13 +14,13 @@ use super::harness::*;
 use super::lending::*;
 use crate::lending::LiquidationState;
 use crate::orders::Side;
-use crate::types::Asset::{Usdc, Weth};
+use crate::types::Asset::{Usdc, Wnear};
 use crate::views::{AccountView, ScenarioView};
 
 const APP_CONFIG: &[&str] = &[
     "owner_id",
     "reporter_id",
-    "weth",
+    "wnear",
     "usdc",
     "lltv",
     "liquidation_bonus",
@@ -50,13 +50,13 @@ const WORLD: &[&str] = &[
     "label",
     "possible",
     "pool_initialized",
-    "weth_price",
+    "wnear_price",
     "backed",
-    "weth_token_id",
+    "wnear_token_id",
     "usdc_token_id",
-    "user_weth",
+    "user_wnear",
     "user_usdc",
-    "collateral_weth",
+    "collateral_wnear",
     "collateral_usdc",
     "odds",
     "pool_id",
@@ -107,7 +107,7 @@ const ACCOUNT: &[&str] = &[
 ];
 const PIECE: &[&str] = &["token_id", "label", "asset", "mask", "is_real", "amount"];
 
-const DEMO: &str = r#"{"glam_event":1,"fed_event":2,"past_fed_event":3,"scenario_2x2":1,"scenario_binary":2,"implied_spot":"3163359000000000000000","odds_ships_bps":6667,"odds_cuts_bps":3000,"odds_source":null,"seeded_at_sec":1790000000,"spot_from":"2x2"}"#;
+const DEMO: &str = r#"{"spice_event":1,"fed_event":2,"past_fed_event":3,"scenario_2x2":1,"scenario_binary":2,"implied_spot":"3163359000000000000000","odds_ships_bps":6667,"odds_cuts_bps":3000,"odds_source":null,"seeded_at_sec":1790000000,"spot_from":"2x2"}"#;
 
 fn json<T: Serialize>(v: &T) -> Value {
     serde_json::to_value(v).unwrap()
@@ -162,16 +162,16 @@ fn assert_scenario_json(v: &Value) {
         assert_eq!(w["index"].as_u64(), Some(i as u64));
         assert_eq!(w["mask"].as_u64(), Some(1 << i));
         for k in [
-            "weth_price",
-            "user_weth",
+            "wnear_price",
+            "user_wnear",
             "user_usdc",
-            "collateral_weth",
+            "collateral_wnear",
             "collateral_usdc",
             "odds",
         ] {
             assert_u128(&w[k]);
         }
-        for k in ["label", "weth_token_id", "usdc_token_id"] {
+        for k in ["label", "wnear_token_id", "usdc_token_id"] {
             assert!(w[k].is_string(), "{k}");
         }
         assert!(w["pool_id"].is_null() || w["pool_id"].is_u64());
@@ -232,7 +232,7 @@ fn assert_account_json(v: &Value) {
     for p in v["collateral"].as_array().unwrap() {
         assert_keys(p, PIECE);
         assert_u128(&p["amount"]);
-        assert!(p["asset"] == "weth" || p["asset"] == "usdc");
+        assert!(p["asset"] == "wnear" || p["asset"] == "usdc");
         assert!(p["mask"].is_u64() && p["is_real"].is_boolean());
     }
 }
@@ -274,7 +274,7 @@ fn app_config_json_shape() {
     assert_eq!(v["root_lp"], crate::rootlp::ENABLED);
     assert_eq!(v["owner_id"], OWNER);
     assert_eq!(v["reporter_id"], REPORTER);
-    for (k, token, decimals) in [("weth", WETH_TOKEN, 18), ("usdc", USDC_TOKEN, 6)] {
+    for (k, token, decimals) in [("wnear", WNEAR_TOKEN, 18), ("usdc", USDC_TOKEN, 6)] {
         assert_eq!(v[k]["token_id"], token);
         assert_eq!(v[k]["decimals"], decimals);
         assert!(v[k]["symbol"].is_string());
@@ -332,13 +332,13 @@ fn trade_view_json_shape() {
     let worlds = v["scenario"]["worlds"].as_array().unwrap();
     for (i, world) in worlds.iter().enumerate() {
         assert_eq!(world["pool_id"], pools[i]);
-        assert_eq!(world["weth_token_id"], token_id(s, Weth, 1 << i));
+        assert_eq!(world["wnear_token_id"], token_id(s, Wnear, 1 << i));
         assert_eq!(world["usdc_token_id"], token_id(s, Usdc, 1 << i));
     }
     let events = v["events"].as_array().unwrap();
     assert_eq!(events.len(), 2);
     events.iter().for_each(assert_event_json);
-    assert_eq!(events[0]["id"], w.glam);
+    assert_eq!(events[0]["id"], w.spice);
     assert_eq!(
         events[1]["outcome_names"],
         serde_json::json!(["CUTS", "HOLDS"])
@@ -391,7 +391,7 @@ fn borrow_view_json_shape() {
     assert_eq!(u(&none["account"]["market_supply"]), 50_000 * E18);
 
     w.l_shape(ALICE);
-    w.post_real(ALICE, s, Weth, E18).unwrap();
+    w.post_real(ALICE, s, Wnear, E18).unwrap();
     w.borrow(ALICE, s, 3_000 * E18).unwrap();
     let v = json(&w.view(|c| c.borrow_view(s, Some(acc(ALICE)))));
     let a = &v["account"];
@@ -399,12 +399,12 @@ fn borrow_view_json_shape() {
     assert_u128(&a["health_factor"]);
     let pieces = a["collateral"].as_array().unwrap();
     assert_eq!(pieces.len(), 5);
-    assert_eq!(pieces[0]["token_id"], token_id(s, Weth, SHIPS_CUTS));
+    assert_eq!(pieces[0]["token_id"], token_id(s, Wnear, SHIPS_CUTS));
     assert_eq!(pieces[0]["is_real"], false);
     assert_eq!(pieces[1]["label"], "USDC-if-DELAYED·CUTS");
     let real = &pieces[4];
-    assert_eq!(real["token_id"], "weth");
-    assert_eq!(real["label"], "WETH");
+    assert_eq!(real["token_id"], "wnear");
+    assert_eq!(real["label"], "wNEAR");
     assert_eq!(real["mask"], ROOT);
     assert_eq!(real["is_real"], true);
     assert_eq!(u(&real["amount"]), E18);
@@ -507,7 +507,7 @@ fn admin_view_json_shape() {
     assert_eq!(v["past_fed_event"]["id"], past);
 }
 
-// MultiverseLens.t.sol
+// The lens
 
 #[test]
 fn scenario_view_before_and_after_alice_sale() {
@@ -519,7 +519,7 @@ fn scenario_view_before_and_after_alice_sale() {
     assert_eq!(v.spot_price.0, 0);
     for (i, world) in v.worlds.iter().enumerate() {
         assert!(world.pool_initialized && world.backed && world.possible);
-        assert!(within_rel(world.weth_price.0, DEMO_2X2[i], 1_000_000));
+        assert!(within_rel(world.wnear_price.0, DEMO_2X2[i], 1_000_000));
         assert_eq!(world.pool_id, Some(pools[i]));
     }
     assert_eq!(v.worlds[3].label, "DELAYED·HOLDS");
@@ -530,12 +530,12 @@ fn scenario_view_before_and_after_alice_sale() {
         proceeds[i] = sell(&mut w, ALICE, pools[i], 2 * E18).0;
     }
     let v = scenario(&mut w, s, Some(ALICE));
-    assert_eq!(v.worlds[0].user_weth.0, 2 * E18);
+    assert_eq!(v.worlds[0].user_wnear.0, 2 * E18);
     for i in 1..4 {
         let world = &v.worlds[i];
-        assert_eq!(world.user_weth.0, 0);
+        assert_eq!(world.user_wnear.0, 0);
         assert_eq!(world.user_usdc.0, proceeds[i]);
-        assert!(world.weth_price.0 < DEMO_2X2[i]);
+        assert!(world.wnear_price.0 < DEMO_2X2[i]);
         assert!(world.backed);
     }
     // no account, no holdings
@@ -543,7 +543,7 @@ fn scenario_view_before_and_after_alice_sale() {
     assert!(anon
         .worlds
         .iter()
-        .all(|x| x.user_weth.0 == 0 && x.user_usdc.0 == 0));
+        .all(|x| x.user_wnear.0 == 0 && x.user_usdc.0 == 0));
 }
 
 #[test]
@@ -561,13 +561,13 @@ fn account_view_matches_lending() {
     assert_eq!(values, w.values(s, ALICE));
     assert_eq!(a.world_price_ok, [true; 4]);
     assert_eq!(a.collateral.len(), 4);
-    assert_eq!(a.collateral[0].label, "WETH-if-SHIPS·CUTS");
+    assert_eq!(a.collateral[0].label, "wNEAR-if-SHIPS·CUTS");
     assert_eq!(a.collateral[0].mask, SHIPS_CUTS);
     assert_eq!(a.market_borrow.0, 3_000 * E18);
     assert_eq!(a.liquidation, LiquidationState::None);
     let v = scenario(&mut w, s, Some(ALICE));
-    assert_eq!(v.worlds[0].collateral_weth.0, 2 * E18);
-    assert_eq!(v.worlds[0].user_weth.0, 0);
+    assert_eq!(v.worlds[0].collateral_wnear.0, 2 * E18);
+    assert_eq!(v.worlds[0].user_wnear.0, 0);
     for i in 1..4 {
         assert_eq!(
             v.worlds[i].collateral_usdc.0,
@@ -590,7 +590,7 @@ fn scenario_view_after_resolution_marks_dead_worlds() {
     assert_eq!(possible, [false, false, true, true]);
     assert!(v.worlds.iter().all(|x| x.backed));
     // dead worlds keep their frozen price and zero odds
-    assert!(v.worlds[0].weth_price.0 > 0);
+    assert!(v.worlds[0].wnear_price.0 > 0);
     assert!(v.worlds.iter().all(|x| x.odds.0 == 0));
 }
 
@@ -639,13 +639,13 @@ fn account_view_liquidation_states() {
         (LiquidationState::None, None)
     );
 
-    // WETH-if-SHIPS·CUTS loses almost all its value
+    // wNEAR-if-SHIPS·CUTS loses almost all its value
     set_price(s, 0, 10 * E18);
     let a = account(&mut w, s, Some(ALICE));
     assert!(a.health_factor.unwrap().0 < E18);
     assert_eq!(a.liquidation, LiquidationState::Liquidatable);
 
-    // without a price where WETH collateral pays, liquidation pauses
+    // without a price where wNEAR collateral pays, liquidation pauses
     set_unpriced(s, 0);
     let a = account(&mut w, s, Some(ALICE));
     assert_eq!(a.world_price_ok, [false, true, true, true]);

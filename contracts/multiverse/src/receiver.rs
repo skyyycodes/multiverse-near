@@ -1,4 +1,4 @@
-//! Real WETH/USDC come in through `ft_transfer_call` with an action in `msg`:
+//! Real wNEAR/USDC come in through `ft_transfer_call` with an action in `msg`:
 //! one signature, no approval, and whatever the action leaves unused goes
 //! back to the sender through the token contract.
 //!
@@ -42,7 +42,7 @@ pub enum Action {
     DepositCollateral(ScenarioMsg),
     Liquidate(LiquidateMsg),
     CloseAfterResolution(ScenarioMsg),
-    /// Attached USDC plus `weth_amount` from the internal WETH balance.
+    /// Attached USDC plus `wnear_amount` from the internal wNEAR balance.
     LpDeposit(LpDepositMsg),
     /// Attached asset into the spot pool; the output is credited to the
     /// internal real balance.
@@ -127,7 +127,7 @@ pub struct LiquidateMsg {
 #[serde(crate = "near_sdk::serde", deny_unknown_fields)]
 pub struct LpDepositMsg {
     pub scenario_id: u64,
-    pub weth_amount: U128,
+    pub wnear_amount: U128,
     pub min_shares: U128,
 }
 
@@ -147,7 +147,7 @@ pub fn parse_msg(msg: &str) -> Action {
 
 #[near]
 impl Contract {
-    /// NEP-141 receiver. Only the configured WETH and USDC contracts may call
+    /// NEP-141 receiver. Only the configured wNEAR and USDC contracts may call
     /// it; the sender must be registered for storage, and pays for what the
     /// action stores. Returns the unused amount in token units.
     pub fn ft_on_transfer(

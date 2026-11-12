@@ -6,7 +6,7 @@ use near_sdk::serde_json::json;
 use near_sdk::PromiseResult;
 
 use super::harness::*;
-use crate::types::Asset::{Usdc, Weth};
+use crate::types::Asset::{Usdc, Wnear};
 
 const USDC_UNIT: u128 = 1_000_000_000_000;
 
@@ -81,21 +81,21 @@ fn a_failed_payout_is_credited_back() {
 #[test]
 fn a_failed_merge_payout_is_credited_not_reminted() {
     let mut w = World::new();
-    w.split_ft(ALICE, 1, Weth, &SINGLES, 2 * E18).unwrap();
+    w.split_ft(ALICE, 1, Wnear, &SINGLES, 2 * E18).unwrap();
     w.ft_unregistered.insert(acc(ALICE));
-    w.merge(ALICE, 1, Weth, &SINGLES, ROOT, 2 * E18).unwrap();
+    w.merge(ALICE, 1, Wnear, &SINGLES, ROOT, 2 * E18).unwrap();
     // the verse side is settled for good
-    assert_eq!(w.reserves(1, Weth), 0);
+    assert_eq!(w.reserves(1, Wnear), 0);
     for m in SINGLES {
-        assert_eq!(w.supply(1, Weth, m), 0);
+        assert_eq!(w.supply(1, Wnear, m), 0);
     }
     // the real side waits in the internal balance
-    assert_eq!(w.real(ALICE, Weth), 2 * E18);
-    assert_eq!(w.held_by_contract(Weth), 2 * E18);
-    assert_eq!(w.wallet(ALICE, Weth), FUND - 2 * E18);
+    assert_eq!(w.real(ALICE, Wnear), 2 * E18);
+    assert_eq!(w.held_by_contract(Wnear), 2 * E18);
+    assert_eq!(w.wallet(ALICE, Wnear), FUND - 2 * E18);
     w.ft_unregistered.clear();
-    w.withdraw(ALICE, Weth, 2 * E18).unwrap();
-    assert_eq!(w.wallet(ALICE, Weth), FUND);
+    w.withdraw(ALICE, Wnear, 2 * E18).unwrap();
+    assert_eq!(w.wallet(ALICE, Wnear), FUND);
 }
 
 #[test]
@@ -103,7 +103,7 @@ fn usdc_dust_stays_in_the_internal_balance() {
     let mut w = World::new();
     w.split_ft(ALICE, 1, Usdc, &[SHIPS, DELAYED], 3 * E18)
         .unwrap();
-    w.admin_resolve(w.glam, OUT_SHIPS).unwrap();
+    w.admin_resolve(w.spice, OUT_SHIPS).unwrap();
     // 1.5 USDC and 123 internal units: the units go out, the 123 stay
     w.redeem(ALICE, 1, Usdc, SHIPS, 15 * E18 / 10 + 123)
         .unwrap();
@@ -128,13 +128,13 @@ fn usdc_dust_stays_in_the_internal_balance() {
 #[test]
 fn withdraw_checks() {
     let mut w = World::new();
-    fails(w.withdraw(ALICE, Weth, 0), "ZeroAmount");
+    fails(w.withdraw(ALICE, Wnear, 0), "ZeroAmount");
     fails(
-        w.withdraw(ALICE, Weth, 1),
-        "ERC20InsufficientBalance(alice.near, 0, 1)",
+        w.withdraw(ALICE, Wnear, 1),
+        "InsufficientBalance(alice.near, 0, 1)",
     );
     fails(
-        w.call(ALICE, NO_DEPOSIT, |c| c.withdraw(Weth, U128(1))),
+        w.call(ALICE, NO_DEPOSIT, |c| c.withdraw(Wnear, U128(1))),
         "Requires attached deposit of exactly 1 yoctoNEAR",
     );
 }
@@ -161,9 +161,9 @@ fn on_payout_never_panics() {
             CONTRACT,
             NO_DEPOSIT,
             vec![PromiseResult::Successful(vec![])],
-            |c| c.on_payout(acc("dave.near"), Weth, U128(1)),
+            |c| c.on_payout(acc("dave.near"), Wnear, U128(1)),
         )
         .unwrap();
     assert!(ok);
-    assert_eq!(w.real("dave.near", Weth), 0);
+    assert_eq!(w.real("dave.near", Wnear), 0);
 }

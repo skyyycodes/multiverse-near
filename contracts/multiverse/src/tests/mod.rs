@@ -1,11 +1,10 @@
 //! Unit tests, run natively against near-sdk's mocked runtime.
 //!
-//! `core` and `oracle` port the EVM `MultiverseCore.t.sol` and
-//! `EventOracle.t.sol` test by test (same names in snake_case, same
-//! assertions, error names and argument order); `probes` pins edge cases probed
-//! against the EVM code; `invariants` ports `CoreInvariants.t.sol` as
-//! property tests. The rest covers what is new on NEAR: NEP-245, NEP-145,
-//! the `ft_on_transfer` receiver and payouts.
+//! `core` and `oracle` cover the core and the event oracle test by test
+//! (error names and argument order included); `probes` pins edge cases;
+//! `invariants` runs the core invariants as property tests. The rest covers
+//! NEP-245, NEP-145, the `ft_on_transfer` receiver and payouts, the pools,
+//! the order book, the router, lending and the Root LP.
 
 mod harness;
 

@@ -1,5 +1,5 @@
 //! The verse ledger (per-account balances, supply, the created set) and the
-//! internal real WETH/USDC balances.
+//! internal real wNEAR/USDC balances.
 //!
 //! Every change to a user's verse balance logs the matching NEP-245 event,
 //! one log line per call however many tokens it moves. Tokens a module holds
@@ -75,11 +75,11 @@ impl Contract {
         }
     }
 
-    /// A short balance fails like the ERC-20 it replaces.
+    /// A short balance fails `InsufficientBalance(owner, balance, amount)`.
     fn debit_verse(&mut self, owner: &AccountId, key: &VerseKey, amount: u128) {
         let balance = self.verse_balance(owner, key);
         if balance < amount {
-            fail!("ERC20InsufficientBalance({owner}, {balance}, {amount})");
+            fail!("InsufficientBalance({owner}, {balance}, {amount})");
         }
         self.set_verse_balance(owner, key, balance - amount);
     }
@@ -106,7 +106,7 @@ impl Contract {
 
     /// Burns from `owner`, in order. A key that was never minted is
     /// `InvalidMask(mask)` ("nobody can hold it"); a short balance is
-    /// `ERC20InsufficientBalance(owner, balance, needed)`.
+    /// `InsufficientBalance(owner, balance, needed)`.
     pub(crate) fn burn(
         &mut self,
         owner: &AccountId,
@@ -205,11 +205,11 @@ impl Contract {
         }
     }
 
-    /// Short balances fail like the ERC-20 pull they replace.
+    /// Short balances fail `InsufficientBalance(account, balance, amount)`.
     pub(crate) fn real_debit(&mut self, account_id: &AccountId, asset: Asset, amount: u128) {
         let balance = self.real_balance(account_id, asset);
         if balance < amount {
-            fail!("ERC20InsufficientBalance({account_id}, {balance}, {amount})");
+            fail!("InsufficientBalance({account_id}, {balance}, {amount})");
         }
         self.set_real(account_id, asset, balance - amount);
     }

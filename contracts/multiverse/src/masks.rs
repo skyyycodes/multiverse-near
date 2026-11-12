@@ -25,8 +25,8 @@ pub fn is_single_world(mask: u8) -> bool {
     mask != 0 && mask & (mask - 1) == 0
 }
 
-/// Index of the lowest set bit. Callers pass non-zero masks (the EVM loop
-/// never returned for 0; this returns 8).
+/// Index of the lowest set bit. Callers pass non-zero masks (for 0 this
+/// returns 8).
 pub fn lowest_world(mask: u8) -> u8 {
     mask.trailing_zeros() as u8
 }
@@ -62,7 +62,7 @@ pub fn check_mask(mask: u8, root: u8) {
 /// to mask). Parts must be non-empty, each a live strict subset of the parent,
 /// pairwise disjoint, and together cover every possible world of the parent.
 /// Dead worlds may ride along in a part and need no cover. The check order
-/// decides which error a caller sees, so it follows the EVM code exactly.
+/// decides which error a caller sees, so it never changes.
 pub fn check_partition(possible: u8, parent: u8, parts: &[u8]) {
     if parts.is_empty() {
         fail("EmptyPartition");

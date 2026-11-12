@@ -2,7 +2,7 @@
 //! price moves, the odds tests of `MultiverseLens.t.sol`, and the demo's golden numbers,
 //! run against the constant-product pool that replaces Uniswap v4.
 //!
-//! Orientation as on NEAR: a within-world pool has WETH-if-w as token0 and USDC-if-w as token1, a between-world pool
+//! Orientation as on NEAR: a within-world pool has wNEAR-if-w as token0 and USDC-if-w as token1, a between-world pool
 //! has the lower mask as token0. The fee window measures token0 in both.
 
 use multiverse_math::cpmm::{Pool, Position, SwapResult};
@@ -33,7 +33,7 @@ struct VersePool {
 }
 
 impl VersePool {
-    /// Full range at `price` (USDC per WETH, WAD) with `depth` WETH and `floor(depth * price / 1e18)` USDC, as
+    /// Full range at `price` (USDC per wNEAR, WAD) with `depth` wNEAR and `floor(depth * price / 1e18)` USDC, as
     /// SeedDemo seeds the world pools.
     fn seed(price: u128, depth: u128) -> Self {
         let usdc = multiverse_math::mul_div_down(depth, price, WAD);
@@ -65,7 +65,7 @@ impl VersePool {
             .record_swap(swap.zero_for_one, swap.amount_in, swap.amount_out);
     }
 
-    /// Exact-input sale of WETH-if-w (or token0).
+    /// Exact-input sale of wNEAR-if-w (or token0).
     fn sell(&mut self, amount: u128) -> (SwapResult, u32) {
         let fee = self.fee_of();
         let swap = self.pool.swap_exact_in(true, amount, fee).unwrap();
@@ -73,7 +73,7 @@ impl VersePool {
         (swap, fee)
     }
 
-    /// Exact-output purchase of WETH-if-w (or token0).
+    /// Exact-output purchase of wNEAR-if-w (or token0).
     fn buy(&mut self, amount: u128) -> (SwapResult, u32) {
         let fee = self.fee_of();
         let swap = self.pool.swap_exact_out(false, amount, fee).unwrap();
@@ -96,7 +96,7 @@ impl VersePool {
         (net, window.total().low_u128(), self.flow.count())
     }
 
-    fn weth_price(&self) -> u128 {
+    fn wnear_price(&self) -> u128 {
         self.pool.price_wad().unwrap()
     }
 }
@@ -109,7 +109,7 @@ fn fee_base_without_history() {
     let (swap, fee) = p.sell(WAD);
     assert_eq!(fee, BASE_FEE);
     assert_eq!(swap.fee_amount, 3_000_000_000_000_000);
-    // After one 1 WETH sale the window is [-1e18], entirely one-sided.
+    // After one 1 wNEAR sale the window is [-1e18], entirely one-sided.
     assert_eq!(p.fee_of(), MAX_FEE);
 }
 
@@ -162,11 +162,11 @@ fn fee_is_per_pool() {
 }
 
 #[test]
-fn fee_volume_is_the_weth_side_whichever_way_it_moves() {
+fn fee_volume_is_the_wnear_side_whichever_way_it_moves() {
     let mut p = VersePool::seed(3_000 * WAD, 100 * WAD);
     p.sell(WAD);
     assert_eq!(p.flow_of(), (WAD as i128, WAD, 1));
-    // Paying USDC in buys WETH out: the window records the WETH bought, not the USDC paid.
+    // Paying USDC in buys wNEAR out: the window records the wNEAR bought, not the USDC paid.
     let (swap, _) = p.sell_token1(3_000 * WAD);
     assert_eq!(p.flow.volumes()[1], swap.amount_out as i128);
 }
@@ -190,7 +190,7 @@ fn fee_dust_swaps_do_not_reset_the_window() {
         p.sell(WAD);
     }
     for _ in 0..8 {
-        // 1 wei of USDC-if-w in buys no WETH, so nothing is recorded (but the TWAP still gets a point).
+        // 1 wei of USDC-if-w in buys no wNEAR, so nothing is recorded (but the TWAP still gets a point).
         let (swap, _) = p.sell_token1(1);
         assert_eq!(swap.amount_out, 0);
     }
@@ -288,7 +288,7 @@ fn seeded_prices_match_the_spec() {
     ];
     for (price, depth, liquidity) in worlds {
         let p = VersePool::seed(price * WAD, depth * WAD);
-        assert_eq!(p.weth_price(), price * WAD);
+        assert_eq!(p.wnear_price(), price * WAD);
         assert_eq!(p.pool.liquidity() / WAD, liquidity);
         // The v4 reading through the square-root price is within 1e-6 (here: one wei low or exact).
         let via_sqrt = price::from_sqrt_price_x96(p.pool.sqrt_price_x96().unwrap()).unwrap();
@@ -298,7 +298,7 @@ fn seeded_prices_match_the_spec() {
 
 #[test]
 fn demo_twap_prices() {
-    // With WETH-if-w as token0, the TWAP of a freshly seeded pool reads one tick below the seed price.
+    // With wNEAR-if-w as token0, the TWAP of a freshly seeded pool reads one tick below the seed price.
     let expected = [
         (3_700, "3699.63"),
         (3_000, "2999.79"),
@@ -311,23 +311,23 @@ fn demo_twap_prices() {
         let mut p = VersePool::seed(seed_price * WAD, 100 * WAD);
         p.now += 61;
         let mean = p.oracle.mean_tick(p.now, 60).unwrap();
-        let twap = price::weth_price_at_tick(mean, true).unwrap();
+        let twap = price::wnear_price_at_tick(mean, true).unwrap();
         assert_eq!(fmt(twap), twap_cents, "seeded at {seed_price}");
     }
 }
 
 #[test]
 fn golden_demo_sale() {
-    // DELAYED·HOLDS is the thin pool: 40 WETH / 100,000 USDC at 2,500.
+    // DELAYED·HOLDS is the thin pool: 40 wNEAR / 100,000 USDC at 2,500.
     let pool_only = VersePool::seed(2_500 * WAD, 40 * WAD)
         .pool
         .quote_exact_in(true, 2 * WAD, BASE_FEE)
         .unwrap();
     assert_eq!(fmt(pool_only.amount_out), "4748.29");
-    // Averages per WETH: x * 1e18 / 2e18.
+    // Averages per wNEAR: x * 1e18 / 2e18.
     assert_eq!(fmt(pool_only.amount_out / 2), "2374.14");
 
-    // Ravi's bid fills 1 WETH at 2% under 2,500, then the pool takes the second WETH.
+    // Ravi's bid fills 1 wNEAR at 2% under 2,500, then the pool takes the second wNEAR.
     let ravi_price = 2_500 * WAD * (10_000 - 200) / 10_000;
     assert_eq!(ravi_price, 2_450 * WAD);
     assert_eq!(orders::cost(WAD, ravi_price), 2_450 * WAD);
@@ -341,11 +341,11 @@ fn golden_demo_sale() {
     assert_eq!(fmt(with_bid), "4881.88");
     assert_eq!(fmt(with_bid / 2), "2440.94");
     // "push from 2,380": the pool price after the sale.
-    assert_eq!(fmt(delayed_holds.weth_price()), "2379.88");
+    assert_eq!(fmt(delayed_holds.wnear_price()), "2379.88");
     // The sold pool now charges the cap on its next swap.
     assert_eq!(delayed_holds.fee_of(), MAX_FEE);
 
-    // The other sold worlds (100 WETH deep) and the binary DELAYED world, against the EVM run's raw proceeds.
+    // The other sold worlds (100 wNEAR deep) and the binary DELAYED world, against the EVM run's raw proceeds.
     let sales = [
         (
             3_000,
@@ -366,7 +366,7 @@ fn golden_demo_sale() {
             swap.amount_out
         );
         assert_eq!(fmt(swap.amount_out), proceeds);
-        assert_eq!(fmt(p.weth_price()), price_after);
+        assert_eq!(fmt(p.wnear_price()), price_after);
     }
 
     // Alice borrows 3,000 against the L-shape sale; her worst world holds 4,881.88 USDC-if-DELAYED·HOLDS.
@@ -380,7 +380,7 @@ fn golden_demo_sale() {
 
 #[test]
 fn quote_sell_matches_execution_on_the_l_shape() {
-    // MultiverseLens quoteSell(2x2, 2 WETH, L-shape) on the seed pools (all 100 WETH deep), EVM reference
+    // MultiverseLens quoteSell(2x2, 2 wNEAR, L-shape) on the seed pools (all 100 wNEAR deep), EVM reference
     // [0, 5865050885346196835108, 6451555973880816518618, 4887542404455164029256].
     let evm = [
         0u128,
@@ -570,7 +570,7 @@ fn move_to_up_and_down_lands_on_the_target() {
             .pool
             .swap_exact_in(plan.zero_for_one, plan.amount_in, BASE_FEE)
             .unwrap();
-        let price = p.weth_price();
+        let price = p.wnear_price();
         assert!(
             price.abs_diff(target) * 1_000_000_000_000_000 <= target,
             "{price} vs {target}"
@@ -585,7 +585,7 @@ fn move_to_up_and_down_lands_on_the_target() {
         assert!(swap.amount_out > 0);
     }
     // At the target it is a no-op.
-    let current = p.weth_price();
+    let current = p.wnear_price();
     let again = p.pool.plan_move_to(current, BASE_FEE).unwrap();
     assert!(again.is_none_or(
         |m| m.amount_in * 1_000_000_000_000_000 <= p.pool.reserve0().max(p.pool.reserve1())

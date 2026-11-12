@@ -15,23 +15,23 @@ pub const WAD: u128 = 1_000_000_000_000_000_000;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[serde(rename_all = "lowercase")]
 pub enum Asset {
-    Weth,
+    Wnear,
     Usdc,
 }
 
 impl Asset {
-    pub const ALL: [Asset; 2] = [Asset::Weth, Asset::Usdc];
+    pub const ALL: [Asset; 2] = [Asset::Wnear, Asset::Usdc];
 
     pub fn as_str(self) -> &'static str {
         match self {
-            Asset::Weth => "weth",
+            Asset::Wnear => "wnear",
             Asset::Usdc => "usdc",
         }
     }
 
     pub fn parse(s: &str) -> Option<Asset> {
         match s {
-            "weth" => Some(Asset::Weth),
+            "wnear" => Some(Asset::Wnear),
             "usdc" => Some(Asset::Usdc),
             _ => None,
         }
@@ -55,7 +55,7 @@ pub struct AssetCfg {
 }
 
 impl AssetCfg {
-    /// Token units to internal 18-decimal units: USDC (6) is 1e12, WETH (18) is 1.
+    /// Token units to internal 18-decimal units: USDC (6) is 1e12, wNEAR (18) is 1.
     pub fn scale(&self) -> u128 {
         10u128.pow(u32::from(18 - self.decimals))
     }
@@ -109,13 +109,13 @@ impl VerseKey {
         }
     }
 
-    /// NEP-245 token id, e.g. `"1:weth:14"`.
+    /// NEP-245 token id, e.g. `"1:wnear:14"`.
     pub fn token_id(&self) -> String {
         format!("{}:{}:{}", self.scenario, self.asset, self.mask)
     }
 
     /// Inverse of `token_id`. Only the canonical spelling parses, so a
-    /// position has exactly one id ("01:weth:14" and "+1:weth:14" do not).
+    /// position has exactly one id ("01:wnear:14" and "+1:wnear:14" do not).
     pub fn parse(token_id: &str) -> Option<Self> {
         let mut parts = token_id.split(':');
         let (scenario, asset, mask) = (parts.next()?, parts.next()?, parts.next()?);
@@ -289,10 +289,10 @@ pub struct ScenarioInfo {
 pub struct WorldBacking {
     pub world: u8,
     pub possible: bool,
-    pub weth_supply: U128,
+    pub wnear_supply: U128,
     pub usdc_supply: U128,
     /// Vacuously true once the world is dead.
-    pub weth_backed: bool,
+    pub wnear_backed: bool,
     pub usdc_backed: bool,
 }
 
@@ -301,7 +301,7 @@ pub struct WorldBacking {
 pub struct BackingView {
     pub scenario_id: u64,
     pub possible: u8,
-    pub weth_reserves: U128,
+    pub wnear_reserves: U128,
     pub usdc_reserves: U128,
     pub worlds: Vec<WorldBacking>,
 }

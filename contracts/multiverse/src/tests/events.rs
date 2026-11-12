@@ -3,28 +3,28 @@
 //! parse these, so their shape is part of the interface.
 
 use super::harness::*;
-use crate::types::Asset::{Usdc, Weth};
+use crate::types::Asset::{Usdc, Wnear};
 
 #[test]
 fn split_logs_one_mint_and_one_split() {
     let mut w = World::new();
-    w.split_ft(ALICE, 1, Weth, &[SHIPS_CUTS, L_SHAPE], 2 * E18)
+    w.split_ft(ALICE, 1, Wnear, &[SHIPS_CUTS, L_SHAPE], 2 * E18)
         .unwrap();
     assert_eq!(
         w.last.logs,
         vec![
-            r#"EVENT_JSON:{"standard":"nep245","version":"1.0.0","event":"mt_mint","data":[{"owner_id":"alice.near","token_ids":["1:weth:1","1:weth:14"],"amounts":["2000000000000000000","2000000000000000000"]}]}"#,
-            r#"EVENT_JSON:{"standard":"multiverse","version":"1.0.0","event":"split","data":[{"account_id":"alice.near","scenario_id":1,"asset":"weth","from_mask":15,"to_masks":[1,14],"amount":"2000000000000000000"}]}"#,
+            r#"EVENT_JSON:{"standard":"nep245","version":"1.0.0","event":"mt_mint","data":[{"owner_id":"alice.near","token_ids":["1:wnear:1","1:wnear:14"],"amounts":["2000000000000000000","2000000000000000000"]}]}"#,
+            r#"EVENT_JSON:{"standard":"multiverse","version":"1.0.0","event":"split","data":[{"account_id":"alice.near","scenario_id":1,"asset":"wnear","from_mask":15,"to_masks":[1,14],"amount":"2000000000000000000"}]}"#,
         ]
     );
-    w.split(ALICE, 1, Weth, L_SHAPE, &[DELAYED_CUTS, HOLDS], E18)
+    w.split(ALICE, 1, Wnear, L_SHAPE, &[DELAYED_CUTS, HOLDS], E18)
         .unwrap();
     assert_eq!(
         w.last.logs,
         vec![
-            r#"EVENT_JSON:{"standard":"nep245","version":"1.0.0","event":"mt_burn","data":[{"owner_id":"alice.near","token_ids":["1:weth:14"],"amounts":["1000000000000000000"]}]}"#,
-            r#"EVENT_JSON:{"standard":"nep245","version":"1.0.0","event":"mt_mint","data":[{"owner_id":"alice.near","token_ids":["1:weth:2","1:weth:12"],"amounts":["1000000000000000000","1000000000000000000"]}]}"#,
-            r#"EVENT_JSON:{"standard":"multiverse","version":"1.0.0","event":"split","data":[{"account_id":"alice.near","scenario_id":1,"asset":"weth","from_mask":14,"to_masks":[2,12],"amount":"1000000000000000000"}]}"#,
+            r#"EVENT_JSON:{"standard":"nep245","version":"1.0.0","event":"mt_burn","data":[{"owner_id":"alice.near","token_ids":["1:wnear:14"],"amounts":["1000000000000000000"]}]}"#,
+            r#"EVENT_JSON:{"standard":"nep245","version":"1.0.0","event":"mt_mint","data":[{"owner_id":"alice.near","token_ids":["1:wnear:2","1:wnear:12"],"amounts":["1000000000000000000","1000000000000000000"]}]}"#,
+            r#"EVENT_JSON:{"standard":"multiverse","version":"1.0.0","event":"split","data":[{"account_id":"alice.near","scenario_id":1,"asset":"wnear","from_mask":14,"to_masks":[2,12],"amount":"1000000000000000000"}]}"#,
         ]
     );
 }
@@ -137,10 +137,10 @@ fn config_logs() {
 #[test]
 fn envelopes_follow_nep_297() {
     let mut w = World::new();
-    w.split_ft(ALICE, 1, Weth, &SINGLES, E18).unwrap();
-    w.mt_transfer(ALICE, BOB, &token_id(1, Weth, SHIPS_CUTS), 1)
+    w.split_ft(ALICE, 1, Wnear, &SINGLES, E18).unwrap();
+    w.mt_transfer(ALICE, BOB, &token_id(1, Wnear, SHIPS_CUTS), 1)
         .unwrap();
-    w.admin_resolve(w.glam, OUT_DELAYED).unwrap();
+    w.admin_resolve(w.spice, OUT_DELAYED).unwrap();
     for line in [w.last.logs.clone(), vec![]].concat() {
         let json = line
             .strip_prefix("EVENT_JSON:")
@@ -152,7 +152,7 @@ fn envelopes_follow_nep_297() {
         assert!(v["data"].is_array() && v["data"].as_array().unwrap().len() == 1);
         assert_eq!(v["version"], "1.0.0");
     }
-    let id = token_id(1, Weth, SHIPS_CUTS);
+    let id = token_id(1, Wnear, SHIPS_CUTS);
     w.call(BOB, ONE_YOCTO, |c| {
         c.mt_transfer(acc(ALICE), id, near_sdk::json_types::U128(1), None, None)
     })

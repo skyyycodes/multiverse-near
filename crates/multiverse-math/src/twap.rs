@@ -169,7 +169,7 @@ impl TwapOracle {
         let past = self.cumulative_at(time - window)?;
         let current = self.cumulative_at(time)?;
         let delta = i128::from(current) - i128::from(past);
-        // Floor division, as the Solidity code truncates and then steps down for a negative remainder.
+        // Floor division, truncating and then stepping down for a negative remainder.
         let mean = delta.div_euclid(i128::from(window));
         Some(i32::try_from(mean).expect("a mean of ticks is a tick"))
     }

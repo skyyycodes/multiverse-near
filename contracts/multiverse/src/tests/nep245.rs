@@ -8,24 +8,24 @@ use near_sdk::{NearToken, PromiseResult};
 
 use super::harness::*;
 use crate::nep245::Token;
-use crate::types::Asset::{Usdc, Weth};
+use crate::types::Asset::{Usdc, Wnear};
 
 const MARKET: &str = "market.near";
 
 fn world() -> World {
     let mut w = World::new();
-    w.split_ft(ALICE, 1, Weth, &[SHIPS, DELAYED], 10 * E18)
+    w.split_ft(ALICE, 1, Wnear, &[SHIPS, DELAYED], 10 * E18)
         .unwrap();
     w.register(MARKET, NearToken::from_near(1));
     w
 }
 
 fn ships() -> String {
-    token_id(1, Weth, SHIPS)
+    token_id(1, Wnear, SHIPS)
 }
 
 fn delayed() -> String {
-    token_id(1, Weth, DELAYED)
+    token_id(1, Wnear, DELAYED)
 }
 
 /// Runs the `mt_resolve_transfer` the last call scheduled, with the
@@ -87,14 +87,14 @@ fn transfer_call(
 fn mt_transfer_moves_balance_and_logs() {
     let mut w = world();
     w.mt_transfer(ALICE, BOB, &ships(), 3 * E18).unwrap();
-    assert_eq!(w.bal(ALICE, 1, Weth, SHIPS), 7 * E18);
-    assert_eq!(w.bal(BOB, 1, Weth, SHIPS), 3 * E18);
+    assert_eq!(w.bal(ALICE, 1, Wnear, SHIPS), 7 * E18);
+    assert_eq!(w.bal(BOB, 1, Wnear, SHIPS), 3 * E18);
     // supply moves only on mint and burn
-    assert_eq!(w.supply(1, Weth, SHIPS), 10 * E18);
+    assert_eq!(w.supply(1, Wnear, SHIPS), 10 * E18);
     assert_eq!(
         w.last.logs,
         vec![
-            r#"EVENT_JSON:{"standard":"nep245","version":"1.0.0","event":"mt_transfer","data":[{"old_owner_id":"alice.near","new_owner_id":"bob.near","token_ids":["1:weth:5"],"amounts":["3000000000000000000"]}]}"#
+            r#"EVENT_JSON:{"standard":"nep245","version":"1.0.0","event":"mt_transfer","data":[{"old_owner_id":"alice.near","new_owner_id":"bob.near","token_ids":["1:wnear:5"],"amounts":["3000000000000000000"]}]}"#
         ]
     );
     let id = ships();
@@ -105,7 +105,7 @@ fn mt_transfer_moves_balance_and_logs() {
     assert_eq!(
         w.last.logs,
         vec![
-            r#"EVENT_JSON:{"standard":"nep245","version":"1.0.0","event":"mt_transfer","data":[{"old_owner_id":"alice.near","new_owner_id":"bob.near","token_ids":["1:weth:5"],"amounts":["1"],"memo":"gift"}]}"#
+            r#"EVENT_JSON:{"standard":"nep245","version":"1.0.0","event":"mt_transfer","data":[{"old_owner_id":"alice.near","new_owner_id":"bob.near","token_ids":["1:wnear:5"],"amounts":["1"],"memo":"gift"}]}"#
         ]
     );
 }
@@ -148,28 +148,28 @@ fn mt_transfer_rejects_bad_requests() {
     );
     fails(w.mt_transfer(ALICE, BOB, &ships(), 0), "ZeroAmount");
     fails(
-        w.mt_transfer(ALICE, BOB, "1:weth", 1),
-        "InvalidTokenId(1:weth)",
+        w.mt_transfer(ALICE, BOB, "1:wnear", 1),
+        "InvalidTokenId(1:wnear)",
     );
     fails(
-        w.mt_transfer(ALICE, BOB, "01:weth:5", 1),
-        "InvalidTokenId(01:weth:5)",
+        w.mt_transfer(ALICE, BOB, "01:wnear:5", 1),
+        "InvalidTokenId(01:wnear:5)",
     );
     fails(
-        w.mt_transfer(ALICE, BOB, "1:WETH:5", 1),
-        "InvalidTokenId(1:WETH:5)",
+        w.mt_transfer(ALICE, BOB, "1:WNEAR:5", 1),
+        "InvalidTokenId(1:WNEAR:5)",
     );
     fails(
         w.mt_transfer(ALICE, BOB, &ships(), 10 * E18 + 1),
-        "ERC20InsufficientBalance(alice.near, 10000000000000000000, 10000000000000000001)",
+        "InsufficientBalance(alice.near, 10000000000000000000, 10000000000000000001)",
     );
     // a well-formed id nobody holds
     fails(
-        w.mt_transfer(ALICE, BOB, "1:weth:1", 1),
-        "ERC20InsufficientBalance(alice.near, 0, 1)",
+        w.mt_transfer(ALICE, BOB, "1:wnear:1", 1),
+        "InsufficientBalance(alice.near, 0, 1)",
     );
     // nothing moved
-    assert_eq!(w.bal(ALICE, 1, Weth, SHIPS), 10 * E18);
+    assert_eq!(w.bal(ALICE, 1, Wnear, SHIPS), 10 * E18);
 }
 
 #[test]
@@ -182,13 +182,13 @@ fn mt_batch_transfer_moves_several_ids_in_one_log() {
         &[E18, 2 * E18, 3 * E18],
     )
     .unwrap();
-    assert_eq!(w.bal(BOB, 1, Weth, SHIPS), 4 * E18);
-    assert_eq!(w.bal(BOB, 1, Weth, DELAYED), 2 * E18);
-    assert_eq!(w.bal(ALICE, 1, Weth, SHIPS), 6 * E18);
+    assert_eq!(w.bal(BOB, 1, Wnear, SHIPS), 4 * E18);
+    assert_eq!(w.bal(BOB, 1, Wnear, DELAYED), 2 * E18);
+    assert_eq!(w.bal(ALICE, 1, Wnear, SHIPS), 6 * E18);
     assert_eq!(
         w.last.logs,
         vec![
-            r#"EVENT_JSON:{"standard":"nep245","version":"1.0.0","event":"mt_transfer","data":[{"old_owner_id":"alice.near","new_owner_id":"bob.near","token_ids":["1:weth:5","1:weth:10","1:weth:5"],"amounts":["1000000000000000000","2000000000000000000","3000000000000000000"]}]}"#
+            r#"EVENT_JSON:{"standard":"nep245","version":"1.0.0","event":"mt_transfer","data":[{"old_owner_id":"alice.near","new_owner_id":"bob.near","token_ids":["1:wnear:5","1:wnear:10","1:wnear:5"],"amounts":["1000000000000000000","2000000000000000000","3000000000000000000"]}]}"#
         ]
     );
 }
@@ -240,12 +240,12 @@ fn mt_batch_transfer_checks_lengths_and_approvals() {
     fails(
         batch(&mut w, vec![ships(), delayed()], vec![1, 11 * E18], None),
         &format!(
-            "ERC20InsufficientBalance(alice.near, {}, {})",
+            "InsufficientBalance(alice.near, {}, {})",
             10 * E18 - 1,
             11 * E18
         ),
     );
-    assert_eq!(w.bal(BOB, 1, Weth, SHIPS), 1);
+    assert_eq!(w.bal(BOB, 1, Wnear, SHIPS), 1);
 }
 
 // Transfer and call
@@ -266,7 +266,7 @@ fn mt_transfer_call_schedules_receiver_then_resolve() {
     })
     .unwrap();
     // the tokens move before the receiver runs
-    assert_eq!(w.bal(MARKET, 1, Weth, SHIPS), 4 * E18);
+    assert_eq!(w.bal(MARKET, 1, Wnear, SHIPS), 4 * E18);
     assert_eq!(w.last.data_of("mt_transfer")[0]["memo"], "m");
     let calls = w.last.calls();
     assert_eq!(calls.len(), 2);
@@ -277,7 +277,7 @@ fn mt_transfer_call_schedules_receiver_then_resolve() {
         json!({
             "sender_id": ALICE,
             "previous_owner_ids": [ALICE],
-            "token_ids": ["1:weth:5"],
+            "token_ids": ["1:wnear:5"],
             "amounts": ["4000000000000000000"],
             "msg": "list",
         })
@@ -297,8 +297,8 @@ fn resolve_with_everything_used() {
     transfer_call(&mut w, MARKET, &[ships()], &[4 * E18], "").unwrap();
     assert_eq!(resolve(&mut w, unused(&[0])), vec![4 * E18]);
     assert!(w.last.logs.is_empty());
-    assert_eq!(w.bal(MARKET, 1, Weth, SHIPS), 4 * E18);
-    assert_eq!(w.bal(ALICE, 1, Weth, SHIPS), 6 * E18);
+    assert_eq!(w.bal(MARKET, 1, Wnear, SHIPS), 4 * E18);
+    assert_eq!(w.bal(ALICE, 1, Wnear, SHIPS), 6 * E18);
 }
 
 #[test]
@@ -306,12 +306,12 @@ fn resolve_refunds_unused() {
     let mut w = world();
     transfer_call(&mut w, MARKET, &[ships()], &[4 * E18], "").unwrap();
     assert_eq!(resolve(&mut w, unused(&[E18])), vec![3 * E18]);
-    assert_eq!(w.bal(MARKET, 1, Weth, SHIPS), 3 * E18);
-    assert_eq!(w.bal(ALICE, 1, Weth, SHIPS), 7 * E18);
+    assert_eq!(w.bal(MARKET, 1, Wnear, SHIPS), 3 * E18);
+    assert_eq!(w.bal(ALICE, 1, Wnear, SHIPS), 7 * E18);
     assert_eq!(
         w.last.logs,
         vec![
-            r#"EVENT_JSON:{"standard":"nep245","version":"1.0.0","event":"mt_transfer","data":[{"old_owner_id":"market.near","new_owner_id":"alice.near","token_ids":["1:weth:5"],"amounts":["1000000000000000000"],"memo":"refund"}]}"#
+            r#"EVENT_JSON:{"standard":"nep245","version":"1.0.0","event":"mt_transfer","data":[{"old_owner_id":"market.near","new_owner_id":"alice.near","token_ids":["1:wnear:5"],"amounts":["1000000000000000000"],"memo":"refund"}]}"#
         ]
     );
 }
@@ -321,9 +321,9 @@ fn resolve_refunds_everything_when_the_receiver_fails() {
     let mut w = world();
     transfer_call(&mut w, MARKET, &[ships(), delayed()], &[4 * E18, E18], "").unwrap();
     assert_eq!(resolve(&mut w, PromiseResult::Failed), vec![0, 0]);
-    assert_eq!(w.bal(ALICE, 1, Weth, SHIPS), 10 * E18);
-    assert_eq!(w.bal(ALICE, 1, Weth, DELAYED), 10 * E18);
-    assert_eq!(w.bal(MARKET, 1, Weth, SHIPS), 0);
+    assert_eq!(w.bal(ALICE, 1, Wnear, SHIPS), 10 * E18);
+    assert_eq!(w.bal(ALICE, 1, Wnear, DELAYED), 10 * E18);
+    assert_eq!(w.bal(MARKET, 1, Wnear, SHIPS), 0);
 }
 
 #[test]
@@ -336,7 +336,7 @@ fn resolve_refunds_everything_on_a_malformed_answer() {
         let mut w = world();
         transfer_call(&mut w, MARKET, &[ships()], &[4 * E18], "").unwrap();
         assert_eq!(resolve(&mut w, PromiseResult::Successful(answer)), vec![0]);
-        assert_eq!(w.bal(ALICE, 1, Weth, SHIPS), 10 * E18);
+        assert_eq!(w.bal(ALICE, 1, Wnear, SHIPS), 10 * E18);
     }
 }
 
@@ -345,7 +345,7 @@ fn resolve_caps_unused_at_the_amount_sent() {
     let mut w = world();
     transfer_call(&mut w, MARKET, &[ships()], &[4 * E18], "").unwrap();
     assert_eq!(resolve(&mut w, unused(&[9 * E18])), vec![0]);
-    assert_eq!(w.bal(ALICE, 1, Weth, SHIPS), 10 * E18);
+    assert_eq!(w.bal(ALICE, 1, Wnear, SHIPS), 10 * E18);
 }
 
 #[test]
@@ -357,8 +357,8 @@ fn resolve_caps_the_refund_at_what_the_receiver_still_holds() {
     w.mt_transfer(MARKET, BOB, &ships(), 3 * E18).unwrap();
     w.last = pending;
     assert_eq!(resolve(&mut w, PromiseResult::Failed), vec![3 * E18]);
-    assert_eq!(w.bal(ALICE, 1, Weth, SHIPS), 7 * E18);
-    assert_eq!(w.bal(MARKET, 1, Weth, SHIPS), 0);
+    assert_eq!(w.bal(ALICE, 1, Wnear, SHIPS), 7 * E18);
+    assert_eq!(w.bal(MARKET, 1, Wnear, SHIPS), 0);
 }
 
 #[test]
@@ -373,8 +373,8 @@ fn resolve_batch_with_a_repeated_id() {
         resolve(&mut w, unused(&[2 * E18, 2 * E18])),
         vec![E18, 2 * E18]
     );
-    assert_eq!(w.bal(ALICE, 1, Weth, SHIPS), 7 * E18);
-    assert_eq!(w.bal(MARKET, 1, Weth, SHIPS), 0);
+    assert_eq!(w.bal(ALICE, 1, Wnear, SHIPS), 7 * E18);
+    assert_eq!(w.bal(MARKET, 1, Wnear, SHIPS), 0);
     w.assert_conservation(&[ALICE, BOB, MARKET]);
 }
 
@@ -418,7 +418,7 @@ fn balance_and_supply_views() {
         U128(10 * E18)
     );
     assert_eq!(
-        w.view(|c| c.mt_balance_of(alice.clone(), "9:weth:1".into())),
+        w.view(|c| c.mt_balance_of(alice.clone(), "9:wnear:1".into())),
         U128(0)
     );
     assert_eq!(
@@ -430,14 +430,14 @@ fn balance_and_supply_views() {
         vec![U128(10 * E18), U128(10 * E18), U128(0)]
     );
     assert_eq!(w.view(|c| c.mt_supply(ships())), Some(U128(10 * E18)));
-    assert_eq!(w.view(|c| c.mt_supply("1:weth:1".into())), None);
+    assert_eq!(w.view(|c| c.mt_supply("1:wnear:1".into())), None);
     assert_eq!(w.view(|c| c.mt_supply("garbage".into())), None);
     assert_eq!(
-        w.view(|c| c.mt_batch_supply(vec![ships(), "1:weth:1".into()])),
+        w.view(|c| c.mt_batch_supply(vec![ships(), "1:wnear:1".into()])),
         vec![Some(U128(10 * E18)), None]
     );
     // once created, a token keeps existing at supply 0
-    w.merge(ALICE, 1, Weth, &[SHIPS, DELAYED], ROOT, 10 * E18)
+    w.merge(ALICE, 1, Wnear, &[SHIPS, DELAYED], ROOT, 10 * E18)
         .unwrap();
     assert_eq!(w.view(|c| c.mt_supply(ships())), Some(U128(0)));
 }
@@ -447,7 +447,7 @@ fn mt_token_view() {
     let mut w = world();
     let id = ships();
     assert_eq!(
-        w.view(|c| c.mt_token(vec![id.clone(), "1:weth:1".into(), "x".into()])),
+        w.view(|c| c.mt_token(vec![id.clone(), "1:wnear:1".into(), "x".into()])),
         vec![
             Some(Token {
                 token_id: id.clone(),
@@ -464,19 +464,19 @@ fn mt_token_view() {
 fn enumeration_paginates_in_key_order() {
     let mut w = world();
     w.split_ft(ALICE, 1, Usdc, &SINGLES, E18).unwrap();
-    w.split_ft(ALICE, 2, Weth, &[BIN_SHIPS, BIN_DELAYED], E18)
+    w.split_ft(ALICE, 2, Wnear, &[BIN_SHIPS, BIN_DELAYED], E18)
         .unwrap();
     let ids = |tokens: Vec<Token>| tokens.into_iter().map(|t| t.token_id).collect::<Vec<_>>();
     let alice = acc(ALICE);
     let all = vec![
-        "1:weth:5",
-        "1:weth:10",
+        "1:wnear:5",
+        "1:wnear:10",
         "1:usdc:1",
         "1:usdc:2",
         "1:usdc:4",
         "1:usdc:8",
-        "2:weth:1",
-        "2:weth:2",
+        "2:wnear:1",
+        "2:wnear:2",
     ];
     assert_eq!(
         ids(w.view(|c| c.mt_tokens_for_owner(alice.clone(), None, None))),
@@ -498,7 +498,7 @@ fn enumeration_paginates_in_key_order() {
         vec!["1:usdc:4"]
     );
     // burned out of alice's hands, still a token of the contract
-    w.merge(ALICE, 1, Weth, &[SHIPS, DELAYED], ROOT, 10 * E18)
+    w.merge(ALICE, 1, Wnear, &[SHIPS, DELAYED], ROOT, 10 * E18)
         .unwrap();
     assert_eq!(
         ids(w.view(|c| c.mt_tokens_for_owner(alice.clone(), None, Some(2)))),
@@ -507,25 +507,28 @@ fn enumeration_paginates_in_key_order() {
     assert_eq!(ids(w.view(|c| c.mt_tokens(None, None))), all);
     assert_eq!(
         ids(w.view(|c| c.mt_tokens(Some(U128(6)), Some(5)))),
-        vec!["2:weth:1", "2:weth:2"]
+        vec!["2:wnear:1", "2:wnear:2"]
     );
 }
 
 #[test]
 fn base_metadata_enumeration_follows_mt_tokens() {
     let mut w = world();
-    w.split_ft(ALICE, 2, Weth, &[BIN_SHIPS, BIN_DELAYED], E18)
+    w.split_ft(ALICE, 2, Wnear, &[BIN_SHIPS, BIN_DELAYED], E18)
         .unwrap();
     let all = w.view(|c| c.mt_tokens_base_metadata_all(None, None));
     let ids: Vec<_> = all.iter().map(|m| m.id.as_str()).collect();
-    assert_eq!(ids, vec!["1:weth:5", "1:weth:10", "2:weth:1", "2:weth:2"]);
+    assert_eq!(
+        ids,
+        vec!["1:wnear:5", "1:wnear:10", "2:wnear:1", "2:wnear:2"]
+    );
     let tokens = w.view(|c| c.mt_tokens(None, None));
     for (meta, token) in all.iter().zip(&tokens) {
         assert_eq!(meta.id, token.base_metadata_id);
     }
     assert_eq!(
         all[1],
-        w.view(|c| c.mt_metadata_base_by_token_id(vec!["1:weth:10".into()]))
+        w.view(|c| c.mt_metadata_base_by_token_id(vec!["1:wnear:10".into()]))
             .remove(0)
     );
     let page = w.view(|c| c.mt_tokens_base_metadata_all(Some(U128(1)), Some(2)));
@@ -547,12 +550,12 @@ fn metadata_views() {
         ("mt-1.0.0", "Multiverse verse tokens")
     );
     // works before anything is minted
-    let id = token_id(1, Weth, L_SHAPE);
+    let id = token_id(1, Wnear, L_SHAPE);
     let base = w
         .view(|c| c.mt_metadata_base_by_token_id(vec![id.clone()]))
         .remove(0);
-    assert_eq!(base.name, "WETH-if-0b1110");
-    assert_eq!(base.symbol.as_deref(), Some("WETH-if-0b1110"));
+    assert_eq!(base.name, "wNEAR-if-0b1110");
+    assert_eq!(base.symbol.as_deref(), Some("wNEAR-if-0b1110"));
     assert_eq!(base.id, id);
     assert_eq!(base.decimals.as_deref(), Some("18"));
     assert_eq!(
@@ -569,15 +572,15 @@ fn metadata_views() {
         Some("Pays 1 USDC if the world that comes true is in DELAYED·HOLDS (scenario 1)")
     );
     fails(
-        w.try_view(|c| c.mt_metadata_base_by_token_id(vec!["1:weth:15".into()])),
+        w.try_view(|c| c.mt_metadata_base_by_token_id(vec!["1:wnear:15".into()])),
         "NoTokenForRoot",
     );
     fails(
-        w.try_view(|c| c.mt_metadata_base_by_token_id(vec!["1:weth:16".into()])),
+        w.try_view(|c| c.mt_metadata_base_by_token_id(vec!["1:wnear:16".into()])),
         "InvalidMask(16)",
     );
     fails(
-        w.try_view(|c| c.mt_metadata_token_all(vec!["9:weth:1".into()])),
+        w.try_view(|c| c.mt_metadata_token_all(vec!["9:wnear:1".into()])),
         "UnknownScenario(9)",
     );
     fails(

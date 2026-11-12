@@ -1,9 +1,8 @@
-//! `MultiverseRouter.t.sol` and `MultiverseRouterOrders.t.sol` test by test,
-//! the router probes, the DemoSale golden numbers on real pools, and what is
-//! new on NEAR: the transfer actions and their refunds, the direct methods,
+//! The router over pools and orders, test by test, the router probes, the
+//! demo sale's golden numbers on real pools, the transfer actions and their refunds, the direct methods,
 //! storage and the per-receipt log budget.
 //!
-//! There is no router account: whatever the EVM router briefly held lives in
+//! There is no router account: whatever a trade briefly holds lives in
 //! the user's ledger during the call, so "the router ends empty" becomes
 //! value conservation over every holder and module, checked after every
 //! action the helpers run.
@@ -19,7 +18,7 @@ use super::harness::*;
 use super::lending::{clear_prices, Lend, LLTV, USDC_UNIT};
 use super::orders::{order, RAVI};
 use crate::orders::Side;
-use crate::types::Asset::{self, Usdc, Weth};
+use crate::types::Asset::{self, Usdc, Wnear};
 use crate::types::VerseKey;
 
 const HOLDERS: [&str; 5] = [OWNER, ALICE, BOB, CAROL, RAVI];
@@ -28,15 +27,15 @@ const HALF: u128 = E18 / 2;
 const SUPPLIED: u128 = 100_000 * E18;
 const BORROW: u128 = 3_000 * E18;
 
-/// EVM DemoSale raw values (WETH-if-w as token0).
-const EVM_PROCEEDS: [u128; 4] = [
+/// The prototype's demo numbers, raw (wNEAR-if-w as token0).
+const PROTO_PROCEEDS: [u128; 4] = [
     0,
     5_865_050_885_346_196_835_108,
     6_451_555_973_880_816_518_618,
     4_881_885_259_897_065_638_949,
 ];
-const EVM_BIN_PROCEEDS: u128 = 5_474_047_492_989_783_712_767;
-const EVM_HF: u128 = 1_220_471_314_974_266_409;
+const PROTO_BIN_PROCEEDS: u128 = 5_474_047_492_989_783_712_767;
+const PROTO_HF: u128 = 1_220_471_314_974_266_409;
 
 type Plans = Vec<Vec<(u64, u128)>>;
 
@@ -89,7 +88,7 @@ fn units(asset: Asset, internal: u128) -> u128 {
 }
 
 /// The router fixture: the 2x2 pools at the demo prices (world 3 `w3_depth`
-/// WETH deep, the others 100), the binary pools, Bob lending 100,000 USDC in
+/// wNEAR deep, the others 100), the binary pools, Bob lending 100,000 USDC in
 /// both markets, Ravi and Carol funded, and a full TWAP window behind.
 fn router_world(w3_depth: u128) -> (World, Vec<u64>, Vec<u64>) {
     clear_prices();
@@ -105,12 +104,12 @@ fn router_world(w3_depth: u128) -> (World, Vec<u64>, Vec<u64>) {
     (w, p2, pb)
 }
 
-/// `MultiverseRouter.t.sol`: every 2x2 pool 100 WETH deep.
+/// Every 2x2 pool 100 wNEAR deep.
 fn full_world() -> (World, Vec<u64>, Vec<u64>) {
     router_world(DEPTH)
 }
 
-/// `MultiverseRouterOrders.t.sol`: world 3 is the thin 40 WETH pool.
+/// World 3 is the thin 40 wNEAR pool.
 fn thin_world() -> (World, Vec<u64>, Vec<u64>) {
     router_world(40 * E18)
 }
@@ -166,7 +165,7 @@ trait Router {
 }
 
 impl Router for World {
-    /// `conditional_sell` by WETH `ft_transfer_call`; returns the proceeds.
+    /// `conditional_sell` by wNEAR `ft_transfer_call`; returns the proceeds.
     fn sell(
         &mut self,
         who: &str,
@@ -181,7 +180,7 @@ impl Router for World {
             "action": "conditional_sell", "scenario_id": sid, "sell_mask": mask,
             "plans": plans_json(plans), "min_out": amounts_json(min_out), "to_lending": to_lending,
         });
-        let unused = self.ft_transfer_call(who, Weth, amount, &msg.to_string())?;
+        let unused = self.ft_transfer_call(who, Wnear, amount, &msg.to_string())?;
         assert_eq!(unused, 0);
         let out = amounts(&self.last.data_of("conditional_sale")[0]["proceeds"]);
         self.conserved();
@@ -226,7 +225,7 @@ impl Router for World {
             "plans": plans_json(plans), "min_out": amounts_json(min_out),
             "borrow_amount": borrow.to_string(),
         });
-        let unused = self.ft_transfer_call(who, Weth, amount, &msg.to_string())?;
+        let unused = self.ft_transfer_call(who, Wnear, amount, &msg.to_string())?;
         assert_eq!(unused, 0);
         let out = amounts(&self.last.data_of("conditional_sale")[0]["proceeds"]);
         self.conserved();
@@ -245,7 +244,7 @@ impl Router for World {
         expiry: u64,
     ) -> Result<u64, String> {
         let (asset, escrow) = match side {
-            Side::Ask => (Weth, amount),
+            Side::Ask => (Wnear, amount),
             Side::Bid => (Usdc, cost(amount, price)),
         };
         let msg = json!({
@@ -288,7 +287,7 @@ impl Router for World {
     }
 }
 
-/// Ravi's bid: 1 WETH-if-DELAYED·HOLDS at 2,450, posted from real USDC.
+/// Ravi's bid: 1 wNEAR-if-DELAYED·HOLDS at 2,450, posted from real USDC.
 fn ravi_bid(w: &mut World) -> u64 {
     let (s, e) = (w.s2x2, w.now + 30 * DAY);
     w.post_from_real(RAVI, s, DELAYED_HOLDS, Side::Bid, RAVI_PRICE, E18, e)
@@ -313,7 +312,7 @@ fn piece(sid: u64, asset: Asset, mask: u8) -> String {
     token_id(sid, asset, mask)
 }
 
-// MultiverseRouter.t.sol
+// Router over pools
 
 #[test]
 fn alice_sale_2x2_l_shape() {
@@ -323,21 +322,21 @@ fn alice_sale_2x2_l_shape() {
         .sell(ALICE, s, 2 * E18, L_SHAPE, &no_plans(4), &[0; 4], false)
         .unwrap();
     assert_eq!(out[0], 0);
-    assert_eq!(w.bal(ALICE, s, Weth, SHIPS_CUTS), 2 * E18);
+    assert_eq!(w.bal(ALICE, s, Wnear, SHIPS_CUTS), 2 * E18);
     let caps = [0, 6000 * E18, 6600 * E18, 5000 * E18];
     for i in 1..4u8 {
         let k = usize::from(i);
         assert_eq!(w.bal(ALICE, s, Usdc, 1 << i), out[k]);
-        assert_eq!(w.bal(ALICE, s, Weth, 1 << i), 0);
+        assert_eq!(w.bal(ALICE, s, Wnear, 1 << i), 0);
         assert!(out[k] < caps[k] && within_rel(out[k], caps[k], 33));
     }
-    // a 100 WETH pool everywhere: x*y=k with the fee on the input
+    // a 100 wNEAR pool everywhere: x*y=k with the fee on the input
     assert_eq!(
         [cents(out[1]), cents(out[2]), cents(out[3])],
         [586505, 645155, 488754]
     );
-    assert_eq!(w.wallet(ALICE, Weth), FUND - 2 * E18);
-    assert_eq!(w.real(ALICE, Weth), 0);
+    assert_eq!(w.wallet(ALICE, Wnear), FUND - 2 * E18);
+    assert_eq!(w.real(ALICE, Wnear), 0);
 }
 
 #[test]
@@ -356,7 +355,7 @@ fn alice_sale_binary() {
         )
         .unwrap();
     assert_eq!(out[0], 0);
-    assert_eq!(w.bal(ALICE, sb, Weth, BIN_SHIPS), 2 * E18);
+    assert_eq!(w.bal(ALICE, sb, Wnear, BIN_SHIPS), 2 * E18);
     assert_eq!(w.bal(ALICE, sb, Usdc, BIN_DELAYED), out[1]);
     assert!(out[1] < 5600 * E18 && within_rel(out[1], 5600 * E18, 33));
     assert_eq!(cents(out[1]), 547404);
@@ -372,7 +371,7 @@ fn min_out_is_enforced_per_world() {
         w.sell(ALICE, s, 2 * E18, L_SHAPE, &no_plans(4), &min, false),
         &format!("InsufficientOutput(3, {}, {})", q[3], 5000 * E18),
     );
-    assert_eq!(w.wallet(ALICE, Weth), FUND);
+    assert_eq!(w.wallet(ALICE, Wnear), FUND);
     // exactly the quote passes
     let out = w
         .sell(ALICE, s, 2 * E18, L_SHAPE, &no_plans(4), &q, false)
@@ -388,23 +387,23 @@ fn after_resolution_only_live_worlds_are_split() {
     let out = w
         .sell(ALICE, s, E18, DELAYED_HOLDS, &no_plans(4), &[0; 4], false)
         .unwrap();
-    assert_eq!(w.bal(ALICE, s, Weth, SHIPS_HOLDS), E18);
+    assert_eq!(w.bal(ALICE, s, Wnear, SHIPS_HOLDS), E18);
     assert_eq!(w.bal(ALICE, s, Usdc, DELAYED_HOLDS), out[3]);
     assert!(out[3] > 0);
     for mask in [SHIPS_CUTS, DELAYED_CUTS] {
-        for asset in [Weth, Usdc] {
+        for asset in [Wnear, Usdc] {
             assert_eq!(w.bal(ALICE, s, asset, mask), 0);
         }
     }
     // the dead worlds' supply is still just the seeded pools'
-    assert_eq!(w.supply(s, Weth, SHIPS_CUTS), DEPTH);
+    assert_eq!(w.supply(s, Wnear, SHIPS_CUTS), DEPTH);
 }
 
 #[test]
-fn reverts_bad_requests() {
+fn rejects_bad_requests() {
     let (mut w, ..) = full_world();
     let s = w.s2x2;
-    w.deposit(ALICE, Weth, E18).unwrap();
+    w.deposit(ALICE, Wnear, E18).unwrap();
     fails(
         w.call(ALICE, ONE_YOCTO, |c| {
             c.conditional_sell(
@@ -456,12 +455,11 @@ fn reverts_bad_requests() {
         w.sell(ALICE, s, E18, 0x10, &no_plans(2), &[0; 3], false),
         "BadSellMask(16)",
     );
-    assert_eq!(w.wallet(ALICE, Weth), FUND - E18);
-    assert_eq!(w.real(ALICE, Weth), E18);
+    assert_eq!(w.wallet(ALICE, Wnear), FUND - E18);
+    assert_eq!(w.real(ALICE, Wnear), E18);
 }
 
-/// The EVM's `test_toLending_needsLendingSet` has no counterpart (lending is
-/// always live); this checks what `to_lending` does instead.
+/// Lending is always live; this checks what `to_lending` does instead.
 #[test]
 fn to_lending_posts_every_piece() {
     let (mut w, ..) = full_world();
@@ -469,18 +467,18 @@ fn to_lending_posts_every_piece() {
     let out = w
         .sell(ALICE, s, 2 * E18, L_SHAPE, &no_plans(4), &[0; 4], true)
         .unwrap();
-    let mut expected = vec![(piece(s, Weth, SHIPS_CUTS), 2 * E18)];
+    let mut expected = vec![(piece(s, Wnear, SHIPS_CUTS), 2 * E18)];
     for i in 1..4u8 {
         expected.push((piece(s, Usdc, 1 << i), out[usize::from(i)]));
         assert_eq!(w.bal(ALICE, s, Usdc, 1 << i), 0);
     }
     assert_eq!(w.pieces(s, ALICE), expected);
-    assert_eq!(w.bal(ALICE, s, Weth, SHIPS_CUTS), 0);
+    assert_eq!(w.bal(ALICE, s, Wnear, SHIPS_CUTS), 0);
     assert_eq!(w.debt(s, ALICE), 0);
 }
 
 #[test]
-fn reverts_selling_a_dead_world() {
+fn rejects_selling_a_dead_world() {
     let (mut w, ..) = full_world();
     let (s, fed) = (w.s2x2, w.fed);
     w.admin_resolve(fed, OUT_HOLDS).unwrap();
@@ -493,14 +491,14 @@ fn reverts_selling_a_dead_world() {
 #[test]
 fn close_after_resolution_repays_withdraws_and_redeems() {
     let (mut w, ..) = full_world();
-    let (s, glam, fed) = (w.s2x2, w.glam, w.fed);
+    let (s, spice, fed) = (w.s2x2, w.spice, w.fed);
     let usdc_start = w.usdc_total(ALICE);
     let out = w
         .sell_and_borrow(ALICE, s, 2 * E18, L_SHAPE, &no_plans(4), &[0; 4], BORROW)
         .unwrap();
     assert_eq!(w.wallet(ALICE, Usdc), FUND + BORROW);
     w.admin_resolve(fed, OUT_HOLDS).unwrap();
-    w.admin_resolve(glam, OUT_DELAYED).unwrap();
+    w.admin_resolve(spice, OUT_DELAYED).unwrap();
     w.warp(3600);
     let debt = w.debt(s, ALICE);
     assert!(debt > BORROW);
@@ -514,7 +512,7 @@ fn close_after_resolution_repays_withdraws_and_redeems() {
     assert_eq!(w.usdc_total(ALICE), usdc_start + BORROW - debt + out[3]);
     assert_eq!(w.bal(ALICE, s, Usdc, DELAYED_HOLDS), 0);
     // dead pieces come back as tokens
-    assert_eq!(w.bal(ALICE, s, Weth, SHIPS_CUTS), 2 * E18);
+    assert_eq!(w.bal(ALICE, s, Wnear, SHIPS_CUTS), 2 * E18);
     assert_eq!(w.bal(ALICE, s, Usdc, SHIPS_HOLDS), out[2]);
     assert_eq!(w.bal(ALICE, s, Usdc, DELAYED_CUTS), out[1]);
     // only whole micro-USDC left for the wallet; the dust stays inside
@@ -532,22 +530,22 @@ proptest! {
         for i in 0..4u8 {
             let k = usize::from(i);
             if mask & (1 << i) != 0 {
-                prop_assert_eq!(w.bal(ALICE, s, Weth, 1 << i), 0);
+                prop_assert_eq!(w.bal(ALICE, s, Wnear, 1 << i), 0);
                 prop_assert_eq!(w.bal(ALICE, s, Usdc, 1 << i), out[k]);
                 prop_assert!(out[k] > 0);
             } else {
-                prop_assert_eq!(w.bal(ALICE, s, Weth, 1 << i), amount);
+                prop_assert_eq!(w.bal(ALICE, s, Wnear, 1 << i), amount);
                 prop_assert_eq!(w.bal(ALICE, s, Usdc, 1 << i), 0);
                 prop_assert_eq!(out[k], 0);
             }
-            // every single-world WETH token is backed one to one
-            prop_assert_eq!(w.supply(s, Weth, 1 << i), w.reserves(s, Weth));
+            // every single-world wNEAR token is backed one to one
+            prop_assert_eq!(w.supply(s, Wnear, 1 << i), w.reserves(s, Wnear));
         }
-        prop_assert_eq!(w.held_by_contract(Weth), w.reserves(s, Weth) + w.reserves(w.s_bin, Weth));
+        prop_assert_eq!(w.held_by_contract(Wnear), w.reserves(s, Wnear) + w.reserves(w.s_bin, Wnear));
     }
 }
 
-// MultiverseRouterOrders.t.sol
+// Router over orders and pools
 
 #[test]
 fn demo_ravi_bid_beats_the_pool_on_alices_sale() {
@@ -559,7 +557,7 @@ fn demo_ravi_bid_beats_the_pool_on_alices_sale() {
     let pool_only = quote_sell(&mut w, s, 2 * E18, L_SHAPE);
     let slice = quote_sell(&mut w, s, E18, DELAYED_HOLDS)[3];
     assert!(pool_only[3] / 2 < RAVI_PRICE);
-    let ravi_before = w.bal(RAVI, s, Weth, DELAYED_HOLDS);
+    let ravi_before = w.bal(RAVI, s, Wnear, DELAYED_HOLDS);
     let planned = w
         .sell(
             ALICE,
@@ -574,7 +572,7 @@ fn demo_ravi_bid_beats_the_pool_on_alices_sale() {
     assert_eq!(planned[3], RAVI_PRICE + slice);
     assert!(planned[3] > pool_only[3]);
     assert_eq!(planned[1..3], pool_only[1..3]);
-    assert_eq!(w.bal(RAVI, s, Weth, DELAYED_HOLDS), ravi_before + E18);
+    assert_eq!(w.bal(RAVI, s, Wnear, DELAYED_HOLDS), ravi_before + E18);
     assert_eq!(w.bal(ALICE, s, Usdc, DELAYED_HOLDS), planned[3]);
     assert_eq!(order(&mut w, id).remaining.0, 0);
     assert_eq!(escrow_held(&mut w, s, Usdc, DELAYED_HOLDS), 0);
@@ -605,7 +603,7 @@ fn accept_bid_fills_only_pool_untouched() {
     assert_eq!(price_of(&mut w, p2[3]), price_before);
     assert!(w.last.data_of("swap").is_empty());
     for mask in [SHIPS_CUTS, DELAYED_CUTS, SHIPS_HOLDS] {
-        assert_eq!(w.bal(ALICE, s, Weth, mask), E18);
+        assert_eq!(w.bal(ALICE, s, Wnear, mask), E18);
     }
 }
 
@@ -634,7 +632,7 @@ fn plan_several_orders_and_a_partial_fill() {
     assert_eq!(order(&mut w, a).remaining.0, 0);
     let ob = order(&mut w, b);
     assert_eq!((ob.remaining.0, ob.escrow.0), (3 * HALF, 3660 * E18));
-    assert_eq!(w.bal(BOB, s, Weth, DELAYED_HOLDS), HALF);
+    assert_eq!(w.bal(BOB, s, Wnear, DELAYED_HOLDS), HALF);
 }
 
 #[test]
@@ -657,8 +655,8 @@ fn plan_binary_scenario() {
         )
         .unwrap();
     assert!(out[1] > 1390 * E18);
-    assert_eq!(w.bal(RAVI, sb, Weth, BIN_DELAYED), HALF);
-    assert_eq!(w.bal(ALICE, sb, Weth, BIN_SHIPS), 2 * E18);
+    assert_eq!(w.bal(RAVI, sb, Wnear, BIN_DELAYED), HALF);
+    assert_eq!(w.bal(ALICE, sb, Wnear, BIN_SHIPS), 2 * E18);
 }
 
 #[test]
@@ -684,7 +682,7 @@ fn sell_and_borrow_with_ravis_bid() {
 }
 
 #[test]
-fn plan_reverts() {
+fn plan_fails() {
     let (mut w, ..) = thin_world();
     let (s, sb) = (w.s2x2, w.s_bin);
     let e = w.now + DAY;
@@ -790,12 +788,12 @@ fn plan_reverts() {
         ),
         &format!("InsufficientOutput(3, {RAVI_PRICE}, {})", RAVI_PRICE + 1),
     );
-    assert_eq!(w.wallet(ALICE, Weth), FUND);
+    assert_eq!(w.wallet(ALICE, Wnear), FUND);
     assert_eq!(order(&mut w, bid).remaining.0, E18);
 }
 
 #[test]
-fn plan_stale_order_reverts() {
+fn plan_stale_order_fails() {
     let (mut w, ..) = thin_world();
     let (s, fed) = (w.s2x2, w.fed);
     let id = ravi_bid(&mut w);
@@ -841,7 +839,7 @@ fn post_order_bid_maker_is_the_caller() {
     }
     assert_eq!(w.bal(RAVI, s, Usdc, DELAYED_HOLDS), 0);
     assert_eq!(escrow_held(&mut w, s, Usdc, DELAYED_HOLDS), RAVI_PRICE);
-    // the smallest order keeps the EVM's 3 wei shape: escrow rounds up
+    // the smallest order keeps the 3-unit shape: escrow rounds up
     let tiny = 1_000_000_000_000_000 + 3;
     let id2 = w
         .post_from_real(RAVI, s, DELAYED_HOLDS, Side::Bid, 3 * HALF, tiny, e)
@@ -858,10 +856,10 @@ fn post_order_ask_outcome_mask() {
     let e = w.now + DAY;
     w.post_from_real(ALICE, s, DELAYED, Side::Ask, 3000 * E18, E18, e)
         .unwrap();
-    assert_eq!(escrow_held(&mut w, s, Weth, DELAYED), E18);
-    assert_eq!(w.bal(ALICE, s, Weth, SHIPS_CUTS), E18);
-    assert_eq!(w.bal(ALICE, s, Weth, SHIPS_HOLDS), E18);
-    assert_eq!(w.bal(ALICE, s, Weth, DELAYED), 0);
+    assert_eq!(escrow_held(&mut w, s, Wnear, DELAYED), E18);
+    assert_eq!(w.bal(ALICE, s, Wnear, SHIPS_CUTS), E18);
+    assert_eq!(w.bal(ALICE, s, Wnear, SHIPS_HOLDS), E18);
+    assert_eq!(w.bal(ALICE, s, Wnear, DELAYED), 0);
 }
 
 #[test]
@@ -880,9 +878,9 @@ fn post_order_after_resolution() {
 }
 
 #[test]
-fn post_order_reverts() {
+fn post_order_fails() {
     let (mut w, ..) = thin_world();
-    let (s, glam) = (w.s2x2, w.glam);
+    let (s, spice) = (w.s2x2, w.spice);
     let e = w.now + DAY;
     let post = |w: &mut World,
                 asset: Asset,
@@ -901,10 +899,10 @@ fn post_order_reverts() {
     let usdc = units(Usdc, RAVI_PRICE);
     fails(post(&mut w, Usdc, usdc, 8, "bid", 0, E18, e), "ZeroAmount");
     fails(
-        post(&mut w, Weth, E18, 8, "ask", RAVI_PRICE, 0, e),
+        post(&mut w, Wnear, E18, 8, "ask", RAVI_PRICE, 0, e),
         "ZeroAmount",
     );
-    fails(post(&mut w, Weth, E18, 8, "ask", 0, E18, e), "ZeroPrice");
+    fails(post(&mut w, Wnear, E18, 8, "ask", 0, E18, e), "ZeroPrice");
     fails(
         post(&mut w, Usdc, usdc, ROOT, "bid", RAVI_PRICE, E18, e),
         "NotStrictSubset(15, 15)",
@@ -924,8 +922,8 @@ fn post_order_reverts() {
     );
     // NEAR: the asset must match the side, and the transfer must cover the escrow
     fails(
-        post(&mut w, Weth, E18, 8, "bid", RAVI_PRICE, E18, e),
-        "WrongAsset(weth)",
+        post(&mut w, Wnear, E18, 8, "bid", RAVI_PRICE, E18, e),
+        "WrongAsset(wnear)",
     );
     fails(
         post(&mut w, Usdc, usdc, 8, "ask", RAVI_PRICE, E18, e),
@@ -946,13 +944,13 @@ fn post_order_reverts() {
         w.ft_transfer_call(RAVI, Usdc, usdc, &msg.to_string()),
         "UnknownScenario(99)",
     );
-    w.admin_resolve(glam, OUT_SHIPS).unwrap();
+    w.admin_resolve(spice, OUT_SHIPS).unwrap();
     fails(
         post(&mut w, Usdc, usdc, 8, "bid", RAVI_PRICE, E18, e),
         "DeadVerse(8)",
     );
     assert_eq!(w.wallet(RAVI, Usdc), FUND);
-    assert_eq!(w.wallet(RAVI, Weth), FUND);
+    assert_eq!(w.wallet(RAVI, Wnear), FUND);
 }
 
 #[test]
@@ -989,7 +987,7 @@ fn conditional_buy_pool_only() {
         )
         .unwrap();
     assert!(got[3] > 185 * E18 / 100 && got[3] < 2 * E18);
-    assert_eq!(w.bal(BOB, s, Weth, DELAYED_HOLDS), got[3]);
+    assert_eq!(w.bal(BOB, s, Wnear, DELAYED_HOLDS), got[3]);
     for mask in [SHIPS_CUTS, DELAYED_CUTS, SHIPS_HOLDS] {
         assert_eq!(w.bal(BOB, s, Usdc, mask), 5000 * E18);
     }
@@ -1023,7 +1021,7 @@ fn conditional_buy_fills_asks_first() {
     assert_eq!(order(&mut w, ask).remaining.0, 0);
 }
 
-/// The EVM's 3 wei ask at 1.5, on the smallest order: buying 1e15 + 1 costs
+/// The 3-unit ask at 1.5, on the smallest order: buying 1e15 + 1 costs
 /// the rounded-up 1.5e15 + 2, and the pool is not touched.
 #[test]
 fn accept_ask_exact_cost() {
@@ -1055,7 +1053,7 @@ fn accept_ask_exact_cost() {
 }
 
 #[test]
-fn buy_plan_reverts() {
+fn buy_plan_fails() {
     let (mut w, ..) = thin_world();
     let s = w.s2x2;
     let e = w.now + DAY;
@@ -1116,7 +1114,7 @@ proptest! {
             .sell(ALICE, s, amount, DELAYED_HOLDS, &plan_in(4, 3, &[(id, fill)]), &[0; 4], false)
             .unwrap();
         prop_assert_eq!(out[3], proceeds(fill, RAVI_PRICE) + slice);
-        prop_assert_eq!(w.bal(RAVI, s, Weth, DELAYED_HOLDS), fill);
+        prop_assert_eq!(w.bal(RAVI, s, Wnear, DELAYED_HOLDS), fill);
         let o = order(&mut w, id);
         prop_assert_eq!(o.remaining.0, E18 - fill);
         prop_assert_eq!(escrow_held(&mut w, s, Usdc, DELAYED_HOLDS), o.escrow.0);
@@ -1212,9 +1210,9 @@ fn min_out_in_an_unsold_world_is_ignored() {
 #[test]
 fn selling_the_last_possible_world() {
     let (mut w, ..) = full_world();
-    let (s, glam, fed) = (w.s2x2, w.glam, w.fed);
+    let (s, spice, fed) = (w.s2x2, w.spice, w.fed);
     w.admin_resolve(fed, OUT_HOLDS).unwrap();
-    w.admin_resolve(glam, OUT_DELAYED).unwrap();
+    w.admin_resolve(spice, OUT_DELAYED).unwrap();
     let out = w
         .sell(ALICE, s, E18, DELAYED_HOLDS, &no_plans(4), &[0; 4], false)
         .unwrap();
@@ -1225,9 +1223,9 @@ fn selling_the_last_possible_world() {
 #[test]
 fn halted_trades_report_the_book_before_the_pool() {
     let (mut w, ..) = thin_world();
-    let (s, glam) = (w.s2x2, w.glam);
+    let (s, spice) = (w.s2x2, w.spice);
     let id = ravi_bid(&mut w);
-    w.report(glam, OUT_DELAYED).unwrap();
+    w.report(spice, OUT_DELAYED).unwrap();
     let halted = format!("ScenarioHalted({s})");
     fails(
         w.sell(
@@ -1257,7 +1255,7 @@ fn halted_trades_report_the_book_before_the_pool() {
         .post_from_real(RAVI, s, DELAYED_HOLDS, Side::Bid, RAVI_PRICE, E18, e)
         .unwrap();
     super::orders::cancel(&mut w, RAVI, id2).unwrap();
-    w.finalize(BOB, glam).unwrap();
+    w.finalize(BOB, spice).unwrap();
     w.sell(ALICE, s, E18, DELAYED_HOLDS, &no_plans(4), &[0; 4], false)
         .unwrap();
 }
@@ -1272,9 +1270,9 @@ fn post_order_on_a_half_dead_mask() {
         .post_from_real(ALICE, s, DELAYED, Side::Ask, 3000 * E18, E18, e)
         .unwrap();
     assert_eq!(order(&mut w, id).epoch, 1);
-    assert_eq!(w.bal(ALICE, s, Weth, SHIPS_HOLDS), E18);
-    assert_eq!(w.bal(ALICE, s, Weth, SHIPS_CUTS), 0);
-    assert_eq!(escrow_held(&mut w, s, Weth, DELAYED), E18);
+    assert_eq!(w.bal(ALICE, s, Wnear, SHIPS_HOLDS), E18);
+    assert_eq!(w.bal(ALICE, s, Wnear, SHIPS_CUTS), 0);
+    assert_eq!(escrow_held(&mut w, s, Wnear, DELAYED), E18);
 }
 
 #[test]
@@ -1285,7 +1283,7 @@ fn sell_and_borrow_of_zero_fails_in_lending() {
         w.sell_and_borrow(ALICE, s, 2 * E18, L_SHAPE, &no_plans(4), &[0; 4], 0),
         "ZeroAmount",
     );
-    assert_eq!(w.wallet(ALICE, Weth), FUND);
+    assert_eq!(w.wallet(ALICE, Wnear), FUND);
 }
 
 #[test]
@@ -1305,7 +1303,7 @@ fn sell_and_borrow_too_much_is_unhealthy() {
         .unwrap_err();
     assert!(err.starts_with("Unhealthy("), "{err}");
     assert!(err.ends_with(", 3)"), "{err}");
-    assert_eq!(w.wallet(ALICE, Weth), FUND);
+    assert_eq!(w.wallet(ALICE, Wnear), FUND);
     assert_eq!(w.debt(s, ALICE), 0);
 }
 
@@ -1350,27 +1348,27 @@ fn conditional_buy_to_lending_deposits_both_legs() {
         .iter()
         .map(|m| (piece(s, Usdc, *m), 3000 * E18))
         .collect();
-    expected.push((piece(s, Weth, DELAYED_HOLDS), got[3]));
+    expected.push((piece(s, Wnear, DELAYED_HOLDS), got[3]));
     assert_eq!(w.pieces(s, BOB), expected);
-    assert_eq!(w.bal(BOB, s, Weth, DELAYED_HOLDS), 0);
+    assert_eq!(w.bal(BOB, s, Wnear, DELAYED_HOLDS), 0);
 }
 
 #[test]
 fn close_returns_real_collateral_and_uncollapsed_pieces() {
     let (mut w, ..) = full_world();
     let s = w.s2x2;
-    w.post_real(ALICE, s, Weth, E18).unwrap();
+    w.post_real(ALICE, s, Wnear, E18).unwrap();
     let out = w
         .sell(ALICE, s, 2 * E18, L_SHAPE, &no_plans(4), &[0; 4], true)
         .unwrap();
-    assert_eq!(w.wallet(ALICE, Weth), FUND - 3 * E18);
+    assert_eq!(w.wallet(ALICE, Wnear), FUND - 3 * E18);
     assert_eq!(w.close_direct(ALICE, s).unwrap(), 0);
     let calls = w.last.calls();
     assert_eq!(calls[0].method, "ft_transfer");
-    assert_eq!(calls[0].receiver_id.as_str(), WETH_TOKEN);
-    assert_eq!(w.wallet(ALICE, Weth), FUND - 2 * E18);
+    assert_eq!(calls[0].receiver_id.as_str(), WNEAR_TOKEN);
+    assert_eq!(w.wallet(ALICE, Wnear), FUND - 2 * E18);
     assert!(w.pieces(s, ALICE).is_empty());
-    assert_eq!(w.bal(ALICE, s, Weth, SHIPS_CUTS), 2 * E18);
+    assert_eq!(w.bal(ALICE, s, Wnear, SHIPS_CUTS), 2 * E18);
     for i in 1..4u8 {
         assert_eq!(w.bal(ALICE, s, Usdc, 1 << i), out[usize::from(i)]);
     }
@@ -1409,14 +1407,17 @@ fn wrong_asset_is_refunded() {
         "WrongAsset(usdc)",
     );
     fails(
-        w.ft_transfer_call(ALICE, Weth, E18, &buy.to_string()),
-        "WrongAsset(weth)",
+        w.ft_transfer_call(ALICE, Wnear, E18, &buy.to_string()),
+        "WrongAsset(wnear)",
     );
     fails(
-        w.ft_transfer_call(ALICE, Weth, E18, &close.to_string()),
-        "WrongAsset(weth)",
+        w.ft_transfer_call(ALICE, Wnear, E18, &close.to_string()),
+        "WrongAsset(wnear)",
     );
-    assert_eq!((w.wallet(ALICE, Weth), w.wallet(ALICE, Usdc)), (FUND, FUND));
+    assert_eq!(
+        (w.wallet(ALICE, Wnear), w.wallet(ALICE, Usdc)),
+        (FUND, FUND)
+    );
 }
 
 #[test]
@@ -1435,7 +1436,7 @@ fn close_needs_the_debt_attached_and_returns_the_rest() {
     // the direct call draws on the internal balance, which is empty
     let err = w.close_direct(ALICE, s).unwrap_err();
     assert!(
-        err.starts_with("ERC20InsufficientBalance(alice.near, 0, "),
+        err.starts_with("InsufficientBalance(alice.near, 0, "),
         "{err}"
     );
     let wallet = w.wallet(ALICE, Usdc);
@@ -1468,7 +1469,7 @@ fn close_direct_repays_from_the_internal_balance() {
 fn direct_trades_draw_on_the_internal_balance_and_pay_storage() {
     let (mut w, ..) = full_world();
     let s = w.s2x2;
-    w.deposit(ALICE, Weth, 3 * E18).unwrap();
+    w.deposit(ALICE, Wnear, 3 * E18).unwrap();
     let call = |w: &mut World, deposit: NearToken| {
         w.call(ALICE, deposit, |c| {
             c.conditional_sell(
@@ -1489,11 +1490,11 @@ fn direct_trades_draw_on_the_internal_balance_and_pay_storage() {
     let out = call(&mut w, ONE_YOCTO).unwrap();
     w.conserved();
     assert!(w.storage_used(ALICE) > used);
-    assert_eq!(w.real(ALICE, Weth), E18);
+    assert_eq!(w.real(ALICE, Wnear), E18);
     assert_eq!(w.bal(ALICE, s, Usdc, DELAYED_HOLDS), out[3].0);
     fails(
         call(&mut w, ONE_YOCTO),
-        &format!("ERC20InsufficientBalance(alice.near, {E18}, {})", 2 * E18),
+        &format!("InsufficientBalance(alice.near, {E18}, {})", 2 * E18),
     );
     // buying with internal USDC
     w.deposit(ALICE, Usdc, 1000 * E18).unwrap();
@@ -1510,7 +1511,7 @@ fn direct_trades_draw_on_the_internal_balance_and_pay_storage() {
         })
         .unwrap();
     w.conserved();
-    assert_eq!(w.bal(ALICE, s, Weth, SHIPS_CUTS), 2 * E18 + got[0].0);
+    assert_eq!(w.bal(ALICE, s, Wnear, SHIPS_CUTS), 2 * E18 + got[0].0);
     assert_eq!(w.real(ALICE, Usdc), 0);
 }
 
@@ -1561,8 +1562,8 @@ fn worst_case_trade_fits_the_log_limits() {
             plans[usize::from(wi)].push((id, E18 - 1));
         }
     }
-    // Carol takes 1 wei of each bid first
-    w.split_ft(CAROL, s, Weth, &SINGLES, E18).unwrap();
+    // Carol takes 1 unit of each bid first
+    w.split_ft(CAROL, s, Wnear, &SINGLES, E18).unwrap();
     for fills in &plans {
         for &(id, _) in fills {
             super::orders::fill(&mut w, CAROL, id, 1, 0).unwrap();
@@ -1624,7 +1625,7 @@ fn a_failed_trade_leaves_no_batch_open() {
     );
     // a plain move afterwards logs its own line again
     let to = acc(BOB);
-    let id = token_id(s, Weth, SHIPS_CUTS);
+    let id = token_id(s, Wnear, SHIPS_CUTS);
     w.sell(ALICE, s, E18, L_SHAPE, &no_plans(4), &[0; 4], false)
         .unwrap();
     w.call(ALICE, ONE_YOCTO, |c| {
@@ -1635,13 +1636,13 @@ fn a_failed_trade_leaves_no_batch_open() {
     assert_eq!(w.last.logs.len(), 1);
 }
 
-// DemoSale.s.sol on real pools
+// The demo sale on real pools
 
-/// SeedDemo then DemoSale: every world pool (DELAYED·HOLDS the thin one),
+/// The demo seed then the demo sale: every world pool (DELAYED·HOLDS the thin one),
 /// the between-world pools at 66.67% SHIPS / 1.04% CUTS, the spot pool at
 /// the implied spot, Bob's supply, Ravi's bid; a full TWAP window later
-/// Alice sells 2 ETH in the L-shape through Ravi's bid and borrows 3,000,
-/// then sells 2 ETH-if-DELAYED in the binary market and borrows 3,000.
+/// Alice sells 2 NEAR in the L-shape through Ravi's bid and borrows 3,000,
+/// then sells 2 NEAR-if-DELAYED in the binary market and borrows 3,000.
 #[test]
 fn golden_demo_sale() {
     clear_prices();
@@ -1655,7 +1656,7 @@ fn golden_demo_sale() {
     seed_odds(&mut w, sb, &independent_odds(2, 6667, 0), ODDS_DEPTH);
     let implied = w.view(|c| c.implied_spot(s)).0;
     assert_eq!(cents(implied), 303786);
-    // whole micro-USDC for the 100 WETH deep spot pool
+    // whole micro-USDC for the 100 wNEAR deep spot pool
     seed_spot(&mut w, implied / 10_000_000_000 * 10_000_000_000, DEPTH);
     w.conserved();
     w.lend(BOB, s, SUPPLIED).unwrap();
@@ -1684,8 +1685,8 @@ fn golden_demo_sale() {
         out.iter().map(|x| cents(*x)).collect::<Vec<_>>(),
         [0, 586505, 645155, 488188]
     );
-    for (got, evm) in out.iter().zip(EVM_PROCEEDS) {
-        assert!(got.abs_diff(evm) <= 1_000_000, "{got} vs {evm}");
+    for (got, proto) in out.iter().zip(PROTO_PROCEEDS) {
+        assert!(got.abs_diff(proto) <= 1_000_000, "{got} vs {proto}");
     }
     assert_eq!(w.wallet(ALICE, Usdc), FUND + BORROW);
     assert_eq!(w.debt(s, ALICE), BORROW);
@@ -1699,7 +1700,7 @@ fn golden_demo_sale() {
     let (hf, worst) = w.hf(s, ALICE);
     let hf = hf.unwrap();
     assert_eq!((worst, hf / 10_000_000_000_000_000), (3, 122));
-    assert!(hf.abs_diff(EVM_HF) <= 1_000, "{hf}");
+    assert!(hf.abs_diff(PROTO_HF) <= 1_000, "{hf}");
     let lowest = w.lowest(s, ALICE);
     assert_eq!(
         cents(multiverse_math::mul_div_down(lowest, LLTV, E18)),
@@ -1719,7 +1720,7 @@ fn golden_demo_sale() {
         )
         .unwrap();
     assert_eq!(cents(bin[1]), 547404);
-    assert!(bin[1].abs_diff(EVM_BIN_PROCEEDS) <= 1_000_000);
+    assert!(bin[1].abs_diff(PROTO_BIN_PROCEEDS) <= 1_000_000);
     let values: Vec<u128> = w.values(sb, ALICE).into_iter().map(cents).collect();
     assert_eq!(values, [679974, 547404]);
     let (hf, worst) = w.hf(sb, ALICE);

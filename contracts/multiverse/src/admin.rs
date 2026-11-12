@@ -16,7 +16,7 @@ use crate::{orders, rootlp, Contract, ContractExt, StorageKey};
 pub struct AppConfig {
     pub owner_id: AccountId,
     pub reporter_id: Option<AccountId>,
-    pub weth: AssetCfg,
+    pub wnear: AssetCfg,
     pub usdc: AssetCfg,
     pub lltv: U128,
     pub liquidation_bonus: U128,
@@ -75,7 +75,7 @@ impl Contract {
         AppConfig {
             owner_id: self.owner_id.clone(),
             reporter_id: self.reporter_id.clone(),
-            weth: self.weth.clone(),
+            wnear: self.wnear.clone(),
             usdc: self.usdc.clone(),
             lltv: U128(p.lltv),
             liquidation_bonus: U128(p.liquidation_bonus),
