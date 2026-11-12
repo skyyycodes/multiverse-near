@@ -5,7 +5,7 @@ import type { Deployments } from "./deployments.ts";
 import { call, ensureStorage, ftTransferCall, ONE_YOCTO, view, type CallResult, type FtTransferCallOptions } from "./near.ts";
 import { fromInternal, parseNear, tgas, toInternal, u128 } from "./units.ts";
 
-export type AssetName = "weth" | "usdc";
+export type AssetName = "wnear" | "usdc";
 
 export interface PoolView {
   id: number;
@@ -18,7 +18,7 @@ export interface PoolView {
   token1: string;
   reserve0: string;
   reserve1: string;
-  weth_reserve: string | null;
+  wnear_reserve: string | null;
   usdc_reserve: string | null;
   liquidity: string;
   fee_pips: number;
@@ -71,7 +71,7 @@ export interface OrderView {
 export interface WorldBacking {
   world: number;
   possible: boolean;
-  weth_backed: boolean;
+  wnear_backed: boolean;
   usdc_backed: boolean;
 }
 
@@ -132,7 +132,7 @@ export class Protocol {
   }
 
   token(asset: AssetName): string {
-    return asset === "weth" ? this.d.weth : this.d.usdc;
+    return asset === "wnear" ? this.d.wnear : this.d.usdc;
   }
 
   decimals(asset: AssetName): number {
@@ -232,8 +232,8 @@ export class Protocol {
     return u128(await this.view<string>("spot_price"), "spot_price");
   }
 
-  async quoteSell(scenarioId: number, wethAmount: bigint, sellMask: number): Promise<bigint[]> {
-    const q = await this.view<string[]>("quote_sell", { scenario_id: scenarioId, weth_amount: wethAmount.toString(), sell_mask: sellMask });
+  async quoteSell(scenarioId: number, wnearAmount: bigint, sellMask: number): Promise<bigint[]> {
+    const q = await this.view<string[]>("quote_sell", { scenario_id: scenarioId, wnear_amount: wnearAmount.toString(), sell_mask: sellMask });
     return q.map((v) => u128(v, "quote_sell"));
   }
 
@@ -281,8 +281,8 @@ export class Protocol {
 
 /** Ids of the pieces a world counts: verse pieces whose mask covers it, and real ones. */
 export function pieceCovers(piece: string, world: number): { asset: AssetName; covers: boolean } {
-  if (piece === "weth" || piece === "usdc") return { asset: piece, covers: true };
+  if (piece === "wnear" || piece === "usdc") return { asset: piece, covers: true };
   const [, asset, mask] = piece.split(":");
-  if ((asset !== "weth" && asset !== "usdc") || mask === undefined) throw new Error(`unknown collateral piece ${piece}`);
+  if ((asset !== "wnear" && asset !== "usdc") || mask === undefined) throw new Error(`unknown collateral piece ${piece}`);
   return { asset, covers: (Number(mask) & (1 << world)) !== 0 };
 }

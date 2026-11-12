@@ -6,7 +6,7 @@
 import { chainHeight, chainNowSec } from "./chain.ts";
 import {
   ALICE_USDC,
-  ALICE_WETH,
+  ALICE_WNEAR,
   BOB_SUPPLY,
   checkBps,
   DEMO_EVENTS,
@@ -19,10 +19,10 @@ import {
   oddsPairs,
   orderCost,
   planSpotMove,
-  RAVI_BID_WETH,
+  RAVI_BID_WNEAR,
   RAVI_EXPIRY_SEC,
   raviBidPrice,
-  SALE_WETH,
+  SALE_WNEAR,
   SEED_2X2,
   SEED_BINARY,
   seedReserves,
@@ -72,19 +72,19 @@ async function createScenario(p: Protocol, owner: string, eventIds: number[]): P
 
 /** Splits enough of both assets into every world, then opens each world's pool at its price. */
 async function seedWorlds(p: Protocol, owner: string, sid: number, seeds: readonly WorldSeed[]): Promise<void> {
-  const maxWeth = seeds.reduce((m, s) => (s.depth > m ? s.depth : m), 0n);
+  const maxWnear = seeds.reduce((m, s) => (s.depth > m ? s.depth : m), 0n);
   const maxUsdc = roundUpToUnits(
     seeds.reduce((m, s) => (wmul(s.depth, s.price) > m ? wmul(s.depth, s.price) : m), 0n),
     p.decimals("usdc"),
   );
   const masks = singles(seeds.length);
-  await p.mintAndSplit(owner, owner, "weth", sid, masks, maxWeth);
+  await p.mintAndSplit(owner, owner, "wnear", sid, masks, maxWnear);
   await p.mintAndSplit(owner, owner, "usdc", sid, masks, maxUsdc);
   for (const [w, s] of seeds.entries()) {
     await p.call1y(owner, "create_within_pool", {
       scenario_id: sid,
       world: w,
-      weth_amount: s.depth.toString(),
+      wnear_amount: s.depth.toString(),
       usdc_amount: wmul(s.depth, s.price).toString(),
     }, `create_within_pool s${sid} w${w}`);
   }
@@ -113,16 +113,16 @@ async function seedSpot(p: Protocol, owner: string, implied: bigint): Promise<"s
   const spot = await p.spotPool();
   if (spot === null) {
     const usdc = (wmul(SPOT_DEPTH, implied) / internalScale(p.decimals("usdc"))) * internalScale(p.decimals("usdc"));
-    await p.mint(owner, "weth", owner, SPOT_DEPTH);
-    await p.send(owner, "weth", SPOT_DEPTH, { action: "deposit" });
+    await p.mint(owner, "wnear", owner, SPOT_DEPTH);
+    await p.send(owner, "wnear", SPOT_DEPTH, { action: "deposit" });
     await p.mint(owner, "usdc", owner, usdc);
     await p.send(owner, "usdc", usdc, { action: "deposit" });
-    await p.call1y(owner, "create_spot_pool", { weth_amount: SPOT_DEPTH.toString(), usdc_amount: usdc.toString() }, "create_spot_pool");
+    await p.call1y(owner, "create_spot_pool", { wnear_amount: SPOT_DEPTH.toString(), usdc_amount: usdc.toString() }, "create_spot_pool");
     return "seeded";
   }
   const plan = planSpotMove(u128(spot.reserve0), u128(spot.reserve1), implied);
   if (plan) {
-    const asset = plan.wethIn ? "weth" : "usdc";
+    const asset = plan.wnearIn ? "wnear" : "usdc";
     // a little over the estimate; what is left stays in the owner's internal balance for the next move
     const want = roundUpToUnits((plan.amountIn * 101n) / 100n, p.decimals(asset));
     const have = await p.realBalance(owner, asset);
@@ -136,12 +136,12 @@ async function seedSpot(p: Protocol, owner: string, implied: bigint): Promise<"s
   return "moved";
 }
 
-/** Ravi's bid 2% under the DELAYED·HOLDS pool price for 1 WETH, from real USDC split around the mask. */
+/** Ravi's bid 2% under the DELAYED·HOLDS pool price for 1 NEAR, from real USDC split around the mask. */
 async function postRaviBid(p: Protocol, owner: string, sid: number): Promise<string> {
   const ravi = p.d.personas.ravi;
   const poolPrice = SEED_2X2[3]?.price ?? 0n;
   const price = raviBidPrice(poolPrice);
-  const escrow = roundUpToUnits(orderCost(RAVI_BID_WETH, price), p.decimals("usdc"));
+  const escrow = roundUpToUnits(orderCost(RAVI_BID_WNEAR, price), p.decimals("usdc"));
   const others = singles(SEED_2X2.length).filter((m) => m !== MASK_DELAYED_HOLDS);
   await p.mintAndSplit(owner, ravi, "usdc", sid, [MASK_DELAYED_HOLDS, ...others], escrow);
   const expiry = (await chainNowSec()) + RAVI_EXPIRY_SEC;
@@ -150,9 +150,9 @@ async function postRaviBid(p: Protocol, owner: string, sid: number): Promise<str
     mask: MASK_DELAYED_HOLDS,
     side: "bid",
     price: price.toString(),
-    amount: RAVI_BID_WETH.toString(),
+    amount: RAVI_BID_WNEAR.toString(),
     expiry_sec: expiry,
-  }, `ravi: post_order bid ${fmt2(price)} for ${fmt2(RAVI_BID_WETH)} WETH`);
+  }, `ravi: post_order bid ${fmt2(price)} for ${fmt2(RAVI_BID_WNEAR)} NEAR`);
   if (typeof r.value !== "string") throw new Error(`post_order returned ${r.returnText}`);
   return r.value;
 }
@@ -185,7 +185,7 @@ export async function seedDemo(p: Protocol, o: SeedOptions): Promise<DemoRecord>
   const spotAction = await seedSpot(p, owner, implied);
 
   console.log("wallets and supply");
-  await p.mint(owner, "weth", alice, ALICE_WETH);
+  await p.mint(owner, "wnear", alice, ALICE_WNEAR);
   await p.mint(owner, "usdc", alice, ALICE_USDC);
   await p.mint(owner, "usdc", bob, 2n * BOB_SUPPLY);
   for (const sid of [s2x2, sBin]) await p.send(bob, "usdc", BOB_SUPPLY, { action: "supply", scenario_id: sid });
@@ -226,10 +226,10 @@ async function scenarioLines(p: Protocol, sid: number, seeds: readonly WorldSeed
     const pool = pools.get(w);
     const price = pool ? fmt2(u128(pool.price)) : "n/a";
     const odds = known ? fmtOdds(q[w] ?? 0n) : "n/a";
-    const weth = await p.verseBalance(alice, sid, "weth", mask);
+    const wnear = await p.verseBalance(alice, sid, "wnear", mask);
     const usdc = await p.verseBalance(alice, sid, "usdc", mask);
     lines.push(
-      `world ${w} ${await p.label(sid, mask)}: pool price ${price} | odds ${odds} | Alice holds WETH-if-w ${fmt2(weth)}, USDC-if-w ${fmt2(usdc)}`,
+      `world ${w} ${await p.label(sid, mask)}: pool price ${price} | odds ${odds} | Alice holds wNEAR-if-w ${fmt2(wnear)}, USDC-if-w ${fmt2(usdc)}`,
     );
   }
   const implied = await p.impliedSpot(sid);
@@ -242,7 +242,7 @@ async function scenarioLines(p: Protocol, sid: number, seeds: readonly WorldSeed
   return lines;
 }
 
-/** Pool-only and bid-then-pool proceeds of the 2 ETH DELAYED·HOLDS sale, and whether the bid helps. */
+/** Pool-only and bid-then-pool proceeds of the 2 NEAR DELAYED·HOLDS sale, and whether the bid helps. */
 export async function raviPlan(p: Protocol, sid: number, orderId: string | null): Promise<{
   poolOnly: bigint;
   withBid: bigint;
@@ -250,15 +250,15 @@ export async function raviPlan(p: Protocol, sid: number, orderId: string | null)
   price: bigint;
   open: boolean;
 }> {
-  const poolOnly = (await p.quoteSell(sid, SALE_WETH, MASK_DELAYED_HOLDS))[3] ?? 0n;
+  const poolOnly = (await p.quoteSell(sid, SALE_WNEAR, MASK_DELAYED_HOLDS))[3] ?? 0n;
   const order = orderId ? await p.order(orderId) : null;
   if (!order) return { poolOnly, withBid: 0n, fill: 0n, price: 0n, open: false };
   const scenario = await p.scenario(sid);
   const remaining = u128(order.remaining);
   const open = remaining !== 0n && order.epoch === scenario.resolution_count && (await chainNowSec()) < order.expiry_sec;
-  const fill = remaining < SALE_WETH ? remaining : SALE_WETH;
+  const fill = remaining < SALE_WNEAR ? remaining : SALE_WNEAR;
   const price = u128(order.price);
-  const rest = SALE_WETH > fill ? ((await p.quoteSell(sid, SALE_WETH - fill, MASK_DELAYED_HOLDS))[3] ?? 0n) : 0n;
+  const rest = SALE_WNEAR > fill ? ((await p.quoteSell(sid, SALE_WNEAR - fill, MASK_DELAYED_HOLDS))[3] ?? 0n) : 0n;
   return { poolOnly, withBid: (fill * price) / WAD + rest, fill, price, open };
 }
 
@@ -267,7 +267,7 @@ export async function printSeedReport(p: Protocol, record: DemoRecord): Promise<
   const sBin = record.scenario_binary;
   console.log("");
   console.log(`network: ${NETWORK}`);
-  console.log(`spot pool at the ${record.spot_from} implied spot (USDC per WETH): ${fmt2(await p.spotPrice())}`);
+  console.log(`spot pool at the ${record.spot_from} implied spot (USDC per NEAR): ${fmt2(await p.spotPrice())}`);
   console.log(`odds: SHIPS ${record.odds_ships_bps} bps, CUTS ${record.odds_cuts_bps} bps (${record.odds_source ?? "no source"})`);
   console.log(`Bob supplied USDC to each market: ${fmt2(BOB_SUPPLY)}`);
   console.log("");
@@ -282,10 +282,10 @@ export async function printSeedReport(p: Protocol, record: DemoRecord): Promise<
     console.log("no standing bid for Ravi");
   } else {
     const order = await p.order(record.ravi_order);
-    if (order) console.log(`order ${order.id}: ${order.side} ${fmt2(u128(order.price))} USDC per WETH for ${fmt2(u128(order.amount))} WETH`);
+    if (order) console.log(`order ${order.id}: ${order.side} ${fmt2(u128(order.price))} USDC per NEAR for ${fmt2(u128(order.amount))} NEAR`);
     const plan = await raviPlan(p, s2x2, record.ravi_order);
-    console.log(`2 ETH sale, pool alone: ${fmt2(plan.poolOnly)} USDC, average ${fmt2((plan.poolOnly * WAD) / SALE_WETH)}`);
-    console.log(`2 ETH sale, Ravi's bid then the pool: ${fmt2(plan.withBid)} USDC, average ${fmt2((plan.withBid * WAD) / SALE_WETH)}`);
+    console.log(`2 NEAR sale, pool alone: ${fmt2(plan.poolOnly)} USDC, average ${fmt2((plan.poolOnly * WAD) / SALE_WNEAR)}`);
+    console.log(`2 NEAR sale, Ravi's bid then the pool: ${fmt2(plan.withBid)} USDC, average ${fmt2((plan.withBid * WAD) / SALE_WNEAR)}`);
     if (plan.withBid <= plan.poolOnly) console.log("WARNING: the pool alone pays more, so the router would not use Ravi's bid");
   }
   console.log(`events: glam ${record.glam_event}, fed ${record.fed_event}, past fed ${record.past_fed_event ?? "-"}`);

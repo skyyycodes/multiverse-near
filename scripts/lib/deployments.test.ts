@@ -6,7 +6,7 @@ import { describe, it } from "node:test";
 
 import { accountIds, DEPLOYMENTS_PATH, readDeployments, requireDeployments, writeDeployments, type Deployments } from "./deployments.ts";
 
-const token = (accountId: string, symbol: string, decimals: number): Deployments["tokens"]["weth"] => ({
+const token = (accountId: string, symbol: string, decimals: number): Deployments["tokens"]["wnear"] => ({
   accountId,
   name: symbol,
   symbol,
@@ -22,7 +22,7 @@ function sample(): Deployments {
     rpcUrl: "https://test.rpc.fastnear.com",
     explorer: "https://testnet.nearblocks.io",
     ...ids,
-    tokens: { weth: token(ids.weth, "WETH", 18), usdc: token(ids.usdc, "USDC", 6) },
+    tokens: { wnear: token(ids.wnear, "wNEAR", 18), usdc: token(ids.usdc, "USDC", 6) },
     contract: null,
     updatedAt: "",
   };
@@ -32,7 +32,7 @@ describe("accountIds", () => {
   it("names every account under the root, as in the design", () => {
     const ids = accountIds("multiverse-lending.testnet");
     assert.equal(ids.contractId, "app.multiverse-lending.testnet");
-    assert.equal(ids.weth, "weth.multiverse-lending.testnet");
+    assert.equal(ids.wnear, "wnear.multiverse-lending.testnet");
     assert.equal(ids.usdc, "usdc.multiverse-lending.testnet");
     assert.equal(ids.reporter, "resolver.multiverse-lending.testnet");
     assert.deepEqual(Object.keys(ids.personas), ["alice", "bob", "ravi", "sam", "uma", "carl", "leo", "resolver"]);
@@ -67,7 +67,7 @@ describe("deployments file", () => {
     const d = await requireDeployments(DEPLOYMENTS_PATH);
     assert.equal(d.root, "multiverse-lending.testnet");
     assert.equal(d.tokens.usdc.decimals, 6);
-    assert.equal(d.tokens.weth.decimals, 18);
+    assert.equal(d.tokens.wnear.decimals, 18);
     assert.doesNotMatch(readFileSync(DEPLOYMENTS_PATH, "utf8"), /private_key|secret|ed25519:/);
   });
 });

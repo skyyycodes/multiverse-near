@@ -37,12 +37,12 @@ export interface Deployments {
   root: string;
   /** The Multiverse contract (deployed by deploy.ts; `contract` is null until then). */
   contractId: string;
-  weth: string;
+  wnear: string;
   usdc: string;
   /** Account allowed to call report_outcome (the resolver). */
   reporter: string;
   personas: Record<Persona, string>;
-  tokens: { weth: TokenDeployment; usdc: TokenDeployment };
+  tokens: { wnear: TokenDeployment; usdc: TokenDeployment };
   contract: ContractDeployment | null;
   updatedAt: string;
 }
@@ -57,13 +57,13 @@ function assertShape(d: unknown, path: string, network: Network = NETWORK): asse
     o.network === network &&
     typeof o.root === "string" &&
     typeof o.contractId === "string" &&
-    typeof o.weth === "string" &&
+    typeof o.wnear === "string" &&
     typeof o.usdc === "string" &&
     typeof o.reporter === "string" &&
     typeof o.personas === "object" &&
     o.personas !== null &&
     PERSONAS.every((p) => typeof o.personas?.[p] === "string") &&
-    isToken(o.tokens?.weth) &&
+    isToken(o.tokens?.wnear) &&
     isToken(o.tokens?.usdc) &&
     (o.contract === null || typeof o.contract?.codeHash === "string");
   if (!ok) throw new Error(`${path} does not look like a ${network} deployments file`);
@@ -95,5 +95,5 @@ export async function writeDeployments(d: Deployments, path = DEPLOYMENTS_PATH):
 export function accountIds(root: string): Omit<Deployments, "tokens" | "contract" | "updatedAt" | "rpcUrl" | "explorer" | "network"> {
   const sub = (name: string): string => `${name}.${root}`;
   const personas = Object.fromEntries(PERSONAS.map((p) => [p, sub(p)])) as Record<Persona, string>;
-  return { root, contractId: sub("app"), weth: sub("weth"), usdc: sub("usdc"), reporter: sub("resolver"), personas };
+  return { root, contractId: sub("app"), wnear: sub("wnear"), usdc: sub("usdc"), reporter: sub("resolver"), personas };
 }

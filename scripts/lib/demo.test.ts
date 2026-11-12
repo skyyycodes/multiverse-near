@@ -94,12 +94,12 @@ describe("spot move plan", () => {
     }
   });
 
-  it("selling WETH lowers the price to the target", () => {
+  it("selling NEAR lowers the price to the target", () => {
     const x = e18(100n);
     const y = e18(303_769n);
     const target = e18(3000n);
     const plan = planSpotMove(x, y, target);
-    assert.ok(plan?.wethIn);
+    assert.ok(plan?.wnearIn);
     const net = ((plan?.amountIn ?? 0n) * 997_000n) / 1_000_000n;
     const yAfter = (x * y) / (x + net);
     const price = (yAfter * WAD) / (x + net);
@@ -107,9 +107,9 @@ describe("spot move plan", () => {
     assert.ok(off < 10n ** 15n, `landed at ${price}`);
   });
 
-  it("buying WETH raises the price; no move when already there", () => {
+  it("buying NEAR raises the price; no move when already there", () => {
     const plan = planSpotMove(e18(100n), e18(300_000n), e18(3100n));
-    assert.equal(plan?.wethIn, false);
+    assert.equal(plan?.wnearIn, false);
     assert.ok((plan?.amountIn ?? 0n) > e18(4_900n) && (plan?.amountIn ?? 0n) < e18(5_100n));
     assert.equal(planSpotMove(e18(100n), e18(300_000n), e18(3000n)), null);
   });

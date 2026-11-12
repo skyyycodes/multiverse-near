@@ -4,7 +4,7 @@
   "explorer": "https://testnet.nearblocks.io",
   "root": "multiverse-lending.testnet",
   "contractId": "app.multiverse-lending.testnet",
-  "weth": "weth.multiverse-lending.testnet",
+  "wnear": "wnear.multiverse-lending.testnet",
   "usdc": "usdc.multiverse-lending.testnet",
   "reporter": "resolver.multiverse-lending.testnet",
   "personas": {
@@ -18,10 +18,10 @@
     "resolver": "resolver.multiverse-lending.testnet"
   },
   "tokens": {
-    "weth": {
-      "accountId": "weth.multiverse-lending.testnet",
-      "name": "Mock Wrapped Ether",
-      "symbol": "WETH",
+    "wnear": {
+      "accountId": "wnear.multiverse-lending.testnet",
+      "name": "Mock Wrapped NEAR",
+      "symbol": "wNEAR",
       "decimals": 18,
       "maxMintPerCall": "1000000000000000000000",
       "codeHash": "8afCVgFKDom2fYt5BZatMXPLXMiJ1vWHBiUTpN6AyggY"

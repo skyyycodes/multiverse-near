@@ -19,7 +19,7 @@ import {
   MASK_L_SHAPE,
   MASK_SHIPS_CUTS,
   ODDS_SHIPS_BPS,
-  SALE_WETH,
+  SALE_WNEAR,
   SEED_2X2,
   wmul,
 } from "./lib/demo.ts";
@@ -106,24 +106,24 @@ class Flow {
 async function assertBacked(p: Protocol, record: DemoRecord): Promise<void> {
   for (const sid of [record.scenario_2x2, record.scenario_binary]) {
     const worlds = await p.backing(sid);
-    const bad = worlds.filter((w) => !w.weth_backed || !w.usdc_backed).map((w) => w.world);
+    const bad = worlds.filter((w) => !w.wnear_backed || !w.usdc_backed).map((w) => w.world);
     if (bad.length > 0) throw new Error(`scenario ${sid}: worlds ${bad.join(", ")} are not backed`);
   }
   console.log("    ok: every world of both scenarios is backed");
 }
 
-async function perWorld(p: Protocol, sid: number, account: string): Promise<{ weth: bigint; usdc: bigint }[]> {
+async function perWorld(p: Protocol, sid: number, account: string): Promise<{ wnear: bigint; usdc: bigint }[]> {
   const s = await p.scenario(sid);
   const pieces = await p.collateral(sid, account);
   return Array.from({ length: s.world_count }, (_, w) => {
-    let weth = 0n;
+    let wnear = 0n;
     let usdc = 0n;
     for (const piece of pieces) {
       const c = pieceCovers(piece.piece, w);
-      if (c.covers && c.asset === "weth") weth += u128(piece.amount);
+      if (c.covers && c.asset === "wnear") wnear += u128(piece.amount);
       if (c.covers && c.asset === "usdc") usdc += u128(piece.amount);
     }
-    return { weth, usdc };
+    return { wnear, usdc };
   });
 }
 
@@ -206,27 +206,27 @@ async function main(): Promise<void> {
 
   await flow.step("2. register and connect Alice", [], async () => {
     await p.ensureStorage(owner, alice);
-    const weth = await p.walletBalance("weth", alice);
-    console.log(`    wallet: ${fmt2(weth)} WETH`);
-    check(weth >= SALE_WETH, "Alice holds at least 2 WETH");
+    const wnear = await p.walletBalance("wnear", alice);
+    console.log(`    wallet: ${fmt2(wnear)} wNEAR`);
+    check(wnear >= SALE_WNEAR, "Alice holds at least 2 wNEAR");
   });
 
   await flow.step("3-4. sell in DELAYED·CUTS, SHIPS·HOLDS and DELAYED·HOLDS", [], async () => {
     const plans = await plan2x2(p, record);
     check(plans[3]?.length === 1, "DELAYED·HOLDS sells via Ravi's bid + pool");
-    const quote = await p.quoteSell(s, SALE_WETH, MASK_L_SHAPE);
-    check(quote[0] === 0n, "SHIPS·CUTS keeps 2 WETH");
-    await p.send(alice, "weth", SALE_WETH, {
+    const quote = await p.quoteSell(s, SALE_WNEAR, MASK_L_SHAPE);
+    check(quote[0] === 0n, "SHIPS·CUTS keeps 2 NEAR");
+    await p.send(alice, "wnear", SALE_WNEAR, {
       action: "conditional_sell",
       scenario_id: s,
       sell_mask: MASK_L_SHAPE,
       plans,
       min_out: plans.map(() => "0"),
       to_lending: true,
-    }, { label: "alice: conditional_sell 2 WETH in the L-shape, to lending" });
+    }, { label: "alice: conditional_sell 2 NEAR in the L-shape, to lending" });
     const held = await perWorld(p, s, alice);
-    check(held[0]?.weth === SALE_WETH && held[0]?.usdc === 0n, "SHIPS·CUTS: you hold 2.0000 WETH here, loan collateral");
-    for (const w of [1, 2, 3]) check((held[w]?.usdc ?? 0n) > 0n && held[w]?.weth === 0n, `world ${w}: USDC here, loan collateral`);
+    check(held[0]?.wnear === SALE_WNEAR && held[0]?.usdc === 0n, "SHIPS·CUTS: you hold 2.0000 NEAR here, loan collateral");
+    for (const w of [1, 2, 3]) check((held[w]?.usdc ?? 0n) > 0n && held[w]?.wnear === 0n, `world ${w}: USDC here, loan collateral`);
     state.proceeds = held.map((h) => h.usdc);
     console.log(`    DELAYED·HOLDS proceeds ${fmt2(state.proceeds[3] ?? 0n)}`);
     check((await p.collateral(s, alice)).length === 4, "posted collateral lists 4 pieces");
@@ -272,7 +272,7 @@ async function main(): Promise<void> {
 
   await flow.step("7. order book in SHIPS·CUTS (Ravi asks 3750, bids 3600; Sam takes the ask)", [], async () => {
     for (const who of [ravi, sam]) await p.ensureStorage(owner, who);
-    await p.mintAndSplit(owner, ravi, "weth", s, [MASK_SHIPS_CUTS, 0xe], WAD);
+    await p.mintAndSplit(owner, ravi, "wnear", s, [MASK_SHIPS_CUTS, 0xe], WAD);
     await p.mintAndSplit(owner, ravi, "usdc", s, [MASK_SHIPS_CUTS, 0xe], e18(3600n));
     state.askId = await postOrder(p, ravi, s, MASK_SHIPS_CUTS, "ask", e18(3750n), WAD);
     state.bidId = await postOrder(p, ravi, s, MASK_SHIPS_CUTS, "bid", e18(3600n), WAD);
@@ -281,45 +281,45 @@ async function main(): Promise<void> {
     const poolPrice = u128((await p.worldPools(s)).get(0)?.price ?? "0");
     check(e18(3600n) < poolPrice && poolPrice < e18(3750n), `bid and ask sit around the pool line (${fmt2(poolPrice)})`);
     await p.mintAndSplit(owner, sam, "usdc", s, [MASK_SHIPS_CUTS, 0xe], e18(3750n));
-    const before = await p.verseBalance(sam, s, "weth", MASK_SHIPS_CUTS);
+    const before = await p.verseBalance(sam, s, "wnear", MASK_SHIPS_CUTS);
     await p.call1y(sam, "fill_order", { order_id: state.askId, amount: WAD.toString(), limit_price: e18(3750n).toString() }, `sam: buy from ask #${state.askId} at 3750`);
-    check((await p.verseBalance(sam, s, "weth", MASK_SHIPS_CUTS)) - before === WAD, "Sam received 1 WETH-if-SHIPS·CUTS");
+    check((await p.verseBalance(sam, s, "wnear", MASK_SHIPS_CUTS)) - before === WAD, "Sam received 1 wNEAR-if-SHIPS·CUTS");
     check((await p.order(state.askId))?.remaining === "0", "the ask is filled");
     await assertBacked(p, record);
   });
 
-  await flow.step("8. Root LP (Uma deposits 5 WETH + 20000 USDC, withdraws all)", [], async () => {
+  await flow.step("8. Root LP (Uma deposits 5 NEAR + 20000 USDC, withdraws all)", [], async () => {
     if (!(await p.appConfig()).root_lp) throw new Pending("root_lp");
     await p.ensureStorage(owner, uma);
-    await p.mint(owner, "weth", uma, e18(5n));
-    await p.send(uma, "weth", e18(5n), { action: "deposit" });
+    await p.mint(owner, "wnear", uma, e18(5n));
+    await p.send(uma, "wnear", e18(5n), { action: "deposit" });
     await p.mint(owner, "usdc", uma, e18(20_000n));
-    await p.send(uma, "usdc", e18(20_000n), { action: "lp_deposit", scenario_id: s, weth_amount: e18(5n).toString(), min_shares: "0" }, { allowRefund: true });
+    await p.send(uma, "usdc", e18(20_000n), { action: "lp_deposit", scenario_id: s, wnear_amount: e18(5n).toString(), min_shares: "0" }, { allowRefund: true });
     const shares = await p.view<{ balance: string }>("root_lp_shares_of", { scenario_id: s, account_id: uma });
     check(u128(shares.balance) > 0n, `Uma holds ${fmt2(u128(shares.balance))} shares`);
     const zeros = Array.from({ length: 4 }, () => "0");
     const wallet = await p.walletBalance("usdc", uma);
-    await p.call1y(uma, "lp_withdraw", { scenario_id: s, shares: shares.balance, min_weth_out: zeros, min_usdc_out: zeros }, "uma: lp_withdraw all");
+    await p.call1y(uma, "lp_withdraw", { scenario_id: s, shares: shares.balance, min_wnear_out: zeros, min_usdc_out: zeros }, "uma: lp_withdraw all");
     check((await p.walletBalance("usdc", uma)) > wallet, "withdraw all returned real USDC");
     await assertBacked(p, record);
   });
 
-  await flow.step("9. admin pushes DELAYED·HOLDS down with 3 WETH; Carl's unhedged loan", [], async () => {
+  await flow.step("9. admin pushes DELAYED·HOLDS down with 3 NEAR; Carl's unhedged loan", [], async () => {
     await p.ensureStorage(owner, carl);
-    await p.mint(owner, "weth", carl, WAD);
-    await p.send(carl, "weth", WAD, { action: "deposit_collateral", scenario_id: s });
+    await p.mint(owner, "wnear", carl, WAD);
+    await p.send(carl, "wnear", WAD, { action: "deposit_collateral", scenario_id: s });
     const carlValues = await p.collateralValues(s, carl);
     const lltv = u128((await p.appConfig()).lltv);
     const worstValue = carlValues.reduce((m, v) => (v < m ? v : m));
     const loan = (wmul(worstValue, lltv) * 97n) / 100n;
-    await p.call1y(carl, "borrow", { scenario_id: s, amount: loan.toString() }, `carl: borrow ${fmt2(loan)} against 1 real WETH`);
+    await p.call1y(carl, "borrow", { scenario_id: s, amount: loan.toString() }, `carl: borrow ${fmt2(loan)} against 1 real NEAR`);
     const aliceBefore = await p.health(s, alice);
 
     const poolId = (await p.worldPools(s)).get(3)?.id;
     if (poolId === undefined) throw new Error("no DELAYED·HOLDS pool");
     const priceBefore = u128((await p.pool(poolId))?.price ?? "0");
-    await p.mintAndSplit(owner, owner, "weth", s, [MASK_DELAYED_HOLDS, 0x7], e18(3n));
-    await p.call1y(owner, "swap", { pool_id: poolId, zero_for_one: true, amount_in: e18(3n).toString(), min_out: "0" }, "owner: sell 3 WETH-if-DELAYED·HOLDS");
+    await p.mintAndSplit(owner, owner, "wnear", s, [MASK_DELAYED_HOLDS, 0x7], e18(3n));
+    await p.call1y(owner, "swap", { pool_id: poolId, zero_for_one: true, amount_in: e18(3n).toString(), min_out: "0" }, "owner: sell 3 wNEAR-if-DELAYED·HOLDS");
     const priceAfter = u128((await p.pool(poolId))?.price ?? "0");
     console.log(`    DELAYED·HOLDS: $${fmt2(priceBefore)} -> $${fmt2(priceAfter)}`);
     check(priceAfter < priceBefore, "the pool price fell");
@@ -333,7 +333,7 @@ async function main(): Promise<void> {
     await assertBacked(p, record);
   });
 
-  await flow.step("9b. Leo liquidates Carl (repay max, half the debt at most)", ["9. admin pushes DELAYED·HOLDS down with 3 WETH; Carl's unhedged loan"], async () => {
+  await flow.step("9b. Leo liquidates Carl (repay max, half the debt at most)", ["9. admin pushes DELAYED·HOLDS down with 3 NEAR; Carl's unhedged loan"], async () => {
     const hfBefore = (await p.health(s, carl)).hf;
     const debtBefore = await p.debt(s, carl);
     const pieces = (await p.collateral(s, carl)).map((c) => c.piece);
@@ -430,7 +430,7 @@ async function main(): Promise<void> {
     if (!state.raviFilled && record.ravi_order) {
       await p.call1y(ravi, "cancel_order", { order_id: record.ravi_order }, "ravi: cancel his unfilled bid");
     }
-    const asset = state.raviFilled ? "weth" : "usdc";
+    const asset = state.raviFilled ? "wnear" : "usdc";
     const amount = await p.verseBalance(ravi, s, asset, MASK_DELAYED_HOLDS);
     check(amount > 0n, `Ravi holds ${fmt2(amount)} ${asset.toUpperCase()}-if-DELAYED·HOLDS`);
     const wallet = await p.walletBalance(asset, ravi);
@@ -448,8 +448,8 @@ async function main(): Promise<void> {
         "a stale order after resolution cannot be filled",
       );
     }
-    const leoWeth = await p.walletBalance("weth", leo);
-    await expectFailure(p.send(leo, "weth", leoWeth + e18(1000n), { action: "deposit" }), /balance|enough/i, "an amount above the wallet fails");
+    const leoWnear = await p.walletBalance("wnear", leo);
+    await expectFailure(p.send(leo, "wnear", leoWnear + e18(1000n), { action: "deposit" }), /balance|enough/i, "an amount above the wallet fails");
     await p.mint(owner, "usdc", leo, e18(1n));
     const leoUsdc = await p.walletBalance("usdc", leo);
     await expectFailure(p.send(leo, "usdc", e18(1n), { action: "nope" }), /BadMessage\([^)]*\)?/, "a malformed message is a failure, not Done");

@@ -57,7 +57,7 @@ export interface WorldSeed {
   depth: bigint;
 }
 
-/** Within-world pools: USDC per WETH and WETH depth per world. DELAYED·HOLDS is the thin one. */
+/** Within-world pools: USDC per NEAR and NEAR depth per world. DELAYED·HOLDS is the thin one. */
 export const SEED_2X2: readonly WorldSeed[] = [
   { price: e18(3700n), depth: e18(100n) },
   { price: e18(3000n), depth: e18(100n) },
@@ -72,12 +72,12 @@ export const SEED_BINARY: readonly WorldSeed[] = [
 export const ODDS_POOL_DEPTH = e18(1_000_000n);
 export const SPOT_DEPTH = e18(100n);
 export const BOB_SUPPLY = e18(100_000n);
-export const ALICE_WETH = e18(2n);
+export const ALICE_WNEAR = e18(2n);
 export const ALICE_USDC = e18(50n);
 export const RAVI_DISCOUNT_BPS = 200n;
-export const RAVI_BID_WETH = WAD;
+export const RAVI_BID_WNEAR = WAD;
 export const RAVI_EXPIRY_SEC = 30 * 24 * 3600;
-export const SALE_WETH = e18(2n);
+export const SALE_WNEAR = e18(2n);
 export const BORROW_USDC = e18(3000n);
 export const ODDS_SHIPS_BPS = 6667;
 export const ODDS_CUTS_FALLBACK_BPS = 100;
@@ -139,28 +139,28 @@ export function isqrt(n: bigint): bigint {
 }
 
 export interface SpotMovePlan {
-  /** True when WETH goes in (the price falls). */
-  wethIn: boolean;
+  /** True when NEAR goes in (the price falls). */
+  wnearIn: boolean;
   amountIn: bigint;
 }
 
 /**
- * What the owner must pay in for `move_spot_to(target)` on a pool holding `wethReserve` and
+ * What the owner must pay in for `move_spot_to(target)` on a pool holding `wnearReserve` and
  * `usdcReserve`: constant product, fee on the input. Null when the price is already there. Used
  * only to deposit enough beforehand; the contract computes the exact swap itself.
  */
-export function planSpotMove(wethReserve: bigint, usdcReserve: bigint, target: bigint): SpotMovePlan | null {
-  if (wethReserve === 0n || usdcReserve === 0n || target === 0n) throw new Error("empty pool or zero price");
-  const k = wethReserve * usdcReserve;
-  const current = (usdcReserve * WAD) / wethReserve;
+export function planSpotMove(wnearReserve: bigint, usdcReserve: bigint, target: bigint): SpotMovePlan | null {
+  if (wnearReserve === 0n || usdcReserve === 0n || target === 0n) throw new Error("empty pool or zero price");
+  const k = wnearReserve * usdcReserve;
+  const current = (usdcReserve * WAD) / wnearReserve;
   if (current === target) return null;
   const grossUp = (net: bigint): bigint => (net * PIPS + (PIPS - SPOT_FEE_PIPS) - 1n) / (PIPS - SPOT_FEE_PIPS);
   if (target < current) {
-    const wethAfter = isqrt((k * WAD) / target);
-    return wethAfter <= wethReserve ? null : { wethIn: true, amountIn: grossUp(wethAfter - wethReserve) };
+    const wnearAfter = isqrt((k * WAD) / target);
+    return wnearAfter <= wnearReserve ? null : { wnearIn: true, amountIn: grossUp(wnearAfter - wnearReserve) };
   }
   const usdcAfter = isqrt((k * target) / WAD);
-  return usdcAfter <= usdcReserve ? null : { wethIn: false, amountIn: grossUp(usdcAfter - usdcReserve) };
+  return usdcAfter <= usdcReserve ? null : { wnearIn: false, amountIn: grossUp(usdcAfter - usdcReserve) };
 }
 
 /** Integer part, a dot and two decimals rounded down: the EVM scripts' `_fmt`. */

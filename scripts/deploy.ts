@@ -116,7 +116,7 @@ async function deployCode(d: Deployments, wasm: Uint8Array, disputeWindowSec: nu
     const init = {
       owner_id: d.root,
       reporter_id: d.reporter,
-      weth: await assetCfg(d.weth),
+      wnear: await assetCfg(d.wnear),
       usdc: await assetCfg(d.usdc),
       dispute_window_sec: disputeWindowSec,
     };
@@ -145,7 +145,7 @@ async function deployCode(d: Deployments, wasm: Uint8Array, disputeWindowSec: nu
 interface AppConfig {
   owner_id: string;
   reporter_id: string | null;
-  weth: AssetCfg;
+  wnear: AssetCfg;
   usdc: AssetCfg;
   dispute_window_sec: number;
 }
@@ -154,7 +154,7 @@ interface AppConfig {
 async function checkConfig(d: Deployments): Promise<AppConfig> {
   const config = await view<AppConfig>(d.contractId, "get_app_config");
   const mismatch =
-    config.owner_id !== d.root || config.weth.token_id !== d.weth || config.usdc.token_id !== d.usdc;
+    config.owner_id !== d.root || config.wnear.token_id !== d.wnear || config.usdc.token_id !== d.usdc;
   if (mismatch) {
     throw new Error(`${d.contractId} was initialised with other accounts: ${JSON.stringify(config)}`);
   }
@@ -210,7 +210,7 @@ async function main(): Promise<void> {
   if (!existsSync(opts.wasm)) {
     throw new Error(`contract wasm not found at ${opts.wasm}; build it with scripts/build-wasm.sh or pass --wasm`);
   }
-  for (const id of [d.root, d.contractId, d.weth, d.usdc, d.reporter]) {
+  for (const id of [d.root, d.contractId, d.wnear, d.usdc, d.reporter]) {
     if (!(await accountExists(id))) throw new Error(`${id} does not exist; run \`pnpm accounts\` first`);
   }
   const wasm = new Uint8Array(await readFile(opts.wasm));
@@ -220,7 +220,7 @@ async function main(): Promise<void> {
   const codeHash = await deployCode(d, wasm, disputeWindowSec);
 
   console.log("token registration");
-  for (const token of [d.weth, d.usdc]) {
+  for (const token of [d.wnear, d.usdc]) {
     if (!(await ensureStorage(d.root, token, d.contractId))) console.log(`  ${d.contractId} on ${token}: registered`);
   }
 
