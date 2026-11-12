@@ -103,7 +103,7 @@ child of each split takes `parent - first`, so the odds add up to exactly 100%. 
 pool; a split between two live verses without a pool makes the odds unknown, never guessed.
 
 The implied spot is the sum of odds times world price. The app shows it next to the actual spot pool price; when
-they drift apart, one of them is mispriced. The seed script sets the spot pool to the 2x2 implied spot (3.0377 USDC per NEAR
+they drift apart, one of them is mispriced. The seed script sets the spot pool to the 2x2 implied spot (about 3.04 USDC per NEAR
 in the demo).
 
 ## Order book

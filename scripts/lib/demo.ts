@@ -192,13 +192,10 @@ export function fmtFixed(x: bigint, digits: number): string {
 export const fmt2 = (x: bigint): string => fmtFixed(x, 2);
 
 /**
- * Four decimals rounded to the nearest (half up), for a NEAR price where a difference would vanish
- * at two: actual vs implied spot, order prices, average sale prices, TWAP prices.
+ * Four decimals rounded down like `fmt2` and the web app, for a NEAR price where a difference would
+ * vanish at two: actual vs implied spot, order prices, average sale prices, TWAP prices.
  */
-export const fmt4 = (x: bigint): string => {
-  const half = 5n * 10n ** 13n;
-  return fmtFixed(x < 0n ? x - half : x + half, 4);
-};
+export const fmt4 = (x: bigint): string => fmtFixed(x, 4);
 
 /** WAD odds as a percentage rounded to the nearest hundredth. */
 export const fmtOdds = (q: bigint): string => `${fmt2(q * 100n + 5n * 10n ** 15n)}%`;

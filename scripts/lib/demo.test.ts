@@ -185,11 +185,11 @@ describe("report formatting", () => {
     assert.equal(fmtOdds(5n * 10n ** 13n), "0.01%");
   });
 
-  it("NEAR prices at four decimals", () => {
-    // an implied spot in [3.03769, 3.03770), where the demo's 2x2 lands, shows as 3.0377
-    assert.equal(fmt4(3_037_690_000_000_000_000n), "3.0377");
-    assert.equal(fmt4(3_037_699_999_999_999_999n), "3.0377");
-    assert.equal(fmt4(3_037_649_999_999_999_999n), "3.0376");
+  it("NEAR prices at four decimals, rounded down like the web app", () => {
+    // the demo's 2x2 implied spot at the 100 bps fallback, 3.0376933, shows as 3.0376 here and in the app
+    assert.equal(fmt4(3_037_693_300_000_000_000n), "3.0376");
+    assert.equal(fmt4(3_037_699_999_999_999_999n), "3.0376");
+    assert.equal(fmt4(3_037_700_000_000_000_000n), "3.0377");
     assert.equal(fmt4(cents(370n)), "3.7000");
     assert.equal(fmt4(-cents(245n)), "-2.4500");
     assert.equal(fmtFixed(e18(7n) / 3n, 0), "2");
