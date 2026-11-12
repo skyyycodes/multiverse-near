@@ -30,13 +30,13 @@ function sample(): Deployments {
 
 describe("accountIds", () => {
   it("names every account under the root, as in the design", () => {
-    const ids = accountIds("multiverse-lending.testnet");
-    assert.equal(ids.contractId, "app.multiverse-lending.testnet");
-    assert.equal(ids.wnear, "wnear.multiverse-lending.testnet");
-    assert.equal(ids.usdc, "usdc.multiverse-lending.testnet");
-    assert.equal(ids.reporter, "resolver.multiverse-lending.testnet");
+    const ids = accountIds("multiverse-near.testnet");
+    assert.equal(ids.contractId, "app.multiverse-near.testnet");
+    assert.equal(ids.wnear, "wnear.multiverse-near.testnet");
+    assert.equal(ids.usdc, "usdc.multiverse-near.testnet");
+    assert.equal(ids.reporter, "resolver.multiverse-near.testnet");
     assert.deepEqual(Object.keys(ids.personas), ["alice", "bob", "ravi", "sam", "uma", "carl", "leo", "resolver"]);
-    assert.equal(ids.personas.carl, "carl.multiverse-lending.testnet");
+    assert.equal(ids.personas.carl, "carl.multiverse-near.testnet");
   });
 });
 
@@ -65,10 +65,10 @@ describe("deployments file", () => {
 
   it("deployments/testnet.json is valid and holds no keys", async () => {
     const d = await requireDeployments(DEPLOYMENTS_PATH);
-    assert.equal(d.root, "multiverse-lending.testnet");
+    assert.equal(d.root, "multiverse-near.testnet");
     assert.equal(d.tokens.usdc.decimals, 6);
     assert.equal(d.tokens.wnear.decimals, 24);
-    assert.equal(d.tokens.wnear.accountId, "wnear.multiverse-lending.testnet");
+    assert.equal(d.tokens.wnear.accountId, "wnear.multiverse-near.testnet");
     assert.equal(BigInt(d.tokens.wnear.maxMintPerCall), 10n ** 30n);
     assert.doesNotMatch(readFileSync(DEPLOYMENTS_PATH, "utf8"), /private_key|secret|ed25519:/);
   });
