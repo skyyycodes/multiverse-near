@@ -96,7 +96,7 @@ const PLAN: ReadonlyArray<{ name: string; full: string; minimum: string }> = [
 ];
 
 const TOKENS = {
-  wnear: { name: "Mock Wrapped NEAR", symbol: "wNEAR", decimals: 18, maxMintPerCall: parseUnits("1000", 18) },
+  wnear: { name: "Mock Wrapped NEAR", symbol: "wNEAR", decimals: 24, maxMintPerCall: parseUnits("1000000", 24) },
   usdc: { name: "Mock USD Coin", symbol: "USDC", decimals: 6, maxMintPerCall: parseUnits("10000000", 6) },
 } as const;
 type TokenKind = keyof typeof TOKENS;

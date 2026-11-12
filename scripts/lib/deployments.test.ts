@@ -22,7 +22,7 @@ function sample(): Deployments {
     rpcUrl: "https://test.rpc.fastnear.com",
     explorer: "https://testnet.nearblocks.io",
     ...ids,
-    tokens: { wnear: token(ids.wnear, "wNEAR", 18), usdc: token(ids.usdc, "USDC", 6) },
+    tokens: { wnear: token(ids.wnear, "wNEAR", 24), usdc: token(ids.usdc, "USDC", 6) },
     contract: null,
     updatedAt: "",
   };
@@ -67,7 +67,9 @@ describe("deployments file", () => {
     const d = await requireDeployments(DEPLOYMENTS_PATH);
     assert.equal(d.root, "multiverse-lending.testnet");
     assert.equal(d.tokens.usdc.decimals, 6);
-    assert.equal(d.tokens.wnear.decimals, 18);
+    assert.equal(d.tokens.wnear.decimals, 24);
+    assert.equal(d.tokens.wnear.accountId, "wnear.multiverse-lending.testnet");
+    assert.equal(BigInt(d.tokens.wnear.maxMintPerCall), 10n ** 30n);
     assert.doesNotMatch(readFileSync(DEPLOYMENTS_PATH, "utf8"), /private_key|secret|ed25519:/);
   });
 });

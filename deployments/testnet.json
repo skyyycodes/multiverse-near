@@ -22,8 +22,8 @@
       "accountId": "wnear.multiverse-lending.testnet",
       "name": "Mock Wrapped NEAR",
       "symbol": "wNEAR",
-      "decimals": 18,
-      "maxMintPerCall": "1000000000000000000000",
+      "decimals": 24,
+      "maxMintPerCall": "1000000000000000000000000000000",
       "codeHash": "8afCVgFKDom2fYt5BZatMXPLXMiJ1vWHBiUTpN6AyggY"
     },
     "usdc": {
