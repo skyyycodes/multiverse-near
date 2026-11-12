@@ -1,5 +1,5 @@
-// FOMC outcomes from FRED's federal funds target range, read the same way the EVM resolver did:
-// the public fredgraph.csv download (no API key), integer basis points, and both limits must agree.
+// FOMC outcomes from FRED's federal funds target range: the public fredgraph.csv download (no API
+// key), integer basis points, and both limits must agree.
 
 export const CUTS = 0;
 export const HOLDS = 1;

@@ -7,7 +7,7 @@
 //                                              [--every <seconds>] [--outcomes <file>]
 //
 // --target defaults to fomc, the real-data event, so running it by accident never resolves the
-// demo grid. --every repeats the pass, like the old cron schedule.
+// demo grid. --every repeats the pass on a fixed schedule.
 
 import { join } from "node:path";
 import { parseArgs } from "node:util";

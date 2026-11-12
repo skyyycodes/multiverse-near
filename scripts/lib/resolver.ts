@@ -1,6 +1,6 @@
 // The reporter's decision logic, kept apart from signing so it can be tested without a chain. The
-// order of checks follows the old workflow: skip finalized events, skip events whose proposal is
-// still in its dispute window, write nothing when the source has no answer, otherwise propose.
+// order of checks: skip finalized events, skip events whose proposal is still in its dispute
+// window, write nothing when the source has no answer, otherwise propose.
 
 import { DEMO_EVENTS, type EventSpec } from "./demo.ts";
 import { CUTS, HOLDS, NO_RESULT, SOURCE_LABEL, type FomcOutcome } from "./fred.ts";
@@ -79,8 +79,8 @@ export interface RunResult {
 
 /**
  * One pass over `events`. With `finalize`, a proposal whose window is over is finalized (anyone
- * may); without it such events are left alone. Errors propagate and stop the pass, like before:
- * the next run retries.
+ * may); without it such events are left alone. Errors propagate and stop the pass: the next run
+ * retries.
  */
 export async function resolveOnce(events: readonly ResolverEvent[], deps: ResolverDeps, finalize: boolean): Promise<RunResult> {
   const result: RunResult = { proposed: [], finalized: [] };
