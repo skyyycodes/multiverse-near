@@ -1,7 +1,6 @@
 // Decodes view answers captured from the contract on a freshly seeded sandbox node, so a renamed field or a changed
-// number encoding shows up here rather than as a blank screen. The capture was recorded before the collateral token
-// moved to 24-decimal wNEAR and rescaled by hand to match (prices / 1000, wNEAR amounts x 1000, USD amounts as
-// recorded): re-capture it from a seeded sandbox node once the renamed contract is deployed there.
+// number encoding shows up here rather than as a blank screen. Re-capture with web/scripts/capture-views.mjs after
+// `pnpm -C scripts sandbox start --fresh` and `NEAR_NETWORK=sandbox pnpm -C scripts seed`.
 import { describe, expect, it } from "vitest";
 import { big, decodeAdmin, decodeBorrow, decodeConfig, decodeLend, decodeLpPreview, decodeResolve, decodeTrade } from "./decode";
 import views from "./testdata/sandbox-views.json";

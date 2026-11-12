@@ -16,7 +16,8 @@
   "liquidation_bonus": "50000000000000000",
   "borrow_rate_per_sec": "1585489599",
   "dispute_window_sec": 30,
-  "twap_window_sec": 60,
+  "twap_window_sec": 1800,
+  "twap_min_age_sec": 60,
   "min_pool_depth": "10000000000000000000000",
   "fee_base_pips": 3000,
   "fee_cap_pips": 15000,
@@ -27,7 +28,6 @@
   "scenario_count": 2,
   "demo": {
    "fed_event": 2,
-   "spice_event": 1,
    "implied_spot": "3037693299999999998",
    "odds_cuts_bps": 100,
    "odds_ships_bps": 6667,
@@ -36,8 +36,9 @@
    "ravi_order": "1",
    "scenario_2x2": 1,
    "scenario_binary": 2,
-   "seeded_at_sec": 1794395847,
-   "seeded_block": 829,
+   "seeded_at_sec": 1794484995,
+   "seeded_block": 827,
+   "spice_event": 1,
    "spot_from": "2x2"
   }
  },
@@ -173,13 +174,13 @@
     "amount": "1000000000000000000000",
     "remaining": "1000000000000000000000",
     "escrow": "2450000000000000000000",
-    "expiry_sec": 1796987846,
+    "expiry_sec": 1797076994,
     "epoch": 0
    }
   ],
   "impact": [
    {
-    "at_sec": 1794395812,
+    "at_sec": 1794484960,
     "prices": [
      "3700000000000000000",
      "0",
@@ -188,7 +189,7 @@
     ]
    },
    {
-    "at_sec": 1794395813,
+    "at_sec": 1794484961,
     "prices": [
      "3700000000000000000",
      "3000000000000000000",
@@ -197,7 +198,7 @@
     ]
    },
    {
-    "at_sec": 1794395814,
+    "at_sec": 1794484962,
     "prices": [
      "3700000000000000000",
      "3000000000000000000",
@@ -206,7 +207,7 @@
     ]
    },
    {
-    "at_sec": 1794395815,
+    "at_sec": 1794484963,
     "prices": [
      "3700000000000000000",
      "3000000000000000000",
@@ -215,7 +216,7 @@
     ]
    }
   ],
-  "now_sec": 1794396255
+  "now_sec": 1794485004
  },
  "borrow_view": {
   "scenario": {
@@ -313,10 +314,10 @@
     "0"
    ],
    "world_price_ok": [
-    true,
-    true,
-    true,
-    true
+    false,
+    false,
+    false,
+    false
    ],
    "collateral": [],
    "supplied": "0",
@@ -330,7 +331,7 @@
    "liquidation": "none",
    "unpriced_world": null
   },
-  "now_sec": 1794396255
+  "now_sec": 1794485004
  },
  "lend_view": {
   "account": {
@@ -344,10 +345,10 @@
     "0"
    ],
    "world_price_ok": [
-    true,
-    true,
-    true,
-    true
+    false,
+    false,
+    false,
+    false
    ],
    "collateral": [],
    "supplied": "100000000000000000000000",
@@ -573,10 +574,10 @@
     "0"
    ],
    "world_price_ok": [
-    true,
-    true,
-    true,
-    true
+    false,
+    false,
+    false,
+    false
    ],
    "collateral": [],
    "supplied": "0",
@@ -590,7 +591,7 @@
    "liquidation": "none",
    "unpriced_world": null
   },
-  "now_sec": 1794396255
+  "now_sec": 1794485004
  },
  "admin_view": {
   "scenario": {
@@ -731,10 +732,10 @@
    "proposed_by": null
   },
   "owner_id": "test.near",
-  "now_sec": 1794396255
+  "now_sec": 1794485004
  },
  "preview_lp_deposit": {
-  "shares": "7905694150420948298374",
+  "shares": "7905694150420948328997",
   "wnear_kept": [
    "5000000000000000000000",
    "5000000000000000000000",
@@ -742,9 +743,9 @@
    "5000000000000000000000"
   ],
   "usdc_kept": [
-   "18499999999999999999943",
-   "14999999999999999999976",
-   "16499999999999999999972",
+   "18499999999999999999999",
+   "15000000000000000000000",
+   "16500000000000000000000",
    "12500000000000000000000"
   ]
  },
@@ -773,12 +774,12 @@
   "fee_pips": 3000,
   "swap_count": 0,
   "price": "3700000000000000000",
-  "twap_price": "3699634120479870991",
-  "twap_ok": true
+  "twap_price": null,
+  "twap_ok": false
  },
  "storage_balance_of": {
   "total": "600000000000000000000000",
-  "available": "599160000000000000000000"
+  "available": "599120000000000000000000"
  },
  "storage_balance_bounds": {
   "min": "100000000000000000000000",
