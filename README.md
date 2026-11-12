@@ -115,10 +115,12 @@ pnpm -C web dev        # http://localhost:3040, reads app.multiverse-near.testne
 6. Open "Order book" in the desktop top bar (More, then Order book on a phone). Pick a world, post a bid or an ask
    with "Post bid" or "Post ask", or click "Accept" on a resting order and then "Confirm". See your order in the
    ladder and under "Your orders here".
-7. Open Resolve. See each event's question and rule, a proposed outcome with "Dispute window" and its countdown,
-   and the worlds that died once it is final. After resolution, "Close and redeem" is one transaction: it repays the
-   loan with USDC from your wallet, takes every collateral piece back and redeems the collapsed ones for real
-   tokens.
+7. Open Resolve. See each event's question and the rule stored with it. The two grid events show "Open" and "No
+   result yet" until the reporter proposes an outcome; a proposal shows "Proposed: <outcome>" with "Dispute window"
+   and its countdown, and once final the worlds that did not happen die. Under "Real data: a past Fed decision", the
+   October Fed meeting shows "Resolved: HOLDS" by OutLayer (TEE). After resolution, "Close and redeem" is one
+   transaction: it repays the loan with USDC from your wallet, takes every collateral piece back and redeems the
+   collapsed ones for real tokens.
 
 ## Verify it yourself
 
@@ -205,7 +207,10 @@ still fully backed; Leo's liquidation took Carl from HF 0.86 to 0.93. Transactio
 The same flow runs on testnet with `NEAR_NETWORK=testnet pnpm -C scripts e2e` (it needs the owner and persona keys
 in `.keys/testnet/`, so only the team can run it). It prints every transaction with its nearblocks link and waits in
 real time where the sandbox skips blocks, including the 30-minute TWAP window. Against the deployed code
-`G6GtUs6A...` it ran <<PENDING: testnet e2e start and end time (UTC), the number of `ok` lines and transactions, Carl's HF before and after Leo's liquidation, and any difference from the sandbox run>>.
+`G6GtUs6A...` it ran on 2026-11-12 from 12:08 to 12:47 UTC and printed the same 13 `ok` lines, with 88 transactions
+and real waits (56 s for the new pools, 30 minutes for the TWAP to take the pushed-down DELAYED·HOLDS price, 12 s of
+dispute window). Alice's DELAYED·HOLDS proceeds were 4881.88 and her HF 1.22, as on the sandbox; Leo's liquidation
+took Carl from HF 0.86 to 0.95. The testnet demo was seeded again afterwards.
 
 ### Script and web tests
 
