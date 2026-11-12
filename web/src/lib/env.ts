@@ -16,7 +16,7 @@ export const ENV = {
   /** NEAR Connect only knows mainnet and testnet; wallets always sign on testnet, the RPC decides where reads go. */
   walletNetwork: "testnet" as const,
   contractId: process.env.NEXT_PUBLIC_CONTRACT_ID || "app.multiverse-lending.testnet",
-  wethId: process.env.NEXT_PUBLIC_WETH_ID || "",
+  wnearId: process.env.NEXT_PUBLIC_WNEAR_ID || "",
   usdcId: process.env.NEXT_PUBLIC_USDC_ID || "",
   /** Tried in order on transport errors. */
   rpcUrls: listedRpcs.length > 0 ? listedRpcs : network === "testnet" ? [primaryRpc, ...TESTNET_FALLBACKS] : [primaryRpc],

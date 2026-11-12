@@ -48,7 +48,7 @@ function keepWithin(sid: number | undefined) {
 /** The contract names its tokens; a build made for another deployment must not quietly read balances elsewhere. */
 export function checkTokens(c: AppConfig): AppConfig {
   for (const [token, expected] of [
-    [c.weth, ENV.wethId],
+    [c.wnear, ENV.wnearId],
     [c.usdc, ENV.usdcId],
   ] as const) {
     if (expected && token.tokenId !== expected) {
@@ -151,7 +151,7 @@ export function useQuoteSell(sid: number | undefined, amount: bigint | undefined
     queryKey: ["quote", CONTRACT_ID, String(sid), amount?.toString() ?? "", String(mask)],
     enabled: enabled && sid !== undefined && amount !== undefined && amount > 0n && mask !== 0,
     queryFn: async () =>
-      (await view<string[]>("quote_sell", { scenario_id: sid, weth_amount: amount!.toString(), sell_mask: mask })).map(big),
+      (await view<string[]>("quote_sell", { scenario_id: sid, wnear_amount: amount!.toString(), sell_mask: mask })).map(big),
     refetchInterval: QUOTE_MS,
   });
 }
@@ -167,7 +167,7 @@ export function usePartQuotes(sid: number | undefined, parts: readonly Part[]) {
     queryFn: async () => {
       const out = await view<string[]>("quote_sell_parts", {
         scenario_id: sid,
-        parts: parts.map((p) => ({ world: p.world, weth_amount: p.amount.toString() })),
+        parts: parts.map((p) => ({ world: p.world, wnear_amount: p.amount.toString() })),
       });
       const map: Record<string, bigint> = {};
       parts.forEach((p, i) => {
@@ -181,28 +181,28 @@ export function usePartQuotes(sid: number | undefined, parts: readonly Part[]) {
 
 export type Balances = {
   /** NEP-141 wallet balances, already in 18-decimal internal units. */
-  weth: bigint;
+  wnear: bigint;
   usdc: bigint;
   /** The contract's internal real balances (failed payouts, dust, deposits), 18-decimal. */
-  innerWeth: bigint;
+  innerWnear: bigint;
   innerUsdc: bigint;
 };
 
-export function useBalances(account: string | null, weth: TokenCfg | undefined, usdc: TokenCfg | undefined) {
+export function useBalances(account: string | null, wnear: TokenCfg | undefined, usdc: TokenCfg | undefined) {
   return useQuery({
-    queryKey: ["balances", CONTRACT_ID, account ?? "", weth?.tokenId ?? "", usdc?.tokenId ?? ""],
-    enabled: Boolean(account && weth && usdc),
+    queryKey: ["balances", CONTRACT_ID, account ?? "", wnear?.tokenId ?? "", usdc?.tokenId ?? ""],
+    enabled: Boolean(account && wnear && usdc),
     queryFn: async (): Promise<Balances> => {
       const [w, u, iw, iu] = await Promise.all([
-        view<string>("ft_balance_of", { account_id: account }, weth!.tokenId),
+        view<string>("ft_balance_of", { account_id: account }, wnear!.tokenId),
         view<string>("ft_balance_of", { account_id: account }, usdc!.tokenId),
-        view<string>("real_balance_of", { account_id: account, asset: "weth" }),
+        view<string>("real_balance_of", { account_id: account, asset: "wnear" }),
         view<string>("real_balance_of", { account_id: account, asset: "usdc" }),
       ]);
       return {
-        weth: toInternal(big(w), weth!.decimals),
+        wnear: toInternal(big(w), wnear!.decimals),
         usdc: toInternal(big(u), usdc!.decimals),
-        innerWeth: big(iw),
+        innerWnear: big(iw),
         innerUsdc: big(iu),
       };
     },
@@ -214,40 +214,40 @@ export function useBalances(account: string | null, weth: TokenCfg | undefined, 
 export type Registration = {
   /** NEP-145 balance on the Multiverse contract; null when not registered. */
   contract: StorageBalance | null;
-  weth: StorageBalance | null;
+  wnear: StorageBalance | null;
   usdc: StorageBalance | null;
-  bounds: { contract: StorageBounds; weth: StorageBounds; usdc: StorageBounds };
+  bounds: { contract: StorageBounds; wnear: StorageBounds; usdc: StorageBounds };
 };
 
-export function useRegistration(account: string | null, weth: TokenCfg | undefined, usdc: TokenCfg | undefined) {
+export function useRegistration(account: string | null, wnear: TokenCfg | undefined, usdc: TokenCfg | undefined) {
   return useQuery({
-    queryKey: ["registration", CONTRACT_ID, account ?? "", weth?.tokenId ?? "", usdc?.tokenId ?? ""],
-    enabled: Boolean(account && weth && usdc),
+    queryKey: ["registration", CONTRACT_ID, account ?? "", wnear?.tokenId ?? "", usdc?.tokenId ?? ""],
+    enabled: Boolean(account && wnear && usdc),
     queryFn: async (): Promise<Registration> => {
       const [c, w, u, bc, bw, bu] = await Promise.all([
         view<StorageBalance | null>("storage_balance_of", { account_id: account }),
-        view<StorageBalance | null>("storage_balance_of", { account_id: account }, weth!.tokenId),
+        view<StorageBalance | null>("storage_balance_of", { account_id: account }, wnear!.tokenId),
         view<StorageBalance | null>("storage_balance_of", { account_id: account }, usdc!.tokenId),
         view<StorageBounds>("storage_balance_bounds"),
-        view<StorageBounds>("storage_balance_bounds", {}, weth!.tokenId),
+        view<StorageBounds>("storage_balance_bounds", {}, wnear!.tokenId),
         view<StorageBounds>("storage_balance_bounds", {}, usdc!.tokenId),
       ]);
-      return { contract: c ?? null, weth: w ?? null, usdc: u ?? null, bounds: { contract: bc, weth: bw, usdc: bu } };
+      return { contract: c ?? null, wnear: w ?? null, usdc: u ?? null, bounds: { contract: bc, wnear: bw, usdc: bu } };
     },
     refetchInterval: 15_000,
   });
 }
 
 /** What a Root LP deposit would buy. The view panics for amounts too small, which is an answer, not a failure. */
-export function useLpPreview(sid: number | undefined, weth: bigint | undefined, usdc: bigint | undefined) {
+export function useLpPreview(sid: number | undefined, wnear: bigint | undefined, usdc: bigint | undefined) {
   return useQuery({
-    queryKey: ["lpPreview", CONTRACT_ID, String(sid), weth?.toString() ?? "", usdc?.toString() ?? ""],
-    enabled: sid !== undefined && Boolean(weth) && Boolean(usdc),
+    queryKey: ["lpPreview", CONTRACT_ID, String(sid), wnear?.toString() ?? "", usdc?.toString() ?? ""],
+    enabled: sid !== undefined && Boolean(wnear) && Boolean(usdc),
     queryFn: async () =>
       decodeLpPreview(
         await view<LpPreviewJson>("preview_lp_deposit", {
           scenario_id: sid,
-          weth_amount: weth!.toString(),
+          wnear_amount: wnear!.toString(),
           usdc_amount: usdc!.toString(),
         }),
       ),
@@ -256,7 +256,7 @@ export function useLpPreview(sid: number | undefined, weth: bigint | undefined, 
   });
 }
 
-export type PoolInfo = { wethReserve?: bigint; usdcReserve?: bigint; feePips?: number; twapPrice?: bigint | null };
+export type PoolInfo = { wnearReserve?: bigint; usdcReserve?: bigint; feePips?: number; twapPrice?: bigint | null };
 
 /** Depth, fee and TWAP of one world's pool, for the world screen. */
 export function usePool(poolId: number | null | undefined) {
@@ -267,7 +267,7 @@ export function usePool(poolId: number | null | undefined) {
       const p = await view<PoolViewJson | null>("get_pool", { pool_id: poolId });
       if (!p) return null;
       return {
-        wethReserve: p.weth_reserve === null ? undefined : big(p.weth_reserve),
+        wnearReserve: p.wnear_reserve === null ? undefined : big(p.wnear_reserve),
         usdcReserve: p.usdc_reserve === null ? undefined : big(p.usdc_reserve),
         feePips: p.fee_pips,
         twapPrice: p.twap_price === null ? null : big(p.twap_price),

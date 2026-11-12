@@ -10,7 +10,7 @@ export const deployment = JSON.parse(readFileSync(join(REPO, "deployments", "san
   rpcUrl: string;
   root: string;
   contractId: string;
-  weth: string;
+  wnear: string;
   usdc: string;
   personas: Record<string, string>;
 };
@@ -80,10 +80,10 @@ function signer(accountId: string): Account {
 }
 
 /** Mints test tokens to a persona's wallet off camera (the mock tokens' mint is open and registers the receiver). */
-export async function fund(accountId: string, amounts: { weth?: bigint; usdc?: bigint }): Promise<void> {
+export async function fund(accountId: string, amounts: { wnear?: bigint; usdc?: bigint }): Promise<void> {
   const account = signer(accountId);
   for (const [token, amount] of [
-    [deployment.weth, amounts.weth],
+    [deployment.wnear, amounts.wnear],
     [deployment.usdc, amounts.usdc],
   ] as const) {
     if (!amount) continue;

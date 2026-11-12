@@ -11,7 +11,7 @@ import { WorldGlyph } from "@/components/world/WorldBits";
 import { WorldPicker } from "@/components/world/WorldGrid";
 import { CONTRACT_ID } from "@/lib/data/client";
 import type { AppConfig, EventState, Scenario } from "@/lib/domain";
-import { fmt, fmtUsd, fmtWeth, inputText, parseAmount } from "@/lib/format";
+import { fmt, fmtUsd, fmtNear, inputText, parseAmount } from "@/lib/format";
 import type { Balances } from "@/lib/hooks/useData";
 import { useQuoteSell } from "@/lib/hooks/useData";
 import { useDebounced } from "@/lib/hooks/useDebounced";
@@ -20,7 +20,7 @@ import { useSubmit } from "@/lib/hooks/useTx";
 import { via, type Order, type WorldPlan } from "@/lib/orders";
 import { call, ftTransferCall, GAS_FT_CALL, ONE_YOCTO, planFills, planMinOut } from "@/lib/near/tx";
 import { useWallet } from "@/lib/near/wallet";
-import { scaleOf } from "@/lib/units";
+import { toTokenFloor } from "@/lib/units";
 
 const ONE = 10n ** 18n;
 
@@ -52,15 +52,15 @@ export function SellPanel({ config, scenario, events, orders, nowSec, balances, 
   const [input, setInput] = useState("2");
   const [toLending, setToLending] = useState(true);
   const [from, setFrom] = useState<"wallet" | "inner">("wallet");
-  const amount = parseAmount(input, config.weth.decimals);
+  const amount = parseAmount(input, config.wnear.decimals);
   const quoteAmount = useDebounced(amount, 350);
   const quote = useQuoteSell(scenario.scenarioId, quoteAmount, selected);
   const proceeds = quote.data;
   const plan = useSalePlan(scenario, selected, quoteAmount, proceeds, orders, wallet.accountId, nowSec);
 
-  const innerWeth = balances?.innerWeth ?? 0n;
-  const source = from === "inner" && innerWeth > 0n ? "inner" : "wallet";
-  const available = source === "inner" ? innerWeth : (balances?.weth ?? 0n);
+  const innerWnear = balances?.innerWnear ?? 0n;
+  const source = from === "inner" && innerWnear > 0n ? "inner" : "wallet";
+  const available = source === "inner" ? innerWnear : (balances?.wnear ?? 0n);
   const possible = scenario.worlds.filter((w) => w.possible);
   const sold = possible.filter((w) => (selected & w.mask) !== 0);
   const quoteFresh = proceeds !== undefined && quoteAmount === amount;
@@ -88,8 +88,8 @@ export function SellPanel({ config, scenario, events, orders, nowSec, balances, 
           ),
         );
       }
-      const tokens = amount! / scaleOf(config.weth.decimals);
-      const tx = ftTransferCall(config.weth.tokenId, CONTRACT_ID, tokens, {
+      const tokens = toTokenFloor(amount!, config.wnear.decimals);
+      const tx = ftTransferCall(config.wnear.tokenId, CONTRACT_ID, tokens, {
         action: "conditional_sell",
         scenario_id: scenario.scenarioId,
         sell_mask: selected,
@@ -126,7 +126,7 @@ export function SellPanel({ config, scenario, events, orders, nowSec, balances, 
         </Band>
       )}
 
-      {innerWeth > 0n && (
+      {innerWnear > 0n && (
         <div className="flex flex-col gap-2">
           <span className="text-[13px] font-medium text-ink">From</span>
           <Segmented
@@ -134,8 +134,8 @@ export function SellPanel({ config, scenario, events, orders, nowSec, balances, 
             value={source}
             onChange={setFrom}
             options={[
-              { value: "wallet", label: `Wallet · ${fmtWeth(balances?.weth ?? 0n)}`, demo: "sell-from-wallet" },
-              { value: "inner", label: `In Multiverse · ${fmtWeth(innerWeth)}`, demo: "sell-from-inner" },
+              { value: "wallet", label: `Wallet · ${fmtNear(balances?.wnear ?? 0n)}`, demo: "sell-from-wallet" },
+              { value: "inner", label: `In Multiverse · ${fmtNear(innerWnear)}`, demo: "sell-from-inner" },
             ]}
           />
         </div>
@@ -151,7 +151,7 @@ export function SellPanel({ config, scenario, events, orders, nowSec, balances, 
         right={
           wallet.accountId ? (
             <InlineButton onClick={() => setInput(inputText(available, 4))} data-demo="sell-wallet">
-              wallet: {fmtWeth(available)} WETH
+              wallet: {fmtNear(available)} WETH
             </InlineButton>
           ) : undefined
         }
@@ -168,7 +168,7 @@ export function SellPanel({ config, scenario, events, orders, nowSec, balances, 
             const worldPlan = quoteFresh && plan.ready ? plan.plans[w.index] : undefined;
             const out = worldPlan?.total;
             const got = out !== undefined && amount ? (out * ONE) / amount : undefined;
-            const cost = got !== undefined ? (w.wethPrice > got ? w.wethPrice - got : 0n) : undefined;
+            const cost = got !== undefined ? (w.wnearPrice > got ? w.wnearPrice - got : 0n) : undefined;
             return (
               <li key={w.mask} className="flex flex-col gap-2 border-b border-line py-3 last:border-b-0" data-demo="sell-row" data-world={w.label}>
                 <div className="flex items-center gap-3">
@@ -178,7 +178,7 @@ export function SellPanel({ config, scenario, events, orders, nowSec, balances, 
                     <div className="truncate text-[12px] text-mute">
                       {isSold ? via(worldPlan) : "keep → "}
                       <span className="num text-ink">
-                        {isSold ? (out !== undefined ? `${fmt(out)} USDC` : "…") : amount ? `${fmtWeth(amount)} WETH` : "—"}
+                        {isSold ? (out !== undefined ? `${fmt(out)} USDC` : "…") : amount ? `${fmtNear(amount)} WETH` : "—"}
                       </span>
                     </div>
                   </div>
@@ -188,7 +188,7 @@ export function SellPanel({ config, scenario, events, orders, nowSec, balances, 
                 </div>
                 {isSold && (
                   <div className="ml-12 grid grid-cols-3 gap-2 text-[11px]">
-                    <Mini label="Fair price" value={fmtUsd(w.wethPrice)} />
+                    <Mini label="Fair price" value={fmtUsd(w.wnearPrice)} />
                     <Mini label="You get" value={got !== undefined ? fmtUsd(got) : "—"} />
                     <Mini label="Cost / ETH" value={cost !== undefined ? fmtUsd(cost) : "—"} tone="text-warn" />
                   </div>
@@ -250,14 +250,14 @@ function PlanLegs({ plan }: { plan: WorldPlan }) {
       {plan.fills.map((f) => (
         <li key={String(f.order.id)} className="flex justify-between gap-2">
           <span className="min-w-0 truncate">
-            <span className="font-semibold text-pos">bid #{String(f.order.id)}</span> · {fmtWeth(f.amount)} ETH @ {fmtUsd(f.order.price)}
+            <span className="font-semibold text-pos">bid #{String(f.order.id)}</span> · {fmtNear(f.amount)} ETH @ {fmtUsd(f.order.price)}
           </span>
           <span className="shrink-0 text-ink">{fmt(f.out)} USDC</span>
         </li>
       ))}
       {plan.poolAmount > 0n && (
         <li className="flex justify-between gap-2">
-          <span>pool · {fmtWeth(plan.poolAmount)} ETH</span>
+          <span>pool · {fmtNear(plan.poolAmount)} ETH</span>
           <span className="shrink-0 text-ink">{fmt(plan.poolOut)} USDC</span>
         </li>
       )}

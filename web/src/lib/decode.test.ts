@@ -7,7 +7,7 @@ describe("view JSON at the edge", () => {
     const cfg = {
       owner_id: "multiverse-lending.testnet",
       reporter_id: null,
-      weth: { token_id: "weth.multiverse-lending.testnet", decimals: 18, symbol: "WETH" },
+      wnear: { token_id: "wnear.multiverse-lending.testnet", decimals: 24, symbol: "wNEAR" },
       usdc: { token_id: "usdc.multiverse-lending.testnet", decimals: 6, symbol: "USDC" },
       lltv: "750000000000000000",
       liquidation_bonus: "50000000000000000",
@@ -17,10 +17,10 @@ describe("view JSON at the edge", () => {
       min_pool_depth: "10000000000000000000000",
       order_book: true,
       root_lp: false,
-      demo: { scenario_2x2: "5", scenario_binary: 6, past_fed_event: null, glam_event: 7, fed_event: "8" },
+      demo: { scenario_2x2: "5", scenario_binary: 6, past_fed_event: null, spice_event: 7, fed_event: "8" },
     } as unknown as AppConfigView;
     const c = decodeConfig(cfg);
-    expect(c.demo).toEqual({ glamEvent: 7, fedEvent: 8, pastFedEvent: null, scenario2x2: 5, scenarioBinary: 6 });
+    expect(c.demo).toEqual({ spiceEvent: 7, fedEvent: 8, pastFedEvent: null, scenario2x2: 5, scenarioBinary: 6 });
     expect(c.usdc.decimals).toBe(6);
     expect(c.lltv).toBe(750_000_000_000_000_000n);
     expect(decodeConfig({ ...cfg, demo: null }).demo).toBeNull();
@@ -35,22 +35,22 @@ describe("view JSON at the edge", () => {
         resolution_count: 0,
         halted: false,
         event_ids: [1],
-        spot_price: "3037866632000000000000",
+        spot_price: "3037866632000000000",
         odds_known: true,
-        implied_spot: "3200020000000000000000",
+        implied_spot: "3200020000000000000",
         worlds: [1, 0].map((i) => ({
           index: i,
           mask: 1 << i,
           label: i ? "DELAYED" : "SHIPS",
           possible: true,
           pool_initialized: true,
-          weth_price: i ? "2800000000000000000000" : "3400000000000000000000",
+          wnear_price: i ? "2800000000000000000" : "3400000000000000000",
           backed: true,
-          weth_token_id: `2:weth:${1 << i}`,
+          wnear_token_id: `2:wnear:${1 << i}`,
           usdc_token_id: `2:usdc:${1 << i}`,
-          user_weth: "0",
+          user_wnear: "0",
           user_usdc: "0",
-          collateral_weth: "0",
+          collateral_wnear: "0",
           collateral_usdc: "0",
           odds: i ? "333300000000000000" : "666700000000000000",
           pool_id: 10 + i,
@@ -63,7 +63,7 @@ describe("view JSON at the edge", () => {
     } as TradeViewJson;
     const t = decodeTrade(v);
     expect(t.scenario.worlds.map((w) => w.label)).toEqual(["SHIPS", "DELAYED"]);
-    expect(t.scenario.spotPrice).toBe(3_037_866_632_000_000_000_000n);
+    expect(t.scenario.spotPrice).toBe(3_037_866_632_000_000_000n);
     expect(t.orders[0].id).toBe(12n);
     expect(t.orders[0].expiry).toBe(99n);
     expect(t.impact[0].prices).toEqual([1n, 0n]);

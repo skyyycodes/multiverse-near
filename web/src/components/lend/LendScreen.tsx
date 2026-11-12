@@ -31,7 +31,7 @@ function Lend({ config }: { config: AppConfig }) {
   const desktop = useIsDesktop();
   const sid = useScenarioId(config);
   const view = useLend(sid, wallet.accountId);
-  const balances = useBalances(wallet.accountId, config.weth, config.usdc);
+  const balances = useBalances(wallet.accountId, config.wnear, config.usdc);
   const v = view.data?.account;
 
   const stats = v ? (

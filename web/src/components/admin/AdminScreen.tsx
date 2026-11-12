@@ -14,14 +14,14 @@ import { WorldGrid, WorldPicker } from "@/components/world/WorldGrid";
 import { CONTRACT_ID } from "@/lib/data/client";
 import type { AppConfig, EventState, Scenario } from "@/lib/domain";
 import { ENV } from "@/lib/env";
-import { fmt, fmtUsd, fmtWeth, parseAmount, shortAccount } from "@/lib/format";
+import { fmt, fmtUsd, fmtNear, parseAmount, shortAccount } from "@/lib/format";
 import { useChainClock } from "@/lib/hooks/useClock";
 import { useAdmin, useBalances, useQuoteSell, useScenarioId } from "@/lib/hooks/useData";
 import { useIsDesktop } from "@/lib/hooks/useMedia";
 import { useSubmit } from "@/lib/hooks/useTx";
 import { call, ftTransferCall } from "@/lib/near/tx";
 import { useWallet } from "@/lib/near/wallet";
-import { scaleOf } from "@/lib/units";
+import { toTokenFloor } from "@/lib/units";
 
 const ONE = 10n ** 18n;
 const SLIPPAGE_BPS = 50n; // the push must return at least 0.5% under its quote
@@ -181,14 +181,14 @@ function PricePush({
 }) {
   const wallet = useWallet();
   const submit = useSubmit();
-  const balances = useBalances(wallet.accountId, config.weth, config.usdc);
+  const balances = useBalances(wallet.accountId, config.wnear, config.usdc);
   const [input, setInput] = useState("1");
   const [last, setLast] = useState<{ mask: number; label: string; before: bigint }>();
-  const amount = parseAmount(input, config.weth.decimals);
+  const amount = parseAmount(input, config.wnear.decimals);
   const world = s.worlds.find((w) => w.mask === mask);
   const quote = useQuoteSell(s.scenarioId, amount, mask, Boolean(world) && !s.halted);
   const out = world ? quote.data?.[world.index] : undefined;
-  const walletWeth = balances.data?.weth ?? 0n;
+  const walletWnear = balances.data?.wnear ?? 0n;
   const lastWorld = last && s.worlds.find((w) => w.mask === last.mask);
 
   let blocker: string | undefined;
@@ -196,7 +196,7 @@ function PricePush({
   else if (!world) blocker = "Tap a world on the grid";
   else if (s.halted) blocker = "Pools pause while a resolution is pending";
   else if (!amount) blocker = "Enter an amount of WETH";
-  else if (amount > walletWeth) blocker = "Not enough WETH: mint test WETH below";
+  else if (amount > walletWnear) blocker = "Not enough WETH: mint test WETH below";
   else if (out === undefined) blocker = quote.isError ? "No quote for that world" : "Getting a quote…";
   else if (out === 0n) blocker = "No price in that world";
 
@@ -215,11 +215,11 @@ function PricePush({
         unit="WETH"
         ariaLabel="Amount of WETH to sell in the picked world"
         demo="push-amount"
-        right={<span className="num text-[12px] text-mute">wallet: {fmtWeth(walletWeth)} WETH</span>}
+        right={<span className="num text-[12px] text-mute">wallet: {fmtNear(walletWnear)} WETH</span>}
       />
       <InfoRows
         rows={[
-          { label: "Pool price now", value: world ? fmtUsd(world.wethPrice) : "—" },
+          { label: "Pool price now", value: world ? fmtUsd(world.wnearPrice) : "—" },
           { label: "Quote", value: out !== undefined ? `${fmt(out)} USDC-if-w` : "—" },
           { label: "Average price of the push", value: out !== undefined && amount ? fmtUsd((out * ONE) / amount) : "—", tone: "text-warn" },
         ]}
@@ -231,12 +231,12 @@ function PricePush({
         blocker={blocker}
         needs={{ contract: true }}
         run={async (step) => {
-          const before = world!.wethPrice;
+          const before = world!.wnearPrice;
           step("Swapping…");
-          const tokens = amount! / scaleOf(config.weth.decimals);
+          const tokens = toTokenFloor(amount!, config.wnear.decimals);
           const minOut = s.worlds.map((w) => (w.index === world!.index ? (out! - (out! * SLIPPAGE_BPS) / 10_000n).toString() : "0"));
           const hash = await submit(
-            ftTransferCall(config.weth.tokenId, CONTRACT_ID, tokens, {
+            ftTransferCall(config.wnear.tokenId, CONTRACT_ID, tokens, {
               action: "conditional_sell",
               scenario_id: s.scenarioId,
               sell_mask: mask,
@@ -252,19 +252,19 @@ function PricePush({
       />
       {last && lastWorld && (
         <p className="num text-[13px] text-ink" data-demo="push-result">
-          {last.label}: {fmtUsd(last.before)} → {fmtUsd(lastWorld.wethPrice)}
+          {last.label}: {fmtUsd(last.before)} → {fmtUsd(lastWorld.wnearPrice)}
         </p>
       )}
       <div className="flex flex-col gap-2 border-t border-line pt-4">
         <TxButton
-          demo="mint-weth"
+          demo="mint-wnear"
           tone="secondary"
           size="md"
-          label={amount ? `Mint ${fmtWeth(amount)} test WETH to my wallet` : "Mint test WETH to my wallet"}
+          label={amount ? `Mint ${fmtNear(amount)} test WETH to my wallet` : "Mint test WETH to my wallet"}
           busyLabel="Minting…"
           blocker={!isOwner ? "Oracle owner only" : !amount ? "Enter an amount of WETH" : undefined}
           run={() =>
-            submit(call(config.weth.tokenId, "mint", { account_id: wallet.accountId, amount: (amount! / scaleOf(config.weth.decimals)).toString() }, "0"))
+            submit(call(config.wnear.tokenId, "mint", { account_id: wallet.accountId, amount: toTokenFloor(amount!, config.wnear.decimals).toString() }, "0"))
           }
         />
         <p className="text-[12px] text-mute">Testnet mock: the demo WETH has an open mint and no value.</p>

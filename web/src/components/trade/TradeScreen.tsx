@@ -43,7 +43,7 @@ function Trade({ config, focus }: { config: AppConfig; focus?: Focus }) {
   const params = useSearchParams();
   const sid = useScenarioId(config);
   const trade = useTrade(sid, wallet.accountId);
-  const balances = useBalances(wallet.accountId, config.weth, config.usdc);
+  const balances = useBalances(wallet.accountId, config.wnear, config.usdc);
   const wallNow = useNowSeconds();
   const clock = useChainClock(trade.data?.nowSec, trade.dataUpdatedAt);
   const s = trade.data?.scenario;

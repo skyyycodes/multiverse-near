@@ -13,7 +13,7 @@ export type ClosePlan = {
   pieces: Piece[];
   /** Real USDC and WETH that reach the wallet: redeemed pieces plus real collateral. */
   realUsdc: bigint;
-  realWeth: bigint;
+  realWnear: bigint;
 };
 
 export function fateOf(c: Collateral, possible: number): Fate {
@@ -26,11 +26,11 @@ export function planClose(collateral: readonly Collateral[], possible: number): 
   const pieces = collateral.map((c) => ({ ...c, fate: fateOf(c, possible) }));
   const sum = (asset: Asset) =>
     pieces.filter((p) => (p.fate === "redeems" || p.fate === "real") && p.asset === asset).reduce((s, p) => s + p.amount, 0n);
-  return { pieces, realUsdc: sum("usdc"), realWeth: sum("weth") };
+  return { pieces, realUsdc: sum("usdc"), realWnear: sum("wnear") };
 }
 
 export function fateText(p: Piece): string {
-  const symbol = p.asset === "weth" ? "WETH" : "USDC";
+  const symbol = p.asset === "wnear" ? "WETH" : "USDC";
   switch (p.fate) {
     case "redeems":
       return `collapsed: redeemed 1:1 for real ${symbol}`;
@@ -53,14 +53,14 @@ export function walletRedeemable(s: Scenario): RedeemRow[] {
   return s.worlds.flatMap((w) => {
     if ((w.mask & s.possible) !== s.possible) return [];
     const rows: RedeemRow[] = [
-      { asset: "weth", symbol: "WETH", tokenId: w.wethTokenId, mask: w.mask, amount: w.userWeth, label: `WETH-if-${w.label}` },
+      { asset: "wnear", symbol: "WETH", tokenId: w.wnearTokenId, mask: w.mask, amount: w.userWnear, label: `WETH-if-${w.label}` },
       { asset: "usdc", symbol: "USDC", tokenId: w.usdcTokenId, mask: w.mask, amount: w.userUsdc, label: `USDC-if-${w.label}` },
     ];
     return rows.filter((r) => r.amount > 0n);
   });
 }
 
-export type CloseSummary = { repaid: bigint; usdc: bigint; weth: bigint };
+export type CloseSummary = { repaid: bigint; usdc: bigint; wnear: bigint };
 
 /**
  * What a close did, from the transaction's own NEP-297 logs: `closed` carries the repaid debt, each `redeemed` an
@@ -74,5 +74,5 @@ export function summarizeClose(events: readonly NepEvent[]): CloseSummary | unde
   const repaid = closed.data.reduce((s, d) => s + amount(d.repaid), 0n);
   const redeemed = mv.filter((e) => e.event === "redeemed").flatMap((e) => e.data);
   const total = (asset: Asset) => redeemed.filter((d) => d.asset === asset).reduce((s, d) => s + amount(d.amount), 0n);
-  return { repaid, usdc: total("usdc"), weth: total("weth") };
+  return { repaid, usdc: total("usdc"), wnear: total("wnear") };
 }

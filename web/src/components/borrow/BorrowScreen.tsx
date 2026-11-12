@@ -32,7 +32,7 @@ function Borrow({ config }: { config: AppConfig }) {
   const wallet = useWallet();
   const sid = useScenarioId(config);
   const view = useBorrow(sid, wallet.accountId);
-  const balances = useBalances(wallet.accountId, config.weth, config.usdc);
+  const balances = useBalances(wallet.accountId, config.wnear, config.usdc);
   const v = view.data?.account;
   const s = view.data?.scenario;
   const liq = v && s ? liquidationOf(v, s) : undefined;

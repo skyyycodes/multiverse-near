@@ -5,7 +5,7 @@
 
 export type U128 = string;
 export type Mask = number;
-export type Asset = "weth" | "usdc";
+export type Asset = "wnear" | "usdc";
 
 export interface AssetCfg {
   token_id: string;
@@ -14,7 +14,7 @@ export interface AssetCfg {
 }
 
 export interface DemoRecord {
-  glam_event: number;
+  spice_event: number;
   fed_event: number;
   past_fed_event: number | null;
   scenario_2x2: number;
@@ -30,7 +30,7 @@ export interface DemoRecord {
 export interface AppConfigView {
   owner_id: string;
   reporter_id: string | null;
-  weth: AssetCfg;
+  wnear: AssetCfg;
   usdc: AssetCfg;
   lltv: U128;
   liquidation_bonus: U128;
@@ -55,13 +55,13 @@ export interface WorldViewJson {
   label: string;
   possible: boolean;
   pool_initialized: boolean;
-  weth_price: U128;
+  wnear_price: U128;
   backed: boolean;
-  weth_token_id: string;
+  wnear_token_id: string;
   usdc_token_id: string;
-  user_weth: U128;
+  user_wnear: U128;
   user_usdc: U128;
-  collateral_weth: U128;
+  collateral_wnear: U128;
   collateral_usdc: U128;
   odds: U128;
   /** The world's own pool, for get_pool; null before it is created. */
@@ -149,8 +149,8 @@ export interface RootLpViewJson {
   share_supply: U128;
   your_shares: U128;
   share_decimals: number;
-  preview_withdraw: null | { weth: U128[]; usdc: U128[] };
-  holdings: { world: number; weth_idle: U128; usdc_idle: U128; weth_fees: U128; usdc_fees: U128 }[];
+  preview_withdraw: null | { wnear: U128[]; usdc: U128[] };
+  holdings: { world: number; wnear_idle: U128; usdc_idle: U128; wnear_fees: U128; usdc_fees: U128 }[];
 }
 
 export interface TradeViewJson {
@@ -191,7 +191,7 @@ export interface AdminViewJson {
 
 export interface LpPreviewJson {
   shares: U128;
-  weth_kept: U128[];
+  wnear_kept: U128[];
   usdc_kept: U128[];
 }
 
@@ -217,7 +217,7 @@ export interface PoolViewJson {
   reserve0: U128;
   reserve1: U128;
   /** Within-world and spot pools only. */
-  weth_reserve: U128 | null;
+  wnear_reserve: U128 | null;
   usdc_reserve: U128 | null;
   liquidity: U128;
   fees0: U128;

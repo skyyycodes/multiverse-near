@@ -67,7 +67,7 @@ export function useEnsureRegistered(config: AppConfig | undefined) {
         }
       }
       for (const asset of needs.tokens ?? []) {
-        const token = asset === "weth" ? config.weth : config.usdc;
+        const token = asset === "wnear" ? config.wnear : config.usdc;
         const bal = await src.view<StorageBalance | null>(token.tokenId, "storage_balance_of", { account_id: account });
         if (!bal) {
           const bounds = await src.view<StorageBounds>(token.tokenId, "storage_balance_bounds");

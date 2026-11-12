@@ -1,5 +1,7 @@
 // Decodes view answers captured from the contract on a freshly seeded sandbox node, so a renamed field or a changed
-// number encoding shows up here rather than as a blank screen.
+// number encoding shows up here rather than as a blank screen. The capture was recorded before the collateral token
+// moved to 24-decimal wNEAR and rescaled by hand to match (prices / 1000, wNEAR amounts x 1000, USD amounts as
+// recorded): re-capture it from a seeded sandbox node once the renamed contract is deployed there.
 import { describe, expect, it } from "vitest";
 import { big, decodeAdmin, decodeBorrow, decodeConfig, decodeLend, decodeLpPreview, decodeResolve, decodeTrade } from "./decode";
 import views from "./testdata/sandbox-views.json";
@@ -9,7 +11,7 @@ describe("views as the contract serves them", () => {
   it("reads the app config and the demo record", () => {
     const c = decodeConfig(views.get_app_config as AppConfigView);
     expect(c.usdc).toEqual({ tokenId: "usdc.test.near", decimals: 6, symbol: "USDC" });
-    expect(c.demo).toMatchObject({ scenario2x2: 1, scenarioBinary: 2, glamEvent: 1, fedEvent: 2, pastFedEvent: 3 });
+    expect(c.demo).toMatchObject({ scenario2x2: 1, scenarioBinary: 2, spiceEvent: 1, fedEvent: 2, pastFedEvent: 3 });
     expect(c.lltv).toBe(750_000_000_000_000_000n);
   });
 
@@ -37,12 +39,12 @@ describe("views as the contract serves them", () => {
   });
 
   it("reads quotes, a Root LP preview and a pool", () => {
-    // Alice's 2 WETH in the L-shape, pool only: the seeded demo's numbers.
+    // Alice's 2,000 NEAR in the L-shape, pool only: the seeded demo's numbers.
     expect(views.quote_sell.map(big)).toEqual([0n, 5_865_050_885_346_196_835_107n, 6_451_555_973_880_816_518_618n, 4_748_297_375_815_592_703_719n]);
     const p = decodeLpPreview(views.preview_lp_deposit as LpPreviewJson);
     expect(p.shares).toBeGreaterThan(0n);
     const pool = views.get_pool as PoolViewJson;
-    expect(pool.weth_reserve).not.toBeNull();
+    expect(pool.wnear_reserve).not.toBeNull();
     expect(typeof pool.fee_pips).toBe("number");
   });
 });

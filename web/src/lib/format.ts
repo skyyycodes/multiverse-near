@@ -20,7 +20,7 @@ export function fmt(x: bigint, digits = 2): string {
 }
 
 export const fmtUsd = (x: bigint) => (x < 0n && fmt(-x) !== "0.00" ? "-$" + fmt(-x) : "$" + fmt(x < 0n ? -x : x));
-export const fmtWeth = (x: bigint) => fmt(x, 4);
+export const fmtNear = (x: bigint) => fmt(x, 4);
 /** Whole dollars, rounded down: grid cells are narrow; the order panel shows cents. */
 export const wholeUsd = (x: bigint) => "$" + fmt(x, 0);
 

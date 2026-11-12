@@ -148,7 +148,7 @@ export function WorldPicker({
                 style={{ background: hue, opacity: on ? 1 : 0.45 }}
               />
               <span className={`block w-full min-w-0 truncate text-[11px] font-semibold text-ink ${dead ? "line-through" : ""}`}>{w.label}</span>
-              <span className="num text-[14px] text-mute">{w.poolInitialized ? fmtUsd(w.wethPrice) : "no pool"}</span>
+              <span className="num text-[14px] text-mute">{w.poolInitialized ? fmtUsd(w.wnearPrice) : "no pool"}</span>
             </button>
           );
         }}

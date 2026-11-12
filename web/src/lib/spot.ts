@@ -26,7 +26,7 @@ export function impliedNote(s: Pick<Scenario, "oddsKnown" | "impliedSpot" | "spo
 
 /** The headline gap: highest minus lowest pool price over the worlds still possible; 0 with fewer than two. */
 export function impactGap(s: Pick<Scenario, "worlds">): bigint {
-  const live = s.worlds.filter((w) => w.possible && w.poolInitialized).map((w) => w.wethPrice);
+  const live = s.worlds.filter((w) => w.possible && w.poolInitialized).map((w) => w.wnearPrice);
   if (live.length < 2) return 0n;
   return live.reduce((m, v) => (v > m ? v : m)) - live.reduce((m, v) => (v < m ? v : m));
 }

@@ -9,14 +9,14 @@ export type World = {
   possible: boolean;
   poolInitialized: boolean;
   /** The pool's spot price, USDC per WETH (lending uses the TWAP, not this). */
-  wethPrice: bigint;
+  wnearPrice: bigint;
   backed: boolean;
-  wethTokenId: string;
+  wnearTokenId: string;
   usdcTokenId: string;
   /** NEP-245 balances outside lending. */
-  userWeth: bigint;
+  userWnear: bigint;
   userUsdc: bigint;
-  collateralWeth: bigint;
+  collateralWnear: bigint;
   collateralUsdc: bigint;
   odds: bigint;
   poolId: number | null;
@@ -91,11 +91,11 @@ export type RootLp = {
   shareSupply: bigint;
   yourShares: bigint;
   shareDecimals: number;
-  previewWithdraw: { weth: bigint[]; usdc: bigint[] } | null;
-  holdings: { world: number; wethIdle: bigint; usdcIdle: bigint; wethFees: bigint; usdcFees: bigint }[];
+  previewWithdraw: { wnear: bigint[]; usdc: bigint[] } | null;
+  holdings: { world: number; wnearIdle: bigint; usdcIdle: bigint; wnearFees: bigint; usdcFees: bigint }[];
 };
 
-export type LpPreview = { shares: bigint; wethKept: bigint[]; usdcKept: bigint[] };
+export type LpPreview = { shares: bigint; wnearKept: bigint[]; usdcKept: bigint[] };
 
 export type TradeSnapshot = { scenario: Scenario; events: EventState[]; orders: Order[]; impact: ImpactPoint[]; nowSec: bigint };
 export type BorrowSnapshot = { scenario: Scenario; account: Account; nowSec: bigint };
@@ -106,7 +106,7 @@ export type AdminSnapshot = { scenario: Scenario; events: EventState[]; pastFedE
 export type TokenCfg = { tokenId: string; decimals: number; symbol: string };
 
 export type DemoIds = {
-  glamEvent: number | null;
+  spiceEvent: number | null;
   fedEvent: number | null;
   pastFedEvent: number | null;
   scenario2x2: number | null;
@@ -116,7 +116,7 @@ export type DemoIds = {
 export type AppConfig = {
   ownerId: string;
   reporterId: string | null;
-  weth: TokenCfg;
+  wnear: TokenCfg;
   usdc: TokenCfg;
   lltv: bigint;
   liquidationBonus: bigint;

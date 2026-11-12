@@ -17,7 +17,7 @@ import { toInternal } from "@/lib/units";
 export const FAUCET_ON = ENV.network === "testnet" && process.env.NEXT_PUBLIC_FIXTURES !== "1";
 
 /** True for a connected wallet that holds no WETH and no USDC at all. */
-export const walletEmpty = (b: Balances | undefined): boolean => Boolean(b && b.weth === 0n && b.usdc === 0n);
+export const walletEmpty = (b: Balances | undefined): boolean => Boolean(b && b.wnear === 0n && b.usdc === 0n);
 
 /**
  * The home hint shows for an empty wallet, and stays once its button was pressed: the first mint fills the wallet,
@@ -63,8 +63,8 @@ export function GetTestTokens({
   const wallet = useWallet();
   const config = useAppConfig();
   const cfg = config.data;
-  const balances = useBalances(wallet.accountId, cfg?.weth, cfg?.usdc);
-  const reg = useRegistration(wallet.accountId, cfg?.weth, cfg?.usdc);
+  const balances = useBalances(wallet.accountId, cfg?.wnear, cfg?.usdc);
+  const reg = useRegistration(wallet.accountId, cfg?.wnear, cfg?.usdc);
   const submit = useSubmit();
   const [done, setDone] = useState<string[]>([]);
 
@@ -112,14 +112,14 @@ async function getTestTokens(
   const src = await readSource();
   // Fresh reads: the balances on screen may be a poll behind a mint that just landed.
   const [w, u, cw, cu, registered] = await Promise.all([
-    src.view<string>(cfg.weth.tokenId, "ft_balance_of", { account_id: account }),
+    src.view<string>(cfg.wnear.tokenId, "ft_balance_of", { account_id: account }),
     src.view<string>(cfg.usdc.tokenId, "ft_balance_of", { account_id: account }),
-    src.view<FaucetConfig>(cfg.weth.tokenId, "faucet_config").catch(() => undefined),
+    src.view<FaucetConfig>(cfg.wnear.tokenId, "faucet_config").catch(() => undefined),
     src.view<FaucetConfig>(cfg.usdc.tokenId, "faucet_config").catch(() => undefined),
     src.view<StorageBalance | null>(CONTRACT_ID, "storage_balance_of", { account_id: account }),
   ]);
-  const caps: Partial<Record<Asset, bigint>> = { weth: capOf(cw), usdc: capOf(cu) };
-  const mints = faucetMints(cfg, { weth: toInternal(BigInt(w), cfg.weth.decimals), usdc: toInternal(BigInt(u), cfg.usdc.decimals) }, caps);
+  const caps: Partial<Record<Asset, bigint>> = { wnear: capOf(cw), usdc: capOf(cu) };
+  const mints = faucetMints(cfg, { wnear: toInternal(BigInt(w), cfg.wnear.decimals), usdc: toInternal(BigInt(u), cfg.usdc.decimals) }, caps);
   let hash: string | undefined;
   for (const m of mints) {
     step(`Minting ${mintLabel(m)}…`);

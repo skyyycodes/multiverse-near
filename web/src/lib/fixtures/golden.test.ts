@@ -12,7 +12,7 @@ describe("seeded demo", () => {
   const s = scenarioJson(w, 1, undefined);
 
   it("prices the four worlds at 3,700 / 3,000 / 3,300 / 2,500", () => {
-    expect(s.worlds.map((x) => cents(x.weth_price))).toEqual(["3,700.00", "3,000.00", "3,300.00", "2,500.00"]);
+    expect(s.worlds.map((x) => cents(x.wnear_price))).toEqual(["3,700.00", "3,000.00", "3,300.00", "2,500.00"]);
   });
 
   it("odds sum to exactly 1e18 and the implied spot is 3,037.86", () => {
@@ -35,7 +35,7 @@ describe("Alice's sale and loan", () => {
     const a = accountJson(w, 1, "alice");
     expect(a.collateral.map((c) => cents(c.amount))).toEqual(["2.00", "5,865.05", "6,451.55", "4,881.88"]);
     const s = scenarioJson(w, 1, "alice");
-    expect(s.worlds.slice(1).map((x) => cents(x.weth_price))).toEqual(["2,883.84", "3,172.23", "2,379.88"]);
+    expect(s.worlds.slice(1).map((x) => cents(x.wnear_price))).toEqual(["2,883.84", "3,172.23", "2,379.88"]);
   });
 
   it("borrows 3,000 at a worst-world health factor of 1.22", () => {

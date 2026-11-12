@@ -9,7 +9,7 @@ import type { Asset } from "./types";
 import { toInternal } from "./units";
 
 /** Whole tokens per click: enough for a sale, a borrow and a Root LP deposit. */
-export const FAUCET_DROP: Record<Asset, bigint> = { weth: 2n, usdc: 5_000n };
+export const FAUCET_DROP: Record<Asset, bigint> = { wnear: 2n, usdc: 5_000n };
 
 /** What `faucet_config` returns. */
 export type FaucetConfig = { owner_id: string; max_mint_per_call: string };
@@ -32,12 +32,12 @@ export const wholeTokens = (whole: bigint, decimals: number): bigint => whole * 
  * token's per-call cap (token units) when it is known. A wallet that already holds the drop of both gets nothing.
  */
 export function faucetMints(
-  tokens: { weth: TokenCfg; usdc: TokenCfg },
-  balances: { weth: bigint; usdc: bigint },
+  tokens: { wnear: TokenCfg; usdc: TokenCfg },
+  balances: { wnear: bigint; usdc: bigint },
   caps: Partial<Record<Asset, bigint>> = {},
 ): FaucetMint[] {
   const out: FaucetMint[] = [];
-  for (const asset of ["weth", "usdc"] as const) {
+  for (const asset of ["wnear", "usdc"] as const) {
     const token = tokens[asset];
     const drop = wholeTokens(FAUCET_DROP[asset], token.decimals);
     if (balances[asset] >= toInternal(drop, token.decimals)) continue;
@@ -62,8 +62,8 @@ export function capOf(cfg: FaucetConfig | null | undefined): bigint | undefined 
 export const mintLabel = (m: Pick<FaucetMint, "internal" | "symbol">): string => `${fmt(m.internal, m.internal % ONE === 0n ? 0 : 4)} ${m.symbol}`;
 
 /** "2 WETH and 5,000 USDC" for the standard drop of the two tokens. */
-export function dropLabel(tokens: { weth: TokenCfg; usdc: TokenCfg }): string {
-  return (["weth", "usdc"] as const)
+export function dropLabel(tokens: { wnear: TokenCfg; usdc: TokenCfg }): string {
+  return (["wnear", "usdc"] as const)
     .map((a) => mintLabel({ internal: toInternal(wholeTokens(FAUCET_DROP[a], tokens[a].decimals), tokens[a].decimals), symbol: tokens[a].symbol }))
     .join(" and ");
 }

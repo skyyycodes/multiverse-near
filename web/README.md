@@ -44,7 +44,7 @@ because the sandbox node's RPC takes 3030.
 | `NEXT_PUBLIC_RPC_URL` | the file's `rpcUrl` | Reads go here; on testnet two public RPCs follow it as fallbacks |
 | `NEXT_PUBLIC_RPC_URLS` | unset | Comma-separated list replacing the above, tried in order on transport errors |
 | `NEXT_PUBLIC_CONTRACT_ID` | the file's `contractId` | The Multiverse contract; the demo scenario ids come from its `get_app_config` |
-| `NEXT_PUBLIC_WETH_ID`, `NEXT_PUBLIC_USDC_ID` | the file's `weth`, `usdc` | Checked against `get_app_config`: a build made for another deployment says so instead of reading the wrong balances |
+| `NEXT_PUBLIC_WNEAR_ID`, `NEXT_PUBLIC_USDC_ID` | the file's `wnear`, `usdc` | Checked against `get_app_config`: a build made for another deployment says so instead of reading the wrong balances |
 | `NEXT_PUBLIC_EXPLORER` | the file's `explorer` | Transaction links; none on the sandbox |
 | `NEXT_PUBLIC_RESET_COMMAND` | `RUN_SALE=false pnpm -C scripts reset` | What the Admin screen tells the operator to run |
 | `NEXT_PUBLIC_FIXTURES` | `0` | `1` serves design data instead of the chain |

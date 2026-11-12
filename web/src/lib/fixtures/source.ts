@@ -55,16 +55,16 @@ export function createFixtureSource(stage?: Stage): ReadSource {
       const account = (args.account_id as string | null | undefined) ?? null;
       const persona = personaOf(account);
 
-      if (contractId === FIXTURE_IDS.weth || contractId === FIXTURE_IDS.usdc) {
-        const asset: Asset = contractId === FIXTURE_IDS.weth ? "weth" : "usdc";
+      if (contractId === FIXTURE_IDS.wnear || contractId === FIXTURE_IDS.usdc) {
+        const asset: Asset = contractId === FIXTURE_IDS.wnear ? "wnear" : "usdc";
         const me = persona ? world.accounts[persona] : undefined;
         switch (method) {
           case "ft_balance_of":
             return (me ? me.wallet[asset] : 0n).toString() as T;
           case "ft_metadata":
-            return { spec: "ft-1.0.0", name: asset === "weth" ? "Wrapped Ether (test)" : "USD Coin (test)", symbol: asset.toUpperCase(), decimals: asset === "weth" ? 18 : 6 } as T;
+            return { spec: "ft-1.0.0", name: asset === "wnear" ? "Wrapped Ether (test)" : "USD Coin (test)", symbol: asset.toUpperCase(), decimals: asset === "wnear" ? 18 : 6 } as T;
           case "storage_balance_of":
-            return (me && (asset === "weth" || me.usdcRegistered) ? { total: "1250000000000000000000", available: "0" } : null) as T;
+            return (me && (asset === "wnear" || me.usdcRegistered) ? { total: "1250000000000000000000", available: "0" } : null) as T;
           case "storage_balance_bounds":
             return { min: "1250000000000000000000", max: "1250000000000000000000" } as T;
         }
@@ -89,13 +89,13 @@ export function createFixtureSource(stage?: Stage): ReadSource {
         case "admin_view":
           return { scenario: scenarioJson(world, sid, persona), events: eventsJson(world, sid), past_fed_event: world.events[3], owner_id: appConfig().owner_id, now_sec: nowSec() } as T;
         case "quote_sell":
-          return quote(world, sid, BigInt(String(args.weth_amount)), Number(args.sell_mask)) as T;
+          return quote(world, sid, BigInt(String(args.wnear_amount)), Number(args.sell_mask)) as T;
         case "quote_sell_parts": {
-          const parts = (args.parts as { world: number; weth_amount: string }[]) ?? [];
-          return parts.map((p) => quote(world, sid, BigInt(p.weth_amount), 1 << p.world)[p.world]) as T;
+          const parts = (args.parts as { world: number; wnear_amount: string }[]) ?? [];
+          return parts.map((p) => quote(world, sid, BigInt(p.wnear_amount), 1 << p.world)[p.world]) as T;
         }
         case "preview_lp_deposit":
-          return previewLp(world, sid, BigInt(String(args.weth_amount)), BigInt(String(args.usdc_amount))) as T;
+          return previewLp(world, sid, BigInt(String(args.wnear_amount)), BigInt(String(args.usdc_amount))) as T;
         case "real_balance_of":
           return "0" as T;
         case "storage_balance_of": {

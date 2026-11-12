@@ -7,7 +7,7 @@ import { WalletContext, type WalletApi } from "@/lib/near/wallet";
 import { EmptyWalletHint, FAUCET_ON, FaucetProgress, hintShown, walletEmpty } from "./TestTokens";
 
 const E18 = 10n ** 18n;
-const empty: Balances = { weth: 0n, usdc: 0n, innerWeth: 0n, innerUsdc: 0n };
+const empty: Balances = { wnear: 0n, usdc: 0n, innerWnear: 0n, innerUsdc: 0n };
 
 function wallet(accountId: string | null, fixtures = false): WalletApi {
   return {
@@ -39,14 +39,14 @@ describe("get test tokens", () => {
     expect(walletEmpty(undefined)).toBe(false);
     expect(walletEmpty(empty)).toBe(true);
     expect(walletEmpty({ ...empty, innerUsdc: E18 })).toBe(true);
-    expect(walletEmpty({ ...empty, weth: 1n })).toBe(false);
+    expect(walletEmpty({ ...empty, wnear: 1n })).toBe(false);
     expect(walletEmpty({ ...empty, usdc: 1n })).toBe(false);
   });
 
   it("keeps the home hint once pressed, though the first mint already filled the wallet", () => {
     expect(hintShown(empty, false)).toBe(true);
-    expect(hintShown({ ...empty, weth: 2n * E18 }, false)).toBe(false);
-    expect(hintShown({ ...empty, weth: 2n * E18 }, true)).toBe(true);
+    expect(hintShown({ ...empty, wnear: 2n * E18 }, false)).toBe(false);
+    expect(hintShown({ ...empty, wnear: 2n * E18 }, true)).toBe(true);
     expect(hintShown(undefined, true)).toBe(true);
   });
 

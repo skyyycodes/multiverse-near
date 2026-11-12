@@ -4,16 +4,16 @@ import { capOf, dropLabel, faucetMints, mintLabel, mintTx, wholeTokens } from ".
 import { GAS_LIGHT } from "./near/tx";
 
 const E18 = 10n ** 18n;
-const tokens: { weth: TokenCfg; usdc: TokenCfg } = {
-  weth: { tokenId: "weth.multiverse-lending.testnet", decimals: 18, symbol: "WETH" },
+const tokens: { wnear: TokenCfg; usdc: TokenCfg } = {
+  wnear: { tokenId: "wnear.multiverse-lending.testnet", decimals: 18, symbol: "WETH" },
   usdc: { tokenId: "usdc.multiverse-lending.testnet", decimals: 6, symbol: "USDC" },
 };
 
 describe("the testnet faucet", () => {
   it("mints 2 WETH and 5,000 USDC in token units to an empty wallet", () => {
-    const mints = faucetMints(tokens, { weth: 0n, usdc: 0n });
+    const mints = faucetMints(tokens, { wnear: 0n, usdc: 0n });
     expect(mints.map((m) => [m.asset, m.tokenId, m.amount])).toEqual([
-      ["weth", "weth.multiverse-lending.testnet", 2n * E18],
+      ["wnear", "wnear.multiverse-lending.testnet", 2n * E18],
       ["usdc", "usdc.multiverse-lending.testnet", 5_000_000_000n],
     ]);
     expect(mints.map((m) => m.internal)).toEqual([2n * E18, 5_000n * E18]);
@@ -21,17 +21,17 @@ describe("the testnet faucet", () => {
   });
 
   it("skips a token the wallet already holds the drop of, and both once it holds both", () => {
-    expect(faucetMints(tokens, { weth: 2n * E18, usdc: 4_999n * E18 }).map((m) => m.asset)).toEqual(["usdc"]);
-    expect(faucetMints(tokens, { weth: 2n * E18 - 1n, usdc: 5_000n * E18 }).map((m) => m.asset)).toEqual(["weth"]);
-    expect(faucetMints(tokens, { weth: 3n * E18, usdc: 9_000n * E18 })).toEqual([]);
+    expect(faucetMints(tokens, { wnear: 2n * E18, usdc: 4_999n * E18 }).map((m) => m.asset)).toEqual(["usdc"]);
+    expect(faucetMints(tokens, { wnear: 2n * E18 - 1n, usdc: 5_000n * E18 }).map((m) => m.asset)).toEqual(["wnear"]);
+    expect(faucetMints(tokens, { wnear: 3n * E18, usdc: 9_000n * E18 })).toEqual([]);
   });
 
   it("never asks for more than the per-call cap", () => {
-    const mints = faucetMints(tokens, { weth: 0n, usdc: 0n }, { weth: E18 / 2n, usdc: 10_000_000_000_000n });
+    const mints = faucetMints(tokens, { wnear: 0n, usdc: 0n }, { wnear: E18 / 2n, usdc: 10_000_000_000_000n });
     expect(mints.map((m) => m.amount)).toEqual([E18 / 2n, 5_000_000_000n]);
     expect(mintLabel(mints[0])).toBe("0.5000 WETH");
     // A zero or missing cap leaves the drop alone: the contract has the last word.
-    expect(faucetMints(tokens, { weth: 0n, usdc: 0n }, { weth: 0n }).map((m) => m.amount)[0]).toBe(2n * E18);
+    expect(faucetMints(tokens, { wnear: 0n, usdc: 0n }, { wnear: 0n }).map((m) => m.amount)[0]).toBe(2n * E18);
   });
 
   it("calls mint on the token for the caller itself, with no deposit", () => {

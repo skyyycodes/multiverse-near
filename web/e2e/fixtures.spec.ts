@@ -125,6 +125,6 @@ test("the admin sees owner controls and the price push quote", async ({ page }) 
   await page.locator(pick).click();
   await page.locator('[data-demo="push-amount"]').fill("3");
   await expect(page.locator('[data-demo="push-confirm"]')).toHaveText("Push DELAYED·HOLDS down");
-  await expect(page.locator('[data-demo="mint-weth"]')).toHaveText("Mint 3.0000 test WETH to my wallet");
+  await expect(page.locator('[data-demo="mint-wnear"]')).toHaveText("Mint 3.0000 test WETH to my wallet");
   await expect(page.locator('[data-demo="reset-command"]')).toContainText("reset");
 });

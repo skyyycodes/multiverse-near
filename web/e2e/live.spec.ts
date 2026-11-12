@@ -15,8 +15,8 @@ const DESKTOP = { width: 1440, height: 900 };
 const PHONE = { width: 390, height: 844 };
 const S = 1;
 
-type Snap = { scenario: { worlds: { label: string; weth_price: string }[] }; account: Record<string, unknown> };
-type World = { label: string; user_weth: string; user_usdc: string; collateral_weth: string; collateral_usdc: string; weth_price: string };
+type Snap = { scenario: { worlds: { label: string; wnear_price: string }[] }; account: Record<string, unknown> };
+type World = { label: string; user_wnear: string; user_usdc: string; collateral_wnear: string; collateral_usdc: string; wnear_price: string };
 
 async function as(browser: Browser, name: string): Promise<Page> {
   const context = await browser.newContext({ viewport: DESKTOP, reducedMotion: "reduce" });
@@ -52,7 +52,7 @@ test("the grid, signed out: four backed worlds, prices and spot as the contract 
   const cards = page.locator('[data-demo="world-card"]');
   await expect(cards).toHaveCount(4);
   for (const w of t.scenario.worlds) {
-    await expect(page.locator(`[data-demo="world-card"][data-world="${w.label}"]`)).toContainText(`$${usd(w.weth_price)}`);
+    await expect(page.locator(`[data-demo="world-card"][data-world="${w.label}"]`)).toContainText(`$${usd(w.wnear_price)}`);
   }
   await expect(page.locator('[data-demo="stat-backing"]')).toContainText("✓ all backed");
   await expect(page.locator('[data-demo="stat-actual-spot"]')).toContainText(`$${usd(t.scenario.spot_price)}`);
@@ -78,8 +78,8 @@ test("Alice sells 2 WETH in the L-shape: Ravi's bid in the preview, one transact
   await expect(confirm).toHaveText("Sell in 3 worlds");
 
   // the pool quotes from the chain, and Ravi's bid at 2,450 for the first ETH in DELAYED·HOLDS
-  const pool = await view<string[]>("quote_sell", { scenario_id: S, weth_amount: (2n * 10n ** 18n).toString(), sell_mask: 14 });
-  const [dhPool] = await view<string[]>("quote_sell_parts", { scenario_id: S, parts: [{ world: 3, weth_amount: (10n ** 18n).toString() }] });
+  const pool = await view<string[]>("quote_sell", { scenario_id: S, wnear_amount: (2n * 10n ** 18n).toString(), sell_mask: 14 });
+  const [dhPool] = await view<string[]>("quote_sell_parts", { scenario_id: S, parts: [{ world: 3, wnear_amount: (10n ** 18n).toString() }] });
   const dh = 2450n * 10n ** 18n + BigInt(dhPool);
   expect(usd(pool[1])).toBe("5,865.05");
   expect(usd(pool[2])).toBe("6,451.55");
@@ -156,7 +156,7 @@ const ETH = 10n ** 18n;
 const USDC = 10n ** 6n;
 
 test("Ravi quotes SHIPS·CUTS, Sam accepts the ask", async ({ browser }) => {
-  await fund(persona("ravi"), { weth: 2n * ETH, usdc: 5_000n * USDC });
+  await fund(persona("ravi"), { wnear: 2n * ETH, usdc: 5_000n * USDC });
   await fund(persona("sam"), { usdc: 5_000n * USDC });
   const ravi = await as(browser, "ravi");
   await ravi.goto("/orders/?w=0");
@@ -202,31 +202,31 @@ test("Ravi quotes SHIPS·CUTS, Sam accepts the ask", async ({ browser }) => {
   await expect(sam.locator('[data-demo="accept-confirm-result"]')).toContainText("Done · ", { timeout: 60_000 });
   const after = await view<{ scenario: { worlds: World[] }; orders: { id: string }[] }>("trade_view", { scenario_id: S, account_id: persona("sam") });
   expect(after.orders.some((o) => o.id === ask.id)).toBe(false);
-  expect(after.scenario.worlds[0].user_weth).toBe((5n * 10n ** 17n).toString());
+  expect(after.scenario.worlds[0].user_wnear).toBe((5n * 10n ** 17n).toString());
   await expect(sam.locator('[data-demo="ladder-row"][data-side="ask"]', { hasText: "$3,750.00" })).toHaveCount(0);
   await shoot(sam, "11-after-accept");
   await sam.context().close();
 });
 
 test("Uma underwrites every world as Root LP, then withdraws it all", async ({ browser }) => {
-  await fund(persona("uma"), { weth: 5n * ETH, usdc: 20_000n * USDC });
+  await fund(persona("uma"), { wnear: 5n * ETH, usdc: 20_000n * USDC });
   const page = await as(browser, "uma");
   await page.goto("/lend/");
   await connected(page, "uma");
-  await page.locator('[data-demo="lp-weth"]').fill("5");
+  await page.locator('[data-demo="lp-wnear"]').fill("5");
   await page.locator('[data-demo="lp-usdc"]').fill("20000");
   const preview = await view<{ shares: string }>("preview_lp_deposit", {
     scenario_id: S,
-    weth_amount: (5n * 10n ** 18n).toString(),
+    wnear_amount: (5n * 10n ** 18n).toString(),
     usdc_amount: (20000n * 10n ** 18n).toString(),
   });
   await expect(page.locator('[data-demo="lp-deposit"]')).toContainText(usd(preview.shares));
   await shoot(page, "12-lp-preview", undefined, async (p) => {
-    await p.locator('[data-demo="lp-weth"]').fill("5");
+    await p.locator('[data-demo="lp-wnear"]').fill("5");
     await p.locator('[data-demo="lp-usdc"]').fill("20000");
   });
   await expect(async () => {
-    await page.locator('[data-demo="lp-weth"]').fill("5");
+    await page.locator('[data-demo="lp-wnear"]').fill("5");
     await page.locator('[data-demo="lp-usdc"]').fill("20000");
     await expect(page.locator('[data-demo="lp-deposit-confirm"]')).toHaveText("Underwrite every world", { timeout: 3_000 });
     await page.locator('[data-demo="lp-deposit-confirm"]').click({ timeout: 2_000 });

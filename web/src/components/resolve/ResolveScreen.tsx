@@ -11,7 +11,7 @@ import { TxButton } from "@/components/ui/TxButton";
 import { WorldGrid } from "@/components/world/WorldGrid";
 import { CONTRACT_ID } from "@/lib/data/client";
 import type { Account, AppConfig, EventState, Scenario } from "@/lib/domain";
-import { countdown, fmt, fmtUsd, fmtWeth } from "@/lib/format";
+import { countdown, fmt, fmtUsd, fmtNear } from "@/lib/format";
 import { useChainClock } from "@/lib/hooks/useClock";
 import { useBalances, useResolve, useScenarioId } from "@/lib/hooks/useData";
 import { useIsDesktop } from "@/lib/hooks/useMedia";
@@ -33,7 +33,7 @@ function Resolve({ config }: { config: AppConfig }) {
   const desktop = useIsDesktop();
   const sid = useScenarioId(config);
   const view = useResolve(sid, wallet.accountId);
-  const balances = useBalances(wallet.accountId, config.weth, config.usdc);
+  const balances = useBalances(wallet.accountId, config.wnear, config.usdc);
   const clock = useChainClock(view.data?.nowSec, view.dataUpdatedAt);
   const d = view.data;
   const s = d?.scenario;
@@ -205,7 +205,7 @@ function ClosePanel({ config, s, v, walletUsdc }: { config: AppConfig; s: Scenar
     const record = (o: Parameters<typeof eventsOf>[0]) => {
       const summary = summarizeClose(eventsOf(o));
       // Design data has no logs; it reports the plan it showed.
-      setClosed(summary ?? (wallet.fixtures ? { repaid: v.debt, usdc: plan.realUsdc, weth: plan.realWeth } : undefined));
+      setClosed(summary ?? (wallet.fixtures ? { repaid: v.debt, usdc: plan.realUsdc, wnear: plan.realWnear } : undefined));
     };
     if (v.debt > 0n) {
       // The debt grows by a few seconds of interest before this lands: send 0.1% more, bounded by the wallet; the
@@ -249,7 +249,7 @@ function ClosePanel({ config, s, v, walletUsdc }: { config: AppConfig; s: Scenar
               { label: "You repay (loan plus interest)", value: fmtUsd(v.debt) },
               {
                 label: "You receive, real",
-                value: `${fmt(plan.realUsdc)} USDC${plan.realWeth > 0n ? ` + ${fmtWeth(plan.realWeth)} WETH` : ""}`,
+                value: `${fmt(plan.realUsdc)} USDC${plan.realWnear > 0n ? ` + ${fmtNear(plan.realWnear)} WETH` : ""}`,
                 tone: "text-pos",
                 demo: "close-receive",
               },
@@ -265,13 +265,13 @@ function ClosePanel({ config, s, v, walletUsdc }: { config: AppConfig; s: Scenar
         label="Close and redeem"
         busyLabel="Closing…"
         blocker={blocker}
-        needs={{ contract: true, tokens: ["usdc", "weth"] }}
+        needs={{ contract: true, tokens: ["usdc", "wnear"] }}
         run={run}
       />
       {closed && (
         <p className="num text-[13px] text-pos" data-demo="close-result">
           Repaid {fmtUsd(closed.repaid)}; redeemed {fmt(closed.usdc)} real USDC
-          {closed.weth > 0n ? ` and ${fmtWeth(closed.weth)} real WETH` : ""}.
+          {closed.wnear > 0n ? ` and ${fmtNear(closed.wnear)} real WETH` : ""}.
         </p>
       )}
     </Sheet>

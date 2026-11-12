@@ -43,7 +43,7 @@ export type FtAction =
   | { action: "supply"; scenario_id: number }
   | { action: "repay"; scenario_id: number; all: boolean }
   | { action: "close_after_resolution"; scenario_id: number }
-  | { action: "lp_deposit"; scenario_id: number; weth_amount: string; min_shares: string };
+  | { action: "lp_deposit"; scenario_id: number; wnear_amount: string; min_shares: string };
 
 export function call(receiverId: string, methodName: string, args: Record<string, unknown>, deposit = ONE_YOCTO, gas = GAS_CALL): Tx {
   return { receiverId, actions: [{ type: "FunctionCall", params: { methodName, args, gas, deposit } }] };
@@ -72,4 +72,4 @@ export function singleOrderPlan(worldCount: number, index: number, orderId: bigi
 export const storageDeposit = (contractId: string, deposit: bigint, registrationOnly: boolean, accountId?: string): Tx =>
   call(contractId, "storage_deposit", { account_id: accountId ?? null, registration_only: registrationOnly }, deposit.toString(), GAS_LIGHT);
 
-export const assetSymbol = (a: Asset) => (a === "weth" ? "WETH" : "USDC");
+export const assetSymbol = (a: Asset) => (a === "wnear" ? "WETH" : "USDC");

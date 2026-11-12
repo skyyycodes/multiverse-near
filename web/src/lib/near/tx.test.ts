@@ -6,7 +6,7 @@ const E18 = 10n ** 18n;
 
 describe("transactions the wallet signs", () => {
   it("sends real tokens with ft_transfer_call: token units outside, a JSON action inside, 1 yocto", () => {
-    const tx = ftTransferCall("weth.multiverse-lending.testnet", "app.multiverse-lending.testnet", 2n * E18, {
+    const tx = ftTransferCall("wnear.multiverse-lending.testnet", "app.multiverse-lending.testnet", 2n * E18, {
       action: "conditional_sell",
       scenario_id: 1,
       sell_mask: 14,
@@ -14,7 +14,7 @@ describe("transactions the wallet signs", () => {
       min_out: ["0", "1", "2", "3"],
       to_lending: true,
     });
-    expect(tx.receiverId).toBe("weth.multiverse-lending.testnet");
+    expect(tx.receiverId).toBe("wnear.multiverse-lending.testnet");
     const p = tx.actions[0].params;
     expect(p.methodName).toBe("ft_transfer_call");
     expect(p.deposit).toBe(ONE_YOCTO);

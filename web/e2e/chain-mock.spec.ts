@@ -85,7 +85,7 @@ test("the sale is one ft_transfer_call of 2 WETH carrying the plan, and the app 
 
   expect(signed).toHaveLength(1);
   const tx = signed[0];
-  expect(tx.receiverId).toBe("weth.multiverse-lending.testnet");
+  expect(tx.receiverId).toBe("wnear.multiverse-lending.testnet");
   const call = tx.actions[0].params;
   expect(call).toMatchObject({ methodName: "ft_transfer_call", deposit: "1", gas: "300000000000000" });
   expect(call.args).toMatchObject({ receiver_id: CONTRACT, amount: "2000000000000000000", memo: null });

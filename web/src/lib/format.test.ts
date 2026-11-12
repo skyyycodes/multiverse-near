@@ -5,7 +5,7 @@ import {
   fmt,
   fmtHf,
   fmtUsd,
-  fmtWeth,
+  fmtNear,
   hfTone,
   inputText,
   parseAmount,
@@ -42,7 +42,7 @@ describe("fmt", () => {
 
   it("has the screen variants", () => {
     expect(fmtUsd(wad("3037.866632"))).toBe("$3,037.86");
-    expect(fmtWeth(wad("2"))).toBe("2.0000");
+    expect(fmtNear(wad("2"))).toBe("2.0000");
     expect(wholeUsd(wad("2450"))).toBe("$2,450");
     expect(inputText(wad("3643.1052"), 2)).toBe("3643.10");
   });

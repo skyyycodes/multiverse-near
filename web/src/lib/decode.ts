@@ -43,13 +43,13 @@ export function decodeWorld(w: WorldViewJson): World {
     label: w.label,
     possible: w.possible,
     poolInitialized: w.pool_initialized,
-    wethPrice: big(w.weth_price),
+    wnearPrice: big(w.wnear_price),
     backed: w.backed,
-    wethTokenId: w.weth_token_id,
+    wnearTokenId: w.wnear_token_id,
     usdcTokenId: w.usdc_token_id,
-    userWeth: big(w.user_weth),
+    userWnear: big(w.user_wnear),
     userUsdc: big(w.user_usdc),
-    collateralWeth: big(w.collateral_weth),
+    collateralWnear: big(w.collateral_wnear),
     collateralUsdc: big(w.collateral_usdc),
     odds: big(w.odds),
     poolId: w.pool_id,
@@ -138,12 +138,12 @@ export function decodeRootLp(r: RootLpViewJson): RootLp {
     shareSupply: big(r.share_supply),
     yourShares: big(r.your_shares),
     shareDecimals: r.share_decimals,
-    previewWithdraw: r.preview_withdraw ? { weth: r.preview_withdraw.weth.map(big), usdc: r.preview_withdraw.usdc.map(big) } : null,
+    previewWithdraw: r.preview_withdraw ? { wnear: r.preview_withdraw.wnear.map(big), usdc: r.preview_withdraw.usdc.map(big) } : null,
     holdings: r.holdings.map((h) => ({
       world: h.world,
-      wethIdle: big(h.weth_idle),
+      wnearIdle: big(h.wnear_idle),
       usdcIdle: big(h.usdc_idle),
-      wethFees: big(h.weth_fees),
+      wnearFees: big(h.wnear_fees),
       usdcFees: big(h.usdc_fees),
     })),
   };
@@ -199,7 +199,7 @@ export function decodeConfig(c: AppConfigView): AppConfig {
   return {
     ownerId: c.owner_id,
     reporterId: c.reporter_id,
-    weth: { tokenId: c.weth.token_id, decimals: c.weth.decimals, symbol: c.weth.symbol },
+    wnear: { tokenId: c.wnear.token_id, decimals: c.wnear.decimals, symbol: c.wnear.symbol },
     usdc: { tokenId: c.usdc.token_id, decimals: c.usdc.decimals, symbol: c.usdc.symbol },
     lltv: big(c.lltv),
     liquidationBonus: big(c.liquidation_bonus),
@@ -211,7 +211,7 @@ export function decodeConfig(c: AppConfigView): AppConfig {
     rootLp: Boolean(c.root_lp),
     demo: demo
       ? {
-          glamEvent: idOf(demo.glam_event),
+          spiceEvent: idOf(demo.spice_event),
           fedEvent: idOf(demo.fed_event),
           pastFedEvent: idOf(demo.past_fed_event),
           scenario2x2: idOf(demo.scenario_2x2),
@@ -223,6 +223,6 @@ export function decodeConfig(c: AppConfigView): AppConfig {
 
 export const decodeLpPreview = (v: LpPreviewJson): LpPreview => ({
   shares: big(v.shares),
-  wethKept: v.weth_kept.map(big),
+  wnearKept: v.wnear_kept.map(big),
   usdcKept: v.usdc_kept.map(big),
 });

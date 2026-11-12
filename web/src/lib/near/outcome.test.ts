@@ -10,9 +10,9 @@ function ftCall(used: string, onTransfer: unknown = { SuccessValue: b64('"0"') }
     status: { SuccessValue: b64(JSON.stringify(used)) },
     transaction: { hash: "7RkrZxguPMJ3Sdgv8aJbFhFsHbUxeLzntrXX98LQ4rTy" },
     receipts_outcome: [
-      { outcome: { executor_id: "weth.multiverse-lending.testnet", status: { SuccessReceiptId: "a" }, logs: [] } },
+      { outcome: { executor_id: "wnear.multiverse-lending.testnet", status: { SuccessReceiptId: "a" }, logs: [] } },
       { outcome: { executor_id: CONTRACT, status: onTransfer, logs } },
-      { outcome: { executor_id: "weth.multiverse-lending.testnet", status: { SuccessValue: b64(JSON.stringify(used)) }, logs: [] } },
+      { outcome: { executor_id: "wnear.multiverse-lending.testnet", status: { SuccessValue: b64(JSON.stringify(used)) }, logs: [] } },
     ],
   };
 }

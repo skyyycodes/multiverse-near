@@ -9,11 +9,11 @@ import { TxButton } from "@/components/ui/TxButton";
 import { WorldGlyph } from "@/components/world/WorldBits";
 import { CONTRACT_ID } from "@/lib/data/client";
 import type { AppConfig, LendSnapshot } from "@/lib/domain";
-import { fmt, fmtUsd, fmtWeth, inputText, parseAmount, pct } from "@/lib/format";
+import { fmt, fmtUsd, fmtNear, inputText, parseAmount, pct } from "@/lib/format";
 import { useLpPreview, type Balances } from "@/lib/hooks/useData";
 import { useSubmit } from "@/lib/hooks/useTx";
 import { call, ftTransferCall } from "@/lib/near/tx";
-import { scaleOf, toTokenCeil } from "@/lib/units";
+import { toTokenCeil, toTokenFloor } from "@/lib/units";
 
 /** Minimums sent with a deposit or withdrawal: the preview less 0.5%, so a pool that moves in between reverts it. */
 const lessSlippage = (x: bigint) => (x * 9_950n) / 10_000n;
@@ -27,15 +27,15 @@ const shares18 = (x: bigint, decimals: number) => (decimals <= 18 ? x * 10n ** B
  */
 export function RootLpPanel({ config, sid, view, balances }: { config: AppConfig; sid: number; view: LendSnapshot; balances?: Balances }) {
   const submit = useSubmit();
-  const [wethInput, setWethInput] = useState("");
+  const [wnearInput, setWnearInput] = useState("");
   const [usdcInput, setUsdcInput] = useState("");
-  const weth = parseAmount(wethInput, config.weth.decimals);
+  const wnear = parseAmount(wnearInput, config.wnear.decimals);
   const usdc = parseAmount(usdcInput, config.usdc.decimals);
-  const preview = useLpPreview(sid, weth, usdc);
+  const preview = useLpPreview(sid, wnear, usdc);
   const lp = view.rootLp;
-  const walletWeth = balances?.weth ?? 0n;
+  const walletWnear = balances?.wnear ?? 0n;
   const walletUsdc = balances?.usdc ?? 0n;
-  const innerWeth = balances?.innerWeth ?? 0n;
+  const innerWnear = balances?.innerWnear ?? 0n;
 
   if (!config.rootLp || !lp) {
     return (
@@ -49,22 +49,22 @@ export function RootLpPanel({ config, sid, view, balances }: { config: AppConfig
   const supply = lp.shareSupply;
   const live = view.worlds.filter((w) => w.possible);
   const kept = preview.data;
-  const backWeth = kept && weth ? live.map((w) => weth - (kept.wethKept[w.index] ?? 0n)) : [];
+  const backWnear = kept && wnear ? live.map((w) => wnear - (kept.wnearKept[w.index] ?? 0n)) : [];
   const backUsdc = kept && usdc ? live.map((w) => usdc - (kept.usdcKept[w.index] ?? 0n)) : [];
   const claim = lp.previewWithdraw;
-  const claimWeth = claim ? live.map((w) => claim.weth[w.index] ?? 0n) : [];
+  const claimWnear = claim ? live.map((w) => claim.wnear[w.index] ?? 0n) : [];
   const claimUsdc = claim ? live.map((w) => claim.usdc[w.index] ?? 0n) : [];
   const feesOf = (world: number) => {
     const h = lp.holdings.find((x) => x.world === world);
-    if (!h || supply === 0n) return { weth: 0n, usdc: 0n };
-    return { weth: ((h.wethIdle + h.wethFees) * balance) / supply, usdc: ((h.usdcIdle + h.usdcFees) * balance) / supply };
+    if (!h || supply === 0n) return { wnear: 0n, usdc: 0n };
+    return { wnear: ((h.wnearIdle + h.wnearFees) * balance) / supply, usdc: ((h.usdcIdle + h.usdcFees) * balance) / supply };
   };
 
   // WETH needed beyond what already sits in the internal balance; it goes in first as a plain deposit.
-  const wethShort = weth !== undefined && weth > innerWeth ? weth - innerWeth : 0n;
+  const wnearShort = wnear !== undefined && wnear > innerWnear ? wnear - innerWnear : 0n;
   let blocker: string | undefined;
-  if (!weth || !usdc) blocker = "Enter both amounts";
-  else if (wethShort > walletWeth) blocker = "Not enough WETH";
+  if (!wnear || !usdc) blocker = "Enter both amounts";
+  else if (wnearShort > walletWnear) blocker = "Not enough WETH";
   else if (usdc > walletUsdc) blocker = "Not enough USDC";
   else if (!kept) blocker = "Previewing…";
 
@@ -81,11 +81,11 @@ export function RootLpPanel({ config, sid, view, balances }: { config: AppConfig
           <AmountField
             label="Amount (WETH)"
             size="md"
-            value={wethInput}
-            onChange={setWethInput}
+            value={wnearInput}
+            onChange={setWnearInput}
             unit="WETH"
-            demo="lp-weth"
-            right={<InlineButton onClick={() => setWethInput(inputText(walletWeth + innerWeth, 4))}>wallet {fmtWeth(walletWeth)}</InlineButton>}
+            demo="lp-wnear"
+            right={<InlineButton onClick={() => setWnearInput(inputText(walletWnear + innerWnear, 4))}>wallet {fmtNear(walletWnear)}</InlineButton>}
           />
           <AmountField
             label="Amount (USDC)"
@@ -102,7 +102,7 @@ export function RootLpPanel({ config, sid, view, balances }: { config: AppConfig
               <span className="num text-[15px] text-ink">{fmt(shares18(kept.shares, lp.shareDecimals))}</span>
             </div>
           )}
-          {preview.error && weth && usdc && (
+          {preview.error && wnear && usdc && (
             <p className="text-[13px] text-neg">
               {/DepositTooSmall|ZeroAmount/.test(preview.error.message) ? "Too small to buy a share of every world’s pool." : preview.error.message}
             </p>
@@ -114,10 +114,10 @@ export function RootLpPanel({ config, sid, view, balances }: { config: AppConfig
             blocker={blocker}
             needs={{ contract: true }}
             run={async (step) => {
-              if (wethShort > 0n) {
+              if (wnearShort > 0n) {
                 step("Depositing WETH…");
-                const tokens = wethShort / scaleOf(config.weth.decimals);
-                await submit(ftTransferCall(config.weth.tokenId, CONTRACT_ID, tokens, { action: "deposit" }), tokens);
+                const tokens = toTokenFloor(wnearShort, config.wnear.decimals);
+                await submit(ftTransferCall(config.wnear.tokenId, CONTRACT_ID, tokens, { action: "deposit" }), tokens);
               }
               step("Depositing…");
               const tokens = toTokenCeil(usdc!, config.usdc.decimals);
@@ -125,14 +125,14 @@ export function RootLpPanel({ config, sid, view, balances }: { config: AppConfig
                 ftTransferCall(config.usdc.tokenId, CONTRACT_ID, tokens, {
                   action: "lp_deposit",
                   scenario_id: sid,
-                  weth_amount: weth!.toString(),
+                  wnear_amount: wnear!.toString(),
                   min_shares: lessSlippage(kept!.shares).toString(),
                 }),
                 "nonzero",
               );
             }}
             onDone={() => {
-              setWethInput("");
+              setWnearInput("");
               setUsdcInput("");
             }}
           />
@@ -148,7 +148,7 @@ export function RootLpPanel({ config, sid, view, balances }: { config: AppConfig
           </div>
           {balance > 0n && claim ? (
             <p className="text-[13px] leading-relaxed text-mute">
-              Withdrawing now returns <span className="num text-ink">{fmtWeth(smallest(claimWeth))} WETH</span> and{" "}
+              Withdrawing now returns <span className="num text-ink">{fmtNear(smallest(claimWnear))} WETH</span> and{" "}
               <span className="num text-ink">{fmtUsd(smallest(claimUsdc))}</span> as real assets, and the rest as world tokens.
             </p>
           ) : (
@@ -160,13 +160,13 @@ export function RootLpPanel({ config, sid, view, balances }: { config: AppConfig
             label="Withdraw all"
             busyLabel="Withdrawing…"
             blocker={balance === 0n ? "No shares" : !claim ? "Loading…" : undefined}
-            needs={{ contract: true, tokens: ["weth", "usdc"] }}
+            needs={{ contract: true, tokens: ["wnear", "usdc"] }}
             run={() =>
               submit(
                 call(CONTRACT_ID, "lp_withdraw", {
                   scenario_id: sid,
                   shares: balance.toString(),
-                  min_weth_out: claim!.weth.map((x) => lessSlippage(x).toString()),
+                  min_wnear_out: claim!.wnear.map((x) => lessSlippage(x).toString()),
                   min_usdc_out: claim!.usdc.map((x) => lessSlippage(x).toString()),
                 }),
               )
@@ -175,18 +175,18 @@ export function RootLpPanel({ config, sid, view, balances }: { config: AppConfig
         </div>
       </div>
 
-      {kept && weth && usdc && (
+      {kept && wnear && usdc && (
         <WorldTable
           title="This deposit, by world"
           head={["the pool takes", "comes back"]}
           rows={live.map((w, k) => ({
             world: w,
             cells: [
-              `${fmtWeth(kept.wethKept[w.index] ?? 0n)} WETH · ${fmtUsd(kept.usdcKept[w.index] ?? 0n)}`,
-              `${fmtWeth(backWeth[k])} WETH · ${fmtUsd(backUsdc[k])}`,
+              `${fmtNear(kept.wnearKept[w.index] ?? 0n)} WETH · ${fmtUsd(kept.usdcKept[w.index] ?? 0n)}`,
+              `${fmtNear(backWnear[k])} WETH · ${fmtUsd(backUsdc[k])}`,
             ],
           }))}
-          note={`What every world has left over comes back as real assets (here ${fmtWeth(smallest(backWeth))} WETH and ${fmtUsd(smallest(backUsdc))}); the rest as that world's tokens.`}
+          note={`What every world has left over comes back as real assets (here ${fmtNear(smallest(backWnear))} WETH and ${fmtUsd(smallest(backUsdc))}); the rest as that world's tokens.`}
         />
       )}
       {balance > 0n && claim && (
@@ -197,7 +197,7 @@ export function RootLpPanel({ config, sid, view, balances }: { config: AppConfig
             const fees = feesOf(w.index);
             return {
               world: w,
-              cells: [`${fmtWeth(claimWeth[k])} WETH · ${fmtUsd(claimUsdc[k])}`, `${fmtWeth(fees.weth)} WETH${fees.usdc > 0n ? ` · ${fmtUsd(fees.usdc)}` : ""}`],
+              cells: [`${fmtNear(claimWnear[k])} WETH · ${fmtUsd(claimUsdc[k])}`, `${fmtNear(fees.wnear)} WETH${fees.usdc > 0n ? ` · ${fmtUsd(fees.usdc)}` : ""}`],
             };
           })}
           note="Fees are your share of what each world's pool has paid the vault, included in the amounts above."

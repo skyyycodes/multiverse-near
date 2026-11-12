@@ -10,7 +10,7 @@ import { Chip, InfoRows } from "@/components/ui/Bits";
 import { ChainWait } from "@/components/ui/Notice";
 import { Block } from "@/components/ui/Surface";
 import type { AppConfig, EventState, Scenario, World } from "@/lib/domain";
-import { fmt, fmtUsd, fmtWeth, pct } from "@/lib/format";
+import { fmt, fmtUsd, fmtNear, pct } from "@/lib/format";
 import { useNowSeconds } from "@/lib/hooks/useClock";
 import { usePool, useScenarioId, useTrade } from "@/lib/hooks/useData";
 import { useIsDesktop } from "@/lib/hooks/useMedia";
@@ -200,7 +200,7 @@ function WorldInfo({ config, scenario, world, orders }: { config: AppConfig; sce
   const p = pool.data;
   const dead = !world.possible;
   const fee = p?.feePips !== undefined ? `${(p.feePips / 10_000).toFixed(2)}%` : "—";
-  const held = world.userWeth + world.collateralWeth > 0n || world.userUsdc + world.collateralUsdc > 0n;
+  const held = world.userWnear + world.collateralWnear > 0n || world.userUsdc + world.collateralUsdc > 0n;
   return (
     <Block demo="world-info">
       <div className="flex flex-col gap-1.5">
@@ -209,7 +209,7 @@ function WorldInfo({ config, scenario, world, orders }: { config: AppConfig; sce
           <span className="label text-mute">{spaced(world.label)}</span>
           {dead && <Chip tone="neutral">resolved away</Chip>}
         </div>
-        <span className="numeral text-[44px] text-ink">{world.poolInitialized ? fmtUsd(world.wethPrice) : "no pool"}</span>
+        <span className="numeral text-[44px] text-ink">{world.poolInitialized ? fmtUsd(world.wnearPrice) : "no pool"}</span>
         <span className="text-[13px] text-mute">ETH price if this world happens</span>
       </div>
       <div className="flex flex-col gap-1">
@@ -219,7 +219,7 @@ function WorldInfo({ config, scenario, world, orders }: { config: AppConfig; sce
             { label: "Odds", value: scenario.oddsKnown ? pct(world.odds, ONE) : "—" },
             {
               label: "Pool depth",
-              value: p?.wethReserve !== undefined && p?.usdcReserve !== undefined ? `${fmt(p.wethReserve)} WETH / ${fmt(p.usdcReserve, 0)} USDC` : "—",
+              value: p?.wnearReserve !== undefined && p?.usdcReserve !== undefined ? `${fmt(p.wnearReserve)} WETH / ${fmt(p.usdcReserve, 0)} USDC` : "—",
             },
             { label: "Dynamic fee now", value: fee },
             {
@@ -247,17 +247,17 @@ function WorldInfo({ config, scenario, world, orders }: { config: AppConfig; sce
           </PillLink>
         </div>
       )}
-      {world.userWeth > 0n && dead && <p className="text-[12px] text-mute">Tokens of a world that can no longer happen are worth nothing. {fmtWeth(world.userWeth)} WETH-if-{world.label} stays in your wallet.</p>}
+      {world.userWnear > 0n && dead && <p className="text-[12px] text-mute">Tokens of a world that can no longer happen are worth nothing. {fmtNear(world.userWnear)} WETH-if-{world.label} stays in your wallet.</p>}
     </Block>
   );
 }
 
 /** "2.0000 WETH + 1.00 USDC · loan collateral", short enough for one info row. */
 function positionText(w: World): string {
-  const weth = w.userWeth + w.collateralWeth;
+  const wnear = w.userWnear + w.collateralWnear;
   const usdc = w.userUsdc + w.collateralUsdc;
-  const parts = [weth > 0n ? `${fmtWeth(weth)} WETH` : "", usdc > 0n ? `${fmt(usdc)} USDC` : ""].filter(Boolean);
-  const posted = w.collateralWeth > 0n || w.collateralUsdc > 0n;
+  const parts = [wnear > 0n ? `${fmtNear(wnear)} WETH` : "", usdc > 0n ? `${fmt(usdc)} USDC` : ""].filter(Boolean);
+  const posted = w.collateralWnear > 0n || w.collateralUsdc > 0n;
   return `${parts.join(" + ")}${posted ? " · collateral" : ""}`;
 }
 

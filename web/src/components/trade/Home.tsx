@@ -10,7 +10,7 @@ import { WorldGlyph, WorldThumb } from "@/components/world/WorldBits";
 import type { CellQuote } from "@/components/world/WorldCard";
 import { hueOf, spaced } from "@/components/world/hues";
 import type { Scenario, World } from "@/lib/domain";
-import { fmt, fmtUsd, fmtWeth, pct, wholeUsd } from "@/lib/format";
+import { fmt, fmtUsd, fmtNear, pct, wholeUsd } from "@/lib/format";
 import type { Balances } from "@/lib/hooks/useData";
 import { useWallet } from "@/lib/near/wallet";
 
@@ -56,7 +56,7 @@ export function BalanceChips({ balances, loading, hideConnect }: { balances?: Ba
   const inner = innerChipText(b);
   return (
     <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 lg:mx-0 lg:px-0" data-demo="balance-chips">
-      <BalanceChip glyph={<EthGlyph />} label="WETH" value={b ? fmtWeth(b.weth) : undefined} loading={loading} />
+      <BalanceChip glyph={<EthGlyph />} label="WETH" value={b ? fmtNear(b.wnear) : undefined} loading={loading} />
       <BalanceChip glyph={<UsdGlyph />} label="USDC" value={b ? fmt(b.usdc) : undefined} loading={loading} />
       {inner && <BalanceChip glyph={<Mark size={20} />} label="In Multiverse" value={inner} />}
     </div>
@@ -71,7 +71,7 @@ export function innerChipText(b: Balances | undefined): string | undefined {
   if (!b) return undefined;
   const parts = [
     b.innerUsdc >= 10n ** 16n ? `${fmt(b.innerUsdc)} USDC` : undefined,
-    b.innerWeth >= 10n ** 14n ? `${fmtWeth(b.innerWeth)} WETH` : undefined,
+    b.innerWnear >= 10n ** 14n ? `${fmtNear(b.innerWnear)} WETH` : undefined,
   ].filter((p) => p !== undefined);
   return parts.length > 0 ? parts.join(" + ") : undefined;
 }
@@ -240,12 +240,12 @@ export function FuturesList({ scenario, quotes, demo = "futures-list" }: { scena
 
 function FutureRow({ world, oddsKnown, quote }: { world: World; oddsKnown: boolean; quote?: CellQuote }) {
   const held = world.userUsdc + world.collateralUsdc;
-  const heldWeth = world.userWeth + world.collateralWeth;
+  const heldWnear = world.userWnear + world.collateralWnear;
   const right =
     held > 0n
       ? `you: ${fmt(held)} USDC`
-      : heldWeth > 0n
-        ? `you: ${fmtWeth(heldWeth)} WETH`
+      : heldWnear > 0n
+        ? `you: ${fmtNear(heldWnear)} WETH`
         : quote?.bid !== undefined
           ? `best bid ${wholeUsd(quote.bid)}`
           : quote
@@ -276,7 +276,7 @@ function FutureRow({ world, oddsKnown, quote }: { world: World; oddsKnown: boole
         </span>
         <span className="flex flex-col items-end text-right">
           <span className={`num text-[14px] font-semibold ${world.possible ? "text-ink" : "text-faint"}`}>
-            {world.possible ? (world.poolInitialized ? fmtUsd(world.wethPrice) : "no pool") : "resolved away"}
+            {world.possible ? (world.poolInitialized ? fmtUsd(world.wnearPrice) : "no pool") : "resolved away"}
           </span>
           {right && world.possible && <span className="num text-[12px] text-mute">{right}</span>}
         </span>

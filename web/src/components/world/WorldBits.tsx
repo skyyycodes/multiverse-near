@@ -39,13 +39,13 @@ export function WorldThumb({ world, oddsKnown }: { world: World; oddsKnown: bool
         href={`/world/?w=${world.index}`}
         data-demo="world-thumb"
         data-world={world.label}
-        aria-label={`${world.label}: ${world.poolInitialized ? wholeUsd(world.wethPrice) : "no pool"}`}
+        aria-label={`${world.label}: ${world.poolInitialized ? wholeUsd(world.wnearPrice) : "no pool"}`}
         className="focus-ring relative isolate flex h-[108px] flex-col justify-between overflow-hidden rounded-[18px] p-3 text-white shadow-card"
       >
         <Aurora index={world.index} alive={!dead} strength={1.1} />
         <span className={`relative font-mono text-[11px] font-medium text-white/80 ${dead ? "line-through" : ""}`}>{initials(world.label)}</span>
         <span className="relative flex flex-col">
-          <span className="num text-[16px] leading-tight">{world.poolInitialized ? wholeUsd(world.wethPrice) : "—"}</span>
+          <span className="num text-[16px] leading-tight">{world.poolInitialized ? wholeUsd(world.wnearPrice) : "—"}</span>
           <span className="num text-[11px] text-white/60">{oddsKnown ? pct(world.odds, ONE) : "—"}</span>
         </span>
       </Link>

@@ -28,19 +28,19 @@ function account(p: Partial<Account> = {}): Account {
   };
 }
 
-const world = (i: number, collateralWeth = 0n): World => ({
+const world = (i: number, collateralWnear = 0n): World => ({
   index: i,
   mask: 1 << i,
   label: ["SHIPS·CUTS", "DELAYED·CUTS", "SHIPS·HOLDS", "DELAYED·HOLDS"][i],
   possible: true,
   poolInitialized: true,
-  wethPrice: 0n,
+  wnearPrice: 0n,
   backed: true,
-  wethTokenId: "",
+  wnearTokenId: "",
   usdcTokenId: "",
-  userWeth: 0n,
+  userWnear: 0n,
   userUsdc: 0n,
-  collateralWeth,
+  collateralWnear,
   collateralUsdc: 0n,
   odds: 0n,
   poolId: null,

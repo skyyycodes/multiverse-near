@@ -10,13 +10,13 @@ import { WorldPicker } from "@/components/world/WorldGrid";
 import { CONTRACT_ID } from "@/lib/data/client";
 import { txUrl } from "@/lib/env";
 import type { AppConfig, EventState, Scenario, World } from "@/lib/domain";
-import { accountLabel, fmt, fmtUsd, fmtWeth, inputText, parseAmount } from "@/lib/format";
+import { accountLabel, fmt, fmtUsd, fmtNear, inputText, parseAmount } from "@/lib/format";
 import type { Balances } from "@/lib/hooks/useData";
 import { useSubmit } from "@/lib/hooks/useTx";
 import { call, ftTransferCall, singleOrderPlan } from "@/lib/near/tx";
 import { useWallet } from "@/lib/near/wallet";
 import { cellBook, closedReason, cost, proceeds, type Order, type Side } from "@/lib/orders";
-import { scaleOf, toTokenCeil } from "@/lib/units";
+import { toTokenCeil, toTokenFloor } from "@/lib/units";
 
 const ONE = 10n ** 18n;
 const TOP = 5;
@@ -161,7 +161,7 @@ function Ladder({
     return (
       <tr key={String(o.id)} className={`border-t border-line ${taking === o.id ? "bg-tile" : ""}`} data-demo="ladder-row" data-side={o.side}>
         <td className={`num py-2 pr-2 pl-3 text-[14px] ${o.side === "bid" ? "text-pos" : "text-neg"}`}>{fmtUsd(o.price)}</td>
-        <td className="num px-2 py-2 text-right text-[13px] text-ink">{fmtWeth(o.remaining)}</td>
+        <td className="num px-2 py-2 text-right text-[13px] text-ink">{fmtNear(o.remaining)}</td>
         <td className="px-2 py-1.5 text-[12px] leading-tight text-mute" title={o.maker}>
           <span className="num block">#{String(o.id)}</span>
           <span className="block truncate text-[11px]">{own ? "you" : accountLabel(o.maker)}</span>
@@ -201,7 +201,7 @@ function Ladder({
         <tbody>
           {topAsks.length === 0 ? <EmptyRow text="no asks" /> : topAsks.map(row)}
           <tr className="border-t border-line bg-cobalt/8" data-demo="ladder-pool">
-            <td className="num py-2 pr-2 pl-3 text-[14px] font-semibold text-cobalt-ink">{world.poolInitialized ? fmtUsd(world.wethPrice) : "—"}</td>
+            <td className="num py-2 pr-2 pl-3 text-[14px] font-semibold text-cobalt-ink">{world.poolInitialized ? fmtUsd(world.wnearPrice) : "—"}</td>
             <td colSpan={3} className="px-2 py-2 text-[12px] text-mute">
               pool price
             </td>
@@ -235,19 +235,19 @@ function AcceptBox({
 }: Common & { world: World; order: Order; onClose: () => void; onTraded: (hash: string) => void }) {
   const submit = useSubmit();
   const sell = order.side === "bid"; // taking a bid sells ETH-if-w
-  const wallWeth = balances?.weth ?? 0n;
+  const wallWnear = balances?.wnear ?? 0n;
   const wallUsdc = balances?.usdc ?? 0n;
-  const affordable = sell ? wallWeth : (wallUsdc * ONE) / order.price;
+  const affordable = sell ? wallWnear : (wallUsdc * ONE) / order.price;
   const start = order.remaining < affordable ? order.remaining : affordable;
   const [input, setInput] = useState(inputText(start, 4));
-  const amount = parseAmount(input, config.weth.decimals);
+  const amount = parseAmount(input, config.wnear.decimals);
   const usdc = amount === undefined ? undefined : sell ? proceeds(amount, order.price) : cost(amount, order.price);
 
   let blocker: string | undefined;
   if (scenario.halted) blocker = "Paused while a resolution is pending";
   else if (amount === undefined) blocker = "Enter an amount of ETH";
   else if (amount > order.remaining) blocker = "More than the order has left";
-  else if (sell && amount > wallWeth) blocker = "Not enough WETH in this wallet";
+  else if (sell && amount > wallWnear) blocker = "Not enough WETH in this wallet";
   else if (!sell && usdc! > wallUsdc) blocker = "Not enough USDC in this wallet";
   else if (usdc === 0n) blocker = "Too small to pay anything";
 
@@ -255,10 +255,10 @@ function AcceptBox({
     const n = scenario.worldCount;
     step(sell ? "Selling into the bid…" : "Buying from the ask…");
     if (sell) {
-      const tokens = amount! / scaleOf(config.weth.decimals);
+      const tokens = toTokenFloor(amount!, config.wnear.decimals);
       const p = singleOrderPlan(n, world.index, order.id, amount!, usdc!);
       return submit(
-        ftTransferCall(config.weth.tokenId, CONTRACT_ID, tokens, {
+        ftTransferCall(config.wnear.tokenId, CONTRACT_ID, tokens, {
           action: "conditional_sell",
           scenario_id: scenario.scenarioId,
           sell_mask: world.mask,
@@ -299,8 +299,8 @@ function AcceptBox({
       {amount !== undefined && usdc !== undefined && (
         <p className="num text-[12px] leading-relaxed text-mute">
           {sell
-            ? `Pay ${fmtWeth(amount)} WETH; get ${fmt(usdc)} USDC-if-${world.label} and keep ${fmtWeth(amount)} WETH in every other world.`
-            : `Pay ${fmt(usdc)} USDC; get ${fmtWeth(amount)} WETH-if-${world.label} and keep ${fmt(usdc)} USDC in every other world.`}
+            ? `Pay ${fmtNear(amount)} WETH; get ${fmt(usdc)} USDC-if-${world.label} and keep ${fmtNear(amount)} WETH in every other world.`
+            : `Pay ${fmt(usdc)} USDC; get ${fmtNear(amount)} WETH-if-${world.label} and keep ${fmt(usdc)} USDC in every other world.`}
         </p>
       )}
       <TxButton
@@ -345,22 +345,22 @@ function PostForm({
   const [amountInput, setAmountInput] = useState("");
   const [life, setLife] = useState(1);
   const price = parseAmount(priceInput, 18);
-  const amount = parseAmount(amountInput, config.weth.decimals);
+  const amount = parseAmount(amountInput, config.wnear.decimals);
   const bid = side === "bid";
   const escrow = price !== undefined && amount !== undefined ? (bid ? cost(amount, price) : amount) : undefined;
   const crossing =
     price === undefined ? undefined : bid ? (bestAsk && price >= bestAsk.price ? bestAsk : undefined) : bestBid && price <= bestBid.price ? bestBid : undefined;
-  const pool = world.poolInitialized ? world.wethPrice : undefined;
+  const pool = world.poolInitialized ? world.wnearPrice : undefined;
   const throughPool = price !== undefined && pool !== undefined && (bid ? price > pool : price < pool);
   const wallUsdc = balances?.usdc ?? 0n;
-  const wallWeth = balances?.weth ?? 0n;
+  const wallWnear = balances?.wnear ?? 0n;
 
   let blocker: string | undefined;
   if (scenario.halted) blocker = "Paused while a resolution is pending";
   else if (price === undefined) blocker = "Enter a price";
   else if (amount === undefined) blocker = "Enter an amount of ETH";
   else if (bid && escrow! > wallUsdc) blocker = "Not enough USDC in this wallet";
-  else if (!bid && escrow! > wallWeth) blocker = "Not enough WETH in this wallet";
+  else if (!bid && escrow! > wallWnear) blocker = "Not enough WETH in this wallet";
 
   async function run(step: (s: string) => void): Promise<string> {
     // The order lives from now (chain time or the wall clock, whichever is later) for the chosen period.
@@ -380,8 +380,8 @@ function PostForm({
       const tokens = toTokenCeil(escrow!, config.usdc.decimals);
       return submit(ftTransferCall(config.usdc.tokenId, CONTRACT_ID, tokens, msg), tokens);
     }
-    const tokens = amount! / scaleOf(config.weth.decimals);
-    return submit(ftTransferCall(config.weth.tokenId, CONTRACT_ID, tokens, msg), tokens);
+    const tokens = toTokenFloor(amount!, config.wnear.decimals);
+    return submit(ftTransferCall(config.wnear.tokenId, CONTRACT_ID, tokens, msg), tokens);
   }
 
   return (
@@ -418,7 +418,7 @@ function PostForm({
         <p className="num text-[12px] leading-relaxed text-mute">
           {bid
             ? `Locks ${fmt(escrow)} USDC-if-${world.label} from ${fmt(escrow)} real USDC; you keep ${fmt(escrow)} USDC in every other world. Cancel any time to get it back.`
-            : `Locks ${fmtWeth(escrow)} WETH-if-${world.label} from ${fmtWeth(escrow)} real WETH; you keep ${fmtWeth(escrow)} WETH in every other world. Cancel any time to get it back.`}
+            : `Locks ${fmtNear(escrow)} WETH-if-${world.label} from ${fmtNear(escrow)} real WETH; you keep ${fmtNear(escrow)} WETH in every other world. Cancel any time to get it back.`}
         </p>
       )}
       {crossing && (
@@ -448,7 +448,7 @@ function PostForm({
         onDone={() => setAmountInput("")}
       />
       <p className="num text-[12px] text-mute">
-        wallet {fmt(wallUsdc)} USDC · {fmtWeth(wallWeth)} WETH
+        wallet {fmt(wallUsdc)} USDC · {fmtNear(wallWnear)} WETH
       </p>
     </div>
   );
@@ -470,7 +470,7 @@ function MyOrders({ scenario, orders, wallNow }: { scenario: Scenario; orders: O
                 #{String(o.id)} {o.side} {fmtUsd(o.price)}
               </span>
               <span className="text-mute">
-                {fmtWeth(o.remaining)} of {fmtWeth(o.amount)} ETH left{reason ? ` · ${reason}` : ""}
+                {fmtNear(o.remaining)} of {fmtNear(o.amount)} ETH left{reason ? ` · ${reason}` : ""}
               </span>
             </div>
             <TxButton

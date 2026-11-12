@@ -23,7 +23,7 @@ export function networkEnv(network = process.env.NEXT_PUBLIC_NETWORK || "testnet
     NEXT_PUBLIC_NETWORK: network,
     NEXT_PUBLIC_RPC_URL: pick("NEXT_PUBLIC_RPC_URL", d.rpcUrl),
     NEXT_PUBLIC_CONTRACT_ID: pick("NEXT_PUBLIC_CONTRACT_ID", d.contractId),
-    NEXT_PUBLIC_WETH_ID: pick("NEXT_PUBLIC_WETH_ID", d.weth),
+    NEXT_PUBLIC_WNEAR_ID: pick("NEXT_PUBLIC_WNEAR_ID", d.wnear),
     NEXT_PUBLIC_USDC_ID: pick("NEXT_PUBLIC_USDC_ID", d.usdc),
     NEXT_PUBLIC_EXPLORER: pick("NEXT_PUBLIC_EXPLORER", d.explorer),
     NEXT_PUBLIC_RPC_URLS: env.NEXT_PUBLIC_RPC_URLS || "",

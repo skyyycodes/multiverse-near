@@ -94,7 +94,7 @@ proposal with a countdown comes from the resolver's `report_outcome`.
 |---|---|
 | `scenario-switch` | Scenario pill; opens a list with `scenario-2x2` ("Glamsterdam × Fed (4 worlds)") and `scenario-binary` ("Glamsterdam only (2 worlds)") |
 | `connect`, `account` | Connect button / signed-in account button (`aria-label="Account <id>"`); `account` opens `account-sheet` |
-| `account-sheet`, `account-id`, `disconnect`, `withdraw-inner-weth`, `withdraw-inner-usdc` | Account sheet: id, balances, internal "In Multiverse" balance and its withdrawal |
+| `account-sheet`, `account-id`, `disconnect`, `withdraw-inner-wnear`, `withdraw-inner-usdc` | Account sheet: id, balances, internal "In Multiverse" balance and its withdrawal |
 | `test-tokens`, `get-test-tokens`, `faucet-progress` | Account sheet, testnet builds without design data: "Get test tokens" (mints 2 WETH and 5,000 USDC to the account itself, then registers it with Multiverse if needed) and one line per finished step |
 | `status-bell` | Link to Resolve; shows a pulsing dot while a result is in its dispute window |
 | `help` | Link to `/welcome/` |
@@ -152,7 +152,7 @@ proposal with a countdown comes from the resolver's `report_outcome`.
 `hero-supply-apr`, `lend-stats` with `stat-utilization` ("UTILIZATION"), `stat-supplied` ("YOU SUPPLIED"),
 `stat-earned` ("YOU EARNED"); `supply-card`, `supply-amount`, `supply-confirm` ("Supply"); `withdraw-card`,
 `withdraw-amount`, `withdraw-all`, `withdraw-confirm`; Root LP: `root-lp` ("Underwrite every world"), `lp-deposit`,
-`lp-weth` ("Amount (WETH)"), `lp-usdc` ("Amount (USDC)"), `lp-deposit-confirm` ("Underwrite every world"),
+`lp-wnear` ("Amount (WETH)"), `lp-usdc` ("Amount (USDC)"), `lp-deposit-confirm` ("Underwrite every world"),
 `lp-position`, `lp-withdraw-all` ("Withdraw all"), `lp-table`.
 
 ### Resolve (`/resolve/`)
@@ -168,7 +168,7 @@ redeemed 4,881.88 real USDC."), `wallet-redeem`, `redeem`.
 `owner-status` ("✓ Connected as the oracle owner"), `admin-events`, `resolve-controls`, `resolve-outcome` (outcome
 chips, `aria-pressed`), `resolve-now` ("Resolve now: HOLDS"), `dispute` ("Dispute the proposal"); `price-push`,
 `push-pick` (phone picker), `push-amount` (`aria-label="Amount of WETH to sell in the picked world"`), `push-confirm`
-("Push DELAYED·HOLDS down"), `push-result` ("DELAYED·HOLDS: $x → $y"), `mint-weth` ("Mint 3.0000 test WETH to my
+("Push DELAYED·HOLDS down"), `push-result` ("DELAYED·HOLDS: $x → $y"), `mint-wnear` ("Mint 3.0000 test WETH to my
 wallet"); `demo-reset`, `reset-command`.
 
 ## 6. Load-bearing strings

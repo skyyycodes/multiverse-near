@@ -7,13 +7,13 @@ import { Dialog } from "@/components/ui/Dialog";
 import { TxButton } from "@/components/ui/TxButton";
 import { CONTRACT_ID } from "@/lib/data/client";
 import { accountUrl } from "@/lib/env";
-import { fmt, fmtWeth } from "@/lib/format";
+import { fmt, fmtNear } from "@/lib/format";
 import { useAppConfig, useBalances, useRegistration } from "@/lib/hooks/useData";
 import { useSubmit } from "@/lib/hooks/useTx";
 import { call } from "@/lib/near/tx";
 import { useWallet } from "@/lib/near/wallet";
 import { FAUCET_ON, GetTestTokens } from "./TestTokens";
-import { fmtNear, scaleOf } from "@/lib/units";
+import { fmtYocto, unitOf } from "@/lib/units";
 
 const FixtureControls =
   process.env.NEXT_PUBLIC_FIXTURES === "1" ? lazy(() => import("./FixturePicker").then((m) => ({ default: m.FixtureControls }))) : null;
@@ -23,8 +23,8 @@ export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => 
   const wallet = useWallet();
   const config = useAppConfig();
   const cfg = config.data;
-  const balances = useBalances(wallet.accountId, cfg?.weth, cfg?.usdc);
-  const reg = useRegistration(wallet.accountId, cfg?.weth, cfg?.usdc);
+  const balances = useBalances(wallet.accountId, cfg?.wnear, cfg?.usdc);
+  const reg = useRegistration(wallet.accountId, cfg?.wnear, cfg?.usdc);
   const submit = useSubmit();
   const [copied, setCopied] = useState(false);
   const b = balances.data;
@@ -63,7 +63,7 @@ export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => 
       )}
 
       <div className="grid grid-cols-2 gap-2">
-        <Balance label="Wallet WETH" value={b ? fmtWeth(b.weth) : "—"} />
+        <Balance label="Wallet WETH" value={b ? fmtNear(b.wnear) : "—"} />
         <Balance label="Wallet USDC" value={b ? fmt(b.usdc) : "—"} />
       </div>
 
@@ -80,12 +80,12 @@ export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => 
           Real WETH and USDC the contract holds for you: payouts your wallet could not receive, sub-cent dust, deposits.
           Withdraw sends it to your wallet.
         </p>
-        {(["weth", "usdc"] as const).map((asset) => {
-          const amount = asset === "weth" ? (b?.innerWeth ?? 0n) : (b?.innerUsdc ?? 0n);
-          const label = asset === "weth" ? `${fmtWeth(amount)} WETH` : `${fmt(amount)} USDC`;
+        {(["wnear", "usdc"] as const).map((asset) => {
+          const amount = asset === "wnear" ? (b?.innerWnear ?? 0n) : (b?.innerUsdc ?? 0n);
+          const label = asset === "wnear" ? `${fmtNear(amount)} WETH` : `${fmt(amount)} USDC`;
           // The token moves whole units only: anything below one stays here, so only the whole part is sent.
-          const token = asset === "weth" ? cfg?.weth : cfg?.usdc;
-          const unit = token ? scaleOf(token.decimals) : 1n;
+          const token = asset === "wnear" ? cfg?.wnear : cfg?.usdc;
+          const unit = token ? unitOf(token.decimals) : 1n;
           const sendable = amount - (amount % unit);
           const dust = amount > 0n && sendable === 0n;
           const blocker = amount === 0n ? "Nothing here" : dust ? "Too small" : undefined;
@@ -121,8 +121,8 @@ export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => 
         {reg.data?.contract ? (
           <span>
             Registered with Multiverse:{" "}
-            <span className="num text-ink">{fmtNear(BigInt(reg.data.contract.total))} NEAR</span> deposited,{" "}
-            <span className="num text-ink">{fmtNear(BigInt(reg.data.contract.available))} NEAR</span> free. NEAR charges
+            <span className="num text-ink">{fmtYocto(BigInt(reg.data.contract.total))} NEAR</span> deposited,{" "}
+            <span className="num text-ink">{fmtYocto(BigInt(reg.data.contract.available))} NEAR</span> free. NEAR charges
             for the bytes your positions use; the deposit comes back when they are gone.
           </span>
         ) : (

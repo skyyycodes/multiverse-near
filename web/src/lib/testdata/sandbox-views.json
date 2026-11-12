@@ -2,10 +2,10 @@
  "get_app_config": {
   "owner_id": "test.near",
   "reporter_id": "resolver.test.near",
-  "weth": {
-   "token_id": "weth.test.near",
-   "symbol": "WETH",
-   "decimals": 18
+  "wnear": {
+   "token_id": "wnear.test.near",
+   "symbol": "wNEAR",
+   "decimals": 24
   },
   "usdc": {
    "token_id": "usdc.test.near",
@@ -27,8 +27,8 @@
   "scenario_count": 2,
   "demo": {
    "fed_event": 2,
-   "glam_event": 1,
-   "implied_spot": "3037693299999999998800",
+   "spice_event": 1,
+   "implied_spot": "3037693299999999998",
    "odds_cuts_bps": 100,
    "odds_ships_bps": 6667,
    "odds_source": "Fed: Polymarket fed-decision-in-december-20260729232808632 as read on 2026-11-06 (offline fallback)",
@@ -52,7 +52,7 @@
     1,
     2
    ],
-   "spot_price": "3037693299990000000000",
+   "spot_price": "3037693299990000000",
    "worlds": [
     {
      "index": 0,
@@ -60,13 +60,13 @@
      "label": "SHIPS·CUTS",
      "possible": true,
      "pool_initialized": true,
-     "weth_price": "3700000000000000000000",
+     "wnear_price": "3700000000000000000",
      "backed": true,
-     "weth_token_id": "1:weth:1",
+     "wnear_token_id": "1:wnear:1",
      "usdc_token_id": "1:usdc:1",
-     "user_weth": "0",
+     "user_wnear": "0",
      "user_usdc": "0",
-     "collateral_weth": "0",
+     "collateral_wnear": "0",
      "collateral_usdc": "0",
      "odds": "6666999999999999",
      "pool_id": 1
@@ -77,13 +77,13 @@
      "label": "DELAYED·CUTS",
      "possible": true,
      "pool_initialized": true,
-     "weth_price": "3000000000000000000000",
+     "wnear_price": "3000000000000000000",
      "backed": true,
-     "weth_token_id": "1:weth:2",
+     "wnear_token_id": "1:wnear:2",
      "usdc_token_id": "1:usdc:2",
-     "user_weth": "0",
+     "user_wnear": "0",
      "user_usdc": "0",
-     "collateral_weth": "0",
+     "collateral_wnear": "0",
      "collateral_usdc": "0",
      "odds": "3333000000000000",
      "pool_id": 2
@@ -94,13 +94,13 @@
      "label": "SHIPS·HOLDS",
      "possible": true,
      "pool_initialized": true,
-     "weth_price": "3300000000000000000000",
+     "wnear_price": "3300000000000000000",
      "backed": true,
-     "weth_token_id": "1:weth:4",
+     "wnear_token_id": "1:wnear:4",
      "usdc_token_id": "1:usdc:4",
-     "user_weth": "0",
+     "user_wnear": "0",
      "user_usdc": "0",
-     "collateral_weth": "0",
+     "collateral_wnear": "0",
      "collateral_usdc": "0",
      "odds": "660033000000000000",
      "pool_id": 3
@@ -111,31 +111,31 @@
      "label": "DELAYED·HOLDS",
      "possible": true,
      "pool_initialized": true,
-     "weth_price": "2500000000000000000000",
+     "wnear_price": "2500000000000000000",
      "backed": true,
-     "weth_token_id": "1:weth:8",
+     "wnear_token_id": "1:wnear:8",
      "usdc_token_id": "1:usdc:8",
-     "user_weth": "0",
+     "user_wnear": "0",
      "user_usdc": "0",
-     "collateral_weth": "0",
+     "collateral_wnear": "0",
      "collateral_usdc": "0",
      "odds": "329967000000000001",
      "pool_id": 4
     }
    ],
    "odds_known": true,
-   "implied_spot": "3037693299999999998800"
+   "implied_spot": "3037693299999999998"
   },
   "events": [
    {
     "id": 1,
-    "question": "Will Glamsterdam ship on mainnet by Dec 31, 2026?",
-    "rule": "SHIPS if the Glamsterdam upgrade is active on Ethereum mainnet before 2027-01-01 00:00 UTC; otherwise DELAYED. During the hackathon this event is resolved from a team-controlled API (demo).",
+    "question": "Will SPICE ship on NEAR mainnet by Mar 31, 2027?",
+    "rule": "SHIPS if SPICE, NEAR's separation of consensus and execution, is active on NEAR mainnet before 2027-04-01 00:00 UTC; otherwise DELAYED. During the hackathon this event is resolved from a team-controlled outcomes file (demo).",
     "outcome_names": [
      "SHIPS",
      "DELAYED"
     ],
-    "deadline_sec": 1798761599,
+    "deadline_sec": 1806537599,
     "proposed_at_sec": 0,
     "proposed_outcome": 0,
     "proposal_open": false,
@@ -169,9 +169,9 @@
     "scenario_id": 1,
     "mask": 8,
     "side": "bid",
-    "price": "2450000000000000000000",
-    "amount": "1000000000000000000",
-    "remaining": "1000000000000000000",
+    "price": "2450000000000000000",
+    "amount": "1000000000000000000000",
+    "remaining": "1000000000000000000000",
     "escrow": "2450000000000000000000",
     "expiry_sec": 1796987846,
     "epoch": 0
@@ -181,7 +181,7 @@
    {
     "at_sec": 1794395812,
     "prices": [
-     "3700000000000000000000",
+     "3700000000000000000",
      "0",
      "0",
      "0"
@@ -190,8 +190,8 @@
    {
     "at_sec": 1794395813,
     "prices": [
-     "3700000000000000000000",
-     "3000000000000000000000",
+     "3700000000000000000",
+     "3000000000000000000",
      "0",
      "0"
     ]
@@ -199,19 +199,19 @@
    {
     "at_sec": 1794395814,
     "prices": [
-     "3700000000000000000000",
-     "3000000000000000000000",
-     "3300000000000000000000",
+     "3700000000000000000",
+     "3000000000000000000",
+     "3300000000000000000",
      "0"
     ]
    },
    {
     "at_sec": 1794395815,
     "prices": [
-     "3700000000000000000000",
-     "3000000000000000000000",
-     "3300000000000000000000",
-     "2500000000000000000000"
+     "3700000000000000000",
+     "3000000000000000000",
+     "3300000000000000000",
+     "2500000000000000000"
     ]
    }
   ],
@@ -228,7 +228,7 @@
     1,
     2
    ],
-   "spot_price": "3037693299990000000000",
+   "spot_price": "3037693299990000000",
    "worlds": [
     {
      "index": 0,
@@ -236,13 +236,13 @@
      "label": "SHIPS·CUTS",
      "possible": true,
      "pool_initialized": true,
-     "weth_price": "3700000000000000000000",
+     "wnear_price": "3700000000000000000",
      "backed": true,
-     "weth_token_id": "1:weth:1",
+     "wnear_token_id": "1:wnear:1",
      "usdc_token_id": "1:usdc:1",
-     "user_weth": "0",
+     "user_wnear": "0",
      "user_usdc": "0",
-     "collateral_weth": "0",
+     "collateral_wnear": "0",
      "collateral_usdc": "0",
      "odds": "6666999999999999",
      "pool_id": 1
@@ -253,13 +253,13 @@
      "label": "DELAYED·CUTS",
      "possible": true,
      "pool_initialized": true,
-     "weth_price": "3000000000000000000000",
+     "wnear_price": "3000000000000000000",
      "backed": true,
-     "weth_token_id": "1:weth:2",
+     "wnear_token_id": "1:wnear:2",
      "usdc_token_id": "1:usdc:2",
-     "user_weth": "0",
+     "user_wnear": "0",
      "user_usdc": "0",
-     "collateral_weth": "0",
+     "collateral_wnear": "0",
      "collateral_usdc": "0",
      "odds": "3333000000000000",
      "pool_id": 2
@@ -270,13 +270,13 @@
      "label": "SHIPS·HOLDS",
      "possible": true,
      "pool_initialized": true,
-     "weth_price": "3300000000000000000000",
+     "wnear_price": "3300000000000000000",
      "backed": true,
-     "weth_token_id": "1:weth:4",
+     "wnear_token_id": "1:wnear:4",
      "usdc_token_id": "1:usdc:4",
-     "user_weth": "0",
+     "user_wnear": "0",
      "user_usdc": "0",
-     "collateral_weth": "0",
+     "collateral_wnear": "0",
      "collateral_usdc": "0",
      "odds": "660033000000000000",
      "pool_id": 3
@@ -287,20 +287,20 @@
      "label": "DELAYED·HOLDS",
      "possible": true,
      "pool_initialized": true,
-     "weth_price": "2500000000000000000000",
+     "wnear_price": "2500000000000000000",
      "backed": true,
-     "weth_token_id": "1:weth:8",
+     "wnear_token_id": "1:wnear:8",
      "usdc_token_id": "1:usdc:8",
-     "user_weth": "0",
+     "user_wnear": "0",
      "user_usdc": "0",
-     "collateral_weth": "0",
+     "collateral_wnear": "0",
      "collateral_usdc": "0",
      "odds": "329967000000000001",
      "pool_id": 4
     }
    ],
    "odds_known": true,
-   "implied_spot": "3037693299999999998800"
+   "implied_spot": "3037693299999999998"
   },
   "account": {
    "debt": "0",
@@ -369,30 +369,30 @@
    "holdings": [
     {
      "world": 0,
-     "weth_idle": "0",
+     "wnear_idle": "0",
      "usdc_idle": "0",
-     "weth_fees": "0",
+     "wnear_fees": "0",
      "usdc_fees": "0"
     },
     {
      "world": 1,
-     "weth_idle": "0",
+     "wnear_idle": "0",
      "usdc_idle": "0",
-     "weth_fees": "0",
+     "wnear_fees": "0",
      "usdc_fees": "0"
     },
     {
      "world": 2,
-     "weth_idle": "0",
+     "wnear_idle": "0",
      "usdc_idle": "0",
-     "weth_fees": "0",
+     "wnear_fees": "0",
      "usdc_fees": "0"
     },
     {
      "world": 3,
-     "weth_idle": "0",
+     "wnear_idle": "0",
      "usdc_idle": "0",
-     "weth_fees": "0",
+     "wnear_fees": "0",
      "usdc_fees": "0"
     }
    ]
@@ -435,7 +435,7 @@
     1,
     2
    ],
-   "spot_price": "3037693299990000000000",
+   "spot_price": "3037693299990000000",
    "worlds": [
     {
      "index": 0,
@@ -443,13 +443,13 @@
      "label": "SHIPS·CUTS",
      "possible": true,
      "pool_initialized": true,
-     "weth_price": "3700000000000000000000",
+     "wnear_price": "3700000000000000000",
      "backed": true,
-     "weth_token_id": "1:weth:1",
+     "wnear_token_id": "1:wnear:1",
      "usdc_token_id": "1:usdc:1",
-     "user_weth": "0",
+     "user_wnear": "0",
      "user_usdc": "0",
-     "collateral_weth": "0",
+     "collateral_wnear": "0",
      "collateral_usdc": "0",
      "odds": "6666999999999999",
      "pool_id": 1
@@ -460,13 +460,13 @@
      "label": "DELAYED·CUTS",
      "possible": true,
      "pool_initialized": true,
-     "weth_price": "3000000000000000000000",
+     "wnear_price": "3000000000000000000",
      "backed": true,
-     "weth_token_id": "1:weth:2",
+     "wnear_token_id": "1:wnear:2",
      "usdc_token_id": "1:usdc:2",
-     "user_weth": "0",
+     "user_wnear": "0",
      "user_usdc": "0",
-     "collateral_weth": "0",
+     "collateral_wnear": "0",
      "collateral_usdc": "0",
      "odds": "3333000000000000",
      "pool_id": 2
@@ -477,13 +477,13 @@
      "label": "SHIPS·HOLDS",
      "possible": true,
      "pool_initialized": true,
-     "weth_price": "3300000000000000000000",
+     "wnear_price": "3300000000000000000",
      "backed": true,
-     "weth_token_id": "1:weth:4",
+     "wnear_token_id": "1:wnear:4",
      "usdc_token_id": "1:usdc:4",
-     "user_weth": "0",
+     "user_wnear": "0",
      "user_usdc": "0",
-     "collateral_weth": "0",
+     "collateral_wnear": "0",
      "collateral_usdc": "0",
      "odds": "660033000000000000",
      "pool_id": 3
@@ -494,31 +494,31 @@
      "label": "DELAYED·HOLDS",
      "possible": true,
      "pool_initialized": true,
-     "weth_price": "2500000000000000000000",
+     "wnear_price": "2500000000000000000",
      "backed": true,
-     "weth_token_id": "1:weth:8",
+     "wnear_token_id": "1:wnear:8",
      "usdc_token_id": "1:usdc:8",
-     "user_weth": "0",
+     "user_wnear": "0",
      "user_usdc": "0",
-     "collateral_weth": "0",
+     "collateral_wnear": "0",
      "collateral_usdc": "0",
      "odds": "329967000000000001",
      "pool_id": 4
     }
    ],
    "odds_known": true,
-   "implied_spot": "3037693299999999998800"
+   "implied_spot": "3037693299999999998"
   },
   "events": [
    {
     "id": 1,
-    "question": "Will Glamsterdam ship on mainnet by Dec 31, 2026?",
-    "rule": "SHIPS if the Glamsterdam upgrade is active on Ethereum mainnet before 2027-01-01 00:00 UTC; otherwise DELAYED. During the hackathon this event is resolved from a team-controlled API (demo).",
+    "question": "Will SPICE ship on NEAR mainnet by Mar 31, 2027?",
+    "rule": "SHIPS if SPICE, NEAR's separation of consensus and execution, is active on NEAR mainnet before 2027-04-01 00:00 UTC; otherwise DELAYED. During the hackathon this event is resolved from a team-controlled outcomes file (demo).",
     "outcome_names": [
      "SHIPS",
      "DELAYED"
     ],
-    "deadline_sec": 1798761599,
+    "deadline_sec": 1806537599,
     "proposed_at_sec": 0,
     "proposed_outcome": 0,
     "proposal_open": false,
@@ -603,7 +603,7 @@
     1,
     2
    ],
-   "spot_price": "3037693299990000000000",
+   "spot_price": "3037693299990000000",
    "worlds": [
     {
      "index": 0,
@@ -611,13 +611,13 @@
      "label": "SHIPS·CUTS",
      "possible": true,
      "pool_initialized": true,
-     "weth_price": "3700000000000000000000",
+     "wnear_price": "3700000000000000000",
      "backed": true,
-     "weth_token_id": "1:weth:1",
+     "wnear_token_id": "1:wnear:1",
      "usdc_token_id": "1:usdc:1",
-     "user_weth": "0",
+     "user_wnear": "0",
      "user_usdc": "0",
-     "collateral_weth": "0",
+     "collateral_wnear": "0",
      "collateral_usdc": "0",
      "odds": "6666999999999999",
      "pool_id": 1
@@ -628,13 +628,13 @@
      "label": "DELAYED·CUTS",
      "possible": true,
      "pool_initialized": true,
-     "weth_price": "3000000000000000000000",
+     "wnear_price": "3000000000000000000",
      "backed": true,
-     "weth_token_id": "1:weth:2",
+     "wnear_token_id": "1:wnear:2",
      "usdc_token_id": "1:usdc:2",
-     "user_weth": "0",
+     "user_wnear": "0",
      "user_usdc": "0",
-     "collateral_weth": "0",
+     "collateral_wnear": "0",
      "collateral_usdc": "0",
      "odds": "3333000000000000",
      "pool_id": 2
@@ -645,13 +645,13 @@
      "label": "SHIPS·HOLDS",
      "possible": true,
      "pool_initialized": true,
-     "weth_price": "3300000000000000000000",
+     "wnear_price": "3300000000000000000",
      "backed": true,
-     "weth_token_id": "1:weth:4",
+     "wnear_token_id": "1:wnear:4",
      "usdc_token_id": "1:usdc:4",
-     "user_weth": "0",
+     "user_wnear": "0",
      "user_usdc": "0",
-     "collateral_weth": "0",
+     "collateral_wnear": "0",
      "collateral_usdc": "0",
      "odds": "660033000000000000",
      "pool_id": 3
@@ -662,31 +662,31 @@
      "label": "DELAYED·HOLDS",
      "possible": true,
      "pool_initialized": true,
-     "weth_price": "2500000000000000000000",
+     "wnear_price": "2500000000000000000",
      "backed": true,
-     "weth_token_id": "1:weth:8",
+     "wnear_token_id": "1:wnear:8",
      "usdc_token_id": "1:usdc:8",
-     "user_weth": "0",
+     "user_wnear": "0",
      "user_usdc": "0",
-     "collateral_weth": "0",
+     "collateral_wnear": "0",
      "collateral_usdc": "0",
      "odds": "329967000000000001",
      "pool_id": 4
     }
    ],
    "odds_known": true,
-   "implied_spot": "3037693299999999998800"
+   "implied_spot": "3037693299999999998"
   },
   "events": [
    {
     "id": 1,
-    "question": "Will Glamsterdam ship on mainnet by Dec 31, 2026?",
-    "rule": "SHIPS if the Glamsterdam upgrade is active on Ethereum mainnet before 2027-01-01 00:00 UTC; otherwise DELAYED. During the hackathon this event is resolved from a team-controlled API (demo).",
+    "question": "Will SPICE ship on NEAR mainnet by Mar 31, 2027?",
+    "rule": "SHIPS if SPICE, NEAR's separation of consensus and execution, is active on NEAR mainnet before 2027-04-01 00:00 UTC; otherwise DELAYED. During the hackathon this event is resolved from a team-controlled outcomes file (demo).",
     "outcome_names": [
      "SHIPS",
      "DELAYED"
     ],
-    "deadline_sec": 1798761599,
+    "deadline_sec": 1806537599,
     "proposed_at_sec": 0,
     "proposed_outcome": 0,
     "proposal_open": false,
@@ -734,12 +734,12 @@
   "now_sec": 1794396255
  },
  "preview_lp_deposit": {
-  "shares": "249999999999999999000",
-  "weth_kept": [
-   "5000000000000000000",
-   "5000000000000000000",
-   "5000000000000000000",
-   "5000000000000000000"
+  "shares": "7905694150420948298374",
+  "wnear_kept": [
+   "5000000000000000000000",
+   "5000000000000000000000",
+   "5000000000000000000000",
+   "5000000000000000000000"
   ],
   "usdc_kept": [
    "18499999999999999999943",
@@ -761,19 +761,19 @@
   "world": 0,
   "mask0": 1,
   "mask1": 1,
-  "token0": "1:weth:1",
+  "token0": "1:wnear:1",
   "token1": "1:usdc:1",
-  "reserve0": "100000000000000000000",
+  "reserve0": "100000000000000000000000",
   "reserve1": "370000000000000000000000",
-  "weth_reserve": "100000000000000000000",
+  "wnear_reserve": "100000000000000000000000",
   "usdc_reserve": "370000000000000000000000",
-  "liquidity": "6082762530298219688999",
+  "liquidity": "192353840616713447518553",
   "fees0": "0",
   "fees1": "0",
   "fee_pips": 3000,
   "swap_count": 0,
-  "price": "3700000000000000000000",
-  "twap_price": "3699634120479870991340",
+  "price": "3700000000000000000",
+  "twap_price": "3699634120479870991",
   "twap_ok": true
  },
  "storage_balance_of": {

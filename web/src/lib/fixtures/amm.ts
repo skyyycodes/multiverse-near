@@ -43,10 +43,10 @@ export function seededPool(depth: bigint, price: bigint, feePips = 3000n): Pool 
 }
 
 /** Liquidity a deposit of (w, u) buys at the pool's ratio, and what the pool keeps of it (rounded up). */
-export function addLiquidity(p: Pool, w: bigint, u: bigint): { liquidity: bigint; keptWeth: bigint; keptUsdc: bigint } {
+export function addLiquidity(p: Pool, w: bigint, u: bigint): { liquidity: bigint; keptWnear: bigint; keptUsdc: bigint } {
   const byW = (w * p.t) / p.x;
   const byU = (u * p.t) / p.y;
   const liquidity = byW < byU ? byW : byU;
   const ceilDiv = (a: bigint, b: bigint) => (a === 0n ? 0n : (a - 1n) / b + 1n);
-  return { liquidity, keptWeth: ceilDiv(liquidity * p.x, p.t), keptUsdc: ceilDiv(liquidity * p.y, p.t) };
+  return { liquidity, keptWnear: ceilDiv(liquidity * p.x, p.t), keptUsdc: ceilDiv(liquidity * p.y, p.t) };
 }
