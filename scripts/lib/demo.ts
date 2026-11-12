@@ -51,6 +51,8 @@ export const DEMO_EVENTS: readonly EventSpec[] = [
 ];
 
 const e18 = (n: bigint): bigint => n * WAD;
+/** A price in USDC per NEAR, given in cents: `cents(370n)` is 3.70. */
+const cents = (n: bigint): bigint => (n * WAD) / 100n;
 
 export interface WorldSeed {
   price: bigint;
@@ -59,28 +61,38 @@ export interface WorldSeed {
 
 /** Within-world pools: USDC per NEAR and NEAR depth per world. DELAYED·HOLDS is the thin one. */
 export const SEED_2X2: readonly WorldSeed[] = [
-  { price: e18(3700n), depth: e18(100n) },
-  { price: e18(3000n), depth: e18(100n) },
-  { price: e18(3300n), depth: e18(100n) },
-  { price: e18(2500n), depth: e18(40n) },
+  { price: cents(370n), depth: e18(100_000n) },
+  { price: cents(300n), depth: e18(100_000n) },
+  { price: cents(330n), depth: e18(100_000n) },
+  { price: cents(250n), depth: e18(40_000n) },
 ];
 export const SEED_BINARY: readonly WorldSeed[] = [
-  { price: e18(3400n), depth: e18(100n) },
-  { price: e18(2800n), depth: e18(100n) },
+  { price: cents(340n), depth: e18(100_000n) },
+  { price: cents(280n), depth: e18(100_000n) },
 ];
 
 export const ODDS_POOL_DEPTH = e18(1_000_000n);
-export const SPOT_DEPTH = e18(100n);
+export const SPOT_DEPTH = e18(100_000n);
 export const BOB_SUPPLY = e18(100_000n);
-export const ALICE_WNEAR = e18(2n);
+export const ALICE_WNEAR = e18(2_000n);
 export const ALICE_USDC = e18(50n);
 export const RAVI_DISCOUNT_BPS = 200n;
-export const RAVI_BID_WNEAR = WAD;
+export const RAVI_BID_WNEAR = e18(1_000n);
 export const RAVI_EXPIRY_SEC = 30 * 24 * 3600;
-export const SALE_WNEAR = e18(2n);
-export const BORROW_USDC = e18(3000n);
+export const SALE_WNEAR = e18(2_000n);
+export const BORROW_USDC = e18(3_000n);
 export const ODDS_SHIPS_BPS = 6667;
 export const ODDS_CUTS_FALLBACK_BPS = 100;
+
+/** The end-to-end flow's order book in SHIPS·CUTS: Ravi asks 3.75 and bids 3.60, 1,000 NEAR each. */
+export const BOOK_ASK_PRICE = cents(375n);
+export const BOOK_BID_PRICE = cents(360n);
+export const BOOK_SIZE_WNEAR = e18(1_000n);
+/** Uma's Root LP deposit, Carl's unhedged collateral and the owner's push on DELAYED·HOLDS. */
+export const UMA_WNEAR = e18(5_000n);
+export const UMA_USDC = e18(20_000n);
+export const CARL_WNEAR = e18(1_000n);
+export const PUSH_WNEAR = e18(3_000n);
 
 export const wmul = (a: bigint, b: bigint): bigint => (a * b) / WAD;
 
@@ -163,24 +175,40 @@ export function planSpotMove(wnearReserve: bigint, usdcReserve: bigint, target: 
   return usdcAfter <= usdcReserve ? null : { wnearIn: false, amountIn: grossUp(usdcAfter - usdcReserve) };
 }
 
-/** Integer part, a dot and two decimals rounded down: the EVM scripts' `_fmt`. */
-export function fmt2(x: bigint): string {
+/** Integer part, a dot and `digits` decimals rounded down; never a negative zero. */
+export function fmtFixed(x: bigint, digits: number): string {
+  if (!Number.isInteger(digits) || digits < 0 || digits > 18) throw new Error(`invalid digits: ${digits}`);
   const negative = x < 0n;
   const abs = negative ? -x : x;
-  const cents = abs / 10n ** 16n;
-  const text = `${cents / 100n}.${(cents % 100n).toString().padStart(2, "0")}`;
-  return negative && cents > 0n ? `-${text}` : text;
+  const unit = 10n ** BigInt(18 - digits);
+  const kept = abs / unit;
+  const base = 10n ** BigInt(digits);
+  const text = digits === 0 ? `${kept}` : `${kept / base}.${(kept % base).toString().padStart(digits, "0")}`;
+  return negative && kept > 0n ? `-${text}` : text;
 }
+
+/** Two decimals rounded down: amounts, USD values, HF and pool prices. */
+export const fmt2 = (x: bigint): string => fmtFixed(x, 2);
+
+/**
+ * Four decimals rounded to the nearest (half up), for a NEAR price where a difference would vanish
+ * at two: actual vs implied spot, order prices, average sale prices, TWAP prices.
+ */
+export const fmt4 = (x: bigint): string => {
+  const half = 5n * 10n ** 13n;
+  return fmtFixed(x < 0n ? x - half : x + half, 4);
+};
 
 /** WAD odds as a percentage rounded to the nearest hundredth. */
 export const fmtOdds = (q: bigint): string => `${fmt2(q * 100n + 5n * 10n ** 15n)}%`;
 
-/** Signed difference, "0.00" when it is under a cent. */
-export function fmtDiff(a: bigint, b: bigint): string {
+/** Signed difference at `digits` decimals, zero when it is under the last digit. */
+export function fmtDiff(a: bigint, b: bigint, digits = 2): string {
   const d = a - b;
   const abs = d < 0n ? -d : d;
-  if (abs < 10n ** 16n) return "0.00";
-  return `${d < 0n ? "-" : "+"}${fmt2(abs)}`;
+  const zero = fmtFixed(0n, digits);
+  if (abs < 10n ** BigInt(18 - digits)) return zero;
+  return `${d < 0n ? "-" : "+"}${fmtFixed(abs, digits)}`;
 }
 
 /** HF as two decimals; null (no debt) is infinite. */

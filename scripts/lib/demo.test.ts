@@ -2,25 +2,42 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  ALICE_WNEAR,
+  BOOK_ASK_PRICE,
+  BOOK_BID_PRICE,
+  BOOK_SIZE_WNEAR,
+  BORROW_USDC,
+  CARL_WNEAR,
   checkBps,
   DEMO_EVENTS,
   fmt2,
+  fmt4,
   fmtDiff,
+  fmtFixed,
   fmtOdds,
   independentOdds,
   isqrt,
   oddsPairs,
   orderCost,
   planSpotMove,
+  PUSH_WNEAR,
+  RAVI_BID_WNEAR,
   raviBidPrice,
+  SALE_WNEAR,
+  SEED_2X2,
+  SEED_BINARY,
   seedReserves,
   singles,
+  SPOT_DEPTH,
   sumOver,
+  UMA_USDC,
+  UMA_WNEAR,
   wmul,
 } from "./demo.ts";
 import { WAD } from "./units.ts";
 
 const e18 = (n: bigint): bigint => n * WAD;
+const cents = (n: bigint): bigint => (n * WAD) / 100n;
 
 describe("demo odds", () => {
   it("2x2 odds from basis points sum to exactly 1e18", () => {
@@ -61,17 +78,46 @@ describe("demo odds", () => {
 });
 
 describe("demo amounts", () => {
-  it("Ravi bids 2% under 2,500 and escrows the rounded-up cost", () => {
-    const price = raviBidPrice(e18(2500n));
-    assert.equal(price, e18(2450n));
-    assert.equal(orderCost(WAD, price), e18(2450n));
+  it("Ravi bids 2% under 2.50 for 1,000 NEAR and escrows the rounded-up cost", () => {
+    const price = raviBidPrice(SEED_2X2[3]!.price);
+    assert.equal(price, cents(245n));
+    assert.equal(orderCost(RAVI_BID_WNEAR, price), e18(2450n));
     assert.equal(orderCost(1n, 1n), 1n);
     assert.equal(orderCost(3n, WAD / 2n), 2n);
   });
 
-  it("world pool USDC depths", () => {
-    assert.equal(wmul(e18(40n), e18(2500n)), e18(100_000n));
-    assert.equal(wmul(e18(100n), e18(3700n)), e18(370_000n));
+  it("world pools at NEAR scale: prices in dollars, depths in thousands of NEAR", () => {
+    assert.deepEqual(SEED_2X2.map((w) => fmt2(w.price)), ["3.70", "3.00", "3.30", "2.50"]);
+    assert.deepEqual(SEED_BINARY.map((w) => fmt2(w.price)), ["3.40", "2.80"]);
+    assert.deepEqual(SEED_2X2.map((w) => w.depth / WAD), [100_000n, 100_000n, 100_000n, 40_000n]);
+    assert.deepEqual(SEED_BINARY.map((w) => w.depth / WAD), [100_000n, 100_000n]);
+    assert.equal(SPOT_DEPTH, e18(100_000n));
+  });
+
+  it("every pool's USDC side is what it was with 1,000x less NEAR at 1,000x the price", () => {
+    // A constant-product pool is scale-invariant: the USDC reserves are unchanged, so every USD result is.
+    assert.deepEqual(SEED_2X2.map((w) => wmul(w.depth, w.price) / WAD), [370_000n, 300_000n, 330_000n, 100_000n]);
+    assert.deepEqual(SEED_BINARY.map((w) => wmul(w.depth, w.price) / WAD), [340_000n, 280_000n]);
+    for (const w of [...SEED_2X2, ...SEED_BINARY]) assert.equal(wmul(w.depth, w.price) % WAD, 0n);
+  });
+
+  it("the people's amounts", () => {
+    assert.equal(ALICE_WNEAR, e18(2_000n));
+    assert.equal(SALE_WNEAR, e18(2_000n));
+    assert.equal(BORROW_USDC, e18(3_000n));
+    assert.equal(UMA_WNEAR, e18(5_000n));
+    assert.equal(UMA_USDC, e18(20_000n));
+    assert.equal(CARL_WNEAR, e18(1_000n));
+    assert.equal(PUSH_WNEAR, e18(3_000n));
+  });
+
+  it("the e2e order book straddles the SHIPS·CUTS pool and escrows whole USDC", () => {
+    const pool = SEED_2X2[0]!.price;
+    assert.ok(BOOK_BID_PRICE < pool && pool < BOOK_ASK_PRICE);
+    assert.equal(fmt4(BOOK_ASK_PRICE), "3.7500");
+    assert.equal(fmt4(BOOK_BID_PRICE), "3.6000");
+    assert.equal(orderCost(BOOK_SIZE_WNEAR, BOOK_ASK_PRICE), e18(3_750n));
+    assert.equal(orderCost(BOOK_SIZE_WNEAR, BOOK_BID_PRICE), e18(3_600n));
   });
 
   it("singles", () => {
@@ -95,23 +141,23 @@ describe("spot move plan", () => {
   });
 
   it("selling NEAR lowers the price to the target", () => {
-    const x = e18(100n);
+    const x = e18(100_000n);
     const y = e18(303_769n);
-    const target = e18(3000n);
+    const target = cents(300n);
     const plan = planSpotMove(x, y, target);
     assert.ok(plan?.wnearIn);
     const net = ((plan?.amountIn ?? 0n) * 997_000n) / 1_000_000n;
     const yAfter = (x * y) / (x + net);
     const price = (yAfter * WAD) / (x + net);
     const off = price > target ? price - target : target - price;
-    assert.ok(off < 10n ** 15n, `landed at ${price}`);
+    assert.ok(off < 10n ** 12n, `landed at ${price}`);
   });
 
   it("buying NEAR raises the price; no move when already there", () => {
-    const plan = planSpotMove(e18(100n), e18(300_000n), e18(3100n));
+    const plan = planSpotMove(e18(100_000n), e18(300_000n), cents(310n));
     assert.equal(plan?.wnearIn, false);
     assert.ok((plan?.amountIn ?? 0n) > e18(4_900n) && (plan?.amountIn ?? 0n) < e18(5_100n));
-    assert.equal(planSpotMove(e18(100n), e18(300_000n), e18(3000n)), null);
+    assert.equal(planSpotMove(e18(100_000n), e18(300_000n), cents(300n)), null);
   });
 });
 
@@ -130,9 +176,25 @@ describe("report formatting", () => {
     assert.equal(fmtOdds(5n * 10n ** 13n), "0.01%");
   });
 
-  it("differences are signed and zero under a cent", () => {
+  it("NEAR prices at four decimals", () => {
+    // an implied spot in [3.03769, 3.03770), where the demo's 2x2 lands, shows as 3.0377
+    assert.equal(fmt4(3_037_690_000_000_000_000n), "3.0377");
+    assert.equal(fmt4(3_037_699_999_999_999_999n), "3.0377");
+    assert.equal(fmt4(3_037_649_999_999_999_999n), "3.0376");
+    assert.equal(fmt4(cents(370n)), "3.7000");
+    assert.equal(fmt4(-cents(245n)), "-2.4500");
+    assert.equal(fmtFixed(e18(7n) / 3n, 0), "2");
+    assert.equal(fmtFixed(-1n, 4), "0.0000");
+    assert.throws(() => fmtFixed(1n, 19), /invalid digits/);
+  });
+
+  it("differences are signed and zero under the last digit", () => {
     assert.equal(fmtDiff(e18(3200n), e18(3037n)), "+163.00");
     assert.equal(fmtDiff(e18(3037n), e18(3200n)), "-163.00");
     assert.equal(fmtDiff(e18(3037n) + 10n ** 15n, e18(3037n)), "0.00");
+    // at NEAR scale a gap of a fraction of a cent still shows
+    assert.equal(fmtDiff(cents(320n), 3_037_700_000_000_000_000n, 4), "+0.1623");
+    assert.equal(fmtDiff(3_037_750_000_000_000_000n, 3_037_700_000_000_000_000n, 4), "0.0000");
+    assert.equal(fmtDiff(3_038_000_000_000_000_000n, 3_037_700_000_000_000_000n, 4), "+0.0003");
   });
 });

@@ -1,5 +1,5 @@
-// Alice's demo sale: 2 NEAR sold in the L-shape of the 2x2 (DELAYED or HOLDS) through Ravi's bid
-// and the pools, and 2 wNEAR-if-DELAYED in the binary, each with a 3,000 USDC loan, one
+// Alice's demo sale: 2,000 NEAR sold in the L-shape of the 2x2 (DELAYED or HOLDS) through Ravi's bid
+// and the pools, and 2,000 NEAR-if-DELAYED in the binary, each with a 3,000 USDC loan, one
 // ft_transfer_call per scenario. Run once the pools are old enough to price lending
 // (twap_min_age_sec after seeding); until a full window has passed the TWAP is their whole history.
 
@@ -7,6 +7,7 @@ import { chainNowSec, waitForChainTime } from "./chain.ts";
 import {
   BORROW_USDC,
   fmt2,
+  fmt4,
   fmtHf,
   MASK_BIN_DELAYED,
   MASK_L_SHAPE,
@@ -30,7 +31,7 @@ export async function plan2x2(p: Protocol, record: DemoRecord): Promise<PlanFill
     return plans;
   }
   console.log(
-    `DELAYED·HOLDS plan: Ravi's bid (order ${record.ravi_order}) ${fmt2(r.fill)} NEAR at ${fmt2(r.price)}, ` +
+    `DELAYED·HOLDS plan: Ravi's bid (order ${record.ravi_order}) ${fmt2(r.fill)} NEAR at ${fmt4(r.price)}, ` +
       `then the pool: ${fmt2(r.withBid)} USDC; pool alone: ${fmt2(r.poolOnly)}`,
   );
   if (r.withBid > r.poolOnly) plans[3] = [{ order_id: record.ravi_order, amount: r.fill.toString() }];
@@ -53,7 +54,7 @@ export async function waitForTwap(p: Protocol, record: DemoRecord): Promise<void
 export async function sellAndBorrow(p: Protocol, record: DemoRecord): Promise<void> {
   const alice = p.d.personas.alice;
   await p.ensureStorage(p.d.root, alice);
-  // her two "stage" NEAR stay untouched; these four are for the two sales
+  // her 2,000 "stage" NEAR stay untouched; these 4,000 are for the two sales
   await p.mint(p.d.root, "wnear", alice, 2n * SALE_WNEAR);
   const plans = await plan2x2(p, record);
   const sales: [number, number, PlanFill[][]][] = [
@@ -94,7 +95,7 @@ async function scenarioReport(p: Protocol, sid: number, title: string): Promise<
     const twap = pools.get(w)?.twap_price;
     console.log(
       `world ${w} ${await p.label(sid, 1 << w)}: wNEAR-if-w ${fmt2(wnear)}, USDC-if-w ${fmt2(usdc)} | ` +
-        `collateral value ${fmt2(values[w] ?? 0n)} | TWAP price ${twap ? fmt2(u128(twap)) : "n/a"}`,
+        `collateral value ${fmt2(values[w] ?? 0n)} | TWAP price ${twap ? fmt4(u128(twap)) : "n/a"}`,
     );
   }
   const worstValue = worst === null ? 0n : (values[worst] ?? 0n);
@@ -105,8 +106,8 @@ async function scenarioReport(p: Protocol, sid: number, title: string): Promise<
 export async function printSaleReport(p: Protocol, record: DemoRecord): Promise<void> {
   console.log("");
   console.log(`network: ${NETWORK} (block time ${await chainNowSec()})`);
-  await scenarioReport(p, record.scenario_2x2, "2x2: Alice sold 2 NEAR in the L-shape (DELAYED or HOLDS)");
-  await scenarioReport(p, record.scenario_binary, "binary: Alice sold 2 NEAR-if-DELAYED");
+  await scenarioReport(p, record.scenario_2x2, "2x2: Alice sold 2,000 NEAR in the L-shape (DELAYED or HOLDS)");
+  await scenarioReport(p, record.scenario_binary, "binary: Alice sold 2,000 NEAR-if-DELAYED");
   const dh = (await p.worldPools(record.scenario_2x2)).get(3);
-  if (dh) console.log(`DELAYED·HOLDS pool price after the sale: ${fmt2(u128(dh.price))}`);
+  if (dh) console.log(`DELAYED·HOLDS pool price after the sale: ${fmt4(u128(dh.price))}`);
 }

@@ -11,6 +11,7 @@ import {
   checkBps,
   DEMO_EVENTS,
   fmt2,
+  fmt4,
   fmtDiff,
   fmtOdds,
   independentOdds,
@@ -127,11 +128,11 @@ async function seedSpot(p: Protocol, owner: string, implied: bigint): Promise<"s
       await p.send(owner, asset, top, { action: "deposit" });
     }
   }
-  await p.call1y(owner, "move_spot_to", { price: implied.toString() }, `move_spot_to ${fmt2(implied)}`);
+  await p.call1y(owner, "move_spot_to", { price: implied.toString() }, `move_spot_to ${fmt4(implied)}`);
   return "moved";
 }
 
-/** Ravi's bid 2% under the DELAYED·HOLDS pool price for 1 NEAR, from real USDC split around the mask. */
+/** Ravi's bid 2% under the DELAYED·HOLDS pool price for 1,000 NEAR, from real USDC split around the mask. */
 async function postRaviBid(p: Protocol, owner: string, sid: number): Promise<string> {
   const ravi = p.d.personas.ravi;
   const poolPrice = SEED_2X2[3]?.price ?? 0n;
@@ -147,7 +148,7 @@ async function postRaviBid(p: Protocol, owner: string, sid: number): Promise<str
     price: price.toString(),
     amount: RAVI_BID_WNEAR.toString(),
     expiry_sec: expiry,
-  }, `ravi: post_order bid ${fmt2(price)} for ${fmt2(RAVI_BID_WNEAR)} NEAR`);
+  }, `ravi: post_order bid ${fmt4(price)} for ${fmt2(RAVI_BID_WNEAR)} NEAR`);
   if (typeof r.value !== "string") throw new Error(`post_order returned ${r.returnText}`);
   return r.value;
 }
@@ -231,13 +232,13 @@ async function scenarioLines(p: Protocol, sid: number, seeds: readonly WorldSeed
   const spot = await p.spotPrice();
   lines.push(
     implied === 0n
-      ? `implied spot n/a (odds unknown, or a pool is missing) | actual spot ${fmt2(spot)}`
-      : `implied spot ${fmt2(implied)} | actual spot ${fmt2(spot)} | difference ${fmtDiff(implied, spot)}`,
+      ? `implied spot n/a (odds unknown, or a pool is missing) | actual spot ${fmt4(spot)}`
+      : `implied spot ${fmt4(implied)} | actual spot ${fmt4(spot)} | difference ${fmtDiff(implied, spot, 4)}`,
   );
   return lines;
 }
 
-/** Pool-only and bid-then-pool proceeds of the 2 NEAR DELAYED·HOLDS sale, and whether the bid helps. */
+/** Pool-only and bid-then-pool proceeds of the 2,000 NEAR DELAYED·HOLDS sale, and whether the bid helps. */
 export async function raviPlan(p: Protocol, sid: number, orderId: string | null): Promise<{
   poolOnly: bigint;
   withBid: bigint;
@@ -262,7 +263,7 @@ export async function printSeedReport(p: Protocol, record: DemoRecord): Promise<
   const sBin = record.scenario_binary;
   console.log("");
   console.log(`network: ${NETWORK}`);
-  console.log(`spot pool at the ${record.spot_from} implied spot (USDC per NEAR): ${fmt2(await p.spotPrice())}`);
+  console.log(`spot pool at the ${record.spot_from} implied spot (USDC per NEAR): ${fmt4(await p.spotPrice())}`);
   console.log(`odds: SHIPS ${record.odds_ships_bps} bps, CUTS ${record.odds_cuts_bps} bps (${record.odds_source ?? "no source"})`);
   console.log(`Bob supplied USDC to each market: ${fmt2(BOB_SUPPLY)}`);
   console.log("");
@@ -277,10 +278,10 @@ export async function printSeedReport(p: Protocol, record: DemoRecord): Promise<
     console.log("no standing bid for Ravi");
   } else {
     const order = await p.order(record.ravi_order);
-    if (order) console.log(`order ${order.id}: ${order.side} ${fmt2(u128(order.price))} USDC per NEAR for ${fmt2(u128(order.amount))} NEAR`);
+    if (order) console.log(`order ${order.id}: ${order.side} ${fmt4(u128(order.price))} USDC per NEAR for ${fmt2(u128(order.amount))} NEAR`);
     const plan = await raviPlan(p, s2x2, record.ravi_order);
-    console.log(`2 NEAR sale, pool alone: ${fmt2(plan.poolOnly)} USDC, average ${fmt2((plan.poolOnly * WAD) / SALE_WNEAR)}`);
-    console.log(`2 NEAR sale, Ravi's bid then the pool: ${fmt2(plan.withBid)} USDC, average ${fmt2((plan.withBid * WAD) / SALE_WNEAR)}`);
+    console.log(`2,000 NEAR sale, pool alone: ${fmt2(plan.poolOnly)} USDC, average ${fmt4((plan.poolOnly * WAD) / SALE_WNEAR)}`);
+    console.log(`2,000 NEAR sale, Ravi's bid then the pool: ${fmt2(plan.withBid)} USDC, average ${fmt4((plan.withBid * WAD) / SALE_WNEAR)}`);
     if (plan.withBid <= plan.poolOnly) console.log("WARNING: the pool alone pays more, so the router would not use Ravi's bid");
   }
   console.log(`events: glam ${record.glam_event}, fed ${record.fed_event}, past fed ${record.past_fed_event ?? "-"}`);
