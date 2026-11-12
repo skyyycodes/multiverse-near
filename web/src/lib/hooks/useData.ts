@@ -26,7 +26,9 @@ import type {
   StorageBounds,
   TradeViewJson,
 } from "../types";
+import { cellQuotes, type CellQuote } from "../orders";
 import { toInternal } from "../units";
+import { useNowSeconds } from "./useClock";
 import { useScenarioChoice } from "./useScenario";
 
 /** Snapshots every 4 s, quotes every 6 s. */
@@ -132,6 +134,17 @@ export function useAdmin(sid: number | undefined, account: string | null) {
     },
     placeholderData: keepWithin(sid),
   });
+}
+
+/**
+ * Every world's best bid and ask from the scenario's order book (the trade view), for the grids and lists of any
+ * screen; undefined while it loads or when the deployment has no order book. Screens share the trade query's cache.
+ */
+export function useCellQuotes(config: AppConfig, sid: number | undefined, account: string | null): CellQuote[] | undefined {
+  const trade = useTrade(config.orderBook ? sid : undefined, account);
+  const now = useNowSeconds();
+  const d = trade.data;
+  return d && config.orderBook ? cellQuotes(d.orders, d.scenario, now) : undefined;
 }
 
 /** Whether a result is waiting out its dispute window in this scenario (the header's status bell). */

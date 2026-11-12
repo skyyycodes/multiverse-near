@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bestPlan, cellBook, closedReason, cost, isOpen, MAX_PLAN_ORDERS, minOutOf, proceeds, saleCandidates, via, type Order } from "./orders";
+import { bestPlan, cellBook, cellQuotes, closedReason, cost, isOpen, MAX_PLAN_ORDERS, minOutOf, proceeds, saleCandidates, via, type Order } from "./orders";
 import { parseAmount } from "./format";
 
 const E18 = 10n ** 18n;
@@ -142,5 +142,25 @@ describe("sale planner", () => {
     const two = { fills: [{ order: order({ id: 1 }), amount: 1n, out: 1n }, { order: order({ id: 2 }), amount: 1n, out: 1n }], poolAmount: 0n, poolOut: 0n, total: 2n };
     expect(via(two)).toBe("sell via 2 bids → ");
     expect(minOutOf(undefined)).toBe(0n);
+  });
+});
+
+describe("best bid and ask per world", () => {
+  it("gives every grid the same quote: the best open order of each side, nothing for an empty side", () => {
+    const worlds = [1, 2, 4, 8].map((mask) => ({ mask }));
+    const orders = [
+      order({ id: 1 }),
+      order({ id: 2, price: wad("2400") }),
+      order({ id: 3, mask: 1, side: "ask", price: wad("3750") }),
+      order({ id: 4, mask: 1, side: "ask", price: wad("3880") }),
+      order({ id: 5, mask: 1, price: wad("3600") }),
+      order({ id: 6, mask: 2, price: wad("2900"), expiry: NOW }),
+    ];
+    expect(cellQuotes(orders, { ...state, worlds }, NOW)).toEqual([
+      { bid: wad("3600"), ask: wad("3750") },
+      { bid: undefined, ask: undefined },
+      { bid: undefined, ask: undefined },
+      { bid: wad("2450"), ask: undefined },
+    ]);
   });
 });

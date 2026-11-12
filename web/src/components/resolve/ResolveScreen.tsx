@@ -13,7 +13,7 @@ import { CONTRACT_ID } from "@/lib/data/client";
 import type { Account, AppConfig, EventState, Scenario } from "@/lib/domain";
 import { countdown, fmt, fmtUsd, fmtNear } from "@/lib/format";
 import { useChainClock } from "@/lib/hooks/useClock";
-import { useBalances, useResolve, useScenarioId } from "@/lib/hooks/useData";
+import { useBalances, useCellQuotes, useResolve, useScenarioId } from "@/lib/hooks/useData";
 import { useIsDesktop } from "@/lib/hooks/useMedia";
 import { useSubmit } from "@/lib/hooks/useTx";
 import { eventsOf } from "@/lib/near/outcome";
@@ -34,6 +34,7 @@ function Resolve({ config }: { config: AppConfig }) {
   const sid = useScenarioId(config);
   const view = useResolve(sid, wallet.accountId);
   const balances = useBalances(wallet.accountId, config.wnear, config.usdc);
+  const quotes = useCellQuotes(config, sid, wallet.accountId);
   const clock = useChainClock(view.data?.nowSec, view.dataUpdatedAt);
   const d = view.data;
   const s = d?.scenario;
@@ -87,7 +88,11 @@ function Resolve({ config }: { config: AppConfig }) {
     >
       {s && d ? (
         <>
-          {desktop ? <WorldGrid scenario={s} events={d.events} details={false} /> : <FuturesList scenario={s} demo="resolve-futures" />}
+          {desktop ? (
+            <WorldGrid scenario={s} events={d.events} quotes={quotes} details={false} />
+          ) : (
+            <FuturesList scenario={s} quotes={quotes} demo="resolve-futures" />
+          )}
           <Block demo="resolve-events">
             <Survivors scenario={s} />
             <ResolverNote events={s.eventIds.length} pastFed={Boolean(d.pastFedEvent)} />

@@ -9,7 +9,6 @@ import { Segmented } from "@/components/ui/Bits";
 import { ChainWait } from "@/components/ui/Notice";
 import { Block, Sheet } from "@/components/ui/Surface";
 import { WorldGrid } from "@/components/world/WorldGrid";
-import type { CellQuote } from "@/components/world/WorldCard";
 import { CONTRACT_ID } from "@/lib/data/client";
 import type { AppConfig, Scenario } from "@/lib/domain";
 import { useChainClock, useNowSeconds } from "@/lib/hooks/useClock";
@@ -17,7 +16,7 @@ import { useBalances, useScenarioId, useTrade } from "@/lib/hooks/useData";
 import { useIsDesktop } from "@/lib/hooks/useMedia";
 import { usePicks } from "@/lib/hooks/useScenario";
 import { useWallet } from "@/lib/near/wallet";
-import { cellBook } from "@/lib/orders";
+import { cellQuotes } from "@/lib/orders";
 import { ActionTiles, BalanceChips, FuturesList, FuturesStrip, SpotHero } from "./Home";
 import { OrderPanel } from "./OrderPanel";
 import { SellPanel } from "./SellPanel";
@@ -65,13 +64,7 @@ function Trade({ config, focus }: { config: AppConfig; focus?: Focus }) {
     else if (world?.possible) setSellMask(world.mask);
   }, [s, params, focus, setSellMask, openBook]);
 
-  const quotes: CellQuote[] | undefined =
-    s && trade.data && config.orderBook
-      ? s.worlds.map((w) => {
-          const b = cellBook(trade.data!.orders, s, w.mask, wallNow);
-          return { bid: b.bids[0]?.price, ask: b.asks[0]?.price };
-        })
-      : undefined;
+  const quotes = trade.data && config.orderBook ? cellQuotes(trade.data.orders, trade.data.scenario, wallNow) : undefined;
 
   const status = s && (
     <span className="num text-[12px] text-white/60" data-demo="scenario-status">

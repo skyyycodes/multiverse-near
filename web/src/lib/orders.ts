@@ -58,6 +58,20 @@ export function cellBook(orders: readonly Order[], s: ScenarioState, mask: numbe
   };
 }
 
+/** Best open bid and ask of one world's order book (USDC per NEAR); either is missing when that side is empty. */
+export type CellQuote = { bid?: bigint; ask?: bigint };
+
+/**
+ * Every world's best open bid and ask, in world-index order. The one source for each grid, list and card that shows a
+ * best bid, so they all agree.
+ */
+export function cellQuotes(orders: readonly Order[], s: ScenarioState & { worlds: readonly { mask: number }[] }, nowSec: bigint): CellQuote[] {
+  return s.worlds.map((w) => {
+    const b = cellBook(orders, s, w.mask, nowSec);
+    return { bid: b.bids[0]?.price, ask: b.asks[0]?.price };
+  });
+}
+
 export const nowSeconds = () => BigInt(Math.floor(Date.now() / 1000));
 
 /** How many resting orders the planner looks at per world (the order panel shows the same top 5). */

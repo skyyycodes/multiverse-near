@@ -6,13 +6,13 @@ import type { CSSProperties, ReactNode } from "react";
 import { BranchLines } from "@/components/brand/BranchLines";
 import { IconArrowUpRight } from "@/components/brand/Icons";
 import type { World } from "@/lib/domain";
+import type { CellQuote } from "@/lib/orders";
 import { fmt, fmtUsd, fmtNear, pct, wholeUsd } from "@/lib/format";
 import { alpha, hueOf } from "./hues";
 
 const ONE = 10n ** 18n;
 
-/** Best open bid and ask of one world's order book (USDC per WETH). */
-export type CellQuote = { bid?: bigint; ask?: bigint };
+export type { CellQuote };
 
 /** The aurora behind a world: deep navy with a large soft glow in the world's hue. */
 export function auroraStyle(index: number, alive: boolean, strength = 1): CSSProperties {

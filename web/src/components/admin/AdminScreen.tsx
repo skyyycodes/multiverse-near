@@ -16,7 +16,7 @@ import type { AppConfig, EventState, Scenario } from "@/lib/domain";
 import { ENV } from "@/lib/env";
 import { fmt, fmtUsd, fmtNear, parseAmount, shortAccount } from "@/lib/format";
 import { useChainClock } from "@/lib/hooks/useClock";
-import { useAdmin, useBalances, useQuoteSell, useScenarioId } from "@/lib/hooks/useData";
+import { useAdmin, useBalances, useCellQuotes, useQuoteSell, useScenarioId } from "@/lib/hooks/useData";
 import { useIsDesktop } from "@/lib/hooks/useMedia";
 import { useSubmit } from "@/lib/hooks/useTx";
 import { call, ftTransferCall } from "@/lib/near/tx";
@@ -36,6 +36,7 @@ function Admin({ config }: { config: AppConfig }) {
   const desktop = useIsDesktop();
   const sid = useScenarioId(config);
   const view = useAdmin(sid, wallet.accountId);
+  const quotes = useCellQuotes(config, sid, wallet.accountId);
   const clock = useChainClock(view.data?.nowSec, view.dataUpdatedAt);
   const d = view.data;
   const s = d?.scenario;
@@ -72,7 +73,7 @@ function Admin({ config }: { config: AppConfig }) {
     >
       {s && d ? (
         <>
-          {desktop && <WorldGrid scenario={s} events={d.events} selected={picked} onToggle={toggle} details={false} />}
+          {desktop && <WorldGrid scenario={s} events={d.events} selected={picked} onToggle={toggle} quotes={quotes} details={false} />}
           <Block demo="admin-events">
             <p className="text-[13px] leading-relaxed text-mute">
               Tap one world to push its price down with a real swap ({desktop ? "right" : "below"}).
