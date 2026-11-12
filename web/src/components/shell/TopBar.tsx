@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Wordmark } from "@/components/brand/Mark";
-import { FIXTURES } from "@/lib/env";
 import { AccountButton, HelpLink, StatusBell } from "./HeaderActions";
 import { NAV, samePath } from "./nav";
 import { ScenarioSwitch } from "./ScenarioSwitch";
@@ -16,7 +15,8 @@ export function TopBar() {
       <Link href="/" className="focus-ring shrink-0 rounded-full" aria-label="Multiverse Lending, home">
         <Wordmark />
       </Link>
-      {FIXTURES && (
+      {/* Tested literally so a real build drops the chip, as it drops the fixtures themselves. */}
+      {process.env.NEXT_PUBLIC_FIXTURES === "1" && (
         <span className="rounded-full border border-dashed border-white/25 px-2.5 py-1 text-[11px] whitespace-nowrap text-white/60" title="Screens read design fixtures, not the chain">
           design data
         </span>
