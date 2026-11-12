@@ -26,7 +26,7 @@ The web app is out of scope except where it relies on a contract view (`trade_vi
    standards and integration.
 3. **Property tests.** The six invariants below run as stateful property tests, 256 cases of 50 to 200 random
    actions each, after every action. Bad-debt liquidations are counted and printed, never filtered out. The maths
-   crate has its own property tests and EVM test vectors.
+   crate has its own property tests and reference vectors generated from the prototype's maths.
 4. **A reproducing test for every finding.** Each finding was first shown by a failing test against the unfixed
    code. After the fix, that test stays in the suite as a regression test (`contracts/multiverse/src/tests/security.rs`
    unless the table says otherwise).
@@ -48,7 +48,7 @@ The web app is out of scope except where it relies on a contract view (`trade_vi
 
 ### ECON-1 and ECON-2: lending prices from in-protocol pools
 
-Lending values WETH in each world at that world pool's tick TWAP. With a 60 s window, holding a pool at a false
+Lending values wNEAR in each world at that world pool's tick TWAP. With a 60 s window, holding a pool at a false
 price for one minute moved the TWAP all the way. A root split gives USDC-if-w in every world at once, so one split
 pumps every world together (ECON-1, test `pumping_every_world_for_a_minute_does_not_unlock_borrowing`). Dumping only
 the victim's worst world is enough to liquidate them (ECON-2, test
@@ -89,7 +89,7 @@ script now attaches 1 yoctoNEAR. Test: `owner_creation_methods_need_an_attached_
 - `trade_view` carries each world's best 25 fillable bids and asks, in the order `orders_for_world` uses (price, then
   age, with expired and stale orders skipped), plus every open order the viewer has in the scenario. Before, it was
   the first 200 open ids.
-- Orders need a notional of at least 0.0001 USDC, which rules out bids that escrow a few wei. A maker may hold 64
+- Orders need a notional of at least 0.0001 USDC, which rules out bids that escrow a few internal units. A maker may hold 64
   open orders.
 
 Tests: `dust_orders_cannot_hide_the_book_from_trade_view` and `closed_orders_do_not_grow_unregister_or_trade_view_gas`.
@@ -127,7 +127,7 @@ still top up an account that is already registered. Tests in `contracts/mock-ft/
 
 | # | Invariant | Test |
 |---|---|---|
-| 1 | Backing: for every scenario, asset and possible world, the supply of tokens covering that world equals the scenario's reserves; no root token exists; every token's supply is what its holders, pools, escrow, collateral and the vault hold; the contract's token balance is reserves plus internal balances | `invariant_1_backing` in `contracts/multiverse/src/tests/invariants.rs` |
+| 1 | Backing: for every scenario, asset and possible world, the supply of tokens covering that world equals the scenario's reserves; no root token exists; every token's supply is what its holders, pools, escrow, collateral and the vault hold; the contract's token balance is reserves plus internal balances, also with the testnet wNEAR's 24 decimals, where a deposit's remainder below one internal unit must go straight back | `invariant_1_backing` and `invariant_1_backing_with_24_decimal_wnear` in `contracts/multiverse/src/tests/invariants.rs` |
 | 2 | Dead stays dead: nothing on a dead verse succeeds, and a dead token's supply never changes after its verse dies | `invariant_2_dead_stays_dead` in `tests/invariants.rs` |
 | 3 | Resolution never lowers a borrower's health factor | `invariant_3_resolution_never_lowers_hf` in `tests/lending_invariants.rs` |
 | 4 | When the account's worst-world collateral covers the repayment plus the bonus, the seized slice is worth at least the repayment in every possible world, at the same block's prices; liquidations without that cover are counted and printed as bad-debt cases | `invariant_4_liquidation_covers_repayment` in `tests/lending_invariants.rs` |
@@ -147,7 +147,7 @@ check the lending maths and not the price source. ECON-1 and ECON-2 are about th
   a 30 s dispute window unless the owner disputes it, so a wrong proposal that nobody watches becomes final.
 - **The demo's grid events resolve from a file in the repository** (`deployments/demo-outcomes.json`) that the team
   controls. Only the past FOMC event resolves from real FRED data.
-- **The tokens are mocks.** WETH and USDC are `mock-ft` deployments with an open, capped faucet. They have no value.
+- **The tokens are mocks.** wNEAR and USDC are `mock-ft` deployments with an open, capped faucet. They have no value.
 - **Liquidity is seeded by the team.** All pool liquidity, Bob's supply and Ravi's order come from the seed script.
   Prices are only as good as that seeding and whatever trading follows.
 - **Testnet only.** Nothing here has been deployed or tested on mainnet.

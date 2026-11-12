@@ -1,34 +1,39 @@
 # How Multiverse Lending works
 
-This is the design of the NEAR contract in `contracts/multiverse` and the maths in `crates/multiverse-math`. The
-market design comes from the EVM version; what is specific to NEAR is called out where it matters.
+This is the design of the contract in `contracts/multiverse` and the maths in `crates/multiverse-math`. What is
+specific to NEAR is called out where it matters.
 
 ## Units
 
-Every amount inside the contract is an 18-decimal integer, for both assets. Real tokens are scaled once at the
-NEP-141 boundary: `internal = token_amount * 10^(18 - decimals)`, so USDC (6 decimals) is multiplied by 10^12 and
-WETH (18 decimals) by 1. On the way out, `token_amount = internal / scale`, rounded down; the remainder stays in the
-account's internal balance as dust, which a later withdrawal can pick up.
+Every amount inside the contract is an 18-decimal integer, for both assets. A token may have 0 to 24 decimals, and
+real amounts are converted once at the NEP-141 boundary with `AssetCfg::to_internal` and `AssetCfg::to_raw`:
 
-Prices are WAD-scaled USDC per WETH (1e18 = 1 USDC per WETH). Fees are in pips (1,000,000 = 100%). Time is whole
-seconds of block time. Amounts are `u128`, written as decimal strings (`U128`) in JSON. Products go through
-`mul_div` at 256 or 512 bits, so only the final quotient has to fit. Rounding always favours the protocol: what a
-user receives rounds down, what a user pays rounds up. Because every number keeps the EVM version's units, the EVM
-formulas, constants and demo numbers carry over unchanged.
+- Up to 18 decimals (USDC has 6): `internal = raw * 10^(18 - d)` on the way in, exact. On the way out
+  `raw = floor(internal / 10^(18 - d))`; the remainder stays in the account's internal balance as dust, which a later
+  withdrawal can pick up.
+- Above 18 decimals (wNEAR has 24): `internal = floor(raw / 10^(d - 18))` on the way in. The remainder
+  `raw % 10^(d - 18)` never enters the ledger: `ft_on_transfer` returns it as unused and the token contract sends it
+  back. On the way out `raw = internal * 10^(d - 18)`, exact, so there is no dust. A failed payout credits back
+  exactly the internal amount that was sent.
+
+Prices are WAD-scaled USDC per NEAR (1e18 = 1 USDC per NEAR); a demo price is a few dollars. Fees are in pips
+(1,000,000 = 100%). Time is whole seconds of block time. Amounts are `u128`, written as decimal strings (`U128`) in
+JSON. Products go through `mul_div` at 256 or 512 bits, so only the final quotient has to fit. Rounding always
+favours the protocol: what a user receives rounds down, what a user pays rounds up.
 
 ## Events, worlds and masks
 
 An event is a yes/no question with two named outcomes, a rule saying how it resolves, and an informational
 deadline. A scenario combines one or two events. Each combination of outcomes is a world, numbered from 0: in the
-demo's 2x2 scenario (Glamsterdam, then the Fed) world 0 is SHIPS·CUTS, 1 is DELAYED·CUTS, 2 is SHIPS·HOLDS and 3 is
+demo's 2x2 scenario (SPICE, then the Fed) world 0 is SHIPS·CUTS, 1 is DELAYED·CUTS, 2 is SHIPS·HOLDS and 3 is
 DELAYED·HOLDS. A scenario has at most two events and four worlds.
 
 A set of worlds is a bit mask: bit `w` set means world `w` is in it. Mask 14 (`0b1110`) is DELAYED·CUTS,
 SHIPS·HOLDS and DELAYED·HOLDS, the "L-shape" Alice sells in. The root mask (all worlds) is the real asset itself and
 never exists as a token.
 
-A verse is one asset on one mask of one scenario: WETH-if-14 pays one WETH if the world that comes true is in mask
-14. Each verse is a NEP-245 token with id `{scenario}:{asset}:{mask}`, for example `1:weth:14`, with 18 decimals.
+A verse is one asset on one mask of one scenario: wNEAR-if-14 pays one wNEAR if the world that comes true is in mask
+14. Each verse is a NEP-245 token with id `{scenario}:{asset}:{mask}`, for example `1:wnear:14`, with 18 decimals.
 
 A scenario keeps `possible`, the mask of worlds that can still happen. A verse is live while its mask touches
 `possible`, dead once it does not, and collapsed once it covers every possible world.
@@ -50,19 +55,20 @@ equals the reserves.
 
 ## Pools and fees
 
-All pools are constant-product pools with the semantics of a Uniswap v4 full-range position (`x * y = L^2`). The fee
+All pools are constant-product pools with the semantics of a full-range concentrated-liquidity position
+(`x * y = L^2`). The fee
 is taken from the input and kept outside the curve for the liquidity providers, outputs round down, and a quote runs
 the swap maths on the same state, so a quote equals execution. A pool is born with liquidity from the owner, so its
 first price is the ratio of what the owner put in.
 
-- **World pools** (within-world): WETH-if-w against USDC-if-w, one per world. Their price is ETH's price in that
+- **World pools** (within-world): wNEAR-if-w against USDC-if-w, one per world. Their price is NEAR's price in that
   world. Lending reads their TWAP.
 - **Odds pools** (between-world): USDC-if-X against USDC-if-Y for two disjoint verses. Their price is how likely X is
   against Y.
-- **Spot pool**: real WETH against real USDC from internal balances, with a fixed 0.30% fee. The owner can move it to
+- **Spot pool**: real wNEAR against real USDC from internal balances, with a fixed 0.30% fee. The owner can move it to
   a target price (`move_spot_to`).
 
-Verse pools charge a dynamic fee. A pool remembers the signed flow of its last 8 swaps in its token0 (the WETH side
+Verse pools charge a dynamic fee. A pool remembers the signed flow of its last 8 swaps in its token0 (the wNEAR side
 of a world pool). The next swap pays `base + ceil((cap - base) * |net| / total)`, with base 0.30% and cap 1.50%:
 balanced flow pays the base, one-sided flow pays the cap. After Alice's sale the three pools she sold into all
 charge 1.50%.
@@ -77,7 +83,7 @@ one observation counts per second, so a swap and its reversal in the same block 
 Observations are spaced at `window / 64` seconds, so the ring always spans two windows however often the pool
 trades.
 
-Lending prices WETH in world `w` from the world pool's mean tick over a 30-minute window (`twap_window_sec` 1800):
+Lending prices wNEAR in world `w` from the world pool's mean tick over a 30-minute window (`twap_window_sec` 1800):
 
 - the pool must be at least 60 s old (`twap_min_age_sec`); until it is a full window old, the mean runs over its
   whole history;
@@ -85,8 +91,8 @@ Lending prices WETH in world `w` from the world pool's mean tick over a 30-minut
 - the pool must hold at least 10,000 USDC-if-w right now (the depth gate), or the world has no price.
 
 A world without a price counts zero toward borrowing and pauses liquidation in that scenario. The 30-minute window
-and the spot band came out of the internal security review (ECON-1 and ECON-2 in `docs/SECURITY.md`); the EVM
-version used 60 s.
+and the spot band came out of the internal security review (ECON-1 and ECON-2 in `docs/SECURITY.md`); the
+prototype used 60 s.
 
 ## Odds and the implied spot
 
@@ -97,24 +103,24 @@ child of each split takes `parent - first`, so the odds add up to exactly 100%. 
 pool; a split between two live verses without a pool makes the odds unknown, never guessed.
 
 The implied spot is the sum of odds times world price. The app shows it next to the actual spot pool price; when
-they drift apart, one of them is mispriced. The seed script sets the spot pool to the 2x2 implied spot (3,037.69 in
-the demo).
+they drift apart, one of them is mispriced. The seed script sets the spot pool to the 2x2 implied spot (3.0377 USDC per NEAR
+in the demo).
 
 ## Order book
 
-Limit orders on any live non-root verse of a scenario. A bid buys WETH-if-mask at a price in USDC per WETH and
-escrows USDC-if-mask; an ask sells WETH-if-mask and escrows it. Escrow leaves the maker's balance and sits in the
+Limit orders on any live non-root verse of a scenario. A bid buys wNEAR-if-mask at a price in USDC per wNEAR and
+escrows USDC-if-mask; an ask sells wNEAR-if-mask and escrows it. Escrow leaves the maker's balance and sits in the
 order. Only the USDC leg rounds: whoever pays USDC pays the ceiling, whoever is paid from a bid's escrow gets the
 floor, so an open bid always covers every fill still possible.
 
 An order fills only in the epoch it was posted in (the scenario's resolution count), before its expiry, while its
 verse is live and while no proposal is open. Posting and cancelling work at any time. Orders must be at least
-0.001 WETH and 0.0001 USDC of notional; a maker may have 64 open orders. Closed orders stay stored for `get_order`,
+0.001 wNEAR and 0.0001 USDC of notional; a maker may have 64 open orders. Closed orders stay stored for `get_order`,
 but every read goes through indexes of open orders. `trade_view` shows each world's best 25 bids and asks.
 
 ## Router
 
-The router is what makes one signature enough. `conditional_sell` takes WETH (attached through `ft_transfer_call`,
+The router is what makes one signature enough. `conditional_sell` takes wNEAR (attached through `ft_transfer_call`,
 or from the internal balance), splits it from root into every possible world, and in each world of `sell_mask`
 fills the planned orders first and sends what is left into the world pool. Each traded world must pay at least its
 `min_out`. The result stays in the user's ledger or, with `to_lending`, becomes loan collateral. `conditional_buy`
@@ -132,11 +138,11 @@ heaviest plan the app builds (four worlds, five fills each) stays inside a recei
 ## Lending and worst-world health
 
 Each scenario has one market for real USDC, with no creation step. Lenders supply USDC and receive shares. Borrowers
-post collateral pieces: live verse tokens of the scenario, or real WETH or USDC. Up to 16 pieces per account and
+post collateral pieces: live verse tokens of the scenario, or real wNEAR or USDC. Up to 16 pieces per account and
 market.
 
-Each piece is valued in every possible world: WETH-if-mask is worth `amount * price_w` in the worlds of its mask and
-nothing elsewhere; USDC-if-mask is worth `amount` there; real WETH and USDC count in every world. The account's
+Each piece is valued in every possible world: wNEAR-if-mask is worth `amount * price_w` in the worlds of its mask and
+nothing elsewhere; USDC-if-mask is worth `amount` there; real wNEAR and USDC count in every world. The account's
 value in world `w` is the sum, and `C_min` is its lowest value over the possible worlds. Then
 
 ```
@@ -147,8 +153,9 @@ Borrowing and withdrawing collateral require HF >= 1 afterwards. Because the loa
 is covered whatever happens; resolution only removes worlds, so it can only raise `C_min` and the health factor
 (invariant 3).
 
-In the demo Alice's worst world is DELAYED·HOLDS, where she holds 4,881.88 USDC-if-DELAYED·HOLDS. A 3,000 USDC
-loan gives HF = 4,881.88 * 0.75 / 3,000 = 1.22, and she could borrow up to 3,661.41.
+In the demo Alice sells 2,000 NEAR in the L-shape, and her worst world is DELAYED·HOLDS, where she holds 4,881.88
+USDC-if-DELAYED·HOLDS. A 3,000 USDC loan gives HF = 4,881.88 * 0.75 / 3,000 = 1.22, and she could borrow up to
+3,661.41.
 
 Interest is one fixed rate, 1,585,489,599 per second in WAD units (5% a year), simple over each interval and
 compounded at every touch; all of it goes to lenders. Shares use virtual offsets (1e6 shares and 1 unit of assets)
@@ -171,12 +178,12 @@ pieces land in the liquidator's ledger, real pieces in the liquidator's internal
 coverage on random histories. When `C_min` is below the target, the liquidator takes everything and the shortfall
 is bad debt; the property test counts and prints those cases.
 
-In the e2e run, Carl borrows 1,799.50 against 1 real WETH, the owner pushes DELAYED·HOLDS down, and after the TWAP
-catches up Carl is at HF 0.86. Leo repays half the debt and Carl's HF rises to 0.93.
+In the e2e run, Carl borrows 1,799.50 USDC against 1,000 real wNEAR, the owner pushes DELAYED·HOLDS down by selling
+3,000 NEAR into it, and after the TWAP catches up Carl is at HF 0.86. Leo repays half the debt and Carl's HF rises to 0.93.
 
 ## Root LP
 
-The Root LP vault provides liquidity in every world of a scenario from one deposit of real WETH and USDC. The
+The Root LP vault provides liquidity in every world of a scenario from one deposit of real wNEAR and USDC. The
 deposit is split from root into every live world and added to each world pool at that pool's own price, one vault
 position per pool. What a pool cannot take comes back: the part every live world has left over as the real asset
 (merged), the rest as world tokens. A share is a claim on `1 / supply` of every live world's position, idle tokens
@@ -208,14 +215,15 @@ first, and signs with a function-call key that can only call `report_outcome` an
 
 ## Real tokens in and out
 
-Real WETH and USDC enter only through `ft_transfer_call`. `ft_on_transfer` accepts calls only from the two configured
-token contracts, credits the scaled amount to the sender's internal balance, runs the action named in `msg` for the
-sender, and returns the whole token units of this transfer that the action did not use; the token contract sends
-those back. An empty `msg` is a plain deposit. Unknown actions and unknown fields fail with `BadMessage`.
+Real wNEAR and USDC enter only through `ft_transfer_call`. `ft_on_transfer` accepts calls only from the two configured
+token contracts, credits `to_internal` of the amount to the sender's internal balance, runs the action named in `msg`
+for the sender, and returns the whole token units of this transfer that the action did not use, plus any remainder
+below one internal unit; the token contract sends those back. A transfer worth less than one internal unit fails
+with `ZeroAmount`. An empty `msg` is a plain deposit. Unknown actions and unknown fields fail with `BadMessage`.
 
-Real tokens leave through `payout`, always after every state change: whole token units go out with `ft_transfer`
-(1 yoctoNEAR, 10 Tgas), and `on_payout` (5 Tgas) credits the amount back to the internal balance if the transfer
-failed, typically because the receiver is not registered with the token. `withdraw` retries from there.
+Real tokens leave through `payout`, always after every state change: `to_raw` gives the whole token units that go
+out with `ft_transfer` (1 yoctoNEAR, 10 Tgas), and `on_payout` (5 Tgas) credits the amount back to the internal
+balance if the transfer failed, typically because the receiver is not registered with the token. `withdraw` retries from there.
 
 ## Storage
 
