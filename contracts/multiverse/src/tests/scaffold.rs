@@ -680,6 +680,34 @@ fn catalogue_entry_points_are_stubs() {
     assert_eq!(w.view(|c| c.catalog.proposal_count), 0);
 }
 
+// ---- NEP-145 credits ----
+
+#[test]
+fn credit_deposit_adds_to_the_storage_deposit() {
+    let mut w = World::new();
+    let alice = acc(ALICE);
+    let before = w.view(|c| c.storage_balance_of(acc(ALICE)).unwrap());
+    let yocto = 50_000_000_000_000_000_000_000;
+    w.call(OWNER, NO_DEPOSIT, |c| c.credit_deposit(&alice, yocto))
+        .unwrap();
+    let after = w.view(|c| c.storage_balance_of(acc(ALICE)).unwrap());
+    assert_eq!(after.total.0, before.total.0 + yocto);
+    assert_eq!(after.available.0, before.available.0 + yocto);
+    assert!(w.last.near_transfers().is_empty());
+    // Withdrawable like any deposit.
+    w.call(ALICE, ONE_YOCTO, |c| c.storage_withdraw(Some(U128(yocto))))
+        .unwrap();
+    assert_eq!(w.last.near_transfers(), vec![(acc(ALICE), yocto)]);
+    // Not registered: the NEAR is sent.
+    let dave = acc(DAVE);
+    w.call(OWNER, NO_DEPOSIT, |c| c.credit_deposit(&dave, yocto))
+        .unwrap();
+    assert_eq!(w.last.near_transfers(), vec![(acc(DAVE), yocto)]);
+    w.call(OWNER, NO_DEPOSIT, |c| c.credit_deposit(&dave, 0))
+        .unwrap();
+    assert!(w.last.near_transfers().is_empty());
+}
+
 // ---- Fixtures ----
 
 #[test]

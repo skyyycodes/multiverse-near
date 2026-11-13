@@ -299,6 +299,25 @@ impl Contract {
         self.storage.insert(payer.clone(), account);
     }
 
+    /// Credits `yocto` to `account`'s NEP-145 deposit: a bond, a reserve or an
+    /// excess the contract returns. It is synchronous and costs no receipt;
+    /// the account withdraws it with `storage_withdraw`. An account that is no
+    /// longer registered is sent the NEAR instead.
+    #[allow(dead_code)] // the catalogue returns bonds and reserves through it
+    pub(crate) fn credit_deposit(&mut self, account: &AccountId, yocto: u128) {
+        if yocto == 0 {
+            return;
+        }
+        self.upgrade_account(account);
+        let amount = NearToken::from_yoctonear(yocto);
+        match self.storage.get_mut(account) {
+            Some(record) => record.deposit = record.deposit.saturating_add(amount),
+            None => {
+                Promise::new(account.clone()).transfer(amount);
+            }
+        }
+    }
+
     pub(crate) fn open_order_count(&self, account_id: &AccountId) -> usize {
         self.storage
             .get(account_id)
