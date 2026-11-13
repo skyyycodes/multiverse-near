@@ -13,6 +13,8 @@ happen die, and what you hold in the surviving world redeems 1:1 for real wNEAR 
 Everything runs in one NEAR contract, `app.multiverse-near.testnet`, on NEAR testnet with mock tokens. The web app
 is hosted at https://multiverse-lending.vercel.app.
 
+New to this? [docs/LEARN.md](docs/LEARN.md) explains the project from zero.
+
 ## The problem
 
 Someone holding NEAR who fears one specific future (the upgrade slips and the Fed holds) usually has two tools:
