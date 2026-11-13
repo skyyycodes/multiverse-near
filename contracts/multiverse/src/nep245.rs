@@ -15,6 +15,7 @@ use near_sdk::{
 
 use crate::errors::fail;
 use crate::masks;
+use crate::ops::PauseFlag;
 use crate::types::VerseKey;
 use crate::{Contract, ContractExt};
 
@@ -114,6 +115,7 @@ impl Contract {
         memo: Option<String>,
     ) {
         assert_one_yocto();
+        self.assert_live(PauseFlag::Transfer);
         if approval.is_some() {
             fail("ApprovalsNotSupported");
         }
@@ -137,6 +139,7 @@ impl Contract {
         memo: Option<String>,
     ) {
         assert_one_yocto();
+        self.assert_live(PauseFlag::Transfer);
         check_no_approvals(&approvals, token_ids.len());
         let sender_id = env::predecessor_account_id();
         self.mt_internal_transfer(
@@ -159,6 +162,7 @@ impl Contract {
         msg: String,
     ) -> PromiseOrValue<Vec<U128>> {
         assert_one_yocto();
+        self.assert_live(PauseFlag::Transfer);
         if approval.is_some() {
             fail("ApprovalsNotSupported");
         }
@@ -176,6 +180,7 @@ impl Contract {
         msg: String,
     ) -> PromiseOrValue<Vec<U128>> {
         assert_one_yocto();
+        self.assert_live(PauseFlag::Transfer);
         check_no_approvals(&approvals, token_ids.len());
         self.mt_internal_transfer_call(receiver_id, token_ids, amounts, memo, msg)
     }

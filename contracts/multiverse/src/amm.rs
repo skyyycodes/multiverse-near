@@ -30,12 +30,12 @@ pub mod views;
 
 use multiverse_math::cpmm;
 use multiverse_math::flow::SwapFlow;
-use multiverse_math::price;
 use multiverse_math::twap::TwapOracle;
 use near_sdk::{near, AccountId};
 
 use crate::errors::fail;
 use crate::events::MultiverseEvent;
+use crate::prices::WorldStatus;
 use crate::types::{Asset, VerseKey};
 use crate::{now_sec, Contract};
 
@@ -168,46 +168,17 @@ impl ImpactRing {
     }
 }
 
-#[cfg(test)]
-thread_local! {
-    /// Lending tests can price worlds without building pools; production reads the TWAP.
-    pub(crate) static TEST_WORLD_PRICES: std::cell::RefCell<std::collections::HashMap<(u64, u8), (u128, bool)>> =
-        std::cell::RefCell::new(std::collections::HashMap::new());
-}
-
 impl Contract {
-    /// wNEAR price in `world` of `scenario_id` for lending: the world pool's
-    /// tick TWAP behind the depth gate and the spot-to-TWAP band, or
-    /// `(0, false)` when there is no valid price.
+    /// wNEAR price in `world` of `scenario_id` for lending, as v1 reads it:
+    /// the world pool's TWAP price when the world is trusted, else
+    /// `(0, false)`.
     pub(crate) fn world_price(&self, scenario_id: u64, world: u8) -> (u128, bool) {
-        #[cfg(test)]
-        if let Some(p) = TEST_WORLD_PRICES.with(|m| m.borrow().get(&(scenario_id, world)).copied())
-        {
-            return p;
-        }
-        let Some(pool) = self
-            .world_pool(scenario_id, world)
-            .and_then(|id| self.pools.get(&id))
-        else {
-            return (0, false);
-        };
-        let Some(tick) = self.pool_mean_tick(pool) else {
-            return (0, false);
-        };
-        let Some(spot) = pool.twap.latest().map(|o| o.tick) else {
-            return (0, false);
-        };
-        if (i64::from(spot) - i64::from(tick)).abs() > i64::from(MAX_SPOT_TWAP_TICKS) {
-            return (0, false);
-        }
-        // The depth gate reads the USDC side as it is now, not time-weighted.
-        if pool.amm.reserve1() < self.params.min_pool_depth {
-            return (0, false);
-        }
-        // wNEAR is token0, so the floored mean tick prices it down by at most a tick.
-        match price::wnear_price_at_tick(tick, true) {
-            Some(p) => (p, true),
-            None => (0, false),
+        let cfg = self.price_cfg(scenario_id);
+        let q = self.world_quote(scenario_id, world, &cfg);
+        if q.status == WorldStatus::Trusted {
+            (q.twap, true)
+        } else {
+            (0, false)
         }
     }
 
@@ -426,5 +397,79 @@ impl Contract {
         let mut ring = self.impact.get(&scenario_id).cloned().unwrap_or_default();
         ring.record(now_sec(), prices);
         self.impact.insert(scenario_id, ring);
+    }
+}
+
+/// Test hooks: lending and market tests can price worlds and set odds without
+/// building pools; production reads the pools.
+#[cfg(test)]
+pub(crate) mod test_hooks {
+    use std::cell::RefCell;
+    use std::collections::HashMap;
+
+    use crate::prices::WorldStatus;
+
+    /// What `world_quote` returns for one world instead of reading its pool.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub struct TestQuote {
+        pub twap: u128,
+        pub spot: u128,
+        pub status: WorldStatus,
+        pub full_window: bool,
+    }
+
+    thread_local! {
+        pub static TEST_WORLD_QUOTES: RefCell<HashMap<(u64, u8), TestQuote>> = RefCell::new(HashMap::new());
+        pub static TEST_ODDS: RefCell<HashMap<u64, Vec<u128>>> = RefCell::new(HashMap::new());
+    }
+
+    pub fn set_quote(sid: u64, world: u8, quote: TestQuote) {
+        TEST_WORLD_QUOTES.with(|m| m.borrow_mut().insert((sid, world), quote));
+    }
+
+    /// A trusted, full-window world at `price` (spot = TWAP).
+    pub fn set_price(sid: u64, world: u8, price: u128) {
+        set_quote(
+            sid,
+            world,
+            TestQuote {
+                twap: price,
+                spot: price,
+                status: WorldStatus::Trusted,
+                full_window: true,
+            },
+        );
+    }
+
+    /// A world without a lending price.
+    pub fn set_unpriced(sid: u64, world: u8) {
+        set_quote(
+            sid,
+            world,
+            TestQuote {
+                twap: 0,
+                spot: 0,
+                status: WorldStatus::Shallow,
+                full_window: true,
+            },
+        );
+    }
+
+    pub fn set_odds(sid: u64, odds: Vec<u128>) {
+        TEST_ODDS.with(|m| m.borrow_mut().insert(sid, odds));
+    }
+
+    /// Forgets every quote and every odds override.
+    pub fn clear() {
+        TEST_WORLD_QUOTES.with(|m| m.borrow_mut().clear());
+        TEST_ODDS.with(|m| m.borrow_mut().clear());
+    }
+
+    pub fn quote(sid: u64, world: u8) -> Option<TestQuote> {
+        TEST_WORLD_QUOTES.with(|m| m.borrow().get(&(sid, world)).copied())
+    }
+
+    pub fn odds(sid: u64) -> Option<Vec<u128>> {
+        TEST_ODDS.with(|m| m.borrow().get(&sid).cloned())
     }
 }

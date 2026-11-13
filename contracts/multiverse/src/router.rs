@@ -20,14 +20,28 @@ use near_sdk::{assert_one_yocto, env, near, AccountId};
 use crate::errors::{add, fail};
 use crate::events::MultiverseEvent;
 use crate::ledger::TransferBatch;
-use crate::lending::CollateralKey;
+use crate::lending::{require_normal, CollateralKey};
 use crate::masks;
+use crate::ops::PauseFlag;
 use crate::orders::Side;
 use crate::receiver::{
     ConditionalBuyMsg, ConditionalSellMsg, PostOrderMsg, ScenarioMsg, SellAndBorrowMsg,
 };
 use crate::types::Asset;
 use crate::{Contract, ContractExt};
+
+/// Most order fills one trade may plan at up to 4 worlds (the v1 planner's
+/// 4 x 5), and at 8 worlds, so every accepted trade fits a receipt's logs.
+pub const MAX_TRADE_FILLS: usize = 20;
+pub const MAX_TRADE_FILLS_8W: usize = 18;
+
+pub fn max_trade_fills(world_count: u8) -> usize {
+    if world_count <= 4 {
+        MAX_TRADE_FILLS
+    } else {
+        MAX_TRADE_FILLS_8W
+    }
+}
 
 /// One order fill in a sale plan: `{"order_id":"1","amount":"1000000000000000000"}`.
 /// `amount` is always wNEAR, for bids and asks alike.
@@ -119,6 +133,7 @@ impl Contract {
         to_lending: bool,
     ) -> Vec<U128> {
         assert_one_yocto();
+        self.assert_trade_live(to_lending);
         let user = env::predecessor_account_id();
         let before = env::storage_usage();
         let t = Trade {
@@ -146,6 +161,7 @@ impl Contract {
         to_lending: bool,
     ) -> Vec<U128> {
         assert_one_yocto();
+        self.assert_trade_live(to_lending);
         let user = env::predecessor_account_id();
         let before = env::storage_usage();
         let t = Trade {
@@ -167,6 +183,7 @@ impl Contract {
     #[payable]
     pub fn close_after_resolution(&mut self, scenario_id: u64) -> U128 {
         assert_one_yocto();
+        self.assert_live(PauseFlag::Exit);
         let user = env::predecessor_account_id();
         let before = env::storage_usage();
         let repaid = self.close_for(&user, scenario_id, None);
@@ -176,6 +193,15 @@ impl Contract {
 }
 
 impl Contract {
+    /// A trade needs `trade` live, and `lend` too when its result goes into
+    /// lending.
+    pub(crate) fn assert_trade_live(&self, to_lending: bool) {
+        self.assert_live(PauseFlag::Trade);
+        if to_lending {
+            self.assert_live(PauseFlag::Lend);
+        }
+    }
+
     pub(crate) fn ft_conditional_sell(
         &mut self,
         sender: &AccountId,
@@ -184,6 +210,9 @@ impl Contract {
         msg: ConditionalSellMsg,
     ) {
         require_asset(asset, Asset::Wnear);
+        if msg.to_lending {
+            require_normal(msg.tier);
+        }
         let t = Trade {
             scenario_id: msg.scenario_id,
             amount,
@@ -202,6 +231,9 @@ impl Contract {
         msg: ConditionalBuyMsg,
     ) {
         require_asset(asset, Asset::Usdc);
+        if msg.to_lending {
+            require_normal(msg.tier);
+        }
         let t = Trade {
             scenario_id: msg.scenario_id,
             amount,
@@ -221,6 +253,7 @@ impl Contract {
         msg: SellAndBorrowMsg,
     ) {
         require_asset(asset, Asset::Wnear);
+        require_normal(msg.tier);
         let t = Trade {
             scenario_id: msg.scenario_id,
             amount,
@@ -281,6 +314,7 @@ impl Contract {
         msg: ScenarioMsg,
     ) {
         require_asset(asset, Asset::Usdc);
+        require_normal(msg.tier);
         self.close_for(sender, msg.scenario_id, Some(amount));
     }
 

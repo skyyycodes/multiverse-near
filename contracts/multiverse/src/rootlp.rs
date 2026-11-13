@@ -29,6 +29,7 @@ use crate::amm::Position;
 use crate::errors::{add, fail, sub};
 use crate::events::MultiverseEvent;
 use crate::masks;
+use crate::ops::PauseFlag;
 use crate::receiver::LpDepositMsg;
 use crate::types::{Asset, VerseKey};
 use crate::{Contract, ContractExt};
@@ -273,6 +274,7 @@ impl Contract {
         min_shares: U128,
     ) -> U128 {
         assert_one_yocto();
+        self.assert_live(PauseFlag::Mint);
         let account = env::predecessor_account_id();
         let before = env::storage_usage();
         let shares = self.lp_deposit_for(
@@ -299,6 +301,7 @@ impl Contract {
         min_usdc_out: Vec<U128>,
     ) -> (U128, U128) {
         assert_one_yocto();
+        self.assert_live(PauseFlag::Exit);
         let account = env::predecessor_account_id();
         let before = env::storage_usage();
         let (wnear, usdc) = self.lp_withdraw_for(
@@ -318,6 +321,7 @@ impl Contract {
     #[payable]
     pub fn lp_transfer(&mut self, scenario_id: u64, receiver_id: AccountId, shares: U128) {
         assert_one_yocto();
+        self.assert_live(PauseFlag::Transfer);
         let account = env::predecessor_account_id();
         let before = env::storage_usage();
         if shares.0 == 0 {

@@ -4,19 +4,24 @@
 //! (error names and argument order included); `probes` pins edge cases;
 //! `invariants` runs the core invariants as property tests. The rest covers
 //! NEP-245, NEP-145, the `ft_on_transfer` receiver and payouts, the pools,
-//! the order book, the router, lending and the Root LP.
+//! the order book, the router, lending and the Root LP. `layout` pins the
+//! stored layout, `migration` runs `migrate` on the production snapshot and
+//! `profile` holds the v1 profile the fixture installs.
 
 mod harness;
+mod profile;
 
 mod amm;
 mod amm_lens;
 mod core;
 mod events;
 mod invariants;
+mod layout;
 mod lending;
 mod lending_invariants;
 mod liquidation;
 mod masks;
+mod migration;
 mod nep145;
 mod nep245;
 mod oracle;
@@ -28,5 +33,6 @@ mod probes;
 mod receiver;
 mod rootlp;
 mod router;
+mod scaffold;
 mod security;
 mod views;

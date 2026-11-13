@@ -86,7 +86,7 @@ fn empty_message_is_a_deposit() {
     assert_eq!(
         w.last.logs,
         vec![
-            r#"EVENT_JSON:{"standard":"multiverse","version":"1.0.0","event":"real_deposit","data":[{"account_id":"alice.near","asset":"wnear","amount":"1000000000000000000"}]}"#
+            r#"EVENT_JSON:{"standard":"multiverse","version":"2.0.0","event":"real_deposit","data":[{"account_id":"alice.near","asset":"wnear","amount":"1000000000000000000"}]}"#
         ]
     );
 }

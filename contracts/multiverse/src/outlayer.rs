@@ -23,6 +23,7 @@ use near_sdk::{env, near, AccountId, Gas, IntoStorageKey, NearToken, Promise, Pr
 
 use crate::errors::fail;
 use crate::events::MultiverseEvent;
+use crate::ops::PauseFlag;
 use crate::oracle::MAX_EVIDENCE_BYTES;
 use crate::types::Source;
 use crate::{now_sec, Contract, ContractExt, StorageKey};
@@ -254,6 +255,7 @@ impl Contract {
     /// and 300 Tgas. One run per event at a time.
     #[payable]
     pub fn request_resolution(&mut self, event_id: u64) -> Promise {
+        self.assert_live(PauseFlag::Oracle);
         let config = self
             .outlayer
             .config()

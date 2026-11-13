@@ -15,6 +15,7 @@ use super::{Pool, PoolKind, Position, SPOT_FEE_PIPS};
 use crate::errors::fail;
 use crate::events::MultiverseEvent;
 use crate::masks;
+use crate::ops::PauseFlag;
 use crate::types::{Asset, VerseKey};
 use crate::{now_sec, Contract, ContractExt};
 
@@ -41,6 +42,7 @@ impl Contract {
         wnear_amount: U128,
         usdc_amount: U128,
     ) -> u64 {
+        self.assert_live(PauseFlag::Mint);
         self.assert_owner();
         let world_count = self.scenario(scenario_id).world_count;
         if world >= world_count {
@@ -67,6 +69,7 @@ impl Contract {
         amount_x: U128,
         amount_y: U128,
     ) -> u64 {
+        self.assert_live(PauseFlag::Mint);
         self.assert_owner();
         let kind = self.admit_pair(
             VerseKey::new(scenario_id, Asset::Usdc, mask_x),
@@ -84,6 +87,7 @@ impl Contract {
     /// from the owner's internal real balances. It outlives every scenario.
     #[payable]
     pub fn create_spot_pool(&mut self, wnear_amount: U128, usdc_amount: U128) -> u64 {
+        self.assert_live(PauseFlag::Mint);
         self.assert_owner();
         if let Some(id) = self.spot_pool {
             fail!("AlreadyInitialized({id})");
@@ -99,6 +103,7 @@ impl Contract {
     #[payable]
     pub fn move_spot_to(&mut self, price: U128) -> Option<SpotMove> {
         assert_one_yocto();
+        self.assert_live(PauseFlag::Trade);
         self.assert_owner();
         let pool_id = self.spot_pool.unwrap_or_else(|| fail("NoSpotPool"));
         let plan = self

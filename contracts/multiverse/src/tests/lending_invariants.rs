@@ -22,7 +22,7 @@ use proptest::test_runner::{Config, TestRunner};
 use super::harness::*;
 use super::lending::*;
 use super::liquidation::slice_value;
-use crate::amm::TEST_WORLD_PRICES;
+use crate::amm::test_hooks;
 use crate::lending::CollateralKey;
 use crate::masks::single_worlds;
 use crate::types::Asset::{Usdc, Wnear};
@@ -220,8 +220,11 @@ impl Campaign {
     fn sync(&mut self, key: (u64, u8)) {
         let p = &self.pools[&key];
         let price = mul_div_down(p.usdc, E18, p.wnear);
-        let ok = p.usdc >= GATE;
-        TEST_WORLD_PRICES.with(|m| m.borrow_mut().insert(key, (price, ok)));
+        if p.usdc >= GATE {
+            test_hooks::set_price(key.0, key.1, price);
+        } else {
+            test_hooks::set_unpriced(key.0, key.1);
+        }
     }
 
     /// Constant-product swap at the base fee; returns the output.

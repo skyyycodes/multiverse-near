@@ -5,12 +5,20 @@ use near_sdk::serde_json::{self, Value};
 use near_sdk::{assert_one_yocto, env, near, AccountId, IntoStorageKey};
 
 use crate::errors::fail;
+use crate::lending::tiers::LendingConfigView;
+use crate::masks::{MAX_EVENTS, MAX_WORLDS};
+use crate::ops::PauseFlag;
+use crate::router::{MAX_TRADE_FILLS, MAX_TRADE_FILLS_8W};
 use crate::types::AssetCfg;
+use crate::version::{CODE_VERSION, STATE_VERSION};
 use crate::{orders, rootlp, Contract, ContractExt, StorageKey};
 
 /// What the app needs once at start-up. `order_book` and
 /// `root_lp` say whether those features are live yet; `spot_pool_id` stays
 /// null until the spot pool exists, and `demo` until the owner records it.
+/// `lltv`, `liquidation_bonus` and `borrow_rate_per_sec` are v1's global
+/// `Params`, kept for v1 clients; each lending tier has its own terms
+/// (`lending.defaults`).
 #[near(serializers = [json])]
 #[derive(Clone, Debug, PartialEq)]
 pub struct AppConfig {
@@ -35,6 +43,19 @@ pub struct AppConfig {
     pub scenario_count: u64,
     /// The owner-set demo record (event and scenario ids, seeded odds).
     pub demo: Option<Value>,
+    pub code_version: String,
+    pub state_version: u32,
+    pub paused: Vec<PauseFlag>,
+    pub guardian_id: Option<AccountId>,
+    pub pending_owner_id: Option<AccountId>,
+    pub max_worlds: u8,
+    pub max_events: u8,
+    pub max_trade_fills: u32,
+    pub max_trade_fills_8w: u32,
+    /// Whether the NEAR/USD reference is configured.
+    pub reference_configured: bool,
+    pub proposal_count: u64,
+    pub lending: LendingConfigView,
 }
 
 #[near]
@@ -92,6 +113,18 @@ impl Contract {
             event_count: self.event_count,
             scenario_count: self.scenario_count,
             demo: self.demo_record(),
+            code_version: CODE_VERSION.to_string(),
+            state_version: STATE_VERSION,
+            paused: self.pause.paused(),
+            guardian_id: self.guardian_id.clone(),
+            pending_owner_id: self.pending_owner_id.clone(),
+            max_worlds: MAX_WORLDS,
+            max_events: MAX_EVENTS as u8,
+            max_trade_fills: MAX_TRADE_FILLS as u32,
+            max_trade_fills_8w: MAX_TRADE_FILLS_8W as u32,
+            reference_configured: self.reference_config().is_some(),
+            proposal_count: self.catalog.proposal_count,
+            lending: self.lending_config_view(),
         }
     }
 

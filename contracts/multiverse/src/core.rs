@@ -17,6 +17,7 @@ use near_sdk::{assert_one_yocto, env, near, AccountId};
 use crate::errors::{add, fail, sub};
 use crate::events::{Merged, MultiverseEvent, Redeemed, ScenarioCreated, Split, WorldsRemoved};
 use crate::masks::{self, MAX_EVENTS, MAX_WORLDS};
+use crate::ops::PauseFlag;
 use crate::types::{Asset, BackingView, Scenario, ScenarioInfo, VerseKey, WorldBacking};
 use crate::{Contract, ContractExt};
 
@@ -32,6 +33,7 @@ impl Contract {
     /// scenario's identity.
     #[payable]
     pub fn create_scenario(&mut self, event_ids: Vec<u64>) -> u64 {
+        self.assert_live(PauseFlag::Mint);
         self.assert_owner();
         let n = event_ids.len();
         if n == 0 || n > MAX_EVENTS {
@@ -85,6 +87,7 @@ impl Contract {
             world_count,
         }
         .emit();
+        self.on_scenario_created(sid);
         self.charge_storage_or_deposit(&env::predecessor_account_id(), before);
         sid
     }
@@ -101,6 +104,7 @@ impl Contract {
         amount: U128,
     ) {
         assert_one_yocto();
+        self.assert_live(PauseFlag::Mint);
         let account = env::predecessor_account_id();
         let before = env::storage_usage();
         self.internal_split(&account, scenario_id, asset, from_mask, &to_masks, amount.0);
@@ -119,6 +123,7 @@ impl Contract {
         amount: U128,
     ) {
         assert_one_yocto();
+        self.assert_live(PauseFlag::Exit);
         let account = env::predecessor_account_id();
         let before = env::storage_usage();
         let released =
@@ -134,6 +139,7 @@ impl Contract {
     #[payable]
     pub fn redeem(&mut self, scenario_id: u64, asset: Asset, mask: u8, amount: U128) {
         assert_one_yocto();
+        self.assert_live(PauseFlag::Exit);
         let account = env::predecessor_account_id();
         let before = env::storage_usage();
         self.internal_redeem(&account, scenario_id, asset, mask, amount.0);
@@ -146,6 +152,7 @@ impl Contract {
     /// set up first. Anyone may call it; it is idempotent and the caller pays
     /// the storage.
     pub fn register_verse(&mut self, scenario_id: u64, asset: Asset, mask: u8) -> String {
+        self.assert_live(PauseFlag::Mint);
         let account = env::predecessor_account_id();
         let s = self.scenario(scenario_id);
         masks::check_mask(mask, s.root());
@@ -324,6 +331,12 @@ impl Contract {
 
     fn set_reserve(&mut self, scenario_id: u64, asset: Asset, value: u128) {
         self.reserves.insert((scenario_id, asset), value);
+    }
+
+    /// Runs for every new scenario, owner-created or opened from pledges,
+    /// inside the segment whose storage the creator pays.
+    pub(crate) fn on_scenario_created(&mut self, sid: u64) {
+        self.prices_on_scenario_created(sid);
     }
 
     pub(crate) fn halted(&self, s: &Scenario) -> bool {

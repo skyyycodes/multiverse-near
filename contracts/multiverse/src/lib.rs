@@ -14,21 +14,29 @@
 pub mod errors;
 pub mod admin;
 pub mod amm;
+pub mod books;
+pub mod catalog;
 pub mod core;
 pub mod events;
+pub mod index;
 pub mod ledger;
 pub mod lending;
 pub mod masks;
+pub mod migrate;
 pub mod nep245;
+pub mod ops;
 pub mod oracle;
 pub mod orders;
 pub mod outlayer;
 pub mod payout;
+pub mod prices;
 pub mod receiver;
+pub mod reference;
 pub mod rootlp;
 pub mod router;
 pub mod storage;
 pub mod types;
+pub mod version;
 pub mod views;
 
 #[cfg(test)]
@@ -38,17 +46,24 @@ use near_sdk::store::{LookupMap, LookupSet};
 use near_sdk::{env, near, AccountId, BorshStorageKey, PanicOnDefault};
 
 use crate::amm::{ImpactRing, Pool, Position};
+use crate::books::Books;
+use crate::catalog::{Catalog, MarketParams};
 use crate::errors::fail;
 use crate::events::{DisputeWindowSet, MultiverseEvent};
+use crate::index::{AccountScenario, Footprint, MaskSet};
+use crate::lending::tiers::{LendingParams, TierState};
 use crate::lending::{CollateralKey, Market};
+use crate::ops::PauseState;
 use crate::orders::Order;
 use crate::outlayer::OutLayerState;
+use crate::prices::{MarketPriceCfg, PriceState};
 use crate::rootlp::Vault;
 use crate::storage::StorageAccount;
 use crate::types::{Asset, AssetCfg, EventData, Params, Scenario, VerseKey, MAX_DECIMALS};
 
-/// One prefix per collection. Append new variants at the end: the borsh
-/// index of a variant is its storage prefix.
+/// One prefix per collection or raw key. Append new variants at the end: the
+/// borsh index of a variant is its storage prefix (`tests/layout.rs` pins
+/// every index). Never reorder or remove one.
 #[near]
 #[derive(BorshStorageKey)]
 pub(crate) enum StorageKey {
@@ -80,6 +95,41 @@ pub(crate) enum StorageKey {
     OpenByScenario,
     OutLayerConfig,
     OutLayerDates,
+    // 27, 28: versions
+    /// The VersionRecord (raw key, frozen layout).
+    VersionRecord,
+    AccountVersion,
+    // 29-41: the market catalogue
+    /// The catalogue's MarketParams (raw key).
+    MarketParams,
+    Proposals,
+    ProposalTexts,
+    Pledges,
+    AccountMarkets,
+    ProposalBySet,
+    LiveProposalsOfEvent,
+    QuestionHashes,
+    MarketRegistry,
+    ListedBySet,
+    ReferenceMarkets,
+    SeedVaults,
+    EventMeta,
+    // 42-45: eight worlds
+    WorldSupply,
+    CreatedMasks,
+    AccountScenarios,
+    Footprints,
+    // 46-48: prices
+    PriceConfigs,
+    /// The NEAR/USD ReferenceConfig (raw key).
+    ReferenceConfig,
+    /// The NEAR/USD ReferenceState (raw key, fixed 54 bytes).
+    ReferenceState,
+    // 49-52: lending tiers and the borrower index
+    TierStates,
+    BorrowerCount,
+    BorrowerAt,
+    BorrowerPos,
 }
 
 #[near(contract_state)]
@@ -134,12 +184,12 @@ pub struct Contract {
     /// orders.
     open_by_scenario: LookupMap<u64, Vec<u64>>,
 
-    // lending
+    // lending; v1 keys are the Normal tier's market keys
     markets: LookupMap<u64, Market>,
     supply_shares: LookupMap<(u64, AccountId), u128>,
     supply_principal: LookupMap<(u64, AccountId), u128>,
     borrow_shares: LookupMap<(u64, AccountId), u128>,
-    /// At most 16 pieces per (market, account).
+    /// A capped number of pieces per (market, account).
     collateral: LookupMap<(u64, AccountId), Vec<(CollateralKey, u128)>>,
 
     // rootlp
@@ -151,6 +201,43 @@ pub struct Contract {
 
     // outlayer
     outlayer: OutLayerState,
+
+    // ---- v2. The 35 fields above are v1's, unchanged in order and type. ----
+
+    // operations
+    pause: PauseState,
+    guardian_id: Option<AccountId>,
+    pending_owner_id: Option<AccountId>,
+    /// scenario_count when v1 state was migrated; 0 after `new`. v1
+    /// per-account data exists only for ids <= this.
+    legacy_scenario_count: u64,
+    /// Set by `migrate` when a legacy market's indexed borrow shares are below
+    /// its TBS; unpausing `lend` or `liquidate` re-runs the proof and clears
+    /// it. Always false after `new`.
+    legacy_backfill_open: bool,
+    books: Books,
+    account_version: LookupMap<AccountId, u32>,
+
+    // market catalogue
+    catalog: Catalog,
+
+    // eight worlds: per-world supply counters and the per-account index
+    /// len = world_count.
+    world_supply: LookupMap<(u64, Asset), Vec<u128>>,
+    created_masks: LookupMap<u64, MaskSet>,
+    account_scenarios: LookupMap<(AccountId, u64), AccountScenario>,
+    footprints: LookupMap<AccountId, Footprint>,
+
+    // prices
+    prices: PriceState,
+
+    // lending tiers; keys are `MarketId::key()`
+    /// Key = market key; scenario 0 = a tier's default.
+    tier_states: LookupMap<u64, TierState>,
+    borrower_count: LookupMap<u64, u32>,
+    borrower_at: LookupMap<(u64, u32), AccountId>,
+    borrower_pos: LookupMap<(u64, AccountId), u32>,
+    lending: LendingParams,
 }
 
 #[near]
@@ -181,7 +268,7 @@ impl Contract {
             fail!("SameToken({})", wnear.token_id);
         }
         DisputeWindowSet { dispute_window_sec }.emit();
-        Self {
+        let mut contract = Self {
             owner_id,
             reporter_id,
             wnear,
@@ -217,7 +304,30 @@ impl Contract {
             lp_shares: LookupMap::new(StorageKey::LpShares),
             storage: LookupMap::new(StorageKey::Storage),
             outlayer: OutLayerState::new(),
-        }
+            pause: PauseState::default(),
+            guardian_id: None,
+            pending_owner_id: None,
+            legacy_scenario_count: 0,
+            legacy_backfill_open: false,
+            books: Books::default(),
+            account_version: LookupMap::new(StorageKey::AccountVersion),
+            catalog: Catalog::new(),
+            world_supply: LookupMap::new(StorageKey::WorldSupply),
+            created_masks: LookupMap::new(StorageKey::CreatedMasks),
+            account_scenarios: LookupMap::new(StorageKey::AccountScenarios),
+            footprints: LookupMap::new(StorageKey::Footprints),
+            prices: PriceState::new(MarketPriceCfg::V2),
+            tier_states: LookupMap::new(StorageKey::TierStates),
+            borrower_count: LookupMap::new(StorageKey::BorrowerCount),
+            borrower_at: LookupMap::new(StorageKey::BorrowerAt),
+            borrower_pos: LookupMap::new(StorageKey::BorrowerPos),
+            lending: LendingParams::default(),
+        };
+        // Raw keys, written through: the catalogue's params (no anchors) and
+        // the VersionRecord of a fresh v2 deployment.
+        contract.write_market_params(&MarketParams::testnet_defaults());
+        version::write_version_record("");
+        contract
     }
 }
 

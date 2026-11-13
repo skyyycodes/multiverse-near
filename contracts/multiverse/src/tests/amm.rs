@@ -1282,9 +1282,9 @@ fn twap_follows_the_price_over_time() {
 #[test]
 fn test_world_price_override_wins() {
     let mut w = pool_world();
-    crate::amm::TEST_WORLD_PRICES.with(|m| m.borrow_mut().insert((1, 2), (1234, true)));
+    crate::amm::test_hooks::set_price(1, 2, 1234);
     assert_eq!(w.view(|c| c.world_price(1, 2)), (1234, true));
-    crate::amm::TEST_WORLD_PRICES.with(|m| m.borrow_mut().clear());
+    crate::amm::test_hooks::clear();
     assert_eq!(w.view(|c| c.world_price(1, 2)), (0, false));
 }
 

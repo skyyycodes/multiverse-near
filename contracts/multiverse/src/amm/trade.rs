@@ -5,6 +5,7 @@ use near_sdk::json_types::U128;
 use near_sdk::{assert_one_yocto, env, near, AccountId};
 
 use crate::errors::fail;
+use crate::ops::PauseFlag;
 use crate::{Contract, ContractExt};
 
 #[near]
@@ -21,6 +22,7 @@ impl Contract {
         min_out: U128,
     ) -> U128 {
         assert_one_yocto();
+        self.assert_live(PauseFlag::Trade);
         let account = env::predecessor_account_id();
         let before = env::storage_usage();
         let out = self.swap_exact_in_for(&account, pool_id, zero_for_one, amount_in.0, min_out.0);

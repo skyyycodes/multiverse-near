@@ -21,9 +21,12 @@ use near_sdk::json_types::U128;
 use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::{assert_one_yocto, env, near, AccountId};
 
-use crate::errors::{add, fail, mul, sub};
+pub mod tiers;
+
+use crate::errors::{add, fail, mul, not_implemented, sub};
 use crate::events::MultiverseEvent;
-use crate::receiver::{LiquidateMsg, RepayMsg, ScenarioMsg};
+use crate::ops::PauseFlag;
+use crate::receiver::{FundInsuranceMsg, LiquidateMsg, Receive, RepayMsg, ScenarioMsg};
 use crate::types::{Asset, VerseKey, WAD};
 use crate::{masks, now_sec, Contract, ContractExt};
 
@@ -320,12 +323,33 @@ fn hf_arg(hf: Option<u128>) -> u128 {
     hf.unwrap_or(u128::MAX)
 }
 
+/// Only the Normal tier's markets exist until the tiers are built; a msg
+/// naming another tier fails rather than acting on Normal.
+pub(crate) fn require_normal(tier: tiers::Tier) {
+    if !tier.is_normal() {
+        not_implemented("tier");
+    }
+}
+
+/// The real wNEAR and USDC among `pieces`, by books index.
+fn real_pieces(pieces: &[(CollateralKey, u128)]) -> [u128; 2] {
+    let mut held = [0u128; 2];
+    for (piece, amount) in pieces {
+        if let CollateralKey::Real(asset) = piece {
+            let i = crate::books::asset_index(*asset);
+            held[i] = held[i].saturating_add(*amount);
+        }
+    }
+    held
+}
+
 #[near]
 impl Contract {
     /// Withdraws supplied USDC (all of it with `amount` null) to the wallet.
     #[payable]
     pub fn withdraw_supply(&mut self, scenario_id: u64, amount: Option<U128>) -> U128 {
         assert_one_yocto();
+        self.assert_live(PauseFlag::Exit);
         let account = env::predecessor_account_id();
         let before = env::storage_usage();
         let assets = self.withdraw_supply_for(&account, scenario_id, amount.map(|a| a.0));
@@ -353,6 +377,12 @@ impl Contract {
     pub fn withdraw_collateral(&mut self, scenario_id: u64, piece: String, amount: U128) {
         assert_one_yocto();
         let account = env::predecessor_account_id();
+        // With debt the withdrawal is a lending action; without, an exit.
+        if self.borrow_shares_of(scenario_id, &account) != 0 {
+            self.assert_live(PauseFlag::Lend);
+        } else {
+            self.assert_live(PauseFlag::Exit);
+        }
         let before = env::storage_usage();
         let key = CollateralKey::parse(scenario_id, &piece)
             .unwrap_or_else(|| fail!("NotCollateral({piece})"));
@@ -368,6 +398,7 @@ impl Contract {
     #[payable]
     pub fn borrow(&mut self, scenario_id: u64, amount: U128) {
         assert_one_yocto();
+        self.assert_live(PauseFlag::Lend);
         let account = env::predecessor_account_id();
         let before = env::storage_usage();
         self.borrow_for(&account, scenario_id, amount.0);
@@ -503,6 +534,7 @@ impl Contract {
         msg: ScenarioMsg,
     ) {
         Self::require_usdc(asset);
+        require_normal(msg.tier);
         self.supply_for(sender, msg.scenario_id, amount);
     }
 
@@ -516,6 +548,7 @@ impl Contract {
         msg: RepayMsg,
     ) {
         Self::require_usdc(asset);
+        require_normal(msg.tier);
         if msg.all {
             let debt = self.debt_for(msg.scenario_id, sender);
             if amount < debt {
@@ -532,6 +565,7 @@ impl Contract {
         amount: u128,
         msg: ScenarioMsg,
     ) {
+        require_normal(msg.tier);
         self.deposit_collateral_for(sender, msg.scenario_id, CollateralKey::Real(asset), amount);
     }
 
@@ -545,11 +579,30 @@ impl Contract {
         msg: LiquidateMsg,
     ) {
         Self::require_usdc(asset);
+        match (msg.receive, msg.min_out) {
+            (Receive::Cash, None) => fail("MinOutRequired"),
+            (Receive::Tokens, Some(_)) => fail("MinOutWithoutCash"),
+            (Receive::Cash, Some(_)) => not_implemented("cash_out"),
+            (Receive::Tokens, None) => {}
+        }
+        require_normal(msg.tier);
         let repay = match msg.repay_amount {
             RepayAmount::Max(_) => None,
             RepayAmount::Amount(a) => Some(a.0),
         };
         self.liquidate_for(sender, msg.scenario_id, &msg.account_id, repay, amount);
+    }
+
+    /// ft action `fund_insurance`: the attached USDC into the market's
+    /// insurance reserve.
+    pub(crate) fn ft_fund_insurance(
+        &mut self,
+        _sender: &AccountId,
+        _asset: Asset,
+        _amount: u128,
+        _msg: FundInsuranceMsg,
+    ) {
+        not_implemented("fund_insurance")
     }
 
     fn require_usdc(asset: Asset) {
@@ -1159,12 +1212,17 @@ impl Contract {
             .unwrap_or_default()
     }
 
+    /// The only writer of `collateral`: v1 data is folded first, then the
+    /// books follow the real pieces.
     fn set_pieces(
         &mut self,
         scenario_id: u64,
         account: &AccountId,
         list: Vec<(CollateralKey, u128)>,
     ) {
+        self.upgrade_account(account);
+        let old = real_pieces(&self.pieces(scenario_id, account));
+        self.books_on_collateral(account, old, real_pieces(&list));
         let k = (scenario_id, account.clone());
         if list.is_empty() {
             self.collateral.remove(&k);

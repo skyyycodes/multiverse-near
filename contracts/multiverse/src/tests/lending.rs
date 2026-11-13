@@ -13,7 +13,7 @@ use near_sdk::json_types::U128;
 use near_sdk::NearToken;
 
 use super::harness::*;
-use crate::amm::TEST_WORLD_PRICES;
+use crate::amm::test_hooks;
 use crate::lending::{CollateralKey, Liquidation, LiquidationState};
 use crate::types::Asset::{self, Usdc, Wnear};
 
@@ -28,15 +28,15 @@ pub const USDC_UNIT: u128 = 1_000_000_000_000;
 pub const DAVE: &str = "dave.near";
 
 pub fn set_price(sid: u64, world: u8, price: u128) {
-    TEST_WORLD_PRICES.with(|m| m.borrow_mut().insert((sid, world), (price, true)));
+    test_hooks::set_price(sid, world, price);
 }
 
 pub fn set_unpriced(sid: u64, world: u8) {
-    TEST_WORLD_PRICES.with(|m| m.borrow_mut().insert((sid, world), (0, false)));
+    test_hooks::set_unpriced(sid, world);
 }
 
 pub fn clear_prices() {
-    TEST_WORLD_PRICES.with(|m| m.borrow_mut().clear());
+    test_hooks::clear();
 }
 
 pub fn price_2x2(sid: u64) {

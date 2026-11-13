@@ -11,6 +11,7 @@ use super::events::Liquidity;
 use super::Pool;
 use crate::errors::add;
 use crate::events::MultiverseEvent;
+use crate::ops::PauseFlag;
 use crate::{now_sec, Contract, ContractExt};
 
 /// What a liquidity call moved, in pool token order.
@@ -38,6 +39,7 @@ impl Contract {
         min_liquidity: U128,
     ) -> LiquidityResult {
         assert_one_yocto();
+        self.assert_live(PauseFlag::Mint);
         let account = env::predecessor_account_id();
         let before = env::storage_usage();
         let mut pool = self.pool(pool_id).clone();
@@ -88,6 +90,7 @@ impl Contract {
         min1: U128,
     ) -> LiquidityResult {
         assert_one_yocto();
+        self.assert_live(PauseFlag::Exit);
         let account = env::predecessor_account_id();
         let before = env::storage_usage();
         let mut pool = self.pool(pool_id).clone();
@@ -124,6 +127,7 @@ impl Contract {
     #[payable]
     pub fn collect_fees(&mut self, pool_id: u64) -> LiquidityResult {
         assert_one_yocto();
+        self.assert_live(PauseFlag::Exit);
         let account = env::predecessor_account_id();
         let before = env::storage_usage();
         let mut pool = self.pool(pool_id).clone();

@@ -15,6 +15,7 @@ use near_sdk::{assert_one_yocto, env, near, AccountId, NearToken, Promise};
 
 use crate::errors::fail;
 use crate::events::{DustSwept, MultiverseEvent};
+use crate::ops::PauseFlag;
 use crate::types::{Asset, VerseKey};
 use crate::{Contract, ContractExt};
 
@@ -135,6 +136,7 @@ impl Contract {
     #[payable]
     pub fn storage_withdraw(&mut self, amount: Option<U128>) -> StorageBalance {
         assert_one_yocto();
+        self.assert_live(PauseFlag::Exit);
         let account_id = env::predecessor_account_id();
         let mut account = self.registered(&account_id);
         let available = account.available();
@@ -161,6 +163,7 @@ impl Contract {
     #[payable]
     pub fn storage_unregister(&mut self, force: Option<bool>) -> bool {
         assert_one_yocto();
+        self.assert_live(PauseFlag::Exit);
         if force == Some(true) {
             fail("ForceUnregisterUnsupported");
         }
@@ -220,7 +223,7 @@ impl Contract {
 
     /// `near_sdk::store` collections buffer writes until flushed, so storage
     /// usage only moves once they are written out. Every collection of the
-    /// contract must be listed here (`created` and the demo record write
+    /// contract must be listed here (`created` and the raw keys write
     /// through on their own).
     pub(crate) fn flush_state(&mut self) {
         self.events.flush();
@@ -247,6 +250,17 @@ impl Contract {
         self.lp_shares.flush();
         self.storage.flush();
         self.outlayer.flush();
+        self.account_version.flush();
+        self.catalog.flush();
+        self.world_supply.flush();
+        self.created_masks.flush();
+        self.account_scenarios.flush();
+        self.footprints.flush();
+        self.prices.configs.flush();
+        self.tier_states.flush();
+        self.borrower_count.flush();
+        self.borrower_at.flush();
+        self.borrower_pos.flush();
     }
 
     /// Charges what the call grew storage by (since `before`) to `payer`'s
@@ -283,6 +297,25 @@ impl Contract {
             account.used_bytes = account.used_bytes.saturating_sub(before - after);
         }
         self.storage.insert(payer.clone(), account);
+    }
+
+    /// Credits `yocto` to `account`'s NEP-145 deposit: a bond, a reserve or an
+    /// excess the contract returns. It is synchronous and costs no receipt;
+    /// the account withdraws it with `storage_withdraw`. An account that is no
+    /// longer registered is sent the NEAR instead.
+    #[allow(dead_code)] // the catalogue returns bonds and reserves through it
+    pub(crate) fn credit_deposit(&mut self, account: &AccountId, yocto: u128) {
+        if yocto == 0 {
+            return;
+        }
+        self.upgrade_account(account);
+        let amount = NearToken::from_yoctonear(yocto);
+        match self.storage.get_mut(account) {
+            Some(record) => record.deposit = record.deposit.saturating_add(amount),
+            None => {
+                Promise::new(account.clone()).transfer(amount);
+            }
+        }
     }
 
     pub(crate) fn open_order_count(&self, account_id: &AccountId) -> usize {

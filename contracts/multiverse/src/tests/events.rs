@@ -14,7 +14,7 @@ fn split_logs_one_mint_and_one_split() {
         w.last.logs,
         vec![
             r#"EVENT_JSON:{"standard":"nep245","version":"1.0.0","event":"mt_mint","data":[{"owner_id":"alice.near","token_ids":["1:wnear:1","1:wnear:14"],"amounts":["2000000000000000000","2000000000000000000"]}]}"#,
-            r#"EVENT_JSON:{"standard":"multiverse","version":"1.0.0","event":"split","data":[{"account_id":"alice.near","scenario_id":1,"asset":"wnear","from_mask":15,"to_masks":[1,14],"amount":"2000000000000000000"}]}"#,
+            r#"EVENT_JSON:{"standard":"multiverse","version":"2.0.0","event":"split","data":[{"account_id":"alice.near","scenario_id":1,"asset":"wnear","from_mask":15,"to_masks":[1,14],"amount":"2000000000000000000"}]}"#,
         ]
     );
     w.split(ALICE, 1, Wnear, L_SHAPE, &[DELAYED_CUTS, HOLDS], E18)
@@ -24,7 +24,7 @@ fn split_logs_one_mint_and_one_split() {
         vec![
             r#"EVENT_JSON:{"standard":"nep245","version":"1.0.0","event":"mt_burn","data":[{"owner_id":"alice.near","token_ids":["1:wnear:14"],"amounts":["1000000000000000000"]}]}"#,
             r#"EVENT_JSON:{"standard":"nep245","version":"1.0.0","event":"mt_mint","data":[{"owner_id":"alice.near","token_ids":["1:wnear:2","1:wnear:12"],"amounts":["1000000000000000000","1000000000000000000"]}]}"#,
-            r#"EVENT_JSON:{"standard":"multiverse","version":"1.0.0","event":"split","data":[{"account_id":"alice.near","scenario_id":1,"asset":"wnear","from_mask":14,"to_masks":[2,12],"amount":"1000000000000000000"}]}"#,
+            r#"EVENT_JSON:{"standard":"multiverse","version":"2.0.0","event":"split","data":[{"account_id":"alice.near","scenario_id":1,"asset":"wnear","from_mask":14,"to_masks":[2,12],"amount":"1000000000000000000"}]}"#,
         ]
     );
 }
@@ -40,7 +40,7 @@ fn merge_and_redeem_logs() {
         vec![
             r#"EVENT_JSON:{"standard":"nep245","version":"1.0.0","event":"mt_burn","data":[{"owner_id":"alice.near","token_ids":["1:usdc:4","1:usdc:8"],"amounts":["1000000000000000000","1000000000000000000"]}]}"#,
             r#"EVENT_JSON:{"standard":"nep245","version":"1.0.0","event":"mt_mint","data":[{"owner_id":"alice.near","token_ids":["1:usdc:12"],"amounts":["1000000000000000000"]}]}"#,
-            r#"EVENT_JSON:{"standard":"multiverse","version":"1.0.0","event":"merged","data":[{"account_id":"alice.near","scenario_id":1,"asset":"usdc","from_masks":[4,8],"to_mask":12,"amount":"1000000000000000000"}]}"#,
+            r#"EVENT_JSON:{"standard":"multiverse","version":"2.0.0","event":"merged","data":[{"account_id":"alice.near","scenario_id":1,"asset":"usdc","from_masks":[4,8],"to_mask":12,"amount":"1000000000000000000"}]}"#,
         ]
     );
     w.admin_resolve(w.fed, OUT_HOLDS).unwrap();
@@ -49,7 +49,7 @@ fn merge_and_redeem_logs() {
         w.last.logs,
         vec![
             r#"EVENT_JSON:{"standard":"nep245","version":"1.0.0","event":"mt_burn","data":[{"owner_id":"alice.near","token_ids":["1:usdc:12"],"amounts":["1000000000000000000"]}]}"#,
-            r#"EVENT_JSON:{"standard":"multiverse","version":"1.0.0","event":"redeemed","data":[{"account_id":"alice.near","scenario_id":1,"asset":"usdc","mask":12,"amount":"1000000000000000000"}]}"#,
+            r#"EVENT_JSON:{"standard":"multiverse","version":"2.0.0","event":"redeemed","data":[{"account_id":"alice.near","scenario_id":1,"asset":"usdc","mask":12,"amount":"1000000000000000000"}]}"#,
         ]
     );
     // the payout callback logs nothing when the transfer goes through
@@ -67,21 +67,21 @@ fn oracle_logs() {
     assert_eq!(
         w.last.logs,
         vec![
-            r#"EVENT_JSON:{"standard":"multiverse","version":"1.0.0","event":"event_created","data":[{"event_id":1,"question":"Q?","outcome_names":["YES","NO"],"rule":"R.","deadline_sec":77}]}"#
+            r#"EVENT_JSON:{"standard":"multiverse","version":"2.0.0","event":"event_created","data":[{"event_id":1,"question":"Q?","outcome_names":["YES","NO"],"rule":"R.","deadline_sec":77}]}"#
         ]
     );
     w.create_scenario(&[1]).unwrap();
     assert_eq!(
         w.last.logs,
         vec![
-            r#"EVENT_JSON:{"standard":"multiverse","version":"1.0.0","event":"scenario_created","data":[{"scenario_id":1,"event_ids":[1],"world_count":2}]}"#
+            r#"EVENT_JSON:{"standard":"multiverse","version":"2.0.0","event":"scenario_created","data":[{"scenario_id":1,"event_ids":[1],"world_count":2}]}"#
         ]
     );
     w.report(1, 1).unwrap();
     assert_eq!(
         w.last.logs[0],
         format!(
-            r#"EVENT_JSON:{{"standard":"multiverse","version":"1.0.0","event":"outcome_proposed","data":[{{"event_id":1,"outcome":1,"source":"reporter","finalizable_at_sec":{}}}]}}"#,
+            r#"EVENT_JSON:{{"standard":"multiverse","version":"2.0.0","event":"outcome_proposed","data":[{{"event_id":1,"outcome":1,"source":"reporter","finalizable_at_sec":{}}}]}}"#,
             T0 + DISPUTE_WINDOW
         )
     );
@@ -89,7 +89,7 @@ fn oracle_logs() {
     assert_eq!(
         w.last.logs,
         vec![
-            r#"EVENT_JSON:{"standard":"multiverse","version":"1.0.0","event":"proposal_disputed","data":[{"event_id":1,"outcome":1}]}"#
+            r#"EVENT_JSON:{"standard":"multiverse","version":"2.0.0","event":"proposal_disputed","data":[{"event_id":1,"outcome":1}]}"#
         ]
     );
     w.report(1, 0).unwrap();
@@ -98,8 +98,8 @@ fn oracle_logs() {
     assert_eq!(
         w.last.logs,
         vec![
-            r#"EVENT_JSON:{"standard":"multiverse","version":"1.0.0","event":"worlds_removed","data":[{"scenario_id":1,"event_id":1,"outcome":0,"removed":2,"possible":1}]}"#,
-            r#"EVENT_JSON:{"standard":"multiverse","version":"1.0.0","event":"event_finalized","data":[{"event_id":1,"outcome":0,"scenario_ids":[1]}]}"#,
+            r#"EVENT_JSON:{"standard":"multiverse","version":"2.0.0","event":"worlds_removed","data":[{"scenario_id":1,"event_id":1,"outcome":0,"removed":2,"possible":1}]}"#,
+            r#"EVENT_JSON:{"standard":"multiverse","version":"2.0.0","event":"event_finalized","data":[{"event_id":1,"outcome":0,"scenario_ids":[1]}]}"#,
         ]
     );
 }
@@ -111,7 +111,7 @@ fn config_logs() {
     assert_eq!(
         w.last.logs,
         vec![
-            r#"EVENT_JSON:{"standard":"multiverse","version":"1.0.0","event":"reporter_set","data":[{"reporter_id":null}]}"#
+            r#"EVENT_JSON:{"standard":"multiverse","version":"2.0.0","event":"reporter_set","data":[{"reporter_id":null}]}"#
         ]
     );
     w.call(OWNER, ONE_YOCTO, |c| c.set_reporter(Some(acc(REPORTER))))
@@ -119,7 +119,7 @@ fn config_logs() {
     assert_eq!(
         w.last.logs,
         vec![
-            r#"EVENT_JSON:{"standard":"multiverse","version":"1.0.0","event":"reporter_set","data":[{"reporter_id":"resolver.near"}]}"#
+            r#"EVENT_JSON:{"standard":"multiverse","version":"2.0.0","event":"reporter_set","data":[{"reporter_id":"resolver.near"}]}"#
         ]
     );
     w.call(OWNER, ONE_YOCTO, |c| c.set_dispute_window(45))
@@ -127,7 +127,7 @@ fn config_logs() {
     assert_eq!(
         w.last.logs,
         vec![
-            r#"EVENT_JSON:{"standard":"multiverse","version":"1.0.0","event":"dispute_window_set","data":[{"dispute_window_sec":45}]}"#
+            r#"EVENT_JSON:{"standard":"multiverse","version":"2.0.0","event":"dispute_window_set","data":[{"dispute_window_sec":45}]}"#
         ]
     );
 }
@@ -150,7 +150,12 @@ fn envelopes_follow_nep_297() {
         let keys: Vec<&String> = v.as_object().unwrap().keys().collect();
         assert_eq!(keys.len(), 4);
         assert!(v["data"].is_array() && v["data"].as_array().unwrap().len() == 1);
-        assert_eq!(v["version"], "1.0.0");
+        let version = if v["standard"] == "nep245" {
+            "1.0.0"
+        } else {
+            "2.0.0"
+        };
+        assert_eq!(v["version"], version);
     }
     let id = token_id(1, Wnear, SHIPS_CUTS);
     w.call(BOB, ONE_YOCTO, |c| {

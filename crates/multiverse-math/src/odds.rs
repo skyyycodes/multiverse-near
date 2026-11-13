@@ -10,13 +10,25 @@
 
 use crate::fixed::{isqrt_u512, mul_div_down, Rounding, U256, U512, WAD};
 
-/// Sibling verse pairs, parents before children. Two worlds: SHIPS (0x1) vs DELAYED (0x2). Four worlds (world =
-/// a + 2b) split on the second event first: CUTS (0x3) vs HOLDS (0xC), then 0x1 vs 0x2, then 0x4 vs 0x8. Any other
-/// world count has no tree.
+/// Sibling verse pairs, parents before children, breadth-first, the most significant event first. Two worlds: SHIPS
+/// (0x1) vs DELAYED (0x2). Four worlds (world = a + 2b) split on the second event first: CUTS (0x3) vs HOLDS (0xC),
+/// then 0x1 vs 0x2, then 0x4 vs 0x8. Eight worlds (world = a + 2b + 4c) split on the third event, then the second
+/// under each of its outcomes, then the first under each of the four. At every level each block of contiguous worlds
+/// splits into its lower half (outcome 0) and its upper half (outcome 1), so the 2- and 4-world trees are the first
+/// levels of the 8-world rule and the lower mask always comes first. Any other world count has no tree.
 pub fn pairs(world_count: u8) -> &'static [(u8, u8)] {
     match world_count {
         2 => &[(0x1, 0x2)],
         4 => &[(0x3, 0xC), (0x1, 0x2), (0x4, 0x8)],
+        8 => &[
+            (0x0F, 0xF0),
+            (0x03, 0x0C),
+            (0x30, 0xC0),
+            (0x01, 0x02),
+            (0x04, 0x08),
+            (0x10, 0x20),
+            (0x40, 0x80),
+        ],
         _ => &[],
     }
 }
@@ -79,7 +91,8 @@ where
     if tree.is_empty() {
         return None;
     }
-    let mut mass = [0u128; 16];
+    // One entry per mask of up to 8 worlds.
+    let mut mass = [0u128; 256];
     mass[usize::from(root(world_count))] = WAD;
     for &(x, y) in tree {
         let live_x = x & possible != 0;
@@ -136,8 +149,149 @@ mod tests {
     fn tree_shapes() {
         assert_eq!(pairs(2), &[(1, 2)]);
         assert_eq!(pairs(4), &[(3, 12), (1, 2), (4, 8)]);
-        assert!(pairs(3).is_empty());
+        assert_eq!(
+            pairs(8),
+            &[
+                (15, 240),
+                (3, 12),
+                (48, 192),
+                (1, 2),
+                (4, 8),
+                (16, 32),
+                (64, 128)
+            ]
+        );
+        for n in [0, 1, 3, 5, 6, 7, 9, 16] {
+            assert!(pairs(n).is_empty(), "{n}");
+        }
         assert_eq!(odds(3, 0b111, |_, _| Some(WAD / 2)), None);
+    }
+
+    /// The rule the tables follow: at level `l` (event `n - 1 - l`), every block of `2^(n - l)` contiguous worlds
+    /// splits into its lower half and its upper half; breadth-first, blocks ascending.
+    fn tree_pairs(events: u32) -> Vec<(u8, u8)> {
+        let worlds = 1u32 << events;
+        let mut out = Vec::new();
+        for level in 0..events {
+            let block = worlds >> level;
+            for start in (0..worlds).step_by(block as usize) {
+                let half = |from: u32| (from..from + block / 2).fold(0u8, |m, w| m | 1 << w);
+                out.push((half(start), half(start + block / 2)));
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn tables_follow_the_tree_rule() {
+        for events in 1..=3u32 {
+            let world_count = 1u8 << events;
+            assert_eq!(
+                pairs(world_count),
+                tree_pairs(events).as_slice(),
+                "{events} events"
+            );
+            let root = root(world_count);
+            for (i, &(x, y)) in pairs(world_count).iter().enumerate() {
+                assert!(x < y && x & y == 0, "{x:#x} {y:#x}");
+                let parent = x | y;
+                // A parent comes before its children: it is the root or the side of an earlier pair.
+                assert!(
+                    parent == root
+                        || pairs(world_count)[..i]
+                            .iter()
+                            .any(|&(a, b)| a == parent || b == parent),
+                    "{x:#x} {y:#x}"
+                );
+            }
+            // Every single world is reached: 2^n - 1 splits.
+            assert_eq!(pairs(world_count).len(), usize::from(world_count) - 1);
+        }
+    }
+
+    #[test]
+    fn eight_world_odds_sum_to_one_whatever_is_resolved() {
+        // Uneven shares per pair, so every split moves mass.
+        let share = |x: u8, _y: u8| Some(WAD / 3 + u128::from(x) * 1_000_003);
+        for world_count in [2u8, 4, 8] {
+            let root = root(world_count);
+            for possible in 1..=root {
+                let q = odds(world_count, possible, share).unwrap();
+                assert_eq!(q.len(), usize::from(world_count));
+                assert_eq!(
+                    q.iter().sum::<u128>(),
+                    WAD,
+                    "{world_count} worlds, possible {possible:#b}"
+                );
+                for (w, odds) in q.iter().enumerate() {
+                    if possible & (1 << w) == 0 {
+                        assert_eq!(*odds, 0);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn eight_world_golden_example() {
+        // P(C0) 0.5 at the root, P(CUTS) 0.01 under either C, P(SHIPS) 0.6667 at every leaf.
+        let q = odds(8, 0xFF, |x, _| {
+            Some(match x {
+                0x0F => WAD / 2,
+                0x03 | 0x30 => WAD / 100,
+                _ => 666_700_000_000_000_000,
+            })
+        })
+        .unwrap();
+        let grid = [
+            3_333_500_000_000_000,
+            1_666_500_000_000_000,
+            330_016_500_000_000_000,
+            164_983_500_000_000_000,
+        ];
+        assert_eq!(&q[..4], &grid);
+        assert_eq!(&q[4..], &grid);
+        let prices =
+            [3_700, 3_000, 3_300, 2_500, 3_515, 2_850, 3_135, 2_375].map(|p| p * WAD / 1_000);
+        let implied = implied_spot(&q, 0xFF, |w| Some(prices[usize::from(w)])).unwrap();
+        // The sandbox read 2,961,750,967,499,999,996 from seeded pools, whose shares are a few wei off these.
+        assert_eq!(implied, 2_961_750_967_500_000_000);
+        assert!((2_375 * WAD / 1_000..=3_700 * WAD / 1_000).contains(&implied));
+    }
+
+    /// `odds-pairs.json`, shared with the scripts and the web: the tree of every world count, as the tables give it.
+    fn odds_pairs_json() -> String {
+        let line = |w: u8| {
+            let pairs: Vec<String> = pairs(w)
+                .iter()
+                .map(|(x, y)| format!("[{x}, {y}]"))
+                .collect();
+            format!("  \"{w}\": [{}]", pairs.join(", "))
+        };
+        format!("{{\n{},\n{},\n{}\n}}\n", line(2), line(4), line(8))
+    }
+
+    /// Writes the golden file when it is missing or `UPDATE_GOLDEN` is set, then checks it byte for byte.
+    #[test]
+    fn odds_pairs_golden_file() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/odds-pairs.json");
+        let expected = odds_pairs_json();
+        if std::env::var_os("UPDATE_GOLDEN").is_some() || !std::path::Path::new(path).exists() {
+            std::fs::create_dir_all(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data")).unwrap();
+            std::fs::write(path, &expected).unwrap();
+        }
+        let stored = std::fs::read_to_string(path).unwrap();
+        assert_eq!(stored, expected, "{path} differs from odds::pairs");
+        let parsed: serde_json::Value = serde_json::from_str(&stored).unwrap();
+        for w in [2u8, 4, 8] {
+            let listed: Vec<(u8, u8)> = parsed[w.to_string()]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|p| (p[0].as_u64().unwrap() as u8, p[1].as_u64().unwrap() as u8))
+                .collect();
+            assert_eq!(listed, pairs(w));
+        }
     }
 
     #[test]

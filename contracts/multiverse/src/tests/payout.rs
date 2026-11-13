@@ -39,7 +39,7 @@ fn withdraw_schedules_ft_transfer_then_on_payout() {
     assert_eq!(
         w.last.logs,
         vec![
-            r#"EVENT_JSON:{"standard":"multiverse","version":"1.0.0","event":"real_withdraw","data":[{"account_id":"alice.near","asset":"usdc","amount":"2000000000000000000"}]}"#
+            r#"EVENT_JSON:{"standard":"multiverse","version":"2.0.0","event":"real_withdraw","data":[{"account_id":"alice.near","asset":"usdc","amount":"2000000000000000000"}]}"#
         ]
     );
 }
@@ -68,7 +68,7 @@ fn a_failed_payout_is_credited_back() {
     assert_eq!(
         w.callbacks[0].logs,
         vec![
-            r#"EVENT_JSON:{"standard":"multiverse","version":"1.0.0","event":"payout_failed","data":[{"account_id":"alice.near","asset":"usdc","token_amount":"2000000","credited":"2000000000000000000"}]}"#
+            r#"EVENT_JSON:{"standard":"multiverse","version":"2.0.0","event":"payout_failed","data":[{"account_id":"alice.near","asset":"usdc","token_amount":"2000000","credited":"2000000000000000000"}]}"#
         ]
     );
     // once registered with the token, the same balance withdraws fine

@@ -189,7 +189,12 @@ impl Contract {
         log_burn(&env::current_account_id(), items, memo);
     }
 
+    /// The only writer of internal real balances: v1 data is folded first,
+    /// then the books follow the change.
     fn set_real(&mut self, account_id: &AccountId, asset: Asset, value: u128) {
+        self.upgrade_account(account_id);
+        let old = self.real_balance(account_id, asset);
+        self.books_on_real(account_id, asset, old, value);
         let k = (account_id.clone(), asset);
         if value == 0 {
             self.real.remove(&k);
