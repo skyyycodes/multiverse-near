@@ -138,7 +138,7 @@ static QUIET_HOOK: Once = Once::new();
 
 /// Runs `f` with the panic hook muted on this thread: expected panics are the
 /// normal way contract checks fail, and printing each one buries the output.
-fn quietly<R>(f: impl FnOnce() -> R) -> R {
+pub fn quietly<R>(f: impl FnOnce() -> R) -> R {
     QUIET_HOOK.call_once(|| {
         let default = panic::take_hook();
         panic::set_hook(Box::new(move |info| {
@@ -156,7 +156,7 @@ fn quietly<R>(f: impl FnOnce() -> R) -> R {
 /// The contract's own message from a mocked-runtime panic. The mock unwraps
 /// the VM error, so the payload reads
 /// `... HostError(GuestPanic { panic_msg: "DeadVerse(3)" })`.
-fn panic_message(payload: Box<dyn Any + Send>) -> String {
+pub fn panic_message(payload: Box<dyn Any + Send>) -> String {
     let raw = if let Some(s) = payload.downcast_ref::<String>() {
         s.clone()
     } else if let Some(s) = payload.downcast_ref::<&str>() {
@@ -295,13 +295,23 @@ pub struct World {
 pub const FUND_ABOVE_18: u128 = 10_000_000_000_000 * E18;
 
 impl World {
-    /// Contract, tokens and accounts, with no events yet.
+    /// Contract, tokens and accounts, with no events yet, under the v1
+    /// profile (`tests/profile.rs`).
     pub fn bare() -> Self {
         Self::bare_with_wnear_decimals(18)
     }
 
+    /// `bare` on the production defaults, without the v1 profile.
+    pub fn bare_v2() -> Self {
+        Self::build(18, false)
+    }
+
     /// `bare` with a wNEAR of `decimals` decimals.
     pub fn bare_with_wnear_decimals(decimals: u8) -> Self {
+        Self::build(decimals, true)
+    }
+
+    fn build(decimals: u8, v1_profile: bool) -> Self {
         let mut w = World {
             now: T0,
             wallets: HashMap::new(),
@@ -334,18 +344,32 @@ impl World {
         for who in [ALICE, BOB] {
             w.fund(who);
         }
+        if v1_profile {
+            super::profile::v1_lending_profile(&mut w);
+            super::profile::v1_price_profile(&mut w);
+        }
         w
     }
 
     /// The base fixture: events spice = 1 and fed = 2, scenarios 2x2 = 1
-    /// and binary = 2.
+    /// and binary = 2, under the v1 profile.
     pub fn new() -> Self {
         Self::new_with_wnear_decimals(18)
     }
 
+    /// The base fixture on the production defaults, without the v1 profile.
+    pub fn new_v2() -> Self {
+        let w = Self::bare_v2();
+        w.with_base_fixture()
+    }
+
     /// `new` with a wNEAR of `decimals` decimals.
     pub fn new_with_wnear_decimals(decimals: u8) -> Self {
-        let mut w = Self::bare_with_wnear_decimals(decimals);
+        Self::bare_with_wnear_decimals(decimals).with_base_fixture()
+    }
+
+    fn with_base_fixture(mut self) -> Self {
+        let w = &mut self;
         w.spice = w
             .create_event(
                 SPICE_QUESTION,
@@ -359,7 +383,7 @@ impl World {
             .unwrap();
         w.s2x2 = w.create_scenario(&[w.spice, w.fed]).unwrap();
         w.s_bin = w.create_scenario(&[w.spice]).unwrap();
-        w
+        self
     }
 
     fn context(&self, predecessor: &AccountId, deposit: NearToken) -> VMContext {
