@@ -1,0 +1,80 @@
+/* The top bar. Editorial, not a floating capsule: full width, flat, square corners, hairlines. */
+.header { display: none; } /* the old capsule styles stay in layout.css, unused */
+
+.topbar {
+  position: fixed;
+  z-index: 50;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 68px;
+  padding: 0 40px;
+  display: flex;
+  align-items: center;
+  gap: 36px;
+  background: transparent;
+  transition: background 300ms ease;
+}
+.topbar::after { content: ''; position: absolute; left: 40px; right: 40px; bottom: 0; height: 1px; background: rgba(255, 255, 255, 0.16); }
+.topbar.is-scrolled { background: rgba(3, 3, 4, 0.9); }
+
+.topbar__mark { font: 600 19px var(--font-sans); letter-spacing: -0.035em; color: #ffffff; text-decoration: none; }
+
+.topbar__nav { display: flex; gap: 32px; margin-left: auto; }
+.topbar__nav a, .topbar__wallet { white-space: nowrap; }
+@media (max-width: 1280px) { .topbar { gap: 24px; } .topbar__nav { gap: 20px; } }
+@media (max-width: 1060px) { .topbar__nav { gap: 14px; } .topbar__nav a { font-size: 13px; } .topbar__wide { display: none; } }
+.topbar__nav a { position: relative; display: flex; align-items: baseline; gap: 8px; padding: 6px 0; font-size: 14px; color: #a9b0be; text-decoration: none; transition: color 200ms; }
+.topbar__nav a::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform 350ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.topbar__nav a:hover, .topbar__nav a.is-active { color: #ffffff; }
+.topbar__nav a:hover::after, .topbar__nav a.is-active::after { transform: scaleX(1); transform-origin: left; }
+.topbar__no { font: 11px var(--font-mono); color: #bf888b; }
+
+.topbar__worlds { display: flex; align-items: center; gap: 8px; padding: 6px 0; color: #a9b0be; text-decoration: none; }
+.topbar__worlds:hover { color: #ffffff; }
+.topbar__grid { display: grid; grid-template-columns: repeat(2, 7px); gap: 2px; }
+.topbar__grid i { width: 7px; height: 7px; background: #ffffff; transition: background 300ms, opacity 300ms; }
+.topbar__grid i.is-usdc { background: #bf888b; }
+.topbar__grid i.is-dead { opacity: 0.18; }
+.topbar__count { font: 12px var(--font-mono); }
+
+.topbar__wallet {
+  padding: 10px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 2px;
+  background: transparent;
+  font: 500 14px var(--font-sans);
+  color: #ffffff;
+  transition: background 200ms, color 200ms;
+}
+.topbar__wallet:hover { background: #ffffff; color: #030304; }
+.topbar__wallet em { font-style: normal; font: 11px var(--font-mono); color: #bf888b; margin-left: 6px; }
+.topbar a:focus-visible, .topbar button:focus-visible { outline: 2px solid #bf888b; outline-offset: 4px; }
+
+main { padding-top: 92px; }
+body:has(.landing) main { padding-top: 0; }
+
+@media (max-width: 960px) {
+  .topbar { height: 60px; padding: 0 20px; gap: 18px; }
+  .topbar::after { left: 20px; right: 20px; }
+  .topbar__nav { display: none; }
+  .topbar__worlds { margin-left: auto; }
+  .topbar__wallet { padding: 8px 12px; font-size: 13px; }
+  main { padding-top: 80px; }
+}
+@media (prefers-reduced-motion: reduce) { .topbar, .topbar__nav a::after { transition: none; } }
+/* on the landing, the bar drops in with the opening */
+.topbar.is-landing { animation: bar-in 800ms cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+@keyframes bar-in { from { transform: translateY(-100%); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .topbar.is-landing { animation: none; } }

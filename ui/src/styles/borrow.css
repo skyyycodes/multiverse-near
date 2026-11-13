@@ -1,0 +1,49 @@
+/* Borrow page: loan position, capacity meter, liquidation price per world, collateral-at-risk chart, LTV slider and
+   the transaction overview. Built on the desk styles (bordered dark panels, mono numbers, green/maroon). */
+.lp__nums { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 8px 0 14px; }
+.lp__nums > div { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 1px solid var(--u-line); border-radius: var(--radius); background: var(--u-raise); }
+.lp__nums span { font-size: 11px; color: var(--u-muted); }
+.lp__nums b { font: 600 20px var(--font-mono); color: var(--u-ink); }
+.lp__nums b em { font-style: normal; font-size: 13px; color: var(--u-muted); }
+.lp__nums small { font-size: 11px; color: var(--u-soft); }
+.lp__big { margin-top: 8px; font: 600 14px var(--font-mono); }
+@media (max-width: 900px) { .lp__nums { grid-template-columns: 1fr 1fr; } }
+
+.meter__bar { position: relative; height: 12px; border-radius: 6px; background: rgba(255, 255, 255, 0.06); overflow: hidden; }
+.meter__bar i { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 6px; transition: width 300ms var(--ease); }
+.meter__bar .meter__add { border-radius: 0; background: repeating-linear-gradient(45deg, rgba(240, 192, 90, 0.55) 0 4px, rgba(240, 192, 90, 0.25) 4px 8px); }
+.tone-bg--safe { background: var(--buy); }
+.tone-bg--watch { background: var(--watch); }
+.tone-bg--risk { background: var(--sell); }
+.meter__legend { display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; font-size: 11px; color: var(--u-muted); }
+.meter__legend b { color: var(--u-ink); }
+
+.lq { margin-top: 8px; }
+.lq__row { display: grid; grid-template-columns: minmax(0, 1.6fr) 1fr 0.7fr 0.9fr minmax(130px, 1fr); gap: 12px; align-items: center; padding: 9px 6px; border-bottom: 1px solid var(--u-line); font-size: 13px; color: var(--u-soft); }
+.lq__row--head { font-size: 11px; color: var(--u-muted); padding-top: 0; }
+.lq__row.is-binding { box-shadow: inset 3px 0 0 var(--watch); background: rgba(240, 192, 90, 0.04); }
+.lq__room { display: flex; align-items: center; gap: 8px; }
+.lq__room i { display: block; height: 6px; flex: 1; max-width: 90px; border-radius: 3px; background: var(--buy); }
+.lq__room i.is-watch { background: var(--watch); }
+.lq__room i.is-risk { background: var(--sell); }
+.lq__room b { font-size: 12px; color: var(--u-ink); }
+@media (max-width: 760px) { .lq__row { grid-template-columns: 1fr 1fr; } .lq__row > :nth-child(2), .lq__row > :nth-child(3) { display: none; } }
+
+.risk__chart { display: block; width: 100%; height: auto; margin-top: 4px; }
+
+.bw__tr { grid-template-columns: minmax(0, 2.2fr) repeat(4, minmax(0, 0.8fr)) auto; }
+.bw__tr .mk__btn { min-width: 70px; padding: 6px 10px; }
+.params { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; margin: 0; }
+.params > div { padding: 10px 12px; border: 1px solid var(--u-line); border-radius: var(--radius); background: var(--u-raise); }
+.params dt { font-size: 12px; font-weight: 600; color: var(--u-ink); }
+.params dd { margin: 4px 0 0; font-size: 12px; line-height: 1.5; color: var(--u-soft); }
+
+.ltv { display: flex; flex-direction: column; gap: 4px; }
+.ltv__top { display: flex; justify-content: space-between; font-size: 12px; color: var(--u-muted); }
+.ltv__top b { color: var(--u-ink); }
+.ltv input[type='range'] { width: 100%; accent-color: var(--watch); }
+.ltv__marks { display: flex; justify-content: space-between; font-size: 10px; color: var(--u-muted); }
+.ov { display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px solid var(--u-line); border-radius: var(--radius); background: var(--u-raise); }
+.ov__title { font-size: 12px; font-weight: 600; color: var(--u-ink); }
+.ov__warn { padding: 8px 10px; border-radius: var(--radius); background: rgba(240, 192, 90, 0.1); border: 1px solid rgba(240, 192, 90, 0.3); font-size: 12px; line-height: 1.45; color: var(--watch); }
+.mk__ticket .pc__tabs button:disabled { opacity: 0.4; cursor: not-allowed; }

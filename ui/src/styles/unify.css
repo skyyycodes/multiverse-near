@@ -1,0 +1,272 @@
+/* One visual language for every page, loaded last. The landing set it: black, off-white type, flat dark
+   panels with hairline edges and small sharp corners (folded paper, not glass), square-cornered buttons,
+   tabs underlined like the header links, plain text instead of pills, numbers instead of bars. */
+:root {
+  --u-surface: #0b0c10;
+  --u-raise: #111318;
+  --u-line: rgba(255, 255, 255, 0.08);
+  --u-line-2: rgba(255, 255, 255, 0.18);
+  --u-ink: #f2f2ee;
+  --u-soft: #b4bbc9;
+  --u-muted: #8e96a8;
+  --u-blue: #bf888b;
+  --u-r: 6px;
+}
+
+/* ---------- panels: flat, hairline, small corners ---------- */
+.panel, .ticket, .slip, .sc__panel, .sc__ticket, .sc__position, .card, .card-file, .tally, .pgroup,
+.pf-scenario, .empty, .skel, .quad-panel, .compare, .dial__read, .world-preview, .drawer .file__body {
+  background: var(--u-surface) !important;
+  border: 1px solid var(--u-line) !important;
+  border-radius: var(--u-r) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  clip-path: none !important;
+}
+.slip { transition: border-color 160ms ease; }
+.slip:hover { border-color: var(--u-line-2) !important; transform: none !important; }
+.hud::before, .hud::after { display: none !important; } /* only the old corner marks; .hud panels stay */
+
+/* ---------- buttons: square corners, no glow ---------- */
+.btn {
+  border-radius: 3px !important;
+  box-shadow: none !important;
+  clip-path: none !important;
+  font: 500 14px var(--font-sans) !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+.btn::before, .btn::after { display: none !important; }
+.btn--ghost, .btn.btn--ghost { background: transparent !important; color: var(--u-ink) !important; border: 1px solid rgba(255, 255, 255, 0.5) !important; }
+.btn--ghost:hover { background: var(--u-ink) !important; color: #030304 !important; }
+
+/* ---------- tabs and filters: underlined text, like the header ---------- */
+.filters, .tabs { display: flex; flex-wrap: wrap; gap: 0 24px; border-bottom: 1px solid var(--u-line); background: none !important; padding: 0 !important; border-radius: 0 !important; }
+.tabs__tab, .world-switch button {
+  padding: 10px 0 !important;
+  margin-bottom: -1px;
+  border: 0 !important;
+  border-bottom: 1px solid transparent !important;
+  border-radius: 0 !important;
+  background: none !important;
+  font: 500 14px var(--font-sans) !important;
+  color: var(--u-muted) !important;
+  box-shadow: none !important;
+}
+.tabs__tab:hover, .world-switch button:hover { color: var(--u-ink) !important; }
+.tabs__tab.is-active, .sc .tabs__tab.is-active, .world-switch button.selected {
+  color: var(--u-ink) !important;
+  border-bottom-color: var(--u-ink) !important;
+  background: none !important;
+}
+
+/* preset chips on the scenario page: small square outline buttons */
+.sc__chip { border-radius: 3px !important; background: transparent !important; border: 1px solid var(--u-line-2) !important; color: var(--u-soft) !important; }
+.sc__chip:hover:not(:disabled) { border-color: var(--u-ink) !important; color: var(--u-ink) !important; }
+.sc__chip.is-on { background: var(--u-ink) !important; color: #030304 !important; border-color: var(--u-ink) !important; }
+
+/* ---------- labels: plain text, no pills, no dots ---------- */
+.tag, .tag-demo { background: none !important; border: 0 !important; padding: 0 !important; border-radius: 0 !important; font: 500 13px var(--font-sans) !important; color: var(--u-muted) !important; text-transform: none !important; letter-spacing: 0 !important; }
+.landing-label { font: 500 13px var(--font-sans) !important; letter-spacing: 0 !important; color: var(--u-muted) !important; text-transform: none !important; }
+.landing-label::before, .landing-label > span:empty, .docs__kicker span { display: none !important; }
+.docs__kicker { color: var(--u-muted) !important; }
+
+/* ---------- the world cells on the scenario market: flat, like the landing's 2x2 ---------- */
+.sc__cell { background: var(--u-raise) !important; border: 1px solid var(--u-line) !important; border-radius: var(--u-r) !important; box-shadow: none !important; }
+.sc__cell:hover:not(.is-dead) { border-color: var(--u-line-2) !important; }
+.sc__cell.is-picked { background: rgba(191, 136, 139, 0.12) !important; border-color: var(--u-blue) !important; }
+.sc__cell.is-worst { outline: 0 !important; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.5) !important; }
+.sc__hold { border-radius: 3px !important; }
+
+/* the per-world backing list in the borrow ticket: rows of numbers */
+.sc__bars i { display: none !important; }
+.sc__bars li { display: flex !important; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--u-line); }
+.sc__bars li.is-worst { color: var(--u-ink); font-weight: 500; }
+
+/* ---------- fields ---------- */
+.field__box { background: var(--u-raise) !important; border: 1px solid var(--u-line) !important; border-radius: 4px !important; box-shadow: none !important; }
+.field__box:focus-within { border-color: var(--u-line-2) !important; }
+
+/* ---------- markets list cards ---------- */
+.slip { padding: 22px !important; gap: 14px !important; }
+.slip__when { font-size: 13px; color: var(--u-muted); }
+.slip__q { font: 500 20px/1.25 var(--font-sans) !important; letter-spacing: -0.02em; color: var(--u-ink); }
+.slip__worlds { display: flex; flex-wrap: wrap; gap: 6px 22px; }
+.slip__world { display: inline-flex; gap: 8px; align-items: baseline; font-size: 14px; color: var(--u-soft); }
+.slip__world b { color: var(--u-ink); font: 500 15px var(--font-sans) !important; }
+.slip__foot { font-size: 13px; color: var(--u-muted); border-top: 1px solid var(--u-line); padding-top: 12px; }
+
+/* ---------- landing market list: odds as text ---------- */
+.market-index__bar { display: none !important; }
+.market-index__odds { color: var(--u-soft); font-size: 14px; }
+.market-index__odds b { color: var(--u-ink); font-weight: 500; }
+
+/* ---------- the borrowing comparison: two numbers, not two bars ---------- */
+.compare { padding: 28px !important; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.compare__row { display: flex; flex-direction: column; gap: 6px; }
+.compare__row span { font-size: 14px; color: var(--u-muted); }
+.compare__row b { font: 500 44px var(--font-sans); letter-spacing: -0.04em; color: var(--u-soft); }
+.compare__row.is-you b { color: var(--u-ink); }
+.compare__row small { font-size: 13px; color: var(--u-muted); }
+.compare__note { grid-column: 1 / -1; padding-top: 16px; border-top: 1px solid var(--u-line); font-size: 15px; color: var(--u-ink); }
+
+/* landing cells: same small corners */
+.quad__cell { border-radius: var(--u-r) !important; }
+
+/* the picked world row: everything in it reads light (older "paper" styles made some of it dark ink) */
+.file.is-picked .file__body, .file.is-picked .file__body * { color: var(--u-ink) !important; }
+.file.is-picked .file__stat { color: var(--u-soft) !important; }
+
+/* health colours: muted, not neon */
+.tone--safe { color: #8fd3a8 !important; }
+.tone--watch { color: #e8c37a !important; }
+.tone--risk { color: #bf8888 !important; }
+.up { color: inherit !important; }
+
+@media (max-width: 760px) {
+  .compare { grid-template-columns: 1fr; }
+  .compare__row b { font-size: 36px; }
+}
+
+/* ================= landing layout (after the critique) ================= */
+/* 1. the selector with its borrowing result directly underneath */
+.gain { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--u-line); display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; }
+.gain__num { font: 500 44px var(--font-sans); letter-spacing: -0.04em; color: var(--u-ink); animation: swap 200ms ease; }
+.gain__label { font-size: 15px; color: var(--u-soft); }
+.gain__calc { flex-basis: 100%; margin-top: 6px; font-size: 13px; line-height: 1.6; color: var(--u-muted); }
+.gain__calc b { color: var(--u-soft); font-weight: 500; }
+.flow__copy > p + p { margin-top: 12px !important; }
+
+/* 2. markets as aligned columns: market / leading outcome / odds / resolves */
+.mtable { border-top: 1px solid var(--u-line); }
+.mtable__row { display: grid; grid-template-columns: minmax(0, 2.4fr) 1fr 0.9fr 0.8fr; gap: 24px; align-items: center; padding: 18px 8px; border-bottom: 1px solid var(--u-line); color: var(--u-soft); font-size: 14px; text-decoration: none; transition: background 160ms ease; }
+a.mtable__row:hover { background: rgba(255, 255, 255, 0.025); color: var(--u-ink); }
+.mtable__row--head { padding: 10px 8px; font-size: 12px; color: var(--u-muted); }
+.mtable__q { display: flex; flex-direction: column; gap: 4px; font: 500 18px/1.3 var(--font-sans); letter-spacing: -0.02em; color: var(--u-ink); }
+.mtable__q small { font: 400 12px var(--font-sans); letter-spacing: 0; color: var(--u-muted); }
+.mtable__odds { display: flex; flex-direction: column; gap: 8px; }
+.mtable__odds b { font: 500 20px var(--font-sans); color: var(--u-ink); }
+.mtable__seg { display: flex; gap: 2px; height: 4px; width: 100%; max-width: 140px; }
+.mtable__seg i { background: rgba(255, 255, 255, 0.16); }
+.mtable__seg i.is-lead { background: var(--u-blue); }
+.mtable__when { color: var(--u-muted); }
+.landing-markets .market-index { display: none; }
+
+/* 3. the ring: 60% ring, 40% information, clearly apart */
+.dial { display: grid !important; grid-template-columns: 3fr 2fr; align-items: center; height: auto !important; min-height: 92svh !important; max-width: 1280px; margin: 0 auto; padding: 0 40px; border-top: 1px solid var(--u-line); overflow: hidden; }
+.dial__scene { position: relative !important; inset: auto !important; height: 78svh; min-height: 520px; }
+.dial__info { position: relative; padding: 48px 0 48px 40px; border-left: 1px solid var(--u-line); }
+.dial__info h2 { margin-top: 14px; }
+.dial__lede { margin-top: 14px; font-size: 15px; line-height: 1.65; color: var(--u-soft); max-width: 40ch; }
+.dial__pick { display: grid !important; grid-template-columns: 1fr 1fr; gap: 8px !important; margin: 26px 0 18px !important; border: 0 !important; }
+.dial__pick button { display: flex; justify-content: space-between; align-items: baseline; padding: 14px !important; border: 1px solid var(--u-line) !important; border-radius: var(--u-r) !important; background: var(--u-surface) !important; color: var(--u-soft) !important; font: 500 14px var(--font-sans) !important; text-align: left; }
+.dial__pick button b { font-weight: 500; color: var(--u-muted); }
+.dial__pick button:hover { border-color: var(--u-line-2) !important; color: var(--u-ink) !important; }
+.dial__pick button.is-on { border-color: var(--u-ink) !important; color: var(--u-ink) !important; }
+.dial__pick button.is-on b { color: var(--u-ink); }
+.dial__facts { display: flex; gap: 32px; margin: 0 0 22px; }
+.dial__facts div { display: flex; flex-direction: column; gap: 4px; }
+.dial__facts dt { font-size: 12px; color: var(--u-muted); }
+.dial__facts dd { margin: 0; font: 500 24px var(--font-sans); color: var(--u-ink); animation: swap 200ms ease; }
+.dial__head, .dial__read { display: none !important; }
+
+/* 4. questions: compact heading row, then the full-width list */
+.landing-faq { display: block !important; }
+.landing-faq__head { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: end; margin-bottom: 28px; }
+.landing-faq__note { font-size: 14px; line-height: 1.65; color: var(--u-muted); }
+.landing-faq__note a { color: var(--u-soft); }
+
+/* 5. the story: shorter, no butterfly-only stretch */
+.story { height: 220vh; }
+
+@media (max-width: 860px) {
+  .mtable__row { grid-template-columns: 1fr auto; gap: 8px 16px; }
+  .mtable__row--head { display: none; }
+  .mtable__row > span:nth-child(2), .mtable__when { display: none; }
+  .dial { grid-template-columns: 1fr; padding: 0 20px; }
+  .dial__scene { height: 90vw; min-height: 0; }
+  .dial__info { padding: 8px 0 40px; border-left: 0; }
+  .landing-faq__head { grid-template-columns: 1fr; gap: 12px; }
+}
+@media (max-width: 760px) { .story { height: 100svh; } }
+
+/* ---------- the ring section, take three: a crown across the full width ---------- */
+.dial { display: block !important; max-width: none !important; margin: 0 !important; padding: 72px 0 64px !important; min-height: 0 !important; border-top: 1px solid var(--u-line); }
+.dial__title { max-width: 1200px; margin: 0 auto; padding: 0 40px; font-size: 18px; line-height: 1.5; color: var(--u-soft); }
+.dial__title span { color: var(--u-ink); font-weight: 500; }
+.dial__scene { position: relative !important; inset: auto !important; width: 100%; height: clamp(320px, 52vh, 560px) !important; min-height: 0 !important; margin: 8px 0; }
+.dial__board { max-width: 1200px; margin: 0 auto; padding: 24px 40px 0; display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1.2fr) auto; gap: 32px; align-items: center; border-top: 1px solid var(--u-line); }
+.dial__board .dial__pick { margin: 0 !important; }
+.dial__board .dial__facts { margin: 0; gap: 28px; }
+.dial__board .dial__facts dd { font-size: 20px; }
+@media (max-width: 860px) {
+  .dial { padding: 56px 0 40px !important; }
+  .dial__title { padding: 0 20px; font-size: 16px; }
+  .dial__scene { height: 62vw !important; }
+  .dial__board { grid-template-columns: 1fr; gap: 18px; padding: 20px 20px 0; }
+}
+
+/* ---------- orange: one warm accent against black and blue, used sparingly ---------- */
+:root { --u-orange: #bf888b; }
+.landing-label, .hero__tag, .docs__kicker { color: var(--u-orange) !important; }
+.gain__num { color: var(--u-orange); }
+.dial__title span { color: var(--u-orange); }
+.mtable__seg i.is-lead { background: var(--u-orange); }
+.dial__pick button.is-on { border-color: var(--u-orange) !important; }
+.dial__pick button.is-on b { color: var(--u-orange) !important; }
+.dial__scene { height: clamp(340px, 56vh, 620px) !important; }
+
+/* the crossing, read out: ring 1's outcome × ring 2's outcome = the world */
+.dial__board { grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) auto !important; }
+.dial__sum { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 14px; font-size: 16px; color: var(--u-ink); animation: swap 200ms ease; }
+.dial__sum span { display: flex; flex-direction: column; gap: 2px; }
+.dial__sum small { font-size: 12px; color: var(--u-muted); }
+.dial__sum b { font-weight: 500; color: var(--u-soft); }
+.dial__sum i { font-style: normal; font-size: 18px; color: var(--u-muted); padding-bottom: 1px; }
+.dial__sum .is-world b { color: var(--u-orange); }
+.dial__more { margin-top: 10px; font-size: 13px; color: var(--u-muted); }
+.dial__more b { color: var(--u-soft); font-weight: 500; }
+.dial__facts { display: none !important; }
+
+/* the crossing as a table: rows = NEAR upgrade (ring 1), columns = Fed decision (ring 2) */
+.dial__scene { height: clamp(420px, 64vh, 700px) !important; }
+.dial__board { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1.4fr) auto !important; align-items: center; }
+.xgrid { display: grid; grid-template-columns: auto 1fr 1fr; gap: 6px; }
+.xgrid__line { display: contents; }
+.xgrid__col, .xgrid__row { font-size: 12px; color: var(--u-muted); transition: color 200ms ease; }
+.xgrid__col { padding: 0 4px 2px; }
+.xgrid__row { align-self: center; padding-right: 10px; white-space: nowrap; }
+.xgrid__col b, .xgrid__row b { font-weight: 500; }
+.xgrid__col.is-on { color: #bf888b; }
+.xgrid__row.is-on { color: var(--u-ink); }
+.xgrid__cell { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 12px; border: 1px solid var(--u-line); border-radius: var(--u-r); background: var(--u-surface); color: var(--u-soft); text-align: left; transition: border-color 200ms ease, background 200ms ease; }
+.xgrid__cell b { font: 500 20px var(--font-sans); color: var(--u-ink); }
+.xgrid__cell span { font-size: 12px; }
+.xgrid__cell:hover { border-color: var(--u-line-2); }
+.xgrid__cell.is-on { border-color: var(--u-orange); background: rgba(191, 136, 139, 0.07); }
+.xgrid__cell.is-on b { color: var(--u-orange); }
+
+/* the story pins for one screen of scroll, then keeps playing (fold + flight) while it scrolls away */
+.story { height: 200vh; }
+@media (max-width: 760px) { .story { height: 100svh; } }
+
+/* ---------- the dome over Markets: two glass arches, heading centred beneath ---------- */
+.landing-markets { padding-top: 0 !important; }
+.dome-head { position: relative; height: clamp(380px, 52vh, 520px); margin: 0 calc(50% - 50vw) 40px; }
+.dome { position: absolute; inset: 0; }
+.dome canvas { display: block; }
+.dome-head__text { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); width: min(560px, 90vw); text-align: center; }
+.dome-head__text .landing-label { justify-content: center; }
+.dome-head__text h2 { margin-top: 12px; }
+.dome-head__text p:not(.landing-label) { margin-top: 12px; font-size: 15px; color: var(--u-soft); }
+.dome-head__text a { display: inline-block; margin-top: 14px; font-size: 14px; color: var(--u-ink); text-decoration: none; border-bottom: 1px solid var(--u-line-2); }
+.dome-head__text a:hover { border-color: var(--u-ink); }
+.dome { -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent 96%); mask-image: linear-gradient(to bottom, #000 55%, transparent 96%); }
+.dome-head { height: clamp(440px, 58vh, 600px); }
+@media (max-width: 760px) { .dome-head { height: 380px; margin-bottom: 24px; } }
+@media (max-width: 760px) {
+  .dome-head { height: auto; margin-bottom: 28px; }
+  .dome { position: relative; inset: auto; height: 210px; }
+  .dome-head__text { position: static; transform: none; margin: -24px auto 0; }
+}

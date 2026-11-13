@@ -1,0 +1,135 @@
+/* The landing's worked example: four worlds you can tap, then what that does to borrowing. */
+.flow { max-width: 1200px; margin: 0 auto; padding: 120px 40px; display: grid; grid-template-columns: 1fr 1.15fr; gap: 72px; align-items: center; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.flow__copy h2 { margin-top: 16px; }
+.flow__copy > p:not(.landing-label) { margin-top: 18px; max-width: 46ch; font-size: 16px; line-height: 1.7; color: #b4bbc9; }
+.flow__copy .btn { margin-top: 28px; }
+
+/* the 2x2 of worlds */
+.quad { display: grid; grid-template-columns: auto 1fr 1fr; gap: 10px; }
+.quad__row { display: contents; }
+.quad__axis { align-self: end; padding: 0 4px 2px; font-size: 13px; color: #8e96a8; }
+.quad__axis--row { align-self: center; padding-right: 10px; writing-mode: vertical-rl; transform: rotate(180deg); text-align: center; }
+.quad__cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-height: 150px;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  color: #f2f2ee;
+  text-align: left;
+  transition: background 180ms ease, border-color 180ms ease;
+}
+.quad__cell:hover { border-color: rgba(255, 255, 255, 0.28); }
+.quad__cell.is-feared { background: rgba(63, 19, 30, 0.28); border-color: rgba(109, 46, 60, 0.55); }
+.quad__cell.is-feared:hover { border-color: rgba(191, 136, 148, 0.8); }
+.quad__name { font-size: 16px; font-weight: 500; }
+.quad__odds { font-size: 13px; color: #8e96a8; }
+.quad__hold { margin-top: auto; font: 500 22px var(--font-sans); letter-spacing: -0.03em; animation: swap 180ms ease; }
+.quad__tag { font-size: 12px; color: #8e96a8; }
+.quad__cell.is-feared .quad__tag { color: #bf8894; }
+@keyframes swap { from { opacity: 0; } }
+
+/* the two borrowing bars */
+.bars { display: flex; flex-direction: column; gap: 28px; }
+.bars__head { display: flex; justify-content: space-between; align-items: baseline; font-size: 14px; color: #b4bbc9; }
+.bars__head b { font: 500 26px var(--font-sans); letter-spacing: -0.03em; color: #f2f2ee; }
+.bars__track { position: relative; height: 10px; margin-top: 10px; border-radius: 5px; background: rgba(255, 255, 255, 0.06); }
+.bars__track i { position: absolute; inset: 0 auto 0 0; border-radius: 5px; background: rgba(255, 255, 255, 0.28); transition: width 400ms cubic-bezier(0.22, 1, 0.36, 1); }
+.bars__track em { position: absolute; top: -4px; bottom: -4px; width: 2px; background: #f2f2ee; transition: left 400ms cubic-bezier(0.22, 1, 0.36, 1); }
+.bars__row.is-you .bars__track i { background: #bf888b; }
+.bars__row p { margin-top: 8px; font-size: 13px; color: #8e96a8; }
+.bars__note { font-size: 15px; color: #f2f2ee; }
+
+@media (max-width: 860px) {
+  .flow { grid-template-columns: 1fr; gap: 36px; padding: 72px 20px; }
+  .quad__cell { min-height: 128px; padding: 14px; }
+  .quad__hold { font-size: 18px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .quad__hold { animation: none; }
+  .bars__track i, .bars__track em { transition: none; }
+}
+
+/* ---------- the selector inside its orbital ring ---------- */
+.orbit { position: relative; padding: 56px 64px; }
+.orbit__back, .orbit__front { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.orbit__back { z-index: 0; }
+.orbit__front { z-index: 2; }
+.orbit__tilt { transition: transform 1100ms cubic-bezier(0.22, 1, 0.36, 1); }
+.orbit ellipse, .orbit__front path { fill: none; stroke: rgba(191, 136, 139, 0.42); stroke-width: 1.2; }
+.orbit__front path { stroke: rgba(191, 136, 139, 0.7); }
+.orbit__mark { fill: #0b0c10; stroke: rgba(191, 136, 139, 0.85); stroke-width: 1.2; transition: r 160ms ease, fill 160ms ease, stroke 160ms ease; }
+.orbit__mark.is-on { fill: #bf888b; stroke: #bf888b; }
+.orbit__mark.is-hover { fill: #ffffff; stroke: #ffffff; filter: drop-shadow(0 0 6px rgba(191, 136, 139, 0.9)); }
+.orbit__comet polyline { fill: none; stroke: rgba(191, 136, 140, 0.85); stroke-width: 2; stroke-linecap: round; }
+.orbit__comet circle { fill: #ffffff; filter: drop-shadow(0 0 6px rgba(191, 136, 139, 1)); }
+.orbit__panel { position: relative; z-index: 1; padding: 22px; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; background: #0b0c10; }
+
+/* the grid on its opaque panel: kept NEAR is neutral, dollars are blue (USDC), never red */
+.quad__axis--row { writing-mode: horizontal-tb; transform: none; text-align: left; padding: 0 12px 0 2px; }
+.quad__cell { background: #121318; border-color: rgba(255, 255, 255, 0.08); }
+.quad__cell.is-feared { background: #1e0a0b; border-color: rgba(191, 136, 139, 0.6); }
+.quad__cell.is-feared:hover { border-color: #bf888b; }
+.quad__cell.is-feared .quad__tag { color: #bf888c; }
+.bars { padding: 28px; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; background: #0b0c10; }
+
+@media (max-width: 860px) {
+  .orbit { padding: 40px 18px; }
+  .orbit__panel { padding: 12px; }
+  .quad { gap: 8px; }
+  .quad__axis--row { padding-right: 6px; font-size: 12px; }
+}
+@media (prefers-reduced-motion: reduce) { .orbit__tilt { transition: none; } }
+/* each cell names its world, so only the column headers stay (and nothing sits under the ring) */
+.quad { grid-template-columns: 1fr 1fr; }
+.quad > span:first-child, .quad__axis--row { display: none; }
+@media (max-width: 860px) { .orbit__front path, .orbit__front .orbit__comet { display: none; } }
+
+/* the selector's opaque panel (the 2D orbit is gone) */
+.quad-panel { padding: 22px; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; background: #0b0c10; }
+
+/* ---------- the ending: a full-screen glass-ring dial ---------- */
+.dial { position: relative; height: 100svh; min-height: 640px; overflow: hidden; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.dial__scene { position: absolute; inset: 0; }
+.dial__scene canvas { display: block; }
+.dial__head { position: absolute; top: 96px; left: 40px; max-width: 520px; pointer-events: none; }
+.dial__head h2 { margin-top: 14px; }
+.dial__read {
+  position: absolute;
+  left: 40px;
+  bottom: 40px;
+  width: min(380px, calc(100% - 40px));
+  padding: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  background: rgba(8, 9, 12, 0.86);
+}
+.dial__now { font-size: 13px; color: #8e96a8; }
+.dial__read h3 { margin-top: 6px; font: 500 28px var(--font-sans); letter-spacing: -0.035em; color: #f2f2ee; animation: swap 200ms ease; }
+.dial__read dl { display: flex; gap: 28px; margin: 16px 0 0; }
+.dial__read dl div { display: flex; flex-direction: column; gap: 2px; }
+.dial__read dt { font-size: 12px; color: #8e96a8; }
+.dial__read dd { margin: 0; font: 500 20px var(--font-sans); color: #f2f2ee; }
+.dial__pick { display: flex; flex-wrap: wrap; gap: 6px; margin: 18px 0; }
+.dial__pick button { padding: 7px 11px; border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 8px; background: transparent; font-size: 13px; color: #b4bbc9; }
+.dial__pick button:hover { border-color: rgba(255, 255, 255, 0.35); color: #ffffff; }
+.dial__pick button.is-on { background: #f2f2ee; border-color: #f2f2ee; color: #030304; }
+@media (max-width: 760px) {
+  .dial { height: auto; min-height: 0; padding-top: 72vw; }
+  .dial__scene { bottom: auto; height: 110vw; }
+  .dial__head { position: relative; top: auto; left: auto; padding: 0 20px; margin-top: -60vw; }
+  .dial__read { position: relative; left: auto; bottom: auto; width: auto; margin: 44vw 16px 32px; }
+}
+.dial__read { left: auto; right: 40px; }
+@media (max-width: 760px) { .dial__read { right: auto; } }
+/* phones: heading, then a square dial, then the readout, stacked */
+@media (max-width: 760px) {
+  .dial { display: flex; flex-direction: column; height: auto; min-height: 0; padding: 64px 0 32px; }
+  .dial__head { order: 0; position: relative; top: auto; left: auto; margin: 0; padding: 0 20px; }
+  .dial__scene { order: 1; position: relative; inset: auto; height: 100vw; margin-top: 8px; }
+  .dial__read { order: 2; position: relative; inset: auto; width: auto; margin: 0 16px; }
+}

@@ -1,0 +1,555 @@
+/* The landing story: a tall section whose stage sticks to the screen while scroll plays it.
+   Behind: the 3D glass rings. In front: the butterfly, whose four wings become four glass cards.
+   Hero.tsx writes the progress values: --intro (0→1 headline leaves, butterfly grows),
+   --t0..--t3 (each wing shape unfolding into its card, all at once with a tiny stagger),
+   --outro (the closing button appears). */
+
+.story {
+  --ink: #ffffff;
+  --mid: #bf888b;
+  --muted: #8e96a8;
+  --paper: #030304;
+  --intro: 0;
+  --outro: 0;
+  --t0: 0; --t1: 0; --t2: 0; --t3: 0;
+  position: relative;
+  height: 280vh;
+  background: transparent;
+}
+
+.story__stage {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.story__scene {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  /* the rings pass under the floating header: they fade out across its band instead of cutting through it */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, transparent 56px, #000 128px);
+          mask-image: linear-gradient(to bottom, transparent 0, transparent 56px, #000 128px);
+}
+.story__scene canvas { display: block; }
+
+/* ---------- the butterfly ---------- */
+.fly {
+  position: absolute;
+  z-index: 5;
+  left: 50%;
+  top: calc(40% + var(--intro) * 8%);
+  width: 300px;
+  height: 300px;
+  transform: translate(-50%, -50%) scale(calc(0.36 + var(--intro) * 0.64));
+  pointer-events: none;
+}
+.fly__svg { width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 20px 40px rgba(191, 136, 139, 0.25)); }
+/* the drawn wings hand over to the card-shards the moment the split starts */
+.wing { opacity: calc(1 - var(--split, 0)); }
+
+/* ---------- the panels the wings grow into ----------
+   Each one covers the whole stage; Hero.tsx clips it to its wing's shape, then to its share of the page. */
+.pane {
+  --t: 0;
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  visibility: hidden;
+  color: #0a0606;
+  background: #e4e6ec;
+  pointer-events: none;
+  will-change: clip-path;
+}
+/* white paper, like the wing it came from, giving way to the panel as it opens */
+.pane::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: linear-gradient(150deg, #f4f3ee, #9a988f);
+  opacity: clamp(0, calc(1 - var(--t) * 1.4), 1);
+}
+/* fine grain over every panel */
+.pane::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: 0.16;
+  mix-blend-mode: multiply;
+}
+.pane--tl { background: linear-gradient(170deg, #eceef3, #d9dce4); }
+.pane--tr { background: radial-gradient(ellipse 60% 70% at 72% 38%, rgba(191, 136, 139, 0.55), rgba(191, 136, 139, 0.08) 55%, transparent 75%), linear-gradient(200deg, #bf888d, #cfd4df); }
+.pane--bl { background: radial-gradient(ellipse 55% 70% at 70% 70%, #bf888d 0%, #8a90a0 28%, #1b1e27 58%, #060404 80%); color: #ffffff; }
+.pane--bl::after { mix-blend-mode: screen; opacity: 0.12; }
+.pane--br { background: linear-gradient(10deg, #dde0e8, #eceef3); }
+
+.pane__in {
+  position: absolute;
+  z-index: 3;
+  max-width: min(430px, 34vw);
+  opacity: clamp(0, calc((var(--t) - 0.62) * 2.8), 1);
+  transform: translateY(calc((1 - var(--t)) * 16px));
+}
+.pane--tl .pane__in { top: max(7%, 92px); left: 5%; }
+/* this panel runs deepest on its left side (by the body), so its words sit there, clear of the seam */
+.pane--tr .pane__in { top: max(5%, 88px); left: 47%; max-width: min(400px, 34vw); }
+.pane--tr h3 { font-size: clamp(24px, 2.6vw, 40px); }
+.pane--bl .pane__in { bottom: 10%; left: 5%; }
+.pane--br .pane__in { bottom: 10%; right: 5%; text-align: right; }
+
+.pane__step { font: 500 11px var(--font-mono); letter-spacing: 0.12em; text-transform: uppercase; color: #5b6170; }
+.pane__step b { color: #9a0c16; font-weight: 500; }
+.pane--bl .pane__step { color: #a3a9b8; }
+.pane--bl .pane__step b { color: #bf888b; }
+.pane h3 {
+  margin-top: 14px;
+  font: 500 clamp(28px, 3.3vw, 54px)/1 var(--font-sans);
+  letter-spacing: -0.055em;
+}
+.pane__text { margin-top: 14px; font-size: 14px; line-height: 1.6; color: #4a5060; }
+.pane--bl .pane__text { color: #b8bdc9; }
+
+.pane__spec { display: grid; grid-template-columns: repeat(3, auto); gap: 4px 28px; margin: 26px 0 0; font: 12px var(--font-mono); }
+.pane__spec div { display: contents; }
+.pane__spec dt { color: #6b7180; grid-row: 1; }
+.pane__spec dd { margin: 0; grid-row: 2; color: #0a0606; }
+
+.pane__worlds { list-style: none; margin: 12px 0 0 auto; padding: 0; width: min(320px, 30vw); }
+.pane__worlds li { display: grid; grid-template-columns: 1fr 90px 44px; align-items: center; gap: 12px; padding: 4px 0; border-bottom: 1px solid rgba(10, 6, 6, 0.12); font-size: 13px; text-align: left; }
+.pane__worlds i { display: block; height: 4px; background: #9a0c16; border-radius: 2px; }
+.pane__worlds b { font: 500 13px var(--font-mono); text-align: right; }
+
+.pane__rates { display: flex; flex-wrap: wrap; gap: 14px 32px; margin-top: 22px; }
+.pane__rates div { display: flex; flex-direction: column; gap: 2px; }
+.pane__rates span { font: 11px var(--font-mono); color: #a3a9b8; text-transform: uppercase; letter-spacing: 0.1em; }
+.pane__rates b { font: 500 clamp(26px, 2.6vw, 40px) var(--font-sans); letter-spacing: -0.04em; }
+.pane__rates em { font: 11px var(--font-mono); font-style: normal; color: #8b92a3; }
+
+/* the 2x2 world grid: the kept world in white, the sold L-shape in blue */
+.pane__grid {
+  display: grid;
+  grid-template-columns: auto 1fr 1fr;
+  gap: 6px;
+  margin-top: 18px;
+  text-align: left;
+  font-size: 12px;
+}
+.pane__grid-h { align-self: end; padding: 0 4px 2px; font: 500 10px var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: #5b6170; }
+.pane__grid > .pane__grid-h:nth-child(4), .pane__grid > .pane__grid-h:nth-child(7) { align-self: center; padding-right: 8px; }
+.pane__cell { display: flex; flex-direction: column; gap: 1px; padding: 9px 11px 8px; border-radius: 9px; }
+.pane__cell b { font: 500 15px var(--font-sans); letter-spacing: -0.02em; }
+.pane__cell small { font: 10px var(--font-mono); opacity: 0.7; }
+.pane__cell.is-kept { background: #ffffff; color: #0a0606; box-shadow: inset 0 0 0 1px rgba(10, 6, 6, 0.12); }
+.pane__cell.is-sold { background: #9a0c16; color: #ffffff; }
+.pane__note { display: none; } /* no room above the seam; the grid says it */
+
+/* the pitch line under the opening headline */
+.story__pitch { max-width: 520px; margin: 18px auto 0; font-size: 16px; line-height: 1.55; color: var(--muted); }
+
+.pane .btn {
+  margin-top: 22px;
+  padding: 14px 20px;
+  border: 0;
+  border-radius: 4px;
+  background: #0a0606;
+  color: #ffffff;
+  font: 500 14px var(--font-sans);
+  letter-spacing: 0;
+  text-transform: none;
+  box-shadow: none;
+  clip-path: none;
+}
+.pane .btn span { margin-left: 16px; }
+.pane .btn::before, .pane .btn::after { display: none; }
+.story.is-end .pane .btn { pointer-events: auto; }
+.story.is-end .hero__base { opacity: 0; }
+.hero__base { transition: opacity 300ms; }
+
+/* ---------- the opening words ---------- */
+.story__hero {
+  position: absolute;
+  z-index: 4;
+  left: 5%;
+  right: 5%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  bottom: 84px;
+  opacity: calc(1 - var(--intro));
+  transform: translateY(calc(var(--intro) * -40px));
+  pointer-events: none;
+}
+.story__hero::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: -80px -8vw -100px;
+  background: radial-gradient(ellipse 60% 55% at 50% 45%, rgba(3, 3, 4, 0.5), transparent 75%); /* a soft shade behind the words only, so the light below still shows */
+  pointer-events: none;
+}
+.story__hero .hero__actions a { pointer-events: auto; }
+.story.is-past-intro .story__hero .hero__actions a { pointer-events: none; }
+
+.story__hero h1 {
+  margin-top: 16px;
+  font-family: var(--font-sans);
+  font-size: clamp(48px, 7vw, 124px);
+  font-weight: 500;
+  line-height: 0.9;
+  letter-spacing: -0.06em;
+  color: var(--ink);
+}
+.story__hero h1 em { font-style: normal; color: var(--mid); }
+
+.landing-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font: 500 11px var(--font-mono);
+  letter-spacing: 0.14em;
+  color: var(--mid);
+}
+.landing-label span { width: 6px; height: 6px; border-radius: 50%; background: var(--mid); }
+
+.hero__actions { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 22px; margin-top: 26px; }
+.hero__actions .btn {
+  padding: 15px 22px;
+  border: 0;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #000000;
+  font: 500 14px var(--font-sans);
+  letter-spacing: 0;
+  text-transform: none;
+  box-shadow: 0 10px 30px rgba(191, 136, 139, 0.35);
+  clip-path: none;
+}
+.hero__actions .btn:hover { transform: translateY(-2px); box-shadow: 0 14px 34px rgba(191, 136, 139, 0.5); }
+.hero__actions .btn span { margin-left: 18px; }
+.hero__actions .btn::before, .hero__actions .btn::after { display: none; }
+.hero__learn { font-size: 14px; color: var(--ink); text-decoration: none; }
+.hero__learn:hover { text-decoration: underline; text-underline-offset: 4px; }
+.hero__learn span { margin-left: 8px; }
+
+/* ---------- base strip ---------- */
+.hero__base {
+  position: absolute;
+  z-index: 4;
+  left: 5%;
+  right: 5%;
+  bottom: 0;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  font: 500 10px var(--font-mono);
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+.hero__base span { display: inline-flex; align-items: center; gap: 8px; }
+.story__cue { opacity: calc(1 - var(--outro)); }
+.story__cue span { animation: cue 1.6s ease-in-out infinite; }
+@keyframes cue { 50% { transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) { .story__cue span { animation: none; } }
+
+/* ---------- phones: same split, compact words ---------- */
+@media (max-width: 760px) {
+  .story { height: 260vh; }
+  .fly { width: 220px; height: 220px; }
+  .pane__in { max-width: 46vw; }
+  .pane--tr .pane__in { top: 76px; left: auto; right: 5%; }
+  .pane--bl .pane__in { bottom: 6%; }
+  /* on a tall screen these two panels are widest near the middle, so their words sit there */
+  .pane--tl .pane__in { top: auto; bottom: calc(50% + 28px); max-width: 42vw; }
+  .pane--br .pane__in { bottom: auto; top: calc(50% + 28px); max-width: 42vw; }
+  .pane h3 { margin-top: 8px; font-size: 22px; }
+  .pane__text, .pane__spec { display: none; }
+  .pane__grid { gap: 4px; margin-top: 8px; font-size: 10px; }
+  .pane__cell { padding: 7px 7px 6px; border-radius: 7px; }
+  .pane__cell b { font-size: 11px; }
+  .pane__cell small, .pane__note { display: none; }
+  .story__pitch { font-size: 14px; }
+  .pane__worlds li { grid-template-columns: 1fr 34px; padding: 4px 0; font-size: 11px; }
+  .pane__worlds i { display: none; }
+  .pane__rates { gap: 8px 14px; margin-top: 10px; }
+  .pane__rates em { display: none; }
+  .pane__rates b { font-size: 22px; }
+  .pane .btn { margin-top: 12px; padding: 10px 12px; font-size: 12px; }
+  .story__hero { left: 20px; right: 20px; bottom: 70px; }
+  .story__hero h1 { font-size: clamp(40px, 12vw, 56px); }
+  .hero__base > span:nth-child(2) { display: none; }
+}
+
+/* the fluted-glass light behind everything in the hero */
+.story__flutes { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; display: block; }
+
+/* desktop composition, like the reference: rings under the header, butterfly and words centred,
+   the light owning the bottom of the screen */
+@media (min-width: 761px) {
+  .story__hero { top: 47%; bottom: auto; }
+  .fly { top: calc(35% + var(--intro) * 13%); }
+}
+
+/* ---------- wing flap: a quick double beat on load, then again every 5 seconds ---------- */
+.flap {
+  transform-box: view-box;
+  transform-origin: 100px 100px; /* the body line, in the wing's own drawing space */
+  animation: flap 5s cubic-bezier(0.45, 0, 0.3, 1) 0.7s infinite;
+}
+.wing[data-part='lower'] .flap { animation-delay: 0.76s; } /* lower wings follow a beat behind */
+@keyframes flap {
+  0%, 22%, 100% { transform: none; }
+  5% { transform: scaleX(0.2) skewY(-6deg); }
+  10% { transform: none; }
+  15% { transform: scaleX(0.5) skewY(-3deg); }
+}
+.fly__svg { animation: lift 5s cubic-bezier(0.45, 0, 0.3, 1) 0.7s infinite; }
+@keyframes lift {
+  0%, 22%, 100% { transform: none; }
+  6% { transform: translateY(-7px); }
+  16% { transform: translateY(-3px); }
+}
+/* once the story starts, the wings hold still so they can split into the panels */
+.story.is-past-intro .flap, .story.is-past-intro .fly__svg { animation: none; }
+
+/* ---------- the opening words ---------- */
+.hero__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 14px 7px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(10px);
+  font: 500 13px var(--font-sans);
+  color: #d6dbe6;
+}
+.hero__pulse { position: relative; width: 7px; height: 7px; border-radius: 50%; background: #bf888b; }
+.hero__pulse::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 1px solid #bf888b;
+  animation: pulse 2.4s ease-out infinite;
+}
+@keyframes pulse { from { transform: scale(0.5); opacity: 1; } to { transform: scale(1.8); opacity: 0; } }
+
+/* grotesk line, then an italic serif line in a slow moving blue sheen */
+.story__hero h1 { display: flex; flex-direction: column; align-items: center; margin-top: 22px; line-height: 0.92; }
+.hero__line { display: block; overflow: hidden; padding: 0 0.06em 0.08em; }
+.hero__line > * { display: block; animation: rise 1s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.hero__line + .hero__line > * { animation-delay: 0.12s; }
+@keyframes rise { from { transform: translateY(105%); } to { transform: none; } }
+.story__hero h1 em {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic;
+  font-weight: 400;
+  font-size: 1.12em;
+  letter-spacing: -0.035em;
+  line-height: 0.95;
+  padding-right: 0.08em;
+  background: linear-gradient(100deg, #ffffff 0%, #bf888c 22%, #bf888b 45%, #bf888c 68%, #ffffff 90%) 0 0 / 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: rise 1s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both, sheen 9s linear 1.2s infinite;
+}
+@keyframes sheen { to { background-position: -220% 0; } }
+
+.story__pitch { margin-top: 22px; font-size: 17px; color: #b4bbc9; animation: fade-up 900ms cubic-bezier(0.22, 1, 0.36, 1) 0.3s both; }
+.story__hero .hero__actions { animation: fade-up 900ms cubic-bezier(0.22, 1, 0.36, 1) 0.42s both; }
+.hero__meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  margin-top: 30px;
+  font: 12px var(--font-mono);
+  color: #7d8597;
+  animation: fade-up 900ms cubic-bezier(0.22, 1, 0.36, 1) 0.55s both;
+}
+.hero__meta i { width: 3px; height: 3px; border-radius: 50%; background: #3a4150; }
+@keyframes fade-up { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+
+@media (max-width: 800px) {
+  .hero__meta { display: none; }
+  .story__pitch { font-size: 15px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flap, .fly__svg, .hero__pulse::after, .hero__line > *, .story__hero h1 em, .story__pitch, .story__hero .hero__actions, .hero__meta { animation: none !important; }
+}
+
+/* room for the taller headline: butterfly sits higher, words start higher, descenders aren't clipped */
+.hero__line { padding-bottom: 0.18em; margin-bottom: -0.12em; }
+.story__hero h1 { font-size: clamp(48px, 6.4vw, 108px); }
+@media (min-width: 801px) {
+  .story__hero { top: 31%; }
+  .fly { top: calc(19% + var(--intro) * 29%); }
+}
+@media (max-width: 800px) { .story__hero h1 { font-size: clamp(40px, 12vw, 56px); } }
+
+/* ---------- opening type, after the mockup ---------- */
+.hero__tag {
+  padding: 0;
+  border: 0;
+  background: none;
+  backdrop-filter: none;
+  font: 500 13px var(--font-sans);
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  margin-right: -0.42em; /* tracking adds space after the last letter; keep it optically centred */
+  color: #bf888c;
+}
+.story__hero h1 { margin-top: 26px; font-size: clamp(48px, 6vw, 104px); }
+.story__hero h1 em {
+  font-size: 1.32em;
+  letter-spacing: -0.03em;
+  line-height: 0.9;
+  background: linear-gradient(90deg, #ffffff 0%, #ffffff 42%, #bf888b 66%, #bf888b 92%) 0 0 / 100% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: rise 1s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both;
+  filter: drop-shadow(0 0 28px rgba(191, 136, 139, 0.18));
+}
+.story__pitch { margin-top: 26px; max-width: none; font-size: clamp(16px, 1.45vw, 21px); line-height: 1.45; color: #b9c0cc; }
+.story__hero .hero__actions { margin-top: 34px; }
+.story__hero .hero__actions .btn { border-radius: 3px; }
+
+.hero__rule {
+  position: absolute;
+  z-index: 4;
+  left: 40px;
+  right: 40px;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 0 24px;
+  border-top: 1px solid rgba(255, 255, 255, 0.32);
+  font: 13px var(--font-mono);
+  letter-spacing: 0.04em;
+  color: #c9cfdb;
+  opacity: calc(1 - var(--intro));
+  animation: fade-up 900ms cubic-bezier(0.22, 1, 0.36, 1) 0.6s both;
+}
+.hero__rule a { color: inherit; text-decoration: none; pointer-events: auto; }
+.hero__rule a:hover { color: #ffffff; }
+.hero__rule a span { margin-left: 8px; }
+.story.is-past-intro .hero__rule a { pointer-events: none; }
+@media (max-width: 800px) {
+  .hero__rule { left: 20px; right: 20px; font-size: 11px; }
+  .hero__rule-mid { display: none; }
+  .hero__tag { font-size: 11px; letter-spacing: 0.3em; margin-right: -0.3em; }
+  .story__pitch br { display: none; }
+}
+@media (min-width: 801px) {
+  .story__hero { top: 30%; }
+  .fly { top: calc(18% + var(--intro) * 30%); }
+}
+@media (prefers-reduced-motion: reduce) { .hero__rule { animation: none; } }
+@media (min-width: 801px) { .story__hero h1 { font-size: clamp(56px, 7.6vw, 140px); } .story__hero { top: 28%; } }
+.hero__line:has(em) { padding-bottom: 0.3em; margin-bottom: -0.24em; }
+
+/* ---------- one entrance, in order ----------
+   0ms   top bar drops in, butterfly fades up
+   250   label · 350 first line · 470 second line · 700 pitch · 820 buttons · 950 bottom rule
+   1.9s  first wing beat, then every 6s
+   Fill mode is `backwards`, so once each entrance ends, the scroll-driven styles (fading as the story starts) take over again. */
+.route:has(.story) { animation: none; }
+.story .fly { animation: fly-in 900ms cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+@keyframes fly-in { from { opacity: 0; } }
+.hero__tag { animation: fade-up 800ms cubic-bezier(0.22, 1, 0.36, 1) 250ms backwards; }
+.hero__line > * { animation: rise 1000ms cubic-bezier(0.22, 1, 0.36, 1) 350ms backwards; }
+.hero__line + .hero__line > *, .story__hero h1 em { animation: rise 1000ms cubic-bezier(0.22, 1, 0.36, 1) 470ms backwards; }
+.story__pitch { animation: fade-up 800ms cubic-bezier(0.22, 1, 0.36, 1) 700ms backwards; }
+.story__hero .hero__actions { animation: fade-up 800ms cubic-bezier(0.22, 1, 0.36, 1) 820ms backwards; }
+.hero__rule { animation: fade-up 800ms cubic-bezier(0.22, 1, 0.36, 1) 950ms backwards; }
+
+/* the wing beat: a clean fold toward the body and back, twice, no skew */
+.flap { animation: flap 6s cubic-bezier(0.45, 0, 0.3, 1) 1.9s infinite; }
+.wing[data-part='lower'] .flap { animation-delay: 1.96s; }
+.fly__svg { animation: lift 6s cubic-bezier(0.45, 0, 0.3, 1) 1.9s infinite; }
+@keyframes flap {
+  0%, 18%, 100% { transform: none; }
+  4% { transform: scaleX(0.25); }
+  9% { transform: none; }
+  13% { transform: scaleX(0.6); }
+}
+@keyframes lift {
+  0%, 18%, 100% { transform: none; }
+  5% { transform: translateY(-6px); }
+  14% { transform: translateY(-2px); }
+}
+.story.is-past-intro .flap, .story.is-past-intro .fly__svg { animation: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .story .fly, .hero__tag, .hero__line > *, .story__hero h1 em, .story__pitch, .story__hero .hero__actions, .hero__rule, .flap, .fly__svg { animation: none !important; }
+}
+
+/* ---------- the panels stay folded paper: sharp, two facets split by a crease from the body to the
+   page corner. They start in the wing's own greys and deepen to dark navy facets as they open. ---------- */
+.pane {
+  --k: clamp(0, calc((var(--t) - 0.12) * 1.7), 1); /* 0: the wing's paper, 1: the dark panel */
+  --a: color-mix(in oklab, var(--a1) calc(var(--k) * 100%), var(--a0));
+  --b: color-mix(in oklab, var(--b1) calc(var(--k) * 100%), var(--b0));
+  color: #ffffff;
+  background:
+    radial-gradient(ellipse 70% 60% at var(--glow-at), rgba(60, 120, 255, calc(var(--k) * 0.16)), transparent 70%),
+    linear-gradient(var(--crease), var(--a) 50%, var(--b) 50%);
+}
+.pane::before, .pane::after { display: none; }
+/* near wings (right side) are lighter paper; far wings (left) are in shadow, as in the logo */
+.pane--tr, .pane--br { --a0: #eeede9; --b0: #8f8d88; --a1: #1b0c0d; --b1: #0a0606; }
+.pane--tl, .pane--bl { --a0: #9c9a95; --b0: #5d5c58; --a1: #14090a; --b1: #060404; }
+.pane--tl { --crease: to top right; --glow-at: 20% 20%; }
+.pane--br { --crease: to top right; --glow-at: 80% 80%; }
+.pane--tr { --crease: to bottom right; --glow-at: 80% 20%; }
+.pane--bl { --crease: to bottom right; --glow-at: 20% 80%; }
+
+/* the words: a fixed width, placed and scaled by Hero.tsx so they always sit inside the shape */
+.pane__in { width: 440px; max-width: none; transform: translateY(calc((1 - var(--t)) * 16px)) scale(var(--fit, 1)); }
+.pane--tr .pane__in { max-width: none; }
+.pane--tr h3 { font-size: clamp(28px, 3.3vw, 54px); }
+.pane__step { color: #8e96a8; }
+.pane__step b { color: #bf888b; }
+.pane__text, .pane--bl .pane__text { color: #b4bbc9; }
+.pane__spec dt { color: #8e96a8; }
+.pane__spec dd { color: #ffffff; }
+.pane__grid-h { color: #8e96a8; }
+.pane__cell.is-kept { box-shadow: none; }
+.pane__rates span { color: #8e96a8; }
+.pane .btn { background: #ffffff; color: #030304; border-radius: 3px; }
+@media (max-width: 760px) {
+  .pane__in { width: 270px; max-width: none; }
+}
+
+/* panel tones: dark grey, deep blue, slate, and maroon for the one about worlds dying */
+.pane { background:
+    radial-gradient(ellipse 70% 60% at var(--glow-at), rgb(var(--glow) / calc(var(--k) * 0.16)), transparent 70%),
+    linear-gradient(var(--crease), var(--a) 50%, var(--b) 50%); }
+.pane--tl { --a1: #1f2128; --b1: #121318; --glow: 120 60 66; }
+.pane--tr { --a1: #290e10; --b1: #190708; --glow: 120 20 36; }
+.pane--bl { --a1: #1b1011; --b1: #0e0809; --glow: 120 20 36; }
+.pane--br { --a1: #3d1422; --b1: #10060a; --glow: 200 50 80; }
+.pane--br .pane__step b { color: #bf8894; }
+
+/* one palette for all four panels: charcoal-navy paper, near wings a shade lighter than far ones,
+   like the butterfly. Maroon is only a small accent on the panel about losing worlds. */
+.pane--tr, .pane--br { --a1: #180f10; --b1: #0d0809; --glow: 120 20 36; }
+.pane--tl, .pane--bl { --a1: #130c0c; --b1: #0a0606; --glow: 120 20 36; }
+.pane--br .pane__step b { color: #6d2e3c; }
+
+/* the panels start as the butterfly's own maroon paper (same folds as PAPER in Hero.tsx), then darken */
+.pane--tr, .pane--br { --a0: #b86a76; --b0: #5a1622; }
+.pane--tl, .pane--bl { --a0: #6a2531; --b0: #2c0a11; }

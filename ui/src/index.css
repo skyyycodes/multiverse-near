@@ -1,0 +1,48 @@
+@import './styles/tokens.css';
+@import './styles/ui.css';
+@import './styles/paper.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+  }
+}
+
+body{background-image:none}.cursor-dot span{width:4px;height:4px;background:#c3f4e8;box-shadow:none}.cursor-ring span{width:28px;height:28px;border-color:#a5dcd48a;background:transparent;backdrop-filter:none}.cursor-ring.is-hover span{width:42px;height:42px;background:#8ddbc50a;border-color:#a5dcd4}.cursor-dot,.cursor-ring{display:none}.has-cursor .cursor-dot,.has-cursor .cursor-ring{display:block}
