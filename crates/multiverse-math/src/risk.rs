@@ -6,10 +6,36 @@
 //! worst world worst, so the slice is worth at least `target` in every world, minus rounding dust that the
 //! `LiquidationTooSmall` allowance covers.
 
-use crate::fixed::{checked_mul_div, mul_div_down, mul_div_u256, Rounding, U256, WAD};
+use crate::fixed::{checked_mul_div, mul_div_down, mul_div_u256, mul_div_up, Rounding, U256, WAD};
 
 /// Most of the debt one liquidation may repay: 50%.
 pub const CLOSE_FACTOR: u128 = WAD / 2;
+
+/// Most one liquidation may repay: all of a small (`debt < small_loan`) or very unhealthy (`hf < full_hf`, when
+/// `full_hf` is set) loan, else the close factor's half. `small_loan = 0` and `full_hf = 0` switch the full mode off.
+pub fn liquidation_cap(debt: u128, hf: u128, full_hf: u128, small_loan: u128) -> u128 {
+    if debt < small_loan || (full_hf != 0 && hf < full_hf) {
+        debt
+    } else {
+        max_repay(debt)
+    }
+}
+
+/// The smallest repayment whose target `floor(r * (1 + bonus))` reaches `c_min`, so it seizes every piece: `ceil(c_min
+/// * 1e18 / (1e18 + bonus))`, at least 1. Panics with `MulDivOverflow` past `u128::MAX`.
+#[track_caller]
+pub fn full_seize_repay(c_min: u128, bonus: u128) -> u128 {
+    let denominator = WAD
+        .checked_add(bonus)
+        .unwrap_or_else(|| panic!("MulDivOverflow"));
+    mul_div_up(c_min, WAD, denominator).max(1)
+}
+
+/// How a write-off of `bad` splits: the insurance covers first, the lenders take the rest. Returns `(cover, loss)`.
+pub fn write_off_split(bad: u128, insurance: u128) -> (u128, u128) {
+    let cover = bad.min(insurance);
+    (cover, bad - cover)
+}
 
 /// `floor(lowest * lltv / debt)` (WAD); `None` (infinitely healthy) without debt. Saturates at `u128::MAX` rather
 /// than overflow (1 unit of debt against real collateral).
@@ -239,5 +265,240 @@ mod tests {
             410_553
         );
         assert_eq!(borrow_capacity(u128::MAX, 2 * WAD), u128::MAX);
+    }
+
+    const FULL_HF: u128 = 900_000_000_000_000_000;
+    const SMALL: u128 = 200 * WAD;
+
+    #[test]
+    fn liquidation_cap_thresholds() {
+        let debt = 1_000 * WAD;
+        // HF exactly at the full-liquidation line is still partial; one unit below is full.
+        assert_eq!(liquidation_cap(debt, FULL_HF, FULL_HF, SMALL), debt / 2);
+        assert_eq!(liquidation_cap(debt, FULL_HF - 1, FULL_HF, SMALL), debt);
+        // A debt exactly at the small-loan line is partial; one unit below is full.
+        assert_eq!(liquidation_cap(SMALL, WAD - 1, FULL_HF, SMALL), SMALL / 2);
+        assert_eq!(
+            liquidation_cap(SMALL - 1, WAD - 1, FULL_HF, SMALL),
+            SMALL - 1
+        );
+        // Both rules off: the v1 close factor whatever the HF.
+        assert_eq!(liquidation_cap(debt, 0, 0, 0), debt / 2);
+        assert_eq!(liquidation_cap(1, 0, 0, 0), 0);
+        // A debt of one unit under the production rules can be repaid in full.
+        assert_eq!(liquidation_cap(1, 0, FULL_HF, SMALL), 1);
+    }
+
+    #[test]
+    fn full_seize_repay_is_the_smallest_repayment_that_seizes_everything() {
+        for (c_min, bonus) in [
+            (0, BONUS),
+            (1, BONUS),
+            (2, BONUS),
+            (21, BONUS),
+            (1_300 * WAD, BONUS),
+            (8_000 * WAD, 80_000_000_000_000_000),
+            (12_345_678_901_234_567_890, 60_000_000_000_000_000),
+            (u128::MAX / 2, 10_000_000_000_000_000),
+        ] {
+            let r = full_seize_repay(c_min, bonus);
+            assert!(r >= 1);
+            assert!(liquidation_target(r, bonus) >= c_min, "{c_min} {bonus}");
+            if r > 1 {
+                assert!(liquidation_target(r - 1, bonus) < c_min, "{c_min} {bonus}");
+            }
+        }
+        // Brute force on small numbers.
+        for c_min in 0..300u128 {
+            for bonus in [WAD / 100, WAD / 20, WAD * 8 / 100, WAD * 15 / 100] {
+                let smallest = (1..)
+                    .find(|r| liquidation_target(*r, bonus) >= c_min)
+                    .unwrap();
+                assert_eq!(full_seize_repay(c_min, bonus), smallest, "{c_min} {bonus}");
+            }
+        }
+    }
+
+    #[test]
+    fn write_off_split_covers_with_insurance_first() {
+        assert_eq!(write_off_split(400, 640), (400, 0));
+        assert_eq!(write_off_split(400, 100), (100, 300));
+        assert_eq!(write_off_split(0, 100), (0, 0));
+        assert_eq!(write_off_split(7, 0), (0, 7));
+        let (c, l) = write_off_split(u128::MAX, u128::MAX - 1);
+        assert_eq!(c + l, u128::MAX);
+    }
+
+    #[test]
+    fn carl_after_the_upgrade() {
+        // Production's market 1 (legacy Normal, 0.75 / 0.05): debt 892.822257, C_min 1,133.134240.
+        let debt = 892_822_257_272_781_333_774;
+        let c_min = 1_133_134_240_133_792_851_806;
+        let hf = health_factor(c_min, debt, LLTV).unwrap();
+        assert_eq!(hf / 1_000_000_000_000, 951_869);
+        let cap = liquidation_cap(debt, hf, FULL_HF, SMALL);
+        assert_eq!(cap, 446_411_128_636_390_666_887);
+        let fsr = full_seize_repay(c_min, BONUS);
+        assert_eq!(fsr, 1_079_175_466_794_088_430_292);
+        let r = cap.min(fsr);
+        let target = liquidation_target(r, BONUS);
+        assert_eq!(target, 468_731_685_068_210_200_231);
+        assert!(target < c_min);
+    }
+
+    #[test]
+    fn the_design_examples() {
+        let normal = (700_000_000_000_000_000, 60_000_000_000_000_000);
+        // Normal, debt 1,000 at HF 0.85: full mode, "max" repays the whole debt as a cut.
+        let debt = 1_000 * WAD;
+        let c_min = mul_div_down(850_000_000_000_000_000, debt, normal.0);
+        let hf = health_factor(c_min, debt, normal.0).unwrap();
+        let cap = liquidation_cap(debt, hf, FULL_HF, SMALL);
+        let fsr = full_seize_repay(c_min, normal.1);
+        assert_eq!(cap, debt);
+        assert!(fsr > debt);
+        let target = liquidation_target(cap.min(fsr), normal.1);
+        assert_eq!(target, 1_060 * WAD);
+        assert_eq!((c_min - target) / 10u128.pow(16), 15_428);
+        // Small loan: 150 at HF 0.95 repays all 150.
+        let debt = 150 * WAD;
+        let c_min = mul_div_down(950_000_000_000_000_000, debt, normal.0);
+        let hf = health_factor(c_min, debt, normal.0).unwrap();
+        assert_eq!(liquidation_cap(debt, hf, FULL_HF, SMALL), debt);
+        assert_eq!(liquidation_target(debt, normal.1), 159 * WAD);
+        // Bold underwater: debt 10,000, C_min 8,000: "max" repays fsr and 2,592.59 is written off.
+        let bold_bonus = 80_000_000_000_000_000;
+        let (debt, c_min) = (10_000 * WAD, 8_000 * WAD);
+        let hf = health_factor(c_min, debt, 800_000_000_000_000_000).unwrap();
+        let cap = liquidation_cap(debt, hf, FULL_HF, SMALL);
+        let fsr = full_seize_repay(c_min, bold_bonus);
+        assert_eq!(cap, debt);
+        assert_eq!(fsr / 10u128.pow(16), 740_740);
+        let (cover, loss) = write_off_split(debt - fsr, 1_000 * WAD);
+        assert_eq!(cover, 1_000 * WAD);
+        assert_eq!(loss / 10u128.pow(16), 159_259);
+    }
+
+    /// The golden vectors the scripts' `lib/risk.ts` mirror is tested against, as JSON (decimal strings).
+    fn risk_vectors_json() -> String {
+        use serde_json::json;
+        let s = |x: u128| x.to_string();
+        let caps: Vec<_> = [
+            (1_000 * WAD, FULL_HF, FULL_HF, SMALL),
+            (1_000 * WAD, FULL_HF - 1, FULL_HF, SMALL),
+            (SMALL, WAD - 1, FULL_HF, SMALL),
+            (SMALL - 1, WAD - 1, FULL_HF, SMALL),
+            (1, 0, FULL_HF, SMALL),
+            (1_000 * WAD + 1, 0, 0, 0),
+            (
+                892_822_257_272_781_333_774,
+                951_869_954_545_614_142,
+                FULL_HF,
+                SMALL,
+            ),
+        ]
+        .into_iter()
+        .map(|(debt, hf, full_hf, small)| {
+            json!({"debt": s(debt), "hf": s(hf), "full_hf": s(full_hf), "small_loan": s(small),
+                   "cap": s(liquidation_cap(debt, hf, full_hf, small))})
+        })
+        .collect();
+        let fsr: Vec<_> = [
+            (0, BONUS),
+            (1, BONUS),
+            (1_300 * WAD, BONUS),
+            (1_133_134_240_133_792_851_806, BONUS),
+            (8_000 * WAD, 80_000_000_000_000_000),
+            (1_214_285_714_285_714_285_714, 60_000_000_000_000_000),
+        ]
+        .into_iter()
+        .map(|(c_min, bonus)| json!({"c_min": s(c_min), "bonus": s(bonus), "repay": s(full_seize_repay(c_min, bonus))}))
+        .collect();
+        let splits: Vec<_> = [
+            (400 * WAD, 640 * WAD),
+            (400 * WAD, 100 * WAD),
+            (2_592 * WAD, 1_000 * WAD),
+            (5, 0),
+        ]
+        .into_iter()
+        .map(|(bad, ins)| {
+            let (cover, loss) = write_off_split(bad, ins);
+            json!({"bad": s(bad), "insurance": s(ins), "cover": s(cover), "loss": s(loss)})
+        })
+        .collect();
+        let targets: Vec<_> = [
+            (500 * WAD, BONUS),
+            (446_411_128_636_390_666_887, BONUS),
+            (1_000 * WAD, 60_000_000_000_000_000),
+            (7, 80_000_000_000_000_000),
+        ]
+        .into_iter()
+        .map(|(r, bonus)| json!({"repaid": s(r), "bonus": s(bonus), "target": s(liquidation_target(r, bonus))}))
+        .collect();
+        let (debt, c_min) = (
+            892_822_257_272_781_333_774u128,
+            1_133_134_240_133_792_851_806u128,
+        );
+        let hf = health_factor(c_min, debt, LLTV).unwrap();
+        let cap = liquidation_cap(debt, hf, FULL_HF, SMALL);
+        let fsr_carl = full_seize_repay(c_min, BONUS);
+        let doc = json!({
+            "close_factor": s(CLOSE_FACTOR),
+            "liquidation_cap": caps,
+            "full_seize_repay": fsr,
+            "write_off_split": splits,
+            "liquidation_target": targets,
+            "carl": {
+                "lltv": s(LLTV), "bonus": s(BONUS), "debt": s(debt), "c_min": s(c_min), "health_factor": s(hf),
+                "cap": s(cap), "full_seize_repay": s(fsr_carl), "repay": s(cap.min(fsr_carl)),
+                "target": s(liquidation_target(cap.min(fsr_carl), BONUS)),
+            },
+        });
+        serde_json::to_string_pretty(&doc).unwrap() + "\n"
+    }
+
+    #[test]
+    fn risk_vectors_golden_file() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/risk-vectors.json");
+        let expected = risk_vectors_json();
+        if std::env::var_os("UPDATE_GOLDEN").is_some() || !std::path::Path::new(path).exists() {
+            std::fs::create_dir_all(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data")).unwrap();
+            std::fs::write(path, &expected).unwrap();
+        }
+        let stored = std::fs::read_to_string(path).unwrap();
+        assert_eq!(stored, expected, "{path} differs from risk.rs");
+        let parsed: serde_json::Value = serde_json::from_str(&stored).unwrap();
+        assert_eq!(parsed["carl"]["cap"], "446411128636390666887");
+        assert_eq!(parsed["carl"]["full_seize_repay"], "1079175466794088430292");
+    }
+
+    use proptest::prelude::*;
+
+    proptest! {
+        #![proptest_config(ProptestConfig { cases: 1024, failure_persistence: None, ..ProptestConfig::default() })]
+
+        /// L-13: `"max"` = min(cap, fsr) never repays more than the debt and never leaves a remainder below the
+        /// minimum loan (a full seizure writes the rest off).
+        #[test]
+        fn max_never_leaves_dust(debt in 1u128..=10u128.pow(30), hf in 0u128..=2 * WAD, c_min in 0u128..=10u128.pow(31),
+                                 min_loan in 0u128..=10_000 * WAD, bonus in WAD / 100..=WAD * 15 / 100, full in any::<bool>()) {
+            let small = min_loan * 2;
+            let full_hf = if full { FULL_HF } else { 0 };
+            let cap = liquidation_cap(debt, hf, full_hf, small);
+            let r = cap.min(full_seize_repay(c_min, bonus));
+            prop_assert!(r <= debt);
+            let seize_all = liquidation_target(r, bonus) >= c_min;
+            let left = debt - r;
+            if !seize_all && left > 0 {
+                prop_assert!(left >= min_loan, "left {} < min {}", left, min_loan);
+            }
+        }
+
+        #[test]
+        fn write_off_split_sums_to_bad(bad in any::<u128>(), insurance in any::<u128>()) {
+            let (cover, loss) = write_off_split(bad, insurance);
+            prop_assert_eq!(cover + loss, bad);
+            prop_assert!(cover <= insurance);
+        }
     }
 }
