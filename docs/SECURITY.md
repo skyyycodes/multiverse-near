@@ -1,8 +1,8 @@
 # Security
 
-This is an internal security review of Multiverse Lending on NEAR, done by the people who build it. It is not an
-audit, and no third party has reviewed the code. The deployment it describes runs on NEAR testnet with mock tokens.
-Do not put real funds into it.
+This is an internal security review of IfVerse (then called Multiverse Lending), done by the people who build it.
+It is not an audit, and no third party has reviewed the code. The deployment it describes runs on NEAR testnet
+with mock tokens. Do not put real funds into it.
 
 ## Scope
 

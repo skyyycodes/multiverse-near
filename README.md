@@ -1,8 +1,13 @@
-# Multiverse Lending on NEAR
+# IfVerse
+
+**What if your what-ifs became worlds?** A multiverse for the real world: hold NEAR in the futures you like
+and dollars in the ones you fear.
+
+IfVerse was first called Multiverse Lending; the testnet account ids and the web address still use that name.
 
 Demo video: (link)
 
-Multiverse Lending lets you sell NEAR only in the futures you fear. Take two real-world events with two outcomes
+IfVerse lets you sell NEAR only in the futures you fear. Take two real-world events with two outcomes
 each, for example "Will SPICE ship on NEAR mainnet by Mar 31, 2027?" and "Will the Fed cut at its December
 meeting?". Each combination of outcomes is a world, so there are four: SHIPS·CUTS, DELAYED·CUTS, SHIPS·HOLDS and
 DELAYED·HOLDS. One NEAR splits into one NEAR-if-world per world, each paying out only if that world comes true. You
@@ -23,7 +28,7 @@ well. A prediction market prices an event, but it does not let you keep NEAR in 
 USDC in others, and a lending market does not take a position like "NEAR if the upgrade ships, USDC if it does
 not" as collateral.
 
-Multiverse Lending splits an asset by world, so protection is bought only where it is wanted, and a loan against
+IfVerse splits an asset by world, so protection is bought only where it is wanted, and a loan against
 such a position is sized by the borrower's worst still-possible world: at the prices lending reads, the collateral
 covers the debt in whichever world comes true.
 
@@ -62,7 +67,7 @@ follow on the local sandbox (see "Verify it yourself").
 - Node 22 and pnpm 10, only to run the app locally or to run the checks in "Verify it yourself".
 - Test wNEAR and USDC. Once your wallet is connected, click "Get test tokens" in the account sheet (or under the
   balances on the Trade screen while your wallet holds no wNEAR and no USDC). It mints 2,000 wNEAR and 5,000 USDC to
-  your own account (skipping a token you already hold that much of), then pays the 0.1 NEAR Multiverse storage
+  your own account (skipping a token you already hold that much of), then pays the 0.1 NEAR IfVerse storage
   deposit if you have none: up to three wallet approvals. The mock tokens have an open `mint` capped at 1,000,000 wNEAR and 10,000,000 USDC per call, and an
   account that is not registered with the token yet can only mint to itself, which registers it. Without the app,
   NEAR CLI (`near-cli-rs`) does the same:
@@ -423,10 +428,14 @@ world while a pool sits far from its TWAP.
 
 ## History and disclosure
 
-The market design of Multiverse Lending first existed as a hackathon prototype on an EVM chain (6-7 Nov 2026); that
-repository is private. This repository is the NEAR implementation, written from scratch during NEAR HACKATHON: the
+The market design of IfVerse (then called Multiverse Lending) first existed as a hackathon prototype on an EVM chain
+(6-7 Nov 2026); that repository is private. This repository is the NEAR implementation, written from scratch during NEAR HACKATHON: the
 Rust contract, the NEAR integration, a new web app and the scripts. The market design and the demo story come from
 the prototype.
+
+The idea of splitting an asset into verses, one per possible outcome, and moving tokens down into a verse or back up
+comes from Paradigm's essay [Multiverse Finance](https://www.paradigm.xyz/2025/05/multiverse-finance) (Dave White,
+May 2025).
 
 ## Built with
 

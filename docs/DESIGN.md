@@ -1,4 +1,4 @@
-# How Multiverse Lending works
+# How IfVerse works
 
 This is the design of the contract in `contracts/multiverse` and the maths in `crates/multiverse-math`. What is
 specific to NEAR is called out where it matters.

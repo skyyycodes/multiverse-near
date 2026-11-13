@@ -1,6 +1,6 @@
-# Multiverse web app
+# IfVerse web app
 
-The browser app for Multiverse Lending on NEAR: pick the futures you fear, sell NEAR only there, borrow real USDC
+The browser app for IfVerse on NEAR: pick the futures you fear, sell NEAR only there, borrow real USDC
 against your worst one, lend, underwrite every world, and close out when the events resolve.
 
 Next.js (App Router, static export) · React 19 · TypeScript strict · Tailwind 4 · framer-motion · TanStack Query ·
@@ -43,7 +43,7 @@ because the sandbox node's RPC takes 3030.
 | `NEXT_PUBLIC_NETWORK` | `testnet` | `testnet` or `sandbox`: which deployment file to read. Wallets always sign on testnet (NEAR Connect knows no other); the RPC decides where reads go |
 | `NEXT_PUBLIC_RPC_URL` | the file's `rpcUrl` | Reads go here; on testnet two public RPCs follow it as fallbacks |
 | `NEXT_PUBLIC_RPC_URLS` | unset | Comma-separated list replacing the above, tried in order on transport errors |
-| `NEXT_PUBLIC_CONTRACT_ID` | the file's `contractId` | The Multiverse contract; the demo scenario ids come from its `get_app_config` |
+| `NEXT_PUBLIC_CONTRACT_ID` | the file's `contractId` | The IfVerse contract; the demo scenario ids come from its `get_app_config` |
 | `NEXT_PUBLIC_WNEAR_ID`, `NEXT_PUBLIC_USDC_ID` | the file's `wnear`, `usdc` | Checked against `get_app_config`: a build made for another deployment says so instead of reading the wrong balances |
 | `NEXT_PUBLIC_EXPLORER` | the file's `explorer` | Transaction links; none on the sandbox |
 | `NEXT_PUBLIC_RESET_COMMAND` | `RUN_SALE=false pnpm -C scripts reset` | What the Admin screen tells the operator to run |
@@ -98,7 +98,7 @@ Screenshots of every screen and state at 390 × 844 and 1440 × 900: `pnpm serve
   `msg` (no approvals; unused tokens are refunded by the token contract); everything else is a direct call with
   1 yoctoNEAR. A transfer the contract refused (`ft_on_transfer` panicked, tokens refunded, transaction still
   "successful") is reported as the contract's error, and one whose used amount cannot be read counts as failed, never
-  "Done". Storage registration (NEP-145 on Multiverse, and on the payout
+  "Done". Storage registration (NEP-145 on the IfVerse contract, and on the payout
   token before a payout) runs first when needed.
 - Amounts are bigint throughout. The contract keeps every amount in 18 decimals; wallet balances (`ft_balance_of`)
   arrive in token units and are scaled once (`lib/units.ts`). Formatting truncates and percentages round half up
