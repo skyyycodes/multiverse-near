@@ -31,6 +31,18 @@ const APP_CONFIG: &[&str] = &[
     "order_book",
     "root_lp",
     "demo",
+    "code_version",
+    "state_version",
+    "paused",
+    "guardian_id",
+    "pending_owner_id",
+    "max_worlds",
+    "max_events",
+    "max_trade_fills",
+    "max_trade_fills_8w",
+    "reference_configured",
+    "proposal_count",
+    "lending",
 ];
 const SCENARIO: &[&str] = &[
     "scenario_id",

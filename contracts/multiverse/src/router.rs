@@ -30,6 +30,19 @@ use crate::receiver::{
 use crate::types::Asset;
 use crate::{Contract, ContractExt};
 
+/// Most order fills one trade may plan at up to 4 worlds (the v1 planner's
+/// 4 x 5), and at 8 worlds, so every accepted trade fits a receipt's logs.
+pub const MAX_TRADE_FILLS: usize = 20;
+pub const MAX_TRADE_FILLS_8W: usize = 18;
+
+pub fn max_trade_fills(world_count: u8) -> usize {
+    if world_count <= 4 {
+        MAX_TRADE_FILLS
+    } else {
+        MAX_TRADE_FILLS_8W
+    }
+}
+
 /// One order fill in a sale plan: `{"order_id":"1","amount":"1000000000000000000"}`.
 /// `amount` is always wNEAR, for bids and asks alike.
 #[near(serializers = [json])]

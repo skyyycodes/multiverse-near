@@ -295,7 +295,7 @@ fn report_logs_evidence() {
     assert_eq!(
         w.last.logs[1],
         format!(
-            r#"EVENT_JSON:{{"standard":"multiverse","version":"1.0.0","event":"report_received","data":[{{"event_id":1,"outcome":1,"reporter_id":"resolver.near","evidence":"{evidence}"}}]}}"#
+            r#"EVENT_JSON:{{"standard":"multiverse","version":"2.0.0","event":"report_received","data":[{{"event_id":1,"outcome":1,"reporter_id":"resolver.near","evidence":"{evidence}"}}]}}"#
         )
     );
     let long = "x".repeat(513);
@@ -363,7 +363,7 @@ fn finalize_event_without_scenarios() {
     w.warp(DISPUTE_WINDOW);
     w.finalize(ALICE, past).unwrap();
     assert!(w.last.logs.contains(
-        &r#"EVENT_JSON:{"standard":"multiverse","version":"1.0.0","event":"event_finalized","data":[{"event_id":3,"outcome":1,"scenario_ids":[]}]}"#
+        &r#"EVENT_JSON:{"standard":"multiverse","version":"2.0.0","event":"event_finalized","data":[{"event_id":3,"outcome":1,"scenario_ids":[]}]}"#
             .to_string()
     ));
     assert_eq!(w.possible(1), ROOT);

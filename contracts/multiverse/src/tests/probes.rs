@@ -170,13 +170,13 @@ fn admin_resolve_after_window_overrides_proposal() {
     assert_eq!(
         w.last.logs,
         vec![
-            r#"EVENT_JSON:{"standard":"multiverse","version":"1.0.0","event":"proposal_disputed","data":[{"event_id":2,"outcome":0}]}"#,
+            r#"EVENT_JSON:{"standard":"multiverse","version":"2.0.0","event":"proposal_disputed","data":[{"event_id":2,"outcome":0}]}"#,
             &format!(
-                r#"EVENT_JSON:{{"standard":"multiverse","version":"1.0.0","event":"outcome_proposed","data":[{{"event_id":2,"outcome":1,"source":"admin","finalizable_at_sec":{}}}]}}"#,
+                r#"EVENT_JSON:{{"standard":"multiverse","version":"2.0.0","event":"outcome_proposed","data":[{{"event_id":2,"outcome":1,"source":"admin","finalizable_at_sec":{}}}]}}"#,
                 w.now + DISPUTE_WINDOW
             ),
-            r#"EVENT_JSON:{"standard":"multiverse","version":"1.0.0","event":"worlds_removed","data":[{"scenario_id":1,"event_id":2,"outcome":1,"removed":3,"possible":12}]}"#,
-            r#"EVENT_JSON:{"standard":"multiverse","version":"1.0.0","event":"event_finalized","data":[{"event_id":2,"outcome":1,"scenario_ids":[1]}]}"#,
+            r#"EVENT_JSON:{"standard":"multiverse","version":"2.0.0","event":"worlds_removed","data":[{"scenario_id":1,"event_id":2,"outcome":1,"removed":3,"possible":12}]}"#,
+            r#"EVENT_JSON:{"standard":"multiverse","version":"2.0.0","event":"event_finalized","data":[{"event_id":2,"outcome":1,"scenario_ids":[1]}]}"#,
         ]
     );
     assert_eq!(

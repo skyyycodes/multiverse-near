@@ -1,5 +1,5 @@
 //! Event logs. Protocol events use NEP-297 with standard "multiverse":
-//! `EVENT_JSON:{"standard":"multiverse","version":"1.0.0","event":"split","data":[{...}]}`.
+//! `EVENT_JSON:{"standard":"multiverse","version":"2.0.0","event":"split","data":[{...}]}`.
 //! Every change to a user's verse balance also logs a NEP-245 `mt_mint`,
 //! `mt_burn` or `mt_transfer`, so indexers and wallets can follow positions.
 //!
@@ -13,7 +13,9 @@ use near_sdk::{env, near, serde_json, AccountId};
 use crate::types::{Asset, Source};
 
 pub const STANDARD: &str = "multiverse";
-pub const VERSION: &str = "1.0.0";
+/// 2.0.0 from v2: fills inside a trade are one `orders_filled` line and lines
+/// group items. The NEP-245 lines stay at 1.0.0.
+pub const VERSION: &str = "2.0.0";
 
 #[derive(Serialize)]
 #[serde(crate = "near_sdk::serde")]

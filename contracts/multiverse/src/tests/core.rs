@@ -616,7 +616,7 @@ fn resolve_emits_worlds_removed() {
     let mut w = World::new();
     w.admin_resolve(w.fed, OUT_HOLDS).unwrap();
     assert!(w.last.logs.contains(
-        &r#"EVENT_JSON:{"standard":"multiverse","version":"1.0.0","event":"worlds_removed","data":[{"scenario_id":1,"event_id":2,"outcome":1,"removed":3,"possible":12}]}"#
+        &r#"EVENT_JSON:{"standard":"multiverse","version":"2.0.0","event":"worlds_removed","data":[{"scenario_id":1,"event_id":2,"outcome":1,"removed":3,"possible":12}]}"#
             .to_string()
     ));
 }
