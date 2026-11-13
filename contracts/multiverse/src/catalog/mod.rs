@@ -8,6 +8,10 @@
 //! and a market on 1 to 3 open events (`propose_market`, opened as soon as
 //! its pledges reach the goal).
 
+// `propose_event` takes the new event's texts and terms as its JSON
+// arguments, one more than clippy's limit, also in the generated ext method.
+#![allow(clippy::too_many_arguments)]
+
 use near_sdk::json_types::U128;
 use near_sdk::store::LookupMap;
 use near_sdk::{env, near, AccountId, IntoStorageKey};
@@ -857,7 +861,6 @@ impl Contract {
 #[allow(unused_variables)]
 impl Contract {
     #[payable]
-    #[allow(clippy::too_many_arguments)]
     pub fn propose_event(
         &mut self,
         question: String,

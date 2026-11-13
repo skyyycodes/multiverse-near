@@ -256,7 +256,7 @@ mod tests {
         let implied = implied_spot(&q, 0xFF, |w| Some(prices[usize::from(w)])).unwrap();
         // The sandbox read 2,961,750,967,499,999,996 from seeded pools, whose shares are a few wei off these.
         assert_eq!(implied, 2_961_750_967_500_000_000);
-        assert!(implied >= 2_375 * WAD / 1_000 && implied <= 3_700 * WAD / 1_000);
+        assert!((2_375 * WAD / 1_000..=3_700 * WAD / 1_000).contains(&implied));
     }
 
     /// `odds-pairs.json`, shared with the scripts and the web: the tree of every world count, as the tables give it.
