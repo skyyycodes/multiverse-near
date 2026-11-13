@@ -43,3 +43,48 @@
 .orng__k--avg { width: 2px; height: 14px; background: var(--accent); }
 .orng__k--band { width: 22px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, rgba(240, 192, 90, 0.4), rgba(125, 201, 165, 0.4)); }
 .orng__k--usdc { width: 10px; height: 10px; border-radius: 50%; background: var(--u-raise); box-shadow: 0 0 0 2px rgba(125, 201, 165, 0.6); }
+
+/* one type scale for the portfolio: names 14 sans, supporting text 12 muted, sentences in sans with aligned digits,
+   mono only for standalone figures, and one emphasised figure per row (what you end with) */
+.pf-grid .fut__row { font-size: 13px; }
+.pf-grid .fut__row .desk__mk b { font: 600 14px var(--font-sans); }
+.pf-grid .fut__row .desk__mk small { font-size: 12px; }
+.pf-grid .fut__hold { font: 400 13px var(--font-sans); font-variant-numeric: tabular-nums; color: var(--u-soft); }
+.pf-grid .fut__row > b { font: 600 15px var(--font-mono); }
+.pf-grid .fut__row > span:last-child { font: 500 13px var(--font-mono); }
+.desk .tr__quote > span { font-family: var(--font-sans); font-variant-numeric: tabular-nums; font-size: 13px; }
+.pf-grid .orng__note, .pf-grid .orng__legend { font-size: 12px; }
+.pf-grid .orng__ctl > span { font: 500 13px var(--font-sans); }
+.pf-grid .orng__sum dd { font-size: 17px; }
+.pf-grid .pos__tr { font-size: 13px; }
+.pf-grid .pos__tr .num { font-size: 13px; }
+.pf-grid .pos__tr small { font-size: 11px; }
+.pf-grid .pf__range { font: 600 17px var(--font-mono); }
+.pf-grid .pf__range small { font: 400 12px var(--font-sans); }
+.pf-loan0 > b { font-size: 24px; }
+.donut li { font-size: 12px; } .donut li b { font: 500 12px var(--font-mono); }
+
+/* outcome strip, take two: a sentence that says what it is, a real dollar axis, labels above the line only,
+   and "you put in" / "average" marked on the axis in their own row */
+.orng__how { margin: 10px 2px 0; font-size: 13px; color: var(--u-soft); max-width: 70ch; }
+.orng { height: 176px; margin: 8px 8px 0; }
+.orng::before { top: 96px; }
+.orng__band { top: 90px; }
+.orng__dot { top: 97px; }
+.orng__dot small { bottom: calc(100% + 8px); top: auto; }
+.orng__dot small.is-up2 { bottom: calc(100% + 44px); }
+.orng__dot small.is-up2::after { content: ""; position: absolute; left: 50%; top: 100%; width: 1px; height: 36px; background: rgba(255, 255, 255, 0.18); }
+.orng__ticks { position: absolute; left: 0; right: 0; top: 112px; height: 18px; }
+.orng__ticks span { position: absolute; transform: translateX(-50%); font-size: 11px; color: var(--u-muted); white-space: nowrap; }
+.orng__ticks span:first-child { transform: none; }
+.orng__ticks span:last-child { transform: translateX(-100%); }
+.orng__mark { position: absolute; top: 86px; height: 62px; width: 2px; margin-left: -1px; z-index: 1; transition: left 350ms var(--ease); }
+.orng__mark--cost { background: rgba(242, 242, 238, 0.5); }
+.orng__mark--avg { background: var(--accent); }
+.orng__mark small { position: absolute; top: 100%; transform: translateX(-50%); margin-top: 4px; white-space: nowrap; font: 500 11px var(--font-sans); padding: 1px 6px; border-radius: 3px; background: #0b0c10; }
+.orng__mark--cost small { color: var(--u-ink); }
+.orng__mark--avg small { color: var(--accent); top: auto; bottom: 100%; margin: 0 0 4px; }
+.orng__axis { display: none; }
+.orng__key { display: flex; align-items: center; margin: 4px 2px 0; font-size: 12px; color: var(--u-muted); }
+.desk .tr__quote > b { font-size: 26px; }
+@media (max-width: 760px) { .orng__ticks span:not(:first-child):not(:last-child) { display: none; } }

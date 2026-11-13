@@ -12,7 +12,7 @@ import { AreaChart, Gauge, MarketArt, WORLD_COLORS, WorldIcon } from '../compone
 import { series } from '../lib/history'
 import { Button } from '../components/ui'
 import { pct, short, usd } from '../lib/format'
-import { YOU, actions, backing, bitsOf, health, holdsAnything, liveOdds, rates, spotPrice, useStore, worstWorld, worth, type Scenario } from '../lib/scenario'
+import { YOU, actions, backing, bitsOf, gridOf, health, holdsAnything, liveOdds, rates, spotPrice, useStore, worstWorld, worth, type Scenario } from '../lib/scenario'
 import type { Market } from '../lib/types'
 import { useClient, useWallet } from '../lib/wallet'
 
@@ -70,51 +70,52 @@ function Donut({ parts }: { parts: { label: string; value: number; color: string
   )
 }
 
-// The outcome range: one axis from your worst world to your best, each world a dot at what you'd end with (size by
-// chance, colour by world), your cost and your chance-weighted average marked. "What if NEAR moves" slides the worlds
-// that hold NEAR along the axis; worlds that hold USDC stay put. That's the hedge, visible in one gesture.
+// Your futures, as the world grid the rest of the app uses (one card per world, laid out by the market's events):
+// what you end with in that world, the gain or loss against what you put in, and whether it moves with NEAR.
+// "What if NEAR moves" updates every card; the worlds that hold USDC stay fixed, which is the hedge, made visible.
 const SHOCKS = [-0.5, -0.25, 0, 0.25, 0.5]
 function Futures({ m, s }: { m: Market; s: Scenario }) {
   const [shock, setShock] = useState(0)
   const o = liveOdds(m, s)
   const live = bitsOf(s.possible, m.worlds.length)
+  const grid = gridOf(m)
   const at = (b: number, d: number) => s.near[b] * s.price[b] * (1 + d) + s.usdc[b] - s.debt
-  const val = live.map((b) => at(b, shock))
-  // a fixed axis across the whole −50%..+50% range, so dots move against a still background
-  const span = live.flatMap((b) => [at(b, -0.5), at(b, 0.5)]).concat(s.cost)
-  const lo = Math.max(0, Math.min(...span) * 0.94), hi = Math.max(...span) * 1.04
-  const x = (v: number) => `${((v - lo) / (hi - lo)) * 100}%`
-  const avgV = live.reduce((t, b, i) => t + o[b] * val[i], 0)
-  const worstV = Math.min(...val), bestV = Math.max(...val)
+  const vals = live.map((b) => at(b, shock))
+  const avgV = live.reduce((t, b, i) => t + o[b] * vals[i], 0)
+  const worstV = Math.min(...vals), bestV = Math.max(...vals)
   const hedged = live.filter((b) => s.near[b] <= 0).length
-  const order = [...live].sort((a, b) => at(a, shock) - at(b, shock))
+  const card = (b: number) => {
+    if (!live.includes(b)) return <div key={b} className="fw is-dead"><span className="fw__name">{m.worlds[b].outcome}</span><span className="fw__hold">Can’t happen any more</span></div>
+    const v = at(b, shock), p = v - s.cost + s.debt, near = s.near[b] > 0
+    const tag = live.length > 1 && v === bestV ? 'Best' : live.length > 1 && v === worstV ? 'Worst' : null
+    return (
+      <div key={b} className={`fw${tag === 'Worst' ? ' is-worst' : tag === 'Best' ? ' is-best' : ''}`}>
+        <div className="fw__top">
+          <span className="fw__name"><i style={{ background: WORLD_COLORS[b % WORLD_COLORS.length] }} />{m.worlds[b].outcome}</span>
+          <span className="fw__chance">{pct(o[b])} likely</span>
+        </div>
+        <p className="fw__lead">You end with</p>
+        <p className="fw__value num">{usd(v)}</p>
+        <p className={`fw__pnl ${pnlClass(p)}`}>{signed(p)} vs. what you put in</p>
+        <p className={`fw__hold${near ? '' : ' is-usdc'}`}>{near ? `${fmt(s.near[b])} NEAR at $${(s.price[b] * (1 + shock)).toFixed(2)}, moves with NEAR` : `${fmt(s.usdc[b])} USDC, fixed`}</p>
+        {tag && <span className={`fw__tag fw__tag--${tag.toLowerCase()}`}>{tag} case</span>}
+      </div>
+    )
+  }
   return (
     <section className="tr__panel fut">
       <div className="desk__head">
-        <div className="fut__title"><MarketArt m={m} size={32} /><div><h2 className="obx__boxtitle">Your range of futures</h2><p className="pc__note">{m.question}</p></div></div>
+        <div className="fut__title"><MarketArt m={m} size={32} /><div><h2 className="obx__boxtitle">What you end with in each future</h2><p className="pc__note">{m.question}</p></div></div>
         <Link href={`/markets/${m.id}`} className="tr__link">Change it</Link>
       </div>
 
-      <div className="orng" role="img" aria-label={`If NEAR moves ${Math.round(shock * 100)}%: you end with between ${usd(worstV)} and ${usd(bestV)}, ${usd(avgV)} on average, against ${usd(s.cost)} put in`}>
-        <div className="orng__band" style={{ left: x(worstV), width: `calc(${x(bestV)} - ${x(worstV)})` }} />
-        <span className="orng__cost" style={{ left: x(s.cost) }} />
-        <span className="orng__avg" style={{ left: x(avgV) }} />
-        {order.map((b, k) => {
-          const v = at(b, shock)
-          const size = 12 + o[b] * 40
-          return (
-            <span key={b} className={`orng__dot${s.near[b] > 0 ? '' : ' is-usdc'}`} style={{ left: x(v), width: size, height: size, background: WORLD_COLORS[b % WORLD_COLORS.length] }}>
-              <small className={k % 2 ? 'is-low' : ''}>{m.worlds[b].outcome}<b className="num">{usd(v)}</b></small>
-            </span>
-          )
-        })}
-        <div className="orng__axis num"><span>{usd(lo)}</span><span>{usd(hi)}</span></div>
-      </div>
-      <div className="orng__legend">
-        <span><i className="orng__k orng__k--cost" />You put in <b className="num">{usd(s.cost)}</b></span>
-        <span><i className="orng__k orng__k--avg" />Average, by chance <b className="num">{usd(avgV)}</b></span>
-        <span><i className="orng__k orng__k--band" />From worst to best world</span>
-        <span><i className="orng__k orng__k--usdc" />Ringed: holds USDC</span>
+      <div className="fgrid" style={{ gridTemplateColumns: `${grid.rows.length > 1 ? 'auto ' : ''}repeat(${grid.cols.length}, minmax(0, 1fr))` }}>
+        {grid.rows.length > 1 && <span />}
+        {grid.cols.map((c) => <span key={c} className="fgrid__axis">{c}</span>)}
+        {grid.rows.map((row) => [
+          grid.rows.length > 1 ? <span key={`r${row.label}`} className="fgrid__axis fgrid__axis--row">{row.label}</span> : null,
+          ...row.bits.map(card),
+        ])}
       </div>
 
       <div className="orng__ctl">
@@ -124,31 +125,13 @@ function Futures({ m, s }: { m: Market; s: Scenario }) {
           {SHOCKS.map((d) => <button key={d} type="button" aria-pressed={Math.abs(shock - d) < 0.001} onClick={() => setShock(d)}>{d === 0 ? 'Today' : `${d > 0 ? '+' : '−'}${Math.abs(d * 100)}%`}</button>)}
         </div>
       </div>
-
-      <dl className="orng__sum">
-        <div><dt>Guaranteed</dt><dd className="num">{usd(worstV)}</dd></div>
-        <div><dt>Average</dt><dd className="num">{usd(avgV)}</dd></div>
-        <div><dt>Best case</dt><dd className="num">{usd(bestV)}</dd></div>
-        <div><dt>Hedged worlds</dt><dd className="num">{hedged} of {live.length}</dd></div>
-      </dl>
-      <p className="orng__note">{hedged === 0
-        ? <>Every world holds NEAR, so every dot moves with it. <Link href={`/markets/${m.id}`} className="tr__link">Sell NEAR in the worlds you fear</Link> and those dots stop moving.</>
-        : hedged === live.length ? 'Every world holds dollars: nothing here moves with NEAR.'
-        : `${hedged === 1 ? 'The world' : `The ${hedged} worlds`} holding USDC ${hedged === 1 ? 'stays' : 'stay'} put; only ${live.length - hedged === 1 ? 'the one holding NEAR moves' : `the ${live.length - hedged} holding NEAR move`}.`}</p>
-
-      <div className="fut__rows">
-        {live.map((b, i) => {
-          const v = val[i], p = v - s.cost + s.debt // P&L ignores the borrowed cash you already have
-          return (
-            <div key={b} className={`fut__row${v === bestV && live.length > 1 ? ' is-best' : ''}${v === worstV && live.length > 1 ? ' is-worst' : ''}`}>
-              <span className="desk__mk"><WorldIcon m={m} w={b} size={24} /><span><b>If {m.worlds[b].outcome.toLowerCase()}</b><small>{pct(o[b])} chance</small></span></span>
-              <span className="fut__hold num">{s.near[b] > 0 ? `${fmt(s.near[b])} NEAR at $${(s.price[b] * (1 + shock)).toFixed(2)}` : `${fmt(s.usdc[b])} USDC`}</span>
-              <b className="num">{usd(v)}</b>
-              <span className={`num ${pnlClass(p)}`}>{signed(p)}</span>
-            </div>
-          )
-        })}
-      </div>
+      <p className="orng__note">
+        {hedged === 0
+          ? <>Every world holds NEAR, so every card moves with it. <Link href={`/markets/${m.id}`} className="tr__link">Sell NEAR in the worlds you fear</Link> to fix those in dollars.</>
+          : hedged === live.length ? 'Every world holds dollars, so nothing here moves with NEAR.'
+          : `${hedged === 1 ? 'The world' : `The ${hedged} worlds`} holding USDC ${hedged === 1 ? 'stays' : 'stay'} fixed; only ${live.length - hedged === 1 ? 'the one holding NEAR moves' : `the ${live.length - hedged} holding NEAR move`}.`}
+        {' '}On average, by chance: <b className="num">{usd(avgV)}</b>.
+      </p>
     </section>
   )
 }
@@ -255,11 +238,32 @@ export default function Portfolio() {
         </dl>
       </header>
 
-      <div className="mk__grid pf-grid">
-        <div className="mk__main">
-          {/* ---------- the range of futures you hold, the page's centrepiece ---------- */}
-          {mine.map((m) => <Futures key={m.id} m={m} s={sc[m.id]} />)}
+      {/* rows of paired panels, so each pair ends on the same line without stretched empty boxes */}
+      <div className="pf-rows">
+        <div className="pf-row">
+          <div className="pf-col">
+            {/* ---------- your futures, the page's centrepiece ---------- */}
+            {mine.map((m) => <Futures key={m.id} m={m} s={sc[m.id]} />)}
+          </div>
+          <section className="tr__panel">
+            <h2 className="obx__boxtitle">Where your money is</h2>
+            <Donut parts={[
+              { label: 'NEAR exposure', value: nearExposure, color: '#e9b8bb' },
+              { label: 'Hedged in USDC', value: hedgedUsdc, color: '#7dc9a5' },
+              { label: 'Lent', value: pool.lent, color: '#6fb7e8' },
+              { label: 'Wallet', value: walletValue, color: '#9b8cf0' },
+            ]} />
+            {debt > 0 && <p className="tk__line"><span>Owed</span><b className="num is-down">−{usd(debt)}</b></p>}
+            <div className="pf-expo">
+              <p className="tk__line"><span>Moves with NEAR</span><b className="num">{pct(nearExposure / Math.max(1, nearExposure + hedgedUsdc + pool.lent + walletValue))}</b></p>
+              <div className="pf-expo__bar"><i style={{ width: pct(nearExposure / Math.max(1, nearExposure + hedgedUsdc + pool.lent + walletValue), 1) }} /></div>
+              <p className="tk__line"><span>If NEAR moves 10%</span><b className="num">±{usd(nearExposure * 0.1)}</b></p>
+            </div>
+            <p className="pc__note pf-donut-note">NEAR and hedged USDC are weighted by each world’s chance.</p>
+          </section>
+        </div>
 
+        <div className="pf-row">
           {/* ---------- value over time ---------- */}
           <section className="tr__panel">
             <div className="desk__head">
@@ -274,6 +278,8 @@ export default function Portfolio() {
             <AreaChart key={key} data={chart} color={Math.round(rangePnl) === 0 ? '#e9b8bb' : rangePnl > 0 ? '#7dc9a5' : '#cf6b78'} format={(v) => `$${Math.round(v).toLocaleString('en-US')}`} height={190} />
             <p className="pc__note">Odds-weighted value of everything you hold, net of loans. Earlier points are demo history.</p>
           </section>
+          <SidePanels lowest={lowest} borrowable={borrowable} debt={debt} hfs={hfs} r={r} wallet={wallet} pool={pool} />
+        </div>
 
           {/* ---------- positions, orders, trades, activity ---------- */}
           <div className="pc__tabs desk__filter" role="group" aria-label="Show">
@@ -373,22 +379,17 @@ export default function Portfolio() {
               </ol>
             )}
           </section>
-        </div>
+      </div>
+    </div>
+  )
+}
 
-        {/* ---------- side ---------- */}
-        <aside className="mk__side">
-          <section className="tr__panel">
-            <h2 className="obx__boxtitle">Where your money is</h2>
-            <Donut parts={[
-              { label: 'NEAR exposure', value: nearExposure, color: '#e9b8bb' },
-              { label: 'Hedged in USDC', value: hedgedUsdc, color: '#7dc9a5' },
-              { label: 'Lent', value: pool.lent, color: '#6fb7e8' },
-              { label: 'Wallet', value: walletValue, color: '#9b8cf0' },
-            ]} />
-            {debt > 0 && <p className="tk__line"><span>Owed</span><b className="num is-down">−{usd(debt)}</b></p>}
-            <p className="pc__note">NEAR and hedged USDC are weighted by each world’s chance.</p>
-          </section>
-
+// the loans and wallet panels, beside the value chart
+function SidePanels({ lowest, borrowable, debt, hfs, r, wallet, pool }: {
+  lowest: number | null; borrowable: number; debt: number; hfs: number[]; r: ReturnType<typeof rates>; wallet: { near: number; usdc: number }; pool: { lent: number }
+}) {
+  return (
+    <div className="pf-col">
           {lowest === null ? (
             <section className="tr__panel pf-loan0">
               <h2 className="obx__boxtitle">Loans</h2>
@@ -419,8 +420,6 @@ export default function Portfolio() {
               <Link href="/lend" className="mk__btn">Supply USDC</Link>
             </div>
           </section>
-        </aside>
-      </div>
     </div>
   )
 }

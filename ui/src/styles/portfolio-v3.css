@@ -1,0 +1,42 @@
+/* Portfolio, take three: rows of paired panels (each pair ends on one line), the futures as the app's world grid of
+   plain cards, and a calmer allocation legend. */
+.pf-rows { display: flex; flex-direction: column; gap: 8px; }
+.pf-row { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 8px; align-items: stretch; }
+.pf-col { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.pf-row > .tr__panel, .pf-col > .tr__panel { margin: 0; }
+.pf-row > .pf-col > :last-child { flex: 1; }
+@media (max-width: 1100px) { .pf-row { grid-template-columns: 1fr; } }
+
+/* the world grid of cards */
+.fgrid { display: grid; gap: 8px; margin-top: 12px; }
+.fgrid__axis { align-self: end; padding: 0 4px 2px; font-size: 12px; font-weight: 500; color: var(--u-muted); }
+.fgrid__axis--row { align-self: center; padding: 0 8px 0 0; writing-mode: horizontal-tb; }
+.fw { position: relative; display: flex; flex-direction: column; gap: 2px; padding: 14px 16px; border: 1px solid var(--u-line); border-radius: 6px; background: var(--u-raise); min-width: 0; }
+.fw.is-best { border-color: rgba(125, 201, 165, 0.35); }
+.fw.is-worst { border-color: rgba(240, 192, 90, 0.35); }
+.fw.is-dead { opacity: 0.4; justify-content: center; }
+.fw__top { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+.fw__name { display: inline-flex; align-items: center; gap: 8px; font: 600 14px var(--font-sans); color: var(--u-ink); }
+.fw__name i { width: 8px; height: 8px; border-radius: 50%; }
+.fw__chance { font-size: 12px; color: var(--u-muted); }
+.fw__lead { font-size: 12px; color: var(--u-muted); }
+.fw__value { font: 600 24px var(--font-mono); color: var(--u-ink); letter-spacing: -0.01em; transition: color 200ms ease; }
+.fw__pnl { font-size: 13px; font-variant-numeric: tabular-nums; }
+.fw__hold { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--u-line); font-size: 12px; color: var(--u-soft); font-variant-numeric: tabular-nums; }
+.fw__hold.is-usdc { color: var(--buy); }
+.fw__tag { position: absolute; right: 12px; bottom: 12px; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 500; }
+.fw__tag--best { background: var(--buy-bg); color: var(--buy); }
+.fw__tag--worst { background: rgba(240, 192, 90, 0.12); color: var(--watch); }
+.fw__hold + .fw__tag { bottom: auto; top: 12px; right: auto; left: auto; position: static; align-self: flex-start; margin-top: 8px; }
+.fut .orng__ctl { margin-top: 12px; }
+.fut .orng__note b { color: var(--u-ink); }
+
+/* allocation legend: more air between lines and before the note */
+.donut ul { gap: 10px; }
+.donut li { padding: 2px 0; }
+.pf-donut-note { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--u-line); }
+.pf-row > section.tr__panel { display: flex; flex-direction: column; }
+.pf-expo { display: flex; flex-direction: column; gap: 6px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--u-line); }
+.pf-expo__bar { height: 6px; border-radius: 3px; background: var(--buy-bg); overflow: hidden; }
+.pf-expo__bar i { display: block; height: 100%; background: #e9b8bb; border-radius: 3px; }
+.pf-row > section.tr__panel > .pf-donut-note { margin-top: auto; }

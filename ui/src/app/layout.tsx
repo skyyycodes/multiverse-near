@@ -22,6 +22,7 @@ import '../styles/global-ui.css'
 import '../styles/refine.css'
 import '../styles/pages-research.css'
 import '../styles/portfolio.css'
+import '../styles/portfolio-v3.css'
 
 export const metadata: Metadata = {
   title: 'Origami Verse',
