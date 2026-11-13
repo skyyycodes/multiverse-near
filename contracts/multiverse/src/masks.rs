@@ -5,8 +5,10 @@
 
 use crate::errors::fail;
 
-pub const MAX_WORLDS: u8 = 4;
-pub const MAX_EVENTS: usize = 2;
+/// Up to three binary events per scenario, so up to 8 worlds: a mask still
+/// fits a `u8`.
+pub const MAX_WORLDS: u8 = 8;
+pub const MAX_EVENTS: usize = 3;
 
 /// `(1 << W) - 1`; 0 for W = 0, which no existing scenario has.
 pub fn root(world_count: u8) -> u8 {

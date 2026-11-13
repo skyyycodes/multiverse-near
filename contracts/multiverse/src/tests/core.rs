@@ -68,7 +68,7 @@ fn create_scenario_fails_non_owner() {
 fn create_scenario_fails_bad_event_count() {
     let mut w = World::new();
     fails(w.create_scenario(&[]), "BadEventCount(0)");
-    fails(w.create_scenario(&[0, 0, 0]), "BadEventCount(3)");
+    fails(w.create_scenario(&[0, 0, 0, 0]), "BadEventCount(4)");
 }
 
 #[test]
