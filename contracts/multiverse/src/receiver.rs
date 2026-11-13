@@ -18,6 +18,7 @@ use near_sdk::{env, near, serde_json, AccountId, PromiseOrValue};
 
 use crate::errors::fail;
 use crate::events::{MultiverseEvent, RealDeposit};
+use crate::lending::tiers::Tier;
 use crate::lending::RepayAmount;
 use crate::orders::Side;
 use crate::router::PlanFill;
@@ -138,6 +139,33 @@ pub struct LpDepositMsg {
 #[serde(crate = "near_sdk::serde", deny_unknown_fields)]
 pub struct SpotSwapMsg {
     pub min_out: U128,
+}
+
+/// What a liquidator takes: the seized pieces as tokens (default), or sold
+/// for real USDC in the same receipt.
+#[near(serializers = [json])]
+#[serde(rename_all = "snake_case")]
+#[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Receive {
+    #[default]
+    Tokens,
+    Cash,
+}
+
+/// Attached USDC into a market's insurance reserve; it cannot be taken back.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(crate = "near_sdk::serde", deny_unknown_fields)]
+pub struct FundInsuranceMsg {
+    pub scenario_id: u64,
+    #[serde(default)]
+    pub tier: Tier,
+}
+
+/// The attached wNEAR or USDC pledged to a proposal.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(crate = "near_sdk::serde", deny_unknown_fields)]
+pub struct PledgeMsg {
+    pub proposal_id: u64,
 }
 
 /// Strict parse; an empty `msg` is a plain deposit.

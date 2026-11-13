@@ -10,8 +10,9 @@ use proptest::prelude::*;
 
 use super::harness::*;
 use super::lending::*;
-use crate::amm::TEST_WORLD_PRICES;
+use crate::amm::test_hooks;
 use crate::lending::{check_liquidation_bonus, CollateralKey, Liquidation, LiquidationState};
+use crate::prices::WorldStatus;
 use crate::types::Asset::{Usdc, Wnear};
 use multiverse_math::risk::liquidation_target;
 use multiverse_math::{mul_div_down, mul_div_up};
@@ -90,7 +91,10 @@ fn crashed_wnear_loan(w: &mut World) {
 }
 
 pub fn price_of(sid: u64, world: u8) -> (u128, bool) {
-    TEST_WORLD_PRICES.with(|m| m.borrow().get(&(sid, world)).copied().unwrap_or((0, false)))
+    match test_hooks::quote(sid, world) {
+        Some(q) if q.status == WorldStatus::Trusted => (q.twap, true),
+        _ => (0, false),
+    }
 }
 
 /// The seized slice valued in every world, independently of the contract:

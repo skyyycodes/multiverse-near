@@ -220,7 +220,7 @@ impl Contract {
 
     /// `near_sdk::store` collections buffer writes until flushed, so storage
     /// usage only moves once they are written out. Every collection of the
-    /// contract must be listed here (`created` and the demo record write
+    /// contract must be listed here (`created` and the raw keys write
     /// through on their own).
     pub(crate) fn flush_state(&mut self) {
         self.events.flush();
@@ -247,6 +247,17 @@ impl Contract {
         self.lp_shares.flush();
         self.storage.flush();
         self.outlayer.flush();
+        self.account_version.flush();
+        self.catalog.flush();
+        self.world_supply.flush();
+        self.created_masks.flush();
+        self.account_scenarios.flush();
+        self.footprints.flush();
+        self.prices.configs.flush();
+        self.tier_states.flush();
+        self.borrower_count.flush();
+        self.borrower_at.flush();
+        self.borrower_pos.flush();
     }
 
     /// Charges what the call grew storage by (since `before`) to `payer`'s

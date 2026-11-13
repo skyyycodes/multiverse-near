@@ -25,10 +25,13 @@
 pub mod cpmm;
 pub mod fixed;
 pub mod flow;
+pub mod irm;
 pub mod odds;
 pub mod orders;
 pub mod price;
+pub mod pricing;
 pub mod risk;
+pub mod seed;
 #[cfg(feature = "serde")]
 mod serde_impls;
 pub mod shares;

@@ -85,6 +85,7 @@ impl Contract {
             world_count,
         }
         .emit();
+        self.on_scenario_created(sid);
         self.charge_storage_or_deposit(&env::predecessor_account_id(), before);
         sid
     }
@@ -324,6 +325,12 @@ impl Contract {
 
     fn set_reserve(&mut self, scenario_id: u64, asset: Asset, value: u128) {
         self.reserves.insert((scenario_id, asset), value);
+    }
+
+    /// Runs for every new scenario, owner-created or opened from pledges,
+    /// inside the segment whose storage the creator pays.
+    pub(crate) fn on_scenario_created(&mut self, sid: u64) {
+        self.prices_on_scenario_created(sid);
     }
 
     pub(crate) fn halted(&self, s: &Scenario) -> bool {

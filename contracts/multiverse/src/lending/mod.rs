@@ -21,6 +21,8 @@ use near_sdk::json_types::U128;
 use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::{assert_one_yocto, env, near, AccountId};
 
+pub mod tiers;
+
 use crate::errors::{add, fail, mul, sub};
 use crate::events::MultiverseEvent;
 use crate::receiver::{LiquidateMsg, RepayMsg, ScenarioMsg};
@@ -318,6 +320,18 @@ thread_local! {
 
 fn hf_arg(hf: Option<u128>) -> u128 {
     hf.unwrap_or(u128::MAX)
+}
+
+/// The real wNEAR and USDC among `pieces`, by books index.
+fn real_pieces(pieces: &[(CollateralKey, u128)]) -> [u128; 2] {
+    let mut held = [0u128; 2];
+    for (piece, amount) in pieces {
+        if let CollateralKey::Real(asset) = piece {
+            let i = crate::books::asset_index(*asset);
+            held[i] = held[i].saturating_add(*amount);
+        }
+    }
+    held
 }
 
 #[near]
@@ -1159,12 +1173,17 @@ impl Contract {
             .unwrap_or_default()
     }
 
+    /// The only writer of `collateral`: v1 data is folded first, then the
+    /// books follow the real pieces.
     fn set_pieces(
         &mut self,
         scenario_id: u64,
         account: &AccountId,
         list: Vec<(CollateralKey, u128)>,
     ) {
+        self.upgrade_account(account);
+        let old = real_pieces(&self.pieces(scenario_id, account));
+        self.books_on_collateral(account, old, real_pieces(&list));
         let k = (scenario_id, account.clone());
         if list.is_empty() {
             self.collateral.remove(&k);
