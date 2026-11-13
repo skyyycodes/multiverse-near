@@ -20,7 +20,7 @@ use near_sdk::{assert_one_yocto, env, near, AccountId};
 use crate::errors::{add, fail};
 use crate::events::MultiverseEvent;
 use crate::ledger::TransferBatch;
-use crate::lending::CollateralKey;
+use crate::lending::{require_normal, CollateralKey};
 use crate::masks;
 use crate::ops::PauseFlag;
 use crate::orders::Side;
@@ -197,6 +197,9 @@ impl Contract {
         msg: ConditionalSellMsg,
     ) {
         require_asset(asset, Asset::Wnear);
+        if msg.to_lending {
+            require_normal(msg.tier);
+        }
         let t = Trade {
             scenario_id: msg.scenario_id,
             amount,
@@ -215,6 +218,9 @@ impl Contract {
         msg: ConditionalBuyMsg,
     ) {
         require_asset(asset, Asset::Usdc);
+        if msg.to_lending {
+            require_normal(msg.tier);
+        }
         let t = Trade {
             scenario_id: msg.scenario_id,
             amount,
@@ -234,6 +240,7 @@ impl Contract {
         msg: SellAndBorrowMsg,
     ) {
         require_asset(asset, Asset::Wnear);
+        require_normal(msg.tier);
         let t = Trade {
             scenario_id: msg.scenario_id,
             amount,
@@ -294,6 +301,7 @@ impl Contract {
         msg: ScenarioMsg,
     ) {
         require_asset(asset, Asset::Usdc);
+        require_normal(msg.tier);
         self.close_for(sender, msg.scenario_id, Some(amount));
     }
 

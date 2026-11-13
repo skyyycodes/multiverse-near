@@ -28,7 +28,9 @@ use crate::{Contract, ContractExt};
 
 /// The `msg` of an `ft_transfer_call`, e.g. `{"action":"split","scenario_id":1,"to_masks":[5,10]}`.
 /// An empty `msg` means `deposit`. Amounts are internal (18-decimal) units.
-/// Unknown actions and unknown fields are rejected.
+/// Unknown actions and unknown fields are rejected. Fields added in v2 are
+/// optional (`tier` defaults to Normal, `receive` to tokens), so every v1 msg
+/// parses with the same meaning.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(crate = "near_sdk::serde", tag = "action", rename_all = "snake_case")]
 pub enum Action {
@@ -52,6 +54,10 @@ pub enum Action {
     /// Attached asset into the spot pool; the output is credited to the
     /// internal real balance.
     SpotSwap(SpotSwapMsg),
+    /// Attached USDC into a market's insurance reserve.
+    FundInsurance(FundInsuranceMsg),
+    /// The attached asset pledged to a proposal.
+    Pledge(PledgeMsg),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Default)]
@@ -74,6 +80,9 @@ pub struct ConditionalSellMsg {
     pub plans: Vec<Vec<PlanFill>>,
     pub min_out: Vec<U128>,
     pub to_lending: bool,
+    /// The market the result goes into with `to_lending`; ignored otherwise.
+    #[serde(default)]
+    pub tier: Tier,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -84,6 +93,9 @@ pub struct ConditionalBuyMsg {
     pub plans: Vec<Vec<PlanFill>>,
     pub min_out: Vec<U128>,
     pub to_lending: bool,
+    /// The market the result goes into with `to_lending`; ignored otherwise.
+    #[serde(default)]
+    pub tier: Tier,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -94,6 +106,8 @@ pub struct SellAndBorrowMsg {
     pub plans: Vec<Vec<PlanFill>>,
     pub min_out: Vec<U128>,
     pub borrow_amount: U128,
+    #[serde(default)]
+    pub tier: Tier,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -111,6 +125,8 @@ pub struct PostOrderMsg {
 #[serde(crate = "near_sdk::serde", deny_unknown_fields)]
 pub struct ScenarioMsg {
     pub scenario_id: u64,
+    #[serde(default)]
+    pub tier: Tier,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -118,6 +134,8 @@ pub struct ScenarioMsg {
 pub struct RepayMsg {
     pub scenario_id: u64,
     pub all: bool,
+    #[serde(default)]
+    pub tier: Tier,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -126,6 +144,13 @@ pub struct LiquidateMsg {
     pub scenario_id: u64,
     pub account_id: AccountId,
     pub repay_amount: RepayAmount,
+    #[serde(default)]
+    pub tier: Tier,
+    #[serde(default)]
+    pub receive: Receive,
+    /// Required with `receive: "cash"`, refused otherwise.
+    #[serde(default)]
+    pub min_out: Option<U128>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -288,22 +313,28 @@ impl Contract {
             }
             Action::LpDeposit(m) => self.ft_lp_deposit(sender, asset, amount, m),
             Action::SpotSwap(m) => self.ft_spot_swap(sender, asset, amount, m),
+            Action::FundInsurance(m) => self.ft_fund_insurance(sender, asset, amount, m),
+            Action::Pledge(m) => self.ft_pledge(sender, asset, amount, m),
         }
     }
 
-    /// The pause flags of each action. Deposits, repayments and collateral
-    /// top-ups are never paused.
+    /// The pause flags of each action. Deposits, repayments, collateral
+    /// top-ups and insurance donations are never paused.
     fn assert_action_live(&self, action: &Action) {
         match action {
-            Action::Deposit(_) | Action::Repay(_) | Action::DepositCollateral(_) => {}
+            Action::Deposit(_)
+            | Action::Repay(_)
+            | Action::DepositCollateral(_)
+            | Action::FundInsurance(_) => {}
             Action::Split(_) | Action::LpDeposit(_) => self.assert_live(PauseFlag::Mint),
             Action::ConditionalSell(m) => self.assert_trade_live(m.to_lending),
             Action::ConditionalBuy(m) => self.assert_trade_live(m.to_lending),
             Action::SellAndBorrow(_) => self.assert_trade_live(true),
             Action::PostOrder(_) | Action::SpotSwap(_) => self.assert_live(PauseFlag::Trade),
             Action::Supply(_) => self.assert_live(PauseFlag::Lend),
-            Action::Liquidate(_) => self.liquidation_gate(Receive::Tokens),
+            Action::Liquidate(m) => self.liquidation_gate(m.receive),
             Action::CloseAfterResolution(_) => self.assert_live(PauseFlag::Exit),
+            Action::Pledge(_) => self.assert_live(PauseFlag::Pledge),
         }
     }
 }
