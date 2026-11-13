@@ -68,10 +68,10 @@ describe("get test tokens", () => {
 
   it("lists each finished step, and nothing before the first", () => {
     expect(render(createElement(FaucetProgress, { done: [] }), wallet(null))).toBe("");
-    const html = render(createElement(FaucetProgress, { done: ["2,000 wNEAR minted to your wallet", "Registered with Multiverse"] }), wallet(null));
+    const html = render(createElement(FaucetProgress, { done: ["2,000 wNEAR minted to your wallet", "Registered with IfVerse"] }), wallet(null));
     expect(html).toContain('data-demo="faucet-progress"');
     expect(html).toContain("2,000 wNEAR minted to your wallet");
-    expect(html).toContain("Registered with Multiverse");
+    expect(html).toContain("Registered with IfVerse");
     expect(html.match(/<li/g)).toHaveLength(2);
   });
 });

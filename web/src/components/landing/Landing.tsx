@@ -6,6 +6,7 @@ import { useCallback, useSyncExternalStore } from "react";
 import { BranchLines } from "@/components/brand/BranchLines";
 import { IconLend, IconProtect, IconResolve, IconSplit } from "@/components/brand/Icons";
 import { Wordmark } from "@/components/brand/Mark";
+import { BRAND } from "@/lib/brand";
 import { useIsDesktop } from "@/lib/hooks/useMedia";
 import { useWallet } from "@/lib/near/wallet";
 import { SplitArt } from "./SplitArt";
@@ -50,6 +51,12 @@ export function useLandingVisible(): boolean {
   return wallet.ready && !wallet.accountId && !seen;
 }
 
+/** The headline with its last word set apart (the italic serif accent of the hero). */
+const headline = (() => {
+  const i = BRAND.headline.lastIndexOf(" ");
+  return { lead: BRAND.headline.slice(0, i), last: BRAND.headline.slice(i + 1) };
+})();
+
 const STEPS = [
   {
     icon: <IconSplit />,
@@ -73,7 +80,7 @@ const STEPS = [
   },
 ];
 
-/** First visit and the signed-out hero: what Multiverse is, in one screen, and the way in. */
+/** First visit and the signed-out hero: what the app is, in one screen, and the way in. */
 export function Landing({ embedded }: { embedded?: boolean }) {
   const wallet = useWallet();
   const router = useRouter();
@@ -107,15 +114,18 @@ export function Landing({ embedded }: { embedded?: boolean }) {
             </div>
 
             <div className={`flex flex-col gap-5 ${desktop ? "max-w-[540px] flex-1" : ""}`}>
+              <span className={`label ${ink ? "text-ink/60" : "text-white/65"}`} data-demo="landing-name">
+                {BRAND.name}
+              </span>
               <h1
-                className={`font-display leading-[1.02] font-bold tracking-[-0.01em] uppercase ${ink ? "text-ink" : "text-white"} ${desktop ? "text-[60px]" : "text-[34px]"}`}
+                className={`font-display leading-[1.04] font-bold tracking-[-0.015em] ${ink ? "text-ink" : "text-white"} ${desktop ? "text-[56px]" : "text-[34px]"}`}
                 data-demo="landing-headline"
               >
-                Hedge the future you{" "}
-                <span className={`font-serif font-normal tracking-normal normal-case italic ${desktop ? "text-[70px]" : "text-[40px]"}`}>fear</span>
+                {headline.lead}{" "}
+                <span className={`font-serif font-normal tracking-normal italic ${desktop ? "text-[64px]" : "text-[40px]"}`}>{headline.last}</span>
               </h1>
-              <p className={`max-w-[34rem] leading-relaxed ${ink ? "text-ink/80" : "text-white/85"} ${desktop ? "text-[18px]" : "text-[15px]"}`}>
-                Sell your NEAR only in the futures you&apos;re afraid of. Keep all of it in the ones you&apos;re not. Settled on NEAR.
+              <p className={`max-w-[34rem] leading-relaxed ${ink ? "text-ink/80" : "text-white/85"} ${desktop ? "text-[18px]" : "text-[15px]"}`} data-demo="landing-subline">
+                {BRAND.subline} {BRAND.explainer}
               </p>
               <div className={`mt-2 flex gap-3 ${desktop ? "flex-row items-center" : "flex-col"}`}>
                 {wallet.accountId ? (
@@ -170,6 +180,15 @@ export function Landing({ embedded }: { embedded?: boolean }) {
             </li>
           ))}
         </ol>
+        <footer className="mt-10 flex flex-col gap-2 border-t border-white/10 pt-6 text-[13px] leading-relaxed text-white/60" data-demo="landing-footer">
+          <p data-demo="paradigm-credit">
+            {BRAND.credit.text}:{" "}
+            <a href={BRAND.credit.url} target="_blank" rel="noreferrer" className="text-white/80 underline underline-offset-2 hover:text-white">
+              {BRAND.credit.url.replace(/^https:\/\/(www\.)?/, "")}
+            </a>
+          </p>
+          <p data-demo="testnet-note">{BRAND.testnetNote}</p>
+        </footer>
       </section>
     </main>
   );

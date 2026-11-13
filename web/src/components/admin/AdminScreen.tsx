@@ -11,6 +11,7 @@ import { ChainWait } from "@/components/ui/Notice";
 import { Block, Sheet, SheetTitle } from "@/components/ui/Surface";
 import { TxButton } from "@/components/ui/TxButton";
 import { WorldGrid, WorldPicker } from "@/components/world/WorldGrid";
+import { BRAND } from "@/lib/brand";
 import { CONTRACT_ID } from "@/lib/data/client";
 import type { AppConfig, EventState, Scenario } from "@/lib/domain";
 import { ENV } from "@/lib/env";
@@ -203,7 +204,9 @@ function PricePush({
 
   return (
     <Sheet demo="price-push">
-      <SheetTitle sub="Sells NEAR-if-w for USDC-if-w in one world's pool, inside the Multiverse contract, from this wallet. The price moves because a real swap happened, never because someone typed a number. You keep NEAR-if-w in the other worlds.">
+      <SheetTitle
+        sub={`Sells NEAR-if-w for USDC-if-w in one world's pool, inside the ${BRAND.name} contract, from this wallet. The price moves because a real swap happened, never because someone typed a number. You keep NEAR-if-w in the other worlds.`}
+      >
         Price push
       </SheetTitle>
       {picker && <WorldPicker scenario={s} events={events} selected={mask} onToggle={onPick} demo="push-pick" />}

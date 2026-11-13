@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Wordmark } from "@/components/brand/Mark";
+import { BRAND } from "@/lib/brand";
 import { AccountButton, HelpLink, StatusBell } from "./HeaderActions";
 import { NAV, samePath } from "./nav";
 import { ScenarioSwitch } from "./ScenarioSwitch";
@@ -12,7 +13,7 @@ export function TopBar() {
   const path = usePathname();
   return (
     <header className="mx-auto flex max-w-[1240px] items-center gap-3 px-6 pt-6 pb-2 xl:gap-6 xl:px-8">
-      <Link href="/" className="focus-ring shrink-0 rounded-full" aria-label="Multiverse Lending, home">
+      <Link href="/" className="focus-ring shrink-0 rounded-full" aria-label={`${BRAND.name}, home`}>
         <Wordmark />
       </Link>
       {/* Tested literally so a real build drops the chip, as it drops the fixtures themselves. */}

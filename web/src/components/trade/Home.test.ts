@@ -5,7 +5,7 @@ import { innerChipText } from "./Home";
 const E18 = 10n ** 18n;
 const none: Balances = { wnear: 0n, usdc: 0n, innerWnear: 0n, innerUsdc: 0n };
 
-describe("the In Multiverse chip", () => {
+describe("the In IfVerse chip", () => {
   it("stays hidden for nothing and for rounding dust", () => {
     expect(innerChipText(undefined)).toBeUndefined();
     expect(innerChipText(none)).toBeUndefined();

@@ -5,6 +5,7 @@ import { IconCopy } from "@/components/brand/Icons";
 import { Pill } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { TxButton } from "@/components/ui/TxButton";
+import { BRAND } from "@/lib/brand";
 import { CONTRACT_ID } from "@/lib/data/client";
 import { accountUrl } from "@/lib/env";
 import { fmt, fmtNear } from "@/lib/format";
@@ -18,7 +19,7 @@ import { fmtYocto, unitOf } from "@/lib/units";
 const FixtureControls =
   process.env.NEXT_PUBLIC_FIXTURES === "1" ? lazy(() => import("./FixturePicker").then((m) => ({ default: m.FixtureControls }))) : null;
 
-/** The connected account: balances, the internal "In Multiverse" balance and its withdrawal, storage, sign out. */
+/** The connected account: balances, the internal balance (`BRAND.innerBalance`) and its withdrawal, storage, sign out. */
 export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const wallet = useWallet();
   const config = useAppConfig();
@@ -75,7 +76,7 @@ export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => 
       )}
 
       <div className="flex flex-col gap-2">
-        <div className="label text-mute">In Multiverse</div>
+        <div className="label text-mute">{BRAND.innerBalance}</div>
         <p className="text-[12px] leading-relaxed text-mute">
           Real wNEAR and USDC the contract holds for you: payouts your wallet could not receive, sub-cent dust, deposits.
           Withdraw sends it to your wallet.
@@ -120,7 +121,7 @@ export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => 
         <span className="label text-mute">Storage</span>
         {reg.data?.contract ? (
           <span>
-            Registered with Multiverse:{" "}
+            Registered with {BRAND.name}:{" "}
             <span className="num text-ink">{fmtYocto(BigInt(reg.data.contract.total))} NEAR</span> deposited,{" "}
             <span className="num text-ink">{fmtYocto(BigInt(reg.data.contract.available))} NEAR</span> free. NEAR charges
             for the bytes your positions use; the deposit comes back when they are gone.

@@ -10,7 +10,7 @@ const world = (page: Page, label: string) =>
 
 test("first visit shows the landing, and looking around opens the home", async ({ page }) => {
   await page.goto("/?fx=seeded");
-  await expect(page.locator('[data-demo="landing-headline"]')).toContainText(/Hedge the future you/i);
+  await expect(page.locator('[data-demo="landing-headline"]')).toHaveText("What if your what-ifs became worlds?");
   await page.locator('[data-demo="welcome-skip"]').click();
   await expect(page.locator('[data-demo="hero-spot"]')).toContainText("$3.0378");
 });

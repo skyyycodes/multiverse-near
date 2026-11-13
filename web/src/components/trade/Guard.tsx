@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { HeroNumber, Screen } from "@/components/shell/Screen";
 import { ChainWait, Notice } from "@/components/ui/Notice";
+import { BRAND } from "@/lib/brand";
 import { CONTRACT_ID } from "@/lib/data/client";
 import type { AppConfig } from "@/lib/domain";
 import { ENV } from "@/lib/env";
@@ -34,7 +35,7 @@ export function ConfigGuard({ children, needDemo = true }: { children: (config: 
     return (
       <Frame>
         <Notice title="No contract yet">
-          The Multiverse contract <span className="font-mono text-ink">{CONTRACT_ID}</span> is not deployed on {ENV.network} yet.
+          The {BRAND.name} contract <span className="font-mono text-ink">{CONTRACT_ID}</span> is not deployed on {ENV.network} yet.
         </Notice>
       </Frame>
     );
@@ -52,8 +53,8 @@ function Frame({ children, loading }: { children: ReactNode; loading?: boolean }
     <HeroNumber label="NEAR spot" value="—" loading />
   ) : (
     <div className="flex flex-col gap-2">
-      <span className="label text-white/65">Multiverse Lending</span>
-      <span className="font-display text-[30px] leading-tight font-medium tracking-[-0.01em]">Hedge the future you fear</span>
+      <span className="label text-white/65">{BRAND.name}</span>
+      <span className="font-display text-[30px] leading-tight font-medium tracking-[-0.01em]">{BRAND.headline}</span>
     </div>
   );
   return (

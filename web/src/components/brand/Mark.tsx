@@ -1,5 +1,6 @@
 import { useId } from "react";
 import { HUES } from "@/components/world/hues";
+import { BRAND } from "@/lib/brand";
 
 /**
  * The mark: a circle cut into four quarters by a thin plus-shaped gap. The quarters sit where their worlds sit on the
@@ -49,9 +50,9 @@ export function Wordmark({ tone = "light", className = "" }: { tone?: "light" | 
     <span className={`inline-flex items-center gap-2 ${className}`}>
       <Mark size={26} bright={0} />
       <span
-        className={`font-display text-[19px] font-medium tracking-[-0.01em] lowercase ${tone === "light" ? "text-white" : "text-ink"}`}
+        className={`font-display text-[19px] font-medium tracking-[-0.01em] ${tone === "light" ? "text-white" : "text-ink"}`}
       >
-        multiverse
+        {BRAND.name}
       </span>
     </span>
   );

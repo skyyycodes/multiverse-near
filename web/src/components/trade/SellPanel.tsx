@@ -9,6 +9,7 @@ import { Band, SheetTitle } from "@/components/ui/Surface";
 import { TxButton } from "@/components/ui/TxButton";
 import { WorldGlyph } from "@/components/world/WorldBits";
 import { WorldPicker } from "@/components/world/WorldGrid";
+import { BRAND } from "@/lib/brand";
 import { CONTRACT_ID } from "@/lib/data/client";
 import type { AppConfig, EventState, Scenario } from "@/lib/domain";
 import { fmt, fmtNear, fmtPrice, inputText, parseAmount } from "@/lib/format";
@@ -135,7 +136,7 @@ export function SellPanel({ config, scenario, events, orders, nowSec, balances, 
             onChange={setFrom}
             options={[
               { value: "wallet", label: `Wallet · ${fmtNear(balances?.wnear ?? 0n)}`, demo: "sell-from-wallet" },
-              { value: "inner", label: `In Multiverse · ${fmtNear(innerWnear)}`, demo: "sell-from-inner" },
+              { value: "inner", label: `${BRAND.innerBalance} · ${fmtNear(innerWnear)}`, demo: "sell-from-inner" },
             ]}
           />
         </div>

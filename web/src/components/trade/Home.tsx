@@ -11,6 +11,7 @@ import type { CellQuote } from "@/components/world/WorldCard";
 import { hueOf, spaced } from "@/components/world/hues";
 import type { Scenario, World } from "@/lib/domain";
 import { fmt, fmtNear, fmtPrice, fmtUsd, pct } from "@/lib/format";
+import { BRAND } from "@/lib/brand";
 import type { Balances } from "@/lib/hooks/useData";
 import { useWallet } from "@/lib/near/wallet";
 
@@ -59,13 +60,13 @@ export function BalanceChips({ balances, loading, hideConnect }: { balances?: Ba
     <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 lg:mx-0 lg:px-0" data-demo="balance-chips">
       <BalanceChip glyph={<NearGlyph />} label="wNEAR" value={b ? fmtNear(b.wnear) : undefined} loading={loading} />
       <BalanceChip glyph={<UsdGlyph />} label="USDC" value={b ? fmt(b.usdc) : undefined} loading={loading} />
-      {inner && <BalanceChip glyph={<Mark size={20} />} label="In Multiverse" value={inner} />}
+      {inner && <BalanceChip glyph={<Mark size={20} />} label={BRAND.innerBalance} value={inner} />}
     </div>
   );
 }
 
 /**
- * The "In Multiverse" chip's text, or nothing when the amount rounds to zero at the chip's precision: a withdrawal can
+ * The inner-balance chip's text (`BRAND.innerBalance`), or nothing when the amount rounds to zero at the chip's precision: a withdrawal can
  * leave a few billionths of a USDC or wNEAR of rounding behind, and a chip reading 0.00 looks like money left over.
  */
 export function innerChipText(b: Balances | undefined): string | undefined {
