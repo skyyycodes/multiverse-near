@@ -22,6 +22,7 @@ use crate::events::MultiverseEvent;
 use crate::ledger::TransferBatch;
 use crate::lending::CollateralKey;
 use crate::masks;
+use crate::ops::PauseFlag;
 use crate::orders::Side;
 use crate::receiver::{
     ConditionalBuyMsg, ConditionalSellMsg, PostOrderMsg, ScenarioMsg, SellAndBorrowMsg,
@@ -119,6 +120,7 @@ impl Contract {
         to_lending: bool,
     ) -> Vec<U128> {
         assert_one_yocto();
+        self.assert_trade_live(to_lending);
         let user = env::predecessor_account_id();
         let before = env::storage_usage();
         let t = Trade {
@@ -146,6 +148,7 @@ impl Contract {
         to_lending: bool,
     ) -> Vec<U128> {
         assert_one_yocto();
+        self.assert_trade_live(to_lending);
         let user = env::predecessor_account_id();
         let before = env::storage_usage();
         let t = Trade {
@@ -167,6 +170,7 @@ impl Contract {
     #[payable]
     pub fn close_after_resolution(&mut self, scenario_id: u64) -> U128 {
         assert_one_yocto();
+        self.assert_live(PauseFlag::Exit);
         let user = env::predecessor_account_id();
         let before = env::storage_usage();
         let repaid = self.close_for(&user, scenario_id, None);
@@ -176,6 +180,15 @@ impl Contract {
 }
 
 impl Contract {
+    /// A trade needs `trade` live, and `lend` too when its result goes into
+    /// lending.
+    pub(crate) fn assert_trade_live(&self, to_lending: bool) {
+        self.assert_live(PauseFlag::Trade);
+        if to_lending {
+            self.assert_live(PauseFlag::Lend);
+        }
+    }
+
     pub(crate) fn ft_conditional_sell(
         &mut self,
         sender: &AccountId,

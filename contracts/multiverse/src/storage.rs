@@ -15,6 +15,7 @@ use near_sdk::{assert_one_yocto, env, near, AccountId, NearToken, Promise};
 
 use crate::errors::fail;
 use crate::events::{DustSwept, MultiverseEvent};
+use crate::ops::PauseFlag;
 use crate::types::{Asset, VerseKey};
 use crate::{Contract, ContractExt};
 
@@ -135,6 +136,7 @@ impl Contract {
     #[payable]
     pub fn storage_withdraw(&mut self, amount: Option<U128>) -> StorageBalance {
         assert_one_yocto();
+        self.assert_live(PauseFlag::Exit);
         let account_id = env::predecessor_account_id();
         let mut account = self.registered(&account_id);
         let available = account.available();
@@ -161,6 +163,7 @@ impl Contract {
     #[payable]
     pub fn storage_unregister(&mut self, force: Option<bool>) -> bool {
         assert_one_yocto();
+        self.assert_live(PauseFlag::Exit);
         if force == Some(true) {
             fail("ForceUnregisterUnsupported");
         }

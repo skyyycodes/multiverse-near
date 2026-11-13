@@ -23,6 +23,7 @@ use near_sdk::{assert_one_yocto, env, near, AccountId};
 use crate::errors::{fail, sub};
 use crate::events::MultiverseEvent;
 use crate::masks;
+use crate::ops::PauseFlag;
 use crate::types::{Asset, VerseKey};
 use crate::{now_sec, Contract, ContractExt};
 
@@ -207,6 +208,7 @@ impl Contract {
         expiry_sec: u64,
     ) -> U64 {
         assert_one_yocto();
+        self.assert_live(PauseFlag::Trade);
         let maker = env::predecessor_account_id();
         let before = env::storage_usage();
         let id = self.post_order_for(
@@ -228,6 +230,7 @@ impl Contract {
     #[payable]
     pub fn fill_order(&mut self, order_id: U64, amount: U128, limit_price: U128) -> FillResult {
         assert_one_yocto();
+        self.assert_live(PauseFlag::Trade);
         let taker = env::predecessor_account_id();
         let before = env::storage_usage();
         let (paid, received) = self.fill_order_for(&taker, order_id.0, amount.0, limit_price.0);
@@ -243,6 +246,7 @@ impl Contract {
     #[payable]
     pub fn cancel_order(&mut self, order_id: U64) -> U128 {
         assert_one_yocto();
+        self.assert_live(PauseFlag::Exit);
         let maker = env::predecessor_account_id();
         let before = env::storage_usage();
         let refund = self.internal_cancel(&maker, order_id.0);

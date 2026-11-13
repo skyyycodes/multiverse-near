@@ -15,6 +15,7 @@ use crate::events::{
     DisputeWindowSet, EventCreated, EventFinalized, MultiverseEvent, OutcomeProposed,
     ProposalDisputed, ReportReceived, ReporterSet,
 };
+use crate::ops::PauseFlag;
 use crate::types::{EventData, EventView, ProposedBy, Source};
 use crate::{now_sec, Contract, ContractExt};
 
@@ -39,6 +40,7 @@ impl Contract {
         rule: String,
         deadline_sec: u64,
     ) -> u64 {
+        self.assert_live(PauseFlag::Mint);
         self.assert_owner();
         if question.is_empty() || rule.is_empty() {
             fail("EmptyText");
@@ -101,6 +103,7 @@ impl Contract {
         target: AccountId,
         evidence: String,
     ) {
+        self.assert_live(PauseFlag::Oracle);
         let caller = env::predecessor_account_id();
         if self.reporter_id.as_ref() != Some(&caller) {
             fail!("NotReporter({caller})");
@@ -147,6 +150,7 @@ impl Contract {
 
     /// Anyone, no deposit, from `finalizable_at` on.
     pub fn finalize(&mut self, event_id: u64) {
+        self.assert_live(PauseFlag::Oracle);
         if !self.event(event_id).proposal_open {
             fail!("NoOpenProposal({event_id})");
         }

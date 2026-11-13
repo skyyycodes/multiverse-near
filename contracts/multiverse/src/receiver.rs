@@ -20,6 +20,7 @@ use crate::errors::fail;
 use crate::events::{MultiverseEvent, RealDeposit};
 use crate::lending::tiers::Tier;
 use crate::lending::RepayAmount;
+use crate::ops::PauseFlag;
 use crate::orders::Side;
 use crate::router::PlanFill;
 use crate::types::Asset;
@@ -263,8 +264,11 @@ impl Contract {
     }
 
     /// Runs one action for `sender` with `amount` (internal units) of `asset`
-    /// just credited to their internal balance.
+    /// just credited to their internal balance. The action's pause flags are
+    /// checked first, so a paused action fails `Paused(<flag>)` and the token
+    /// refunds the whole transfer.
     fn dispatch(&mut self, sender: &AccountId, asset: Asset, amount: u128, action: Action) {
+        self.assert_action_live(&action);
         match action {
             Action::Deposit(_) => {}
             Action::Split(m) => {
@@ -284,6 +288,22 @@ impl Contract {
             }
             Action::LpDeposit(m) => self.ft_lp_deposit(sender, asset, amount, m),
             Action::SpotSwap(m) => self.ft_spot_swap(sender, asset, amount, m),
+        }
+    }
+
+    /// The pause flags of each action. Deposits, repayments and collateral
+    /// top-ups are never paused.
+    fn assert_action_live(&self, action: &Action) {
+        match action {
+            Action::Deposit(_) | Action::Repay(_) | Action::DepositCollateral(_) => {}
+            Action::Split(_) | Action::LpDeposit(_) => self.assert_live(PauseFlag::Mint),
+            Action::ConditionalSell(m) => self.assert_trade_live(m.to_lending),
+            Action::ConditionalBuy(m) => self.assert_trade_live(m.to_lending),
+            Action::SellAndBorrow(_) => self.assert_trade_live(true),
+            Action::PostOrder(_) | Action::SpotSwap(_) => self.assert_live(PauseFlag::Trade),
+            Action::Supply(_) => self.assert_live(PauseFlag::Lend),
+            Action::Liquidate(_) => self.liquidation_gate(Receive::Tokens),
+            Action::CloseAfterResolution(_) => self.assert_live(PauseFlag::Exit),
         }
     }
 }

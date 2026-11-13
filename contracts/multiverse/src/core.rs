@@ -17,6 +17,7 @@ use near_sdk::{assert_one_yocto, env, near, AccountId};
 use crate::errors::{add, fail, sub};
 use crate::events::{Merged, MultiverseEvent, Redeemed, ScenarioCreated, Split, WorldsRemoved};
 use crate::masks::{self, MAX_EVENTS, MAX_WORLDS};
+use crate::ops::PauseFlag;
 use crate::types::{Asset, BackingView, Scenario, ScenarioInfo, VerseKey, WorldBacking};
 use crate::{Contract, ContractExt};
 
@@ -32,6 +33,7 @@ impl Contract {
     /// scenario's identity.
     #[payable]
     pub fn create_scenario(&mut self, event_ids: Vec<u64>) -> u64 {
+        self.assert_live(PauseFlag::Mint);
         self.assert_owner();
         let n = event_ids.len();
         if n == 0 || n > MAX_EVENTS {
@@ -102,6 +104,7 @@ impl Contract {
         amount: U128,
     ) {
         assert_one_yocto();
+        self.assert_live(PauseFlag::Mint);
         let account = env::predecessor_account_id();
         let before = env::storage_usage();
         self.internal_split(&account, scenario_id, asset, from_mask, &to_masks, amount.0);
@@ -120,6 +123,7 @@ impl Contract {
         amount: U128,
     ) {
         assert_one_yocto();
+        self.assert_live(PauseFlag::Exit);
         let account = env::predecessor_account_id();
         let before = env::storage_usage();
         let released =
@@ -135,6 +139,7 @@ impl Contract {
     #[payable]
     pub fn redeem(&mut self, scenario_id: u64, asset: Asset, mask: u8, amount: U128) {
         assert_one_yocto();
+        self.assert_live(PauseFlag::Exit);
         let account = env::predecessor_account_id();
         let before = env::storage_usage();
         self.internal_redeem(&account, scenario_id, asset, mask, amount.0);
@@ -147,6 +152,7 @@ impl Contract {
     /// set up first. Anyone may call it; it is idempotent and the caller pays
     /// the storage.
     pub fn register_verse(&mut self, scenario_id: u64, asset: Asset, mask: u8) -> String {
+        self.assert_live(PauseFlag::Mint);
         let account = env::predecessor_account_id();
         let s = self.scenario(scenario_id);
         masks::check_mask(mask, s.root());

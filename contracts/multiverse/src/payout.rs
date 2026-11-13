@@ -13,6 +13,7 @@ use near_sdk::{
 
 use crate::errors::fail;
 use crate::events::{MultiverseEvent, PayoutFailed, RealWithdraw};
+use crate::ops::PauseFlag;
 use crate::types::Asset;
 use crate::{Contract, ContractExt};
 
@@ -31,6 +32,7 @@ impl Contract {
     #[payable]
     pub fn withdraw(&mut self, asset: Asset, amount: U128) {
         assert_one_yocto();
+        self.assert_live(PauseFlag::Exit);
         if amount.0 == 0 {
             fail("ZeroAmount");
         }

@@ -25,6 +25,7 @@ pub mod tiers;
 
 use crate::errors::{add, fail, mul, sub};
 use crate::events::MultiverseEvent;
+use crate::ops::PauseFlag;
 use crate::receiver::{LiquidateMsg, RepayMsg, ScenarioMsg};
 use crate::types::{Asset, VerseKey, WAD};
 use crate::{masks, now_sec, Contract, ContractExt};
@@ -340,6 +341,7 @@ impl Contract {
     #[payable]
     pub fn withdraw_supply(&mut self, scenario_id: u64, amount: Option<U128>) -> U128 {
         assert_one_yocto();
+        self.assert_live(PauseFlag::Exit);
         let account = env::predecessor_account_id();
         let before = env::storage_usage();
         let assets = self.withdraw_supply_for(&account, scenario_id, amount.map(|a| a.0));
@@ -367,6 +369,12 @@ impl Contract {
     pub fn withdraw_collateral(&mut self, scenario_id: u64, piece: String, amount: U128) {
         assert_one_yocto();
         let account = env::predecessor_account_id();
+        // With debt the withdrawal is a lending action; without, an exit.
+        if self.borrow_shares_of(scenario_id, &account) != 0 {
+            self.assert_live(PauseFlag::Lend);
+        } else {
+            self.assert_live(PauseFlag::Exit);
+        }
         let before = env::storage_usage();
         let key = CollateralKey::parse(scenario_id, &piece)
             .unwrap_or_else(|| fail!("NotCollateral({piece})"));
@@ -382,6 +390,7 @@ impl Contract {
     #[payable]
     pub fn borrow(&mut self, scenario_id: u64, amount: U128) {
         assert_one_yocto();
+        self.assert_live(PauseFlag::Lend);
         let account = env::predecessor_account_id();
         let before = env::storage_usage();
         self.borrow_for(&account, scenario_id, amount.0);
