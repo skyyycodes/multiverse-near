@@ -368,7 +368,7 @@ export function ScenarioMarket({ market: m }: { market: Market }) {
               </>
             ) : tab === 'hedge' ? (
               <>
-                <p className="ticket__help">Sell your NEAR for USDC of the same world, only in the worlds you picked in the list: <b>{shapeName(m, pick)}</b>. {pct(FEE)} fee, more when trading is one-sided.</p>
+                <p className="ticket__help">Sell your NEAR for USDC of the same world, only in the worlds you picked in the list: <b>{shapeName(m, pick)}</b>. {pct(FEE, 2)} fee, up to 1.50% when trading is one-sided.</p>
                 <table className="sc__preview">
                   <thead><tr><th>World</th><th className="r">Now</th><th className="r">After</th></tr></thead>
                   <tbody>

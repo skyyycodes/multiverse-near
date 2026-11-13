@@ -96,3 +96,11 @@ main { min-height: calc(100vh - 120px); }
 .pf-what li b { font-size: 13px; color: var(--u-ink); }
 .pf-what li span { font-size: 12px; color: var(--u-muted); }
 .pf-what .tr__means { margin: 8px 0; }
+
+/* signed-out portfolio: both columns end together, the side panels share the height evenly */
+.pf-gated { align-items: stretch; }
+.pf-gated .mk__main, .pf-gated .mk__side { position: static; }
+.pf-gated .mk__main > .pf-gate { flex: 1; }
+.pf-gated .mk__side > .pf-what { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+.pf-gated .pf-what ul { gap: 14px; }
+.pf-what .tr__link { margin-left: 0; align-self: flex-start; }

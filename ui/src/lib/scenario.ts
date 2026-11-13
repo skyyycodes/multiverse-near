@@ -34,6 +34,7 @@ export type Scenario = {
   others: { near: number[]; usdc: number[] } // what other traders hold in each world, resting orders' escrow included
   lp: number // USDC you put into every world's pool at once (Root LP)
   lpFees: number // your share of the swap fees those pools have taken
+  cost: number // what you put in, in USDC at today's spot price when you put it in (the portfolio's cost basis)
   claimed: { near: number; usdc: number; repaid: number; lp: number } | null
   log: string[]
 }
@@ -154,22 +155,25 @@ export function fresh(m: Market, nearPerWorld = 0): Scenario {
     others: { near: Array(n).fill(0), usdc: Array(n).fill(0) },
     lp: 0,
     lpFees: 0,
+    cost: 0,
     claimed: null,
     log: [],
   }
-  if (nearPerWorld) s = deposit(s, 'near', nearPerWorld)
+  if (nearPerWorld) s = deposit(s, 'near', nearPerWorld, m.worlds.reduce((t, w) => t + w.chance * w.nearPrice, 0))
   for (const [e, o] of m.settled ?? []) s = finalize(m, s, e, o)
   return { ...s, log: [] }
 }
 const note = (s: Scenario, text: string): Scenario => ({ ...s, log: [text, ...s.log].slice(0, 6) })
 
 // deposit real NEAR or USDC and push it down into every world still possible
-export function deposit(s: Scenario, asset: 'near' | 'usdc', amount: number): Scenario {
+// `spot`: today's NEAR price, to add the deposit to the cost basis
+export function deposit(s: Scenario, asset: 'near' | 'usdc', amount: number, spot = 0): Scenario {
   if (!(amount > 0)) return s
   const add = (xs: number[]) => xs.map((x, w) => (has(s.possible, w) ? x + amount : x))
+  const cost = s.cost + (asset === 'near' ? amount * spot : amount)
   return asset === 'near'
-    ? { ...s, near: add(s.near), reserves: { ...s.reserves, near: s.reserves.near + amount } }
-    : { ...s, usdc: add(s.usdc), reserves: { ...s.reserves, usdc: s.reserves.usdc + amount } }
+    ? { ...s, cost, near: add(s.near), reserves: { ...s.reserves, near: s.reserves.near + amount } }
+    : { ...s, cost, usdc: add(s.usdc), reserves: { ...s.reserves, usdc: s.reserves.usdc + amount } }
 }
 
 // another trader deposits real assets and pushes them down into every world still possible
@@ -405,7 +409,7 @@ export const actions = {
     const fromWallet = via === VIA_WALLET
     if (fromWallet && amount > store.wallet[asset] + 1e-9) return
     const wallet = fromWallet ? { ...store.wallet, [asset]: store.wallet[asset] - amount } : store.wallet
-    put(id, deposit(s, asset, amount), `Deposited ${fmt(amount)} ${asset.toUpperCase()} ${via} and pushed it down into every world still possible.`, undefined, wallet)
+    put(id, deposit(s, asset, amount, spotPrice(market(id), s)), `Deposited ${fmt(amount)} ${asset.toUpperCase()} ${via} and pushed it down into every world still possible.`, undefined, wallet)
   },
   sell(id: string, mask: number) {
     const m = market(id), s = store.sc[id]
@@ -540,6 +544,14 @@ export const actions = {
     put(id, b.s, undefined, { ...p, borrowed: p.borrowed - store.sc[id].debt }, undefined, [...store.orders.filter((o) => o.scenario !== id), ...b.orders])
   },
   // a new scenario of one or two yes/no events
+  // lock wallet USDC behind a proposed market (the roadmap's pledge step); returns false if the wallet can't cover it
+  pledge(amount: number, question: string, side: 'hedge' | 'take'): boolean {
+    if (!(amount > 0) || amount > store.wallet.usdc + 1e-9) return false
+    store = { ...store, wallet: { ...store.wallet, usdc: store.wallet.usdc - amount } }
+    record(null, `Pledged ${fmt(amount)} USDC ${side === 'hedge' ? 'to hedge' : 'to take the other side'} in “${question}”, if it opens.`)
+    emit()
+    return true
+  },
   createMarket(question: string, events: ScenarioEvent[], resolves: string): Market {
     const base = question.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'market'
     let id = base

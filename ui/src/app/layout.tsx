@@ -20,6 +20,8 @@ import '../styles/desk.css'
 import '../styles/borrow.css'
 import '../styles/global-ui.css'
 import '../styles/refine.css'
+import '../styles/pages-research.css'
+import '../styles/portfolio.css'
 
 export const metadata: Metadata = {
   title: 'Origami Verse',

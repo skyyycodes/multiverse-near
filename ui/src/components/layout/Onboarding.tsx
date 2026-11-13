@@ -37,7 +37,8 @@ export function Onboarding() {
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState(0)
   useEffect(() => {
-    if (pathname === '/') return
+    // the landing tells the story itself, and a ?demo=1 link means the visitor was sent straight in
+    if (pathname === '/' || new URLSearchParams(window.location.search).get('demo') === '1') return
     try { if (!localStorage.getItem(KEY)) setOpen(true) } catch { /* storage blocked: skip the intro */ }
   }, [pathname])
   const close = () => { setOpen(false); try { localStorage.setItem(KEY, '1') } catch { /* fine */ } }

@@ -12,10 +12,11 @@ working app. It covers every screen `web/` has, plus a market list and a few mor
 | `/borrow` | Loan position, borrow capacity, liquidation price per world, collateral at risk, LTV slider |
 | `/lend` | Supply and withdraw, rate history, where the pool is lent, underwriting every world |
 | `/resolve` | Every event with its rule, sources, deadline and a proposed → dispute → final timeline |
-| `/portfolio` | Guaranteed and average value, positions by world, open orders, trades, activity |
+| `/portfolio` | The range of futures you hold (worst to best world, with a "what if NEAR moves" control), value and P&L against cost, positions, orders, trades, activity, allocation |
 | `/admin` | Owner console: resolve events, move a world's price, mint test tokens, reseed |
 | `/docs` | How it works, with the testnet run and its explorer links |
-| `/markets/new`, `/proposals` | Roadmap ideas (pledge-funded markets, decision markets), labelled as not in the contract |
+| `/markets/new` | Roadmap: propose a market (five-step wizard), pledge from both sides, owner check, open already funded |
+| `/proposals` | Roadmap: decision markets, pass vs fail time-weighted prices against a +3% threshold, as MetaDAO decides |
 
 ## Status
 

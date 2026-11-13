@@ -63,8 +63,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   // the demo wallet is remembered in this browser, so a reload doesn't sign you out of it
   const DEMO_KEY = 'ov-demo-wallet'
+  // ?demo=1 on any link opens the site already on the demo wallet, e.g. to share a ready-to-explore page
   useEffect(() => {
-    try { if (localStorage.getItem(DEMO_KEY) === '1') setAccount((a) => a ?? DEMO_ACCOUNT) } catch { /* storage blocked */ }
+    const viaLink = new URLSearchParams(window.location.search).get('demo') === '1'
+    let remembered = false
+    try { remembered = localStorage.getItem(DEMO_KEY) === '1'; if (viaLink) localStorage.setItem(DEMO_KEY, '1') } catch { /* storage blocked */ }
+    if (viaLink || remembered) setAccount((a) => a ?? DEMO_ACCOUNT)
   }, [])
   const connectDemo = useCallback(() => {
     setWallet(null); setAccount(DEMO_ACCOUNT)
