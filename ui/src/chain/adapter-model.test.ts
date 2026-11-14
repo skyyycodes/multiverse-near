@@ -117,7 +117,10 @@ describe("a market from its card and its events", () => {
     expect(m).toMatchObject({ sid: 1, id: "1", href: "/market/?id=1", category: "NEAR ecosystem", categories: ["NEAR ecosystem", "Macro"], kind: "Combination · 4 worlds" });
     expect(m.question).toBe(`${SPICE.question} × ${FED.question}`);
     expect(m.title).toBe(m.question);
-    expect(m.resolves).toBe("9 Dec 2026");
+    // the market settles with its last open event (SPICE, 31 Mar 2027); the card's deadline is the next answer (the Fed's)
+    expect(m.resolves).toBe("31 Mar 2027");
+    expect(m.resolvesSec).toBe(1_806_537_599);
+    expect(m.deadlineSec).toBe(1_796_842_800);
     expect(m.lendable).toBe(true);
     expect(m.tiers).toEqual(["safe", "normal", "bold"]);
     expect(m.liquidity).toBeCloseTo(2_653_181.2, 1);
@@ -130,6 +133,13 @@ describe("a market from its card and its events", () => {
     ]);
     expect(m.worlds.map((w) => w.chance)).toEqual([0.4, 0.2, 0.3, 0.1]);
     expect(m.worlds[0].nearPrice).toBeCloseTo(4.36, 6);
+  });
+
+  it("resolves with the last event still open", () => {
+    const answered = new Map(texts);
+    answered.set(1, { ...SPICE, finalized: true });
+    const m = chainMarket(card(), answered, metas)!;
+    expect([m.resolves, m.resolvesSec]).toEqual(["9 Dec 2026", 1_796_842_800]);
   });
 
   it("reads a resolved market as settled, with the world that happened, and no lending", () => {

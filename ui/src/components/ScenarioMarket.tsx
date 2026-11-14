@@ -89,6 +89,7 @@ export function ScenarioMarket({ market: m }: { market: ChainMarket }) {
           <div><dt>World pools</dt><dd className="num">{compactUsd(m.liquidity)}</dd></div>
           {!m.settled && <div title="NEAR's price these odds imply: each world's chance times NEAR's price there"><dt>Implied NEAR</dt><dd className="num">{priceText(m.impliedSpot)}</dd></div>}
           {pc?.reference && <div title={`The outside NEAR/USD median the contract checks this market against, ${relTime(-pc.reference.ageSec)}`}><dt>NEAR/USD</dt><dd className="num">{priceText(toNum(pc.reference.price))}</dd></div>}
+          {!m.settled && m.deadlineSec > 0 && m.deadlineSec < m.resolvesSec && <div title="The soonest deadline among this market's open events"><dt>Next answer</dt><dd className="num">{shortDate(m.deadlineSec)}</dd></div>}
           <div><dt>{m.settled ? 'Status' : 'Resolves'}</dt><dd className="num">{m.resolves}</dd></div>
         </dl>
         <div className="mk__headacts">
