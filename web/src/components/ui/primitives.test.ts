@@ -10,6 +10,8 @@ import { SearchField } from "./SearchField";
 import { TextArea, TextField } from "./TextField";
 
 const noop = () => undefined;
+/** Children go in createElement's third argument; the props type still names them. */
+type DisclosureProps = Parameters<typeof Disclosure>[0];
 
 describe("form primitives", () => {
   it("count UTF-8 bytes against the limit", () => {
@@ -59,9 +61,9 @@ describe("form primitives", () => {
     expect(chips).toContain('role="radiogroup"');
     expect(chips).toMatch(/aria-checked="true"[^>]*data-demo="market-filter-all"/);
     expect(chips).toMatch(/<button[^>]*disabled=""[^>]*data-demo="market-filter-single"/);
-    const closed = renderToStaticMarkup(createElement(Disclosure, { title: "Rules", demo: "rules", children: "body" }));
+    const closed = renderToStaticMarkup(createElement(Disclosure, { title: "Rules", demo: "rules" } as DisclosureProps, "body"));
     expect(closed).toContain('aria-expanded="false"');
     expect(closed).not.toContain("body");
-    expect(renderToStaticMarkup(createElement(Disclosure, { title: "Rules", defaultOpen: true, children: "body" }))).toContain("body");
+    expect(renderToStaticMarkup(createElement(Disclosure, { title: "Rules", defaultOpen: true } as DisclosureProps, "body"))).toContain("body");
   });
 });
