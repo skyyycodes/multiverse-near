@@ -8,15 +8,16 @@ const isPhone = (page: Page) => (page.viewportSize()?.width ?? 1440) < 1024;
 const world = (page: Page, label: string) =>
   isPhone(page) ? page.locator(`[data-demo="world-pick"][data-world="${label}"]`) : page.locator(`[data-demo="world-card"][data-world="${label}"]`);
 
-test("first visit shows the landing, and looking around opens the home", async ({ page }) => {
+// `/` is the market list (WEB-A); a market's trade home lives at /market/?id=N.
+test("first visit shows the landing, and looking around opens the market list", async ({ page }) => {
   await page.goto("/?fx=seeded");
   await expect(page.locator('[data-demo="landing-headline"]')).toHaveText("What if your what-ifs became worlds?");
   await page.locator('[data-demo="welcome-skip"]').click();
-  await expect(page.locator('[data-demo="hero-spot"]')).toContainText("$3.0378");
+  await expect(page.locator('[data-demo="list-hero"]')).toBeVisible();
 });
 
 test("the home shows every world backed, and the market in the URL changes the grid", async ({ page }) => {
-  await page.goto("/?fx=seeded&welcome=0");
+  await page.goto("/market/?id=1&fx=seeded&welcome=0");
   const worlds = isPhone(page) ? page.locator('[data-demo="future-row"]') : page.locator('[data-demo="world-card"]');
   await expect(worlds).toHaveCount(4);
   await expect(page.locator('[data-demo="stat-backing"]')).toContainText("✓ all backed");
@@ -29,7 +30,7 @@ test("the home shows every world backed, and the market in the URL changes the g
 });
 
 test("Alice sells in three worlds: Ravi's bid fills first, one transaction, collateral lands", async ({ page }) => {
-  await page.goto(isPhone(page) ? "/sell/?fx=seeded&as=alice" : "/?fx=seeded&as=alice");
+  await page.goto(isPhone(page) ? "/sell/?fx=seeded&as=alice" : "/market/?id=1&fx=seeded&as=alice");
   await expect(page.locator('[data-demo="sell-wallet"]')).toHaveText("wallet: 2,000.00 wNEAR");
   const confirm = page.locator('[data-demo="sell-confirm"]');
   await expect(confirm).toHaveText("Tap the worlds you fear on the grid");
@@ -50,7 +51,7 @@ test("Alice sells in three worlds: Ravi's bid fills first, one transaction, coll
   await confirm.click();
   await expect(page.locator('[data-demo="sell-confirm-result"]')).toContainText("Done · ");
   if (isPhone(page)) {
-    await page.goto("/?fx=sold&as=alice");
+    await page.goto("/market/?id=1&fx=sold&as=alice");
     await expect(page.locator('[data-demo="future-row"][data-world="DELAYED·HOLDS"]')).toContainText("you: 4,881.88 USDC");
   } else {
     await expect(page.locator('[data-demo="world-card"][data-world="SHIPS·CUTS"]')).toContainText("You hold 2,000.00 NEAR here · loan collateral");
@@ -133,7 +134,7 @@ test("the admin sees owner controls and the price push quote", async ({ page }) 
 });
 
 test("every screen shows Ravi's bid as DELAYED·HOLDS's best bid, Resolve and Admin included", async ({ page }) => {
-  for (const route of ["/?fx=seeded&welcome=0", "/resolve/?fx=seeded", "/admin/?fx=seeded&as=owner"]) {
+  for (const route of ["/market/?id=1&fx=seeded&welcome=0", "/resolve/?fx=seeded", "/admin/?fx=seeded&as=owner"]) {
     await page.goto(route);
     if (isPhone(page)) {
       if (route.startsWith("/admin")) continue; // the phone's admin screen has no world list
@@ -149,7 +150,7 @@ test("every screen shows Ravi's bid as DELAYED·HOLDS's best bid, Resolve and Ad
 
 test("the grid names each axis's question once, in full", async ({ page }) => {
   test.skip(isPhone(page), "the big grid is desktop only");
-  await page.goto("/?fx=seeded&welcome=0");
+  await page.goto("/market/?id=1&fx=seeded&welcome=0");
   const axes = page.locator('[data-demo="grid-axes"]');
   await expect(axes).toContainText("Will SPICE ship on NEAR mainnet by Mar 31, 2027?");
   await expect(axes).toContainText("Will the Fed cut at its December meeting?");

@@ -47,7 +47,7 @@ test("the grid, signed out: four backed worlds, prices and spot as the contract 
   await page.goto("/welcome/");
   await expect(page.locator('[data-demo="landing-headline"]')).toBeVisible();
   await shoot(page, "01-landing");
-  await page.goto("/?welcome=0");
+  await page.goto("/market/?id=1&welcome=0");
   const t = await view<{ scenario: { worlds: World[]; spot_price: string; implied_spot: string } }>("trade_view", { scenario_id: S });
   const cards = page.locator('[data-demo="world-card"]');
   await expect(cards).toHaveCount(4);
@@ -57,20 +57,20 @@ test("the grid, signed out: four backed worlds, prices and spot as the contract 
   await expect(page.locator('[data-demo="stat-backing"]')).toContainText("✓ all backed");
   await expect(page.locator('[data-demo="stat-actual-spot"]')).toContainText(`$${price4(t.scenario.spot_price)}`);
   await expect(page.locator('[data-demo="stat-implied-spot"]')).toContainText(`$${price4(t.scenario.implied_spot)}`);
-  await shoot(page, "02-grid", "/?welcome=0");
-  await page.locator('[data-demo="scenario-switch"]').click();
-  await page.locator('[data-demo="scenario-binary"]').click();
+  await shoot(page, "02-grid", "/market/?id=1&welcome=0");
+  // the market is the URL's (the scenario switch is gone): the demo record names the binary one
+  const { demo } = await view<{ demo: { scenario_binary: number } }>("get_app_config");
+  await page.goto(`/market/?id=${demo.scenario_binary}&welcome=0`);
   await expect(cards).toHaveCount(2);
   await shoot(page, "03-binary");
-  await page.locator('[data-demo="scenario-switch"]').click();
-  await page.locator('[data-demo="scenario-2x2"]').click();
+  await page.goto("/market/?id=1&welcome=0");
   await expect(cards).toHaveCount(4);
   await page.context().close();
 });
 
 test("Alice sells 2,000 NEAR in the L-shape: Ravi's bid in the preview, one transaction, collateral lands", async ({ browser }) => {
   const page = await as(browser, "alice");
-  await page.goto("/");
+  await page.goto("/market/?id=1");
   await connected(page, "alice");
   await expect(page.locator('[data-demo="sell-wallet"]')).toHaveText("wallet: 2,000.00 wNEAR");
   for (const label of ["DELAYED·CUTS", "SHIPS·HOLDS", "DELAYED·HOLDS"]) await page.locator(`[data-demo="world-card"][data-world="${label}"]`).click();
@@ -94,7 +94,7 @@ test("Alice sells 2,000 NEAR in the L-shape: Ravi's bid in the preview, one tran
   await expect(page.locator('[data-demo="sell-row"][data-world="SHIPS·CUTS"]')).toContainText("keep → 2,000.00 NEAR");
   await shoot(page, "04-sell-preview", "/sell/?sel=14");
 
-  await page.goto("/?sel=14");
+  await page.goto("/market/?id=1&sel=14");
   await expect(confirm).toHaveText("Sell in 3 worlds");
   await confirm.click();
   await expect(page.locator('[data-demo="sell-confirm-result"]')).toContainText("Done · ", { timeout: 60_000 });
@@ -105,7 +105,7 @@ test("Alice sells 2,000 NEAR in the L-shape: Ravi's bid in the preview, one tran
   for (const w of t.scenario.worlds.slice(1)) {
     await expect(page.locator(`[data-demo="world-card"][data-world="${w.label}"]`)).toContainText(`You hold ${usd(w.collateral_usdc)} USDC here · loan collateral`);
   }
-  await shoot(page, "05-after-sale", "/?welcome=0");
+  await shoot(page, "05-after-sale", "/market/?id=1&welcome=0");
   await page.goto("/world/?w=3");
   await expect(page.locator('[data-demo="world-info"]')).toBeVisible();
   await shoot(page, "05b-world");

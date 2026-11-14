@@ -75,7 +75,7 @@ test("the sale is one ft_transfer_call of 2,000 wNEAR carrying the plan, and the
   const signed: Signed[] = [];
   await serveChain(page);
   await demoWallet(page, signed, (tx) => ftOutcome(tx));
-  await page.goto("/");
+  await page.goto("/market/?id=1");
   await expect(page.locator('[data-demo="account"]')).toHaveAttribute("aria-label", `Account ${ALICE}`);
   await expect(page.locator('[data-demo="sell-wallet"]')).toHaveText("wallet: 2,000.00 wNEAR");
   for (const w of ["DELAYED·CUTS", "SHIPS·HOLDS", "DELAYED·HOLDS"]) await page.locator(`[data-demo="world-card"][data-world="${w}"]`).click();
