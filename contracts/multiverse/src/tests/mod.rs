@@ -19,6 +19,7 @@ mod borrowers;
 mod cash_out;
 mod catalog_fixture;
 mod catalog_open;
+mod catalog_pledge;
 mod catalog_propose;
 mod core;
 mod eight;

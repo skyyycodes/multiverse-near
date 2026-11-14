@@ -57,7 +57,19 @@ pub fn set_params(w: &mut World, f: impl FnOnce(&mut MarketParams)) -> Result<()
 /// as references (SPICE -> binary, Fed -> 2x2), the 2x2 as the anchor, and a
 /// full TWAP window later.
 pub fn market_world() -> World {
-    let mut w = pool_world();
+    let w = pool_world();
+    with_markets(w)
+}
+
+/// `market_world` with a wNEAR of `decimals` decimals.
+pub fn market_world_with_decimals(decimals: u8) -> World {
+    let mut w = World::new_with_wnear_decimals(decimals);
+    w.fund(OWNER);
+    w.fund(CAROL);
+    with_markets(w)
+}
+
+fn with_markets(mut w: World) -> World {
     let (s, b) = (w.s2x2, w.s_bin);
     seed_worlds(&mut w, s, &DEMO_2X2, &[DEPTH; 4]);
     seed_odds(&mut w, s, &independent_odds(4, 6_667, 100), ODDS_DEPTH);
