@@ -15,8 +15,9 @@ trade each world in its own pool or order book, keep NEAR in the worlds you like
 ones you fear, and borrow real USDC against your worst world. When the events resolve, the worlds that did not
 happen die, and what you hold in the surviving world redeems 1:1 for real wNEAR or USDC.
 
-Everything runs in one NEAR contract, `app.multiverse-near.testnet`, on NEAR testnet with mock tokens. The web app
-is hosted at https://multiverse-lending.vercel.app.
+Everything runs in one NEAR contract on NEAR testnet with mock tokens. Version 2 is live: the contract is
+`app.ifverse-staging.testnet` and the web app is hosted at https://multiverse-lending.vercel.app. The first
+version's contract, `app.multiverse-near.testnet`, is still on chain and unchanged.
 
 New to this? [docs/LEARN.md](docs/LEARN.md) explains the project from zero.
 
@@ -36,99 +37,95 @@ covers the debt in whichever world comes true.
 
 ### Accounts
 
-| Role | Account | Explorer |
-|---|---|---|
-| Owner (creates events, scenarios, pools; admin resolve and dispute) | `multiverse-near.testnet` | https://testnet.nearblocks.io/address/multiverse-near.testnet |
-| Protocol contract | `app.multiverse-near.testnet` | https://testnet.nearblocks.io/address/app.multiverse-near.testnet |
-| Mock wNEAR (NEP-141, 24 decimals, "Mock Wrapped NEAR") | `wnear.multiverse-near.testnet` | https://testnet.nearblocks.io/address/wnear.multiverse-near.testnet |
-| Mock USDC (NEP-141, 6 decimals, "Mock USD Coin") | `usdc.multiverse-near.testnet` | https://testnet.nearblocks.io/address/usdc.multiverse-near.testnet |
-| Reporter (proposes outcomes) | `resolver.multiverse-near.testnet` | https://testnet.nearblocks.io/address/resolver.multiverse-near.testnet |
-| Alice (sells and borrows) | `alice.multiverse-near.testnet` | https://testnet.nearblocks.io/address/alice.multiverse-near.testnet |
-| Bob (lender) | `bob.multiverse-near.testnet` | https://testnet.nearblocks.io/address/bob.multiverse-near.testnet |
-| Ravi (order book maker) | `ravi.multiverse-near.testnet` | https://testnet.nearblocks.io/address/ravi.multiverse-near.testnet |
-| Sam (order book taker) | `sam.multiverse-near.testnet` | https://testnet.nearblocks.io/address/sam.multiverse-near.testnet |
-| Uma (Root LP) | `uma.multiverse-near.testnet` | https://testnet.nearblocks.io/address/uma.multiverse-near.testnet |
-| Carl (unhedged borrower) | `carl.multiverse-near.testnet` | https://testnet.nearblocks.io/address/carl.multiverse-near.testnet |
-| Leo (lender, liquidator) | `leo.multiverse-near.testnet` | https://testnet.nearblocks.io/address/leo.multiverse-near.testnet |
+| Role | Account |
+|---|---|
+| Owner (approves new events, pause flags, admin resolve) | `ifverse-staging.testnet` |
+| Protocol contract (v2.0.0) | `app.ifverse-staging.testnet` |
+| Mock wNEAR (NEP-141, 24 decimals) | `wnear.ifverse-staging.testnet` |
+| Mock USDC (NEP-141, 6 decimals) | `usdc.ifverse-staging.testnet` |
+| Reporter (proposes outcomes, posts the NEAR/USD reference) | `resolver.ifverse-staging.testnet` |
+| Keeper (liquidates loans below health factor 1) | `keeper.ifverse-staging.testnet` |
+| Maker (keeps the lendable market near the real NEAR price) | `maker.ifverse-staging.testnet` |
+| Personas (lenders, borrowers, order book, proposers) | `alice`, `bob`, `ravi`, `sam`, `uma`, `carl`, `leo` `.ifverse-staging.testnet` |
 
-The same ids are in `deployments/testnet.json`. The contract's code hash on testnet is
-`G6GtUs6AqHfxRb8YCdBx5dv1bgiQ3c1gDhPE9ygQTkEt`; both tokens run `8afCVgFKDom2fYt5BZatMXPLXMiJ1vWHBiUTpN6AyggY`.
-Both are what `scripts/build-wasm.sh` builds (see "The wasm build").
+Explorer: `https://testnet.nearblocks.io/address/<account>`. The same ids are in `deployments/staging.json`. The
+contract's code hash is `9K62NFX7gQiGajRuLTFcPy7F9n5nADSrFgESttUSFcRR`; both tokens run
+`8afCVgFKDom2fYt5BZatMXPLXMiJ1vWHBiUTpN6AyggY`. Both are what `scripts/build-wasm.sh` builds.
 
-The testnet demo is shared. What you see is the state the last seeding, sale or test run left. The Trade screen
-shows `scenario {id} · {n} resolved`; if the demo's events are already resolved there, the full story is easiest to
-follow on the local sandbox (see "Verify it yourself").
+### What is live
+
+- **Eight markets on five real events**, each with a written rule and a public source: SPICE on NEAR mainnet by
+  Mar 31 2027, a Fed cut at the December 2026 meeting, the October 2026 Fed decision, NEAR's close on Nov 1 2026, and
+  NEAR above $3.25 on Dec 31 2026. Markets have two, four or eight worlds (market 8 combines three events).
+- **Lending in three tiers** on market 1 (SPICE × Fed December): Safe, Normal and Bold borrow up to 50, 60 and 70%
+  of the worst world's value and liquidate at 60, 70 and 80%. Bold has an insurance fund. The other markets are
+  trading-only.
+- **Proposals and pledges:** anyone can propose a combination of up to three open events, which opens by itself
+  when pledges reach its goal, or a brand-new event with a bond, which the owner approves or rejects. Markets 4 to
+  8 were opened this way.
+- **An outside NEAR/USD check:** the reporter posts the median of Coinbase, Kraken, Gemini and CoinGecko. Borrowing
+  and opening a market need a reference under an hour old, and borrowing stops if a market's implied price drifts
+  more than 10% from it.
+- **A hosted keeper** (`/api/keeper/` on the same Vercel project) posts that reference, keeps the lendable market
+  within 4% of it and liquidates unhealthy loans. It runs when anyone has the site open (at most once a minute)
+  and on a daily cron, so nothing depends on a laptop.
+- The October Fed decision and NEAR's Nov 1 close were left open at launch so the demo video resolves them on
+  camera from their public sources (10-minute dispute window).
+
+The testnet demo is shared: what you see is the state that trades, loans and proposals so far have left.
 
 ### What you need
 
-- A NEAR testnet account in a wallet that NEAR Connect lists on testnet: Meteor, Intear or Nightly work. NEAR
-  Connect shows only wallets that declare testnet support.
+- A NEAR testnet account in a wallet that NEAR Connect lists on testnet: Meteor, Intear or Nightly work.
 - Some testnet NEAR for gas and the 0.1 NEAR storage registration (https://near-faucet.io).
-- Node 22 and pnpm 10, only to run the app locally or to run the checks in "Verify it yourself".
-- Test wNEAR and USDC. Once your wallet is connected, click "Get test tokens" in the account sheet (or under the
-  balances on the Trade screen while your wallet holds no wNEAR and no USDC). It mints 2,000 wNEAR and 5,000 USDC to
-  your own account (skipping a token you already hold that much of), then pays the 0.1 NEAR IfVerse storage
-  deposit if you have none: up to three wallet approvals. The mock tokens have an open `mint` capped at 1,000,000 wNEAR and 10,000,000 USDC per call, and an
-  account that is not registered with the token yet can only mint to itself, which registers it. Without the app,
-  NEAR CLI (`near-cli-rs`) does the same:
+- Test wNEAR and USDC: once your wallet is connected, click "Get test tokens" on the market list (or in the
+  account sheet). It mints 2,000 wNEAR and 5,000 USDC to your own account and pays the 0.1 NEAR IfVerse storage
+  deposit if you have none. The mock tokens have an open `mint`; without the app, NEAR CLI does the same:
 
 ```bash
-near contract call-function as-transaction wnear.multiverse-near.testnet mint \
+near contract call-function as-transaction wnear.ifverse-staging.testnet mint \
   json-args '{"account_id":"<you>.testnet","amount":"2000000000000000000000000000"}' \
   prepaid-gas '30.0 Tgas' attached-deposit '0 NEAR' \
   sign-as <you>.testnet network-config testnet sign-with-keychain send
 
-near contract call-function as-transaction usdc.multiverse-near.testnet mint \
+near contract call-function as-transaction usdc.ifverse-staging.testnet mint \
   json-args '{"account_id":"<you>.testnet","amount":"5000000000"}' \
   prepaid-gas '30.0 Tgas' attached-deposit '0 NEAR' \
   sign-as <you>.testnet network-config testnet sign-with-keychain send
 ```
 
-That is 2,000 wNEAR (24 decimals) and 5,000 USDC (6 decimals). The Admin screen's "Mint <amount> test wNEAR to my
-wallet" button is a separate tool for the owner's price pushes; for any other account it reads "Oracle owner only".
+- Node 22 and pnpm 10, only to run the app locally or the checks in "Verify it yourself".
 
 ### Open the app
 
-The hosted app is https://multiverse-lending.vercel.app: a static Next.js export with no server, reading
-`app.multiverse-near.testnet` on NEAR testnet. Its paths end in a slash (https://multiverse-lending.vercel.app/sell/?sel=14).
-
-To run the same app locally instead:
+The hosted app is https://multiverse-lending.vercel.app: a static Next.js export plus the keeper function, reading
+`app.ifverse-staging.testnet`. Its paths end in a slash. To run the same app locally:
 
 ```bash
 pnpm -C web install
-pnpm -C web dev        # http://localhost:3040, reads app.multiverse-near.testnet
+pnpm -C web dev:staging   # http://localhost:3040, reads app.ifverse-staging.testnet
 ```
-
-`pnpm -C web dev:fixtures` runs the same app on recorded demo data with no chain and no wallet (see `web/README.md`).
 
 ### Do X - see Y
 
-1. Open https://multiverse-lending.vercel.app (or http://localhost:3040). See the landing page. Click "Look around
-   first". See the Trade screen: one card per world (on a phone, a strip of small cards) with its pool price,
-   "Actual spot" and "Implied spot" (odds times world prices), and "Every world balances: ✓ all backed".
-2. Click "Connect NEAR wallet" and pick Meteor, Intear or Nightly. See your wallet's wNEAR and USDC on the Trade
-   screen; if both are zero, click "Get test tokens" there. Before the first action that stores something, the app
-   asks for a one-time NEP-145 storage deposit.
-3. Select the worlds DELAYED·CUTS, SHIPS·HOLDS and DELAYED·HOLDS on the grid (on a phone, tap Sell in the bottom
-   bar and pick them under "Pick the worlds you fear"), or open https://multiverse-lending.vercel.app/sell/?sel=14.
-   "Amount of NEAR" starts at 2000, the whole faucet drop; keep it or enter less. See, per world, "Fair price",
-   "You get" and "Cost / NEAR"; resting bids that pay more than the pool are filled first. Leave "Keep the result as
-   loan collateral" ticked and click "Sell in 3 worlds". See one wallet prompt (an `ft_transfer_call` on the wNEAR
-   token, no approval), then "Done · <first 10 characters of the hash>…", which links to the transaction on nearblocks.
-4. Open Borrow. See "Health factor (worst world)" and the name of your worst world: the world where your collateral
-   is worth least. Enter an amount in USDC and click "Borrow". See real USDC arrive in your wallet and the health
-   factor drop.
-5. Open Lend (More, then Lend on a phone). Under "Supply USDC", supply some USDC and click "Supply"; see "You
-   supplied" and "Utilization" move. Withdraw it again with "all".
-6. Open "Order book" in the desktop top bar (More, then Order book on a phone). Pick a world, post a bid or an ask
-   with "Post bid" or "Post ask", or click "Accept" on a resting order and then "Confirm". See your order in the
-   ladder and under "Your orders here".
-7. Open Resolve (More, then Resolve on a phone). See each event's question and the rule stored with it. The two grid events show "Open" and "No
-   result yet" until the reporter proposes an outcome; a proposal shows "Proposed: <outcome>" with "Dispute window"
-   and its countdown, and once final the worlds that did not happen die. Under "Real data: a past Fed decision", the
-   October Fed meeting shows "Resolved: HOLDS" by OutLayer (TEE). After resolution, "Close and redeem" is one
-   transaction: it repays the loan with USDC from your wallet, takes every collateral piece back and redeems the
-   collapsed ones for real tokens.
+1. Open the site. See the market list: search, filter and sort; each card shows its worlds and prices. Open a
+   market (`/market/?id=1`) to see its worlds, prices, actions and related markets; `/market/?id=8` shows eight
+   worlds.
+2. Click "Connect NEAR wallet", then "Get test tokens".
+3. Split (`/split/`): one wNEAR becomes one NEAR-if-world in every world of the market. Sell (`/sell/`): pick the
+   worlds you fear and sell NEAR there for USDC-if-world.
+4. Lend (`/lend/?id=1`): supply USDC in Safe, Normal or Bold and withdraw it. Borrow (`/borrow/?id=1`): post
+   collateral in a tier, borrow USDC, and see the health factor in your worst world; repay and take the collateral
+   back.
+5. Order book (More, then Order book): post a bid or an ask in a world, or take a resting one.
+6. At-risk loans (`/liquidate/`): every borrower with a health factor; a loan below 1 can be liquidated for tokens
+   or for cash.
+7. Propose a market (`/propose/`): a combination of open events, or a new event with its rule and source. Pledge
+   on its page (`/proposal/?p=N`); a combination opens by itself at its goal, and pledges are refunded if it does
+   not.
+8. Resolve (`/resolve/`): each event's question, rule and source, the proposed outcome and its dispute window.
+   Once final, the worlds that did not happen die and the surviving world redeems 1:1 for real tokens.
+9. Admin (`/admin/`) is the owner's screen: approve or reject new events, pause flags, contract version.
 
 ## Verify it yourself
 
