@@ -65,3 +65,9 @@ a.xgrid__cell:focus-visible { outline: 2px solid var(--accent); outline-offset: 
   .docs__table--txs .docs__tr > :nth-child(2) { display: none; }
   .docs__compare { grid-template-columns: 1fr; }
 }
+
+/* phones: refine.css sets the five-column row after landing.css's phone rule, so the world rows lost it. Again here:
+   the world and its chance on one line, the buttons under them. */
+@media (max-width: 720px) {
+  .mk__row, .mk__rowhead { grid-template-columns: minmax(0, 1fr) auto; }
+}
