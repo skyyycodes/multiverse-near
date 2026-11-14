@@ -20,6 +20,7 @@ export function Screen({
   asideFirst,
   back,
   demo,
+  layout,
 }: {
   hero: ReactNode;
   children?: ReactNode;
@@ -29,8 +30,19 @@ export function Screen({
   /** A back link above the hero, for screens one step below a tab (sell, order book, world). */
   back?: { href: string; label: string };
   demo?: string;
+  /** wide: one column on a desktop, no aside (the market list). */
+  layout?: "wide";
 }) {
   const desktop = useIsDesktop();
+  if (desktop && layout === "wide") {
+    return (
+      <main data-demo={demo} className="mx-auto flex max-w-[1240px] flex-col gap-6 px-8 pt-6 pb-24">
+        {back && <BackLink {...back} dark />}
+        <div className="text-white">{hero}</div>
+        {children}
+      </main>
+    );
+  }
   if (desktop) {
     return (
       <main data-demo={demo} className="mx-auto grid max-w-[1240px] grid-cols-[minmax(0,1fr)_440px] gap-8 px-8 pt-6 pb-24">

@@ -8,7 +8,7 @@ import { IconArrowUpRight } from "@/components/brand/Icons";
 import type { World } from "@/lib/domain";
 import type { CellQuote } from "@/lib/orders";
 import { fmt, fmtNear, fmtUsd, pct } from "@/lib/format";
-import { alpha, hueOf } from "./hues";
+import { alpha, HATCH, hueOf, initials, isHatched } from "./hues";
 
 const ONE = 10n ** 18n;
 
@@ -26,10 +26,11 @@ export function auroraStyle(index: number, alive: boolean, strength = 1): CSSPro
   };
 }
 
-export function Aurora({ index, alive, strength }: { index: number; alive: boolean; strength?: number }) {
+export function Aurora({ index, alive, strength, hatched = isHatched(index) }: { index: number; alive: boolean; strength?: number; hatched?: boolean }) {
   return (
     <>
       <span aria-hidden="true" className="absolute inset-0" style={auroraStyle(index, alive, strength)} />
+      {hatched && <span aria-hidden="true" data-hatch="" className="absolute inset-0" style={{ background: HATCH }} />}
       <BranchLines opacity={0.1} />
       <span aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-[inherit] ring-1 ring-white/10 ring-inset" />
       <span
@@ -78,18 +79,55 @@ type Props = {
   /** Corner tag on a selected card: SELL on the sell tab, BOOK when its order book is open. */
   badge?: string;
   detailsHref?: string;
+  /** compact: 132 px tall, initials, price and odds only (the eight-world grid side by side). */
+  size?: "full" | "compact";
 };
 
 /**
  * One world on the grid. Tapping it adds it to the sale (or opens its order book); a world ruled out by a resolution
  * loses its hue and fades back.
  */
-export function WorldCard({ world, oddsKnown, selected, onToggle, quote, badge = "SELL", detailsHref }: Props) {
+export function WorldCard({ world, oddsKnown, selected, onToggle, quote, badge = "SELL", detailsHref, size = "full" }: Props) {
   const reduce = useReducedMotion();
   const dead = !world.possible;
   const readOnly = !onToggle;
   const hue = hueOf(world.index, !dead);
   const ring: CSSProperties = selected ? { boxShadow: `0 0 0 2px ${hue}, 0 18px 50px -18px ${alpha(hue, 0.7)}` } : {};
+  if (size === "compact") {
+    return (
+      <motion.button
+        type="button"
+        disabled={dead || readOnly}
+        onClick={() => onToggle?.(world.mask)}
+        aria-pressed={readOnly ? undefined : selected}
+        aria-label={`${world.label}: ${world.poolInitialized ? fmtUsd(world.wnearPrice) : "no pool"}`}
+        title={world.label}
+        data-demo="world-card"
+        data-world={world.label}
+        data-size="compact"
+        animate={dead ? { opacity: 0.35, filter: "grayscale(1)" } : { opacity: 1, filter: "grayscale(0)" }}
+        transition={{ duration: reduce ? 0 : 0.9, ease: "easeOut" }}
+        style={ring}
+        className={`focus-ring relative isolate flex h-[132px] w-full min-w-0 flex-col justify-between overflow-hidden rounded-[18px] p-3.5 text-left text-white shadow-card ${
+          readOnly ? "cursor-default" : dead ? "cursor-not-allowed" : "hover:shadow-[0_0_0_1px_rgba(255,255,255,0.25)]"
+        }`}
+      >
+        <Aurora index={world.index} alive={!dead} />
+        <span className="relative z-10 flex items-center justify-between gap-2">
+          <span className={`truncate font-mono text-[12px] font-medium tracking-[0.06em] ${dead ? "line-through" : ""}`}>{initials(world.label)}</span>
+          {selected && (
+            <span className="rounded-full px-2 py-0.5 text-[9px] leading-none font-bold tracking-[0.1em] text-ink" style={{ background: hue }}>
+              {badge}
+            </span>
+          )}
+        </span>
+        <span className="relative z-10 flex flex-col">
+          <span className="numeral text-[24px] leading-none">{world.poolInitialized ? fmtUsd(world.wnearPrice) : "no pool"}</span>
+          <span className="num mt-1 text-[11px] text-white/60">odds {oddsKnown ? pct(world.odds, ONE) : "—"}</span>
+        </span>
+      </motion.button>
+    );
+  }
   return (
     <div className="relative min-w-0">
       <motion.button

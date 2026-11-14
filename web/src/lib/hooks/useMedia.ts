@@ -21,3 +21,20 @@ export function useIsDesktop(): boolean {
     () => false,
   );
 }
+
+const WIDE = "(min-width: 1280px)";
+
+function subscribeWide(fn: () => void) {
+  const m = window.matchMedia(WIDE);
+  m.addEventListener("change", fn);
+  return () => m.removeEventListener("change", fn);
+}
+
+/** 1280 px and up: room for the eight-world grid's two blocks side by side. */
+export function useIsWide(): boolean {
+  return useSyncExternalStore(
+    subscribeWide,
+    () => window.matchMedia(WIDE).matches,
+    () => false,
+  );
+}

@@ -16,6 +16,8 @@ import { usePool, useScenarioId, useTrade } from "@/lib/hooks/useData";
 import { useIsDesktop } from "@/lib/hooks/useMedia";
 import { useWallet } from "@/lib/near/wallet";
 import { cellBook } from "@/lib/orders";
+import { marketHref, ordersHref, sellHref, worldHref } from "@/lib/links";
+import { digit, gridBlocks } from "@/lib/market";
 import { Aurora, BackedBadge } from "./WorldCard";
 import { hueOf, spaced } from "./hues";
 
@@ -42,13 +44,13 @@ function WorldDetail({ config }: { config: AppConfig }) {
 
   const select = (i: number) => {
     setIndex(i);
-    router.replace(`/world/?w=${i}`, { scroll: false });
+    if (sid !== undefined) router.replace(worldHref(sid, i), { scroll: false });
   };
 
   return (
     <Screen
       demo="world"
-      back={{ href: "/", label: "Trade" }}
+      back={{ href: sid === undefined ? "/" : marketHref(sid), label: "Trade" }}
       asideFirst
       hero={s ? <Carousel scenario={s} index={current} onIndex={select} wide={desktop} /> : <div className="skeleton-dark h-56 rounded-[22px]" />}
       aside={
@@ -61,7 +63,7 @@ function WorldDetail({ config }: { config: AppConfig }) {
         )
       }
     >
-      {s && world && trade.data && <Conditions scenario={s} world={world} events={trade.data.events} />}
+      {s && world && trade.data && <Conditions world={world} events={trade.data.events} />}
     </Screen>
   );
 }
@@ -173,13 +175,17 @@ function DetailCard({
         <BackedBadge ok={world.backed} />
       </span>
       <span className="relative grid place-items-center" aria-hidden="true">
-        <span className={`grid gap-1 ${count === 4 ? "grid-cols-2" : "grid-cols-2"}`}>
-          {(count === 4 ? [0, 2, 1, 3] : [0, 1]).map((q) => (
-            <span
-              key={q}
-              className="size-5 rounded-[6px]"
-              style={q === world.index ? { background: hue, boxShadow: `0 0 24px ${hue}` } : { boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.28)" }}
-            />
+        <span className="flex gap-2.5">
+          {gridBlocks(count).map((block, b) => (
+            <span key={b} className="grid grid-cols-2 gap-1">
+              {block.map((q) => (
+                <span
+                  key={q}
+                  className={count === 8 ? "size-4 rounded-[5px]" : "size-5 rounded-[6px]"}
+                  style={q === world.index ? { background: hue, boxShadow: `0 0 24px ${hue}` } : { boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.28)" }}
+                />
+              ))}
+            </span>
           ))}
         </span>
       </span>
@@ -236,13 +242,13 @@ function WorldInfo({ config, scenario, world, orders }: { config: AppConfig; sce
       </div>
       {!dead && (
         <div className="grid grid-cols-2 gap-2">
-          <PillLink href={`/sell/?w=${world.index}`} tone="primary" size="lg" demo="world-sell-here">
+          <PillLink href={sellHref(scenario.scenarioId, { w: world.index })} tone="primary" size="lg" demo="world-sell-here">
             Sell here
           </PillLink>
-          <PillLink href={`/orders/?w=${world.index}&buy=1`} tone="secondary" size="lg" demo="world-buy-here">
+          <PillLink href={ordersHref(scenario.scenarioId, { w: world.index, buy: true })} tone="secondary" size="lg" demo="world-buy-here">
             Buy here
           </PillLink>
-          <PillLink href={`/orders/?w=${world.index}`} tone="ghost" size="md" className="col-span-2" demo="world-order-book">
+          <PillLink href={ordersHref(scenario.scenarioId, { w: world.index })} tone="ghost" size="md" className="col-span-2" demo="world-order-book">
             Order book
           </PillLink>
         </div>
@@ -261,10 +267,12 @@ function positionText(w: World): string {
   return `${parts.join(" + ")}${posted ? " · collateral" : ""}`;
 }
 
+const CONDITION = ["", "it happens", "both happen", "all three happen"];
+
 /** The events' outcomes this world stands for, in plain words: what has to happen for its tokens to pay. */
-function Conditions({ scenario, world, events }: { scenario: Scenario; world: World; events: readonly EventState[] }) {
-  // world = a + 2b: event A's outcome is the low digit, event B's the high one
-  const outcomes = events.map((e, k) => ({ e, o: k === 0 ? world.index % 2 : Math.floor(world.index / 2) % 2 }));
+function Conditions({ world, events }: { world: World; events: readonly EventState[] }) {
+  // world = a + 2b + 4c: event k's outcome is the k-th binary digit of the index
+  const outcomes = events.map((e, k) => ({ e, o: digit(world.index, k) }));
   return (
     <Block title="What has to happen" demo="world-conditions">
       <ul className="flex flex-col">
@@ -283,7 +291,7 @@ function Conditions({ scenario, world, events }: { scenario: Scenario; world: Wo
         })}
       </ul>
       <p className="text-[13px] leading-relaxed text-mute">
-        If {scenario.worldCount === 4 ? "both happen" : "it happens"}, wNEAR-if-{world.label} pays 1 real wNEAR and USDC-if-{world.label} pays 1 real USDC,
+        If {CONDITION[events.length] ?? "they all happen"}, wNEAR-if-{world.label} pays 1 real wNEAR and USDC-if-{world.label} pays 1 real USDC,
         per token. If not, they pay nothing.
       </p>
     </Block>
