@@ -42,53 +42,9 @@ impl Contract {
     ) -> u64 {
         self.assert_live(PauseFlag::Mint);
         self.assert_owner();
-        if question.is_empty() || rule.is_empty() {
-            fail("EmptyText");
-        }
-        if outcome_names.len() != 2 {
-            fail!("NotBinary({})", outcome_names.len());
-        }
-        if outcome_names.iter().any(String::is_empty) {
-            fail("EmptyText");
-        }
-        if question.len() > MAX_QUESTION_BYTES {
-            fail("TextTooLong(question)");
-        }
-        if rule.len() > MAX_RULE_BYTES {
-            fail("TextTooLong(rule)");
-        }
-        if outcome_names
-            .iter()
-            .any(|n| n.len() > MAX_OUTCOME_NAME_BYTES)
-        {
-            fail("TextTooLong(outcome_names)");
-        }
+        check_event_text(&question, &outcome_names, &rule).unwrap_or_else(|e| fail(&e));
         let before = env::storage_usage();
-        self.event_count += 1;
-        let event_id = self.event_count;
-        EventCreated {
-            event_id,
-            question: &question,
-            outcome_names: &outcome_names,
-            rule: &rule,
-            deadline_sec,
-        }
-        .emit();
-        self.events.insert(
-            event_id,
-            EventData {
-                question,
-                rule,
-                outcome_names,
-                deadline_sec,
-                proposed_at_sec: 0,
-                proposed_outcome: 0,
-                proposal_open: false,
-                finalized: false,
-                outcome: 0,
-                proposed_by: ProposedBy::Nobody,
-            },
-        );
+        let event_id = self.internal_create_event(question, outcome_names, rule, deadline_sec);
         self.charge_storage_or_deposit(&env::predecessor_account_id(), before);
         event_id
     }
@@ -277,6 +233,43 @@ impl Contract {
 }
 
 impl Contract {
+    /// Stores a new event whose texts passed `check_event_text` and logs
+    /// `event_created`; the caller pays the storage.
+    pub(crate) fn internal_create_event(
+        &mut self,
+        question: String,
+        outcome_names: Vec<String>,
+        rule: String,
+        deadline_sec: u64,
+    ) -> u64 {
+        self.event_count += 1;
+        let event_id = self.event_count;
+        EventCreated {
+            event_id,
+            question: &question,
+            outcome_names: &outcome_names,
+            rule: &rule,
+            deadline_sec,
+        }
+        .emit();
+        self.events.insert(
+            event_id,
+            EventData {
+                question,
+                rule,
+                outcome_names,
+                deadline_sec,
+                proposed_at_sec: 0,
+                proposed_outcome: 0,
+                proposal_open: false,
+                finalized: false,
+                outcome: 0,
+                proposed_by: ProposedBy::Nobody,
+            },
+        );
+        event_id
+    }
+
     pub(crate) fn event(&self, event_id: u64) -> &EventData {
         self.events
             .get(&event_id)
@@ -334,6 +327,39 @@ impl Contract {
         }
         .emit();
     }
+}
+
+/// The text checks of a new event, shared by `create_event` and
+/// `propose_event`, in this order: `EmptyText` (question or rule),
+/// `NotBinary(n)`, `EmptyText` (an outcome name), then `TextTooLong` of the
+/// question, the rule and the outcome names.
+pub(crate) fn check_event_text(
+    question: &str,
+    outcome_names: &[String],
+    rule: &str,
+) -> Result<(), String> {
+    if question.is_empty() || rule.is_empty() {
+        return Err("EmptyText".to_string());
+    }
+    if outcome_names.len() != 2 {
+        return Err(format!("NotBinary({})", outcome_names.len()));
+    }
+    if outcome_names.iter().any(String::is_empty) {
+        return Err("EmptyText".to_string());
+    }
+    if question.len() > MAX_QUESTION_BYTES {
+        return Err("TextTooLong(question)".to_string());
+    }
+    if rule.len() > MAX_RULE_BYTES {
+        return Err("TextTooLong(rule)".to_string());
+    }
+    if outcome_names
+        .iter()
+        .any(|n| n.len() > MAX_OUTCOME_NAME_BYTES)
+    {
+        return Err("TextTooLong(outcome_names)".to_string());
+    }
+    Ok(())
 }
 
 fn cancel(event_id: u64, e: &mut EventData) {

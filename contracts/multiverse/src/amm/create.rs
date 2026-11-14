@@ -8,7 +8,7 @@ use multiverse_math::cpmm;
 use multiverse_math::flow::SwapFlow;
 use multiverse_math::twap::TwapOracle;
 use near_sdk::json_types::U128;
-use near_sdk::{assert_one_yocto, env, near};
+use near_sdk::{assert_one_yocto, env, near, AccountId};
 
 use super::events::PoolCreated;
 use super::{Pool, PoolKind, Position, SPOT_FEE_PIPS};
@@ -18,6 +18,14 @@ use crate::masks;
 use crate::ops::PauseFlag;
 use crate::types::{Asset, VerseKey};
 use crate::{now_sec, Contract, ContractExt};
+
+/// Who seeds a new pool: the owner from its balances, or the contract from
+/// tokens already in its custody (a market opened from pledges).
+#[derive(Clone, Copy)]
+pub(crate) enum PoolFunding<'a> {
+    Owner(&'a AccountId),
+    Custody,
+}
 
 /// The swap `move_spot_to` made.
 #[near(serializers = [json])]
@@ -190,13 +198,40 @@ impl Contract {
     }
 
     /// Registers a pool whose admission passed and seeds it with the owner's
-    /// `amount0` and `amount1`; verse pools start their TWAP here.
+    /// `amount0` and `amount1`; the attached deposit (or the owner's storage
+    /// balance) pays for the new state.
     fn open_pool(&mut self, scenario_id: u64, kind: PoolKind, amount0: u128, amount1: u128) -> u64 {
+        let owner = env::predecessor_account_id();
+        let before = env::storage_usage();
+        let (id, _) = self.open_pool_core(
+            scenario_id,
+            kind,
+            amount0,
+            amount1,
+            PoolFunding::Owner(&owner),
+        );
+        self.charge_storage_or_deposit(&owner, before);
+        id
+    }
+
+    /// Registers a pool whose admission passed, seeded with `amount0` and
+    /// `amount1`; verse pools start their TWAP here. The owner's pool takes
+    /// them from the owner's balances and stores the owner's position (and
+    /// records an Impact Meter point for a world pool); a custody pool's
+    /// tokens are already in the contract's custody and its position is
+    /// returned to the caller, which holds it (a market opened from pledges
+    /// records one Impact Meter point once all its pools exist).
+    pub(crate) fn open_pool_core(
+        &mut self,
+        scenario_id: u64,
+        kind: PoolKind,
+        amount0: u128,
+        amount1: u128,
+        funding: PoolFunding,
+    ) -> (u64, Position) {
         if amount0 == 0 || amount1 == 0 {
             fail("ZeroAmount");
         }
-        let owner = env::predecessor_account_id();
-        let before = env::storage_usage();
         let mut amm = cpmm::Pool::new();
         let mut position = Position::new();
         let liquidity = amm
@@ -214,7 +249,13 @@ impl Contract {
             twap,
         };
         let (token0, token1) = pool.tokens();
-        self.pay_in(&owner, &[(token0, amount0), (token1, amount1)]);
+        let account = match funding {
+            PoolFunding::Owner(owner) => {
+                self.pay_in(owner, &[(token0, amount0), (token1, amount1)]);
+                owner.clone()
+            }
+            PoolFunding::Custody => env::current_account_id(),
+        };
 
         self.pool_count += 1;
         let id = self.pool_count;
@@ -233,24 +274,25 @@ impl Contract {
         let (mask0, mask1) = pool.masks();
         let price = pool.amm.price_wad().unwrap_or(0);
         self.pools.insert(id, pool);
-        self.put_position(id, &owner, Some(position));
+        if let PoolFunding::Owner(owner) = funding {
+            self.put_position(id, owner, Some(position.clone()));
+        }
         PoolCreated {
             pool_id: id,
             kind: kind.name(),
             scenario_id: (scenario_id != 0).then_some(scenario_id),
             mask0,
             mask1,
-            account_id: &owner,
+            account_id: &account,
             amount0: U128(amount0),
             amount1: U128(amount1),
             liquidity: U128(liquidity),
             price: U128(price),
         }
         .emit();
-        if let PoolKind::Within { .. } = kind {
+        if let (PoolKind::Within { .. }, PoolFunding::Owner(_)) = (kind, funding) {
             self.record_impact(scenario_id);
         }
-        self.charge_storage_or_deposit(&owner, before);
-        id
+        (id, position)
     }
 }

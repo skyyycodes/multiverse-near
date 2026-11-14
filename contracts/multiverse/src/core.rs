@@ -35,58 +35,8 @@ impl Contract {
     pub fn create_scenario(&mut self, event_ids: Vec<u64>) -> u64 {
         self.assert_live(PauseFlag::Mint);
         self.assert_owner();
-        let n = event_ids.len();
-        if n == 0 || n > MAX_EVENTS {
-            fail!("BadEventCount({n})");
-        }
-        let mut worlds: u64 = 1;
-        let mut outcome_counts = Vec::with_capacity(n);
-        for (k, id) in event_ids.iter().enumerate() {
-            if event_ids[..k].contains(id) {
-                fail!("DuplicateEvent({id})");
-            }
-            // An unknown id has 0 outcomes, so it is "not open" too.
-            let outcomes = self.outcome_count(*id);
-            if outcomes < 2 || self.is_finalized(*id) || self.has_open_proposal(*id) {
-                fail!("EventNotOpen({id})");
-            }
-            worlds *= u64::from(outcomes);
-            if worlds > u64::from(MAX_WORLDS) {
-                fail!("TooManyWorlds({worlds})");
-            }
-            if self.scenarios_of_event.get(id).map_or(0, Vec::len) >= MAX_SCENARIOS_PER_EVENT {
-                fail!("TooManyScenarios({id})");
-            }
-            outcome_counts.push(outcomes);
-        }
-
         let before = env::storage_usage();
-        let world_count = worlds as u8;
-        self.scenario_count += 1;
-        let sid = self.scenario_count;
-        self.scenarios.insert(
-            sid,
-            Scenario {
-                event_ids: event_ids.clone(),
-                outcome_counts,
-                world_count,
-                possible: masks::root(world_count),
-                resolution_count: 0,
-                resolved_events: 0,
-                pool_ids: Vec::new(),
-            },
-        );
-        for id in &event_ids {
-            let mut list = self.scenarios_of_event.get(id).cloned().unwrap_or_default();
-            list.push(sid);
-            self.scenarios_of_event.insert(*id, list);
-        }
-        ScenarioCreated {
-            scenario_id: sid,
-            event_ids: &event_ids,
-            world_count,
-        }
-        .emit();
+        let sid = self.internal_create_scenario(&event_ids);
         self.on_scenario_created(sid);
         self.charge_storage_or_deposit(&env::predecessor_account_id(), before);
         sid
@@ -352,6 +302,130 @@ impl Contract {
         self.scenarios
             .get(&scenario_id)
             .unwrap_or_else(|| fail!("UnknownScenario({scenario_id})"))
+    }
+
+    /// The checks of a new scenario on `event_ids` (in that order), in this
+    /// order: `BadEventCount(n)`, then per event `DuplicateEvent(id)`,
+    /// `EventNotOpen(id)` (unknown, finalized or deciding),
+    /// `TooManyWorlds(w)` and `TooManyScenarios(id)`. Returns the outcome
+    /// counts.
+    pub(crate) fn check_new_scenario(&self, event_ids: &[u64]) -> Result<Vec<u8>, String> {
+        let n = event_ids.len();
+        if n == 0 || n > MAX_EVENTS {
+            return Err(format!("BadEventCount({n})"));
+        }
+        let mut worlds: u64 = 1;
+        let mut outcome_counts = Vec::with_capacity(n);
+        for (k, id) in event_ids.iter().enumerate() {
+            if event_ids[..k].contains(id) {
+                return Err(format!("DuplicateEvent({id})"));
+            }
+            // An unknown id has 0 outcomes, so it is "not open" too.
+            let outcomes = self.outcome_count(*id);
+            if outcomes < 2 || self.is_finalized(*id) || self.has_open_proposal(*id) {
+                return Err(format!("EventNotOpen({id})"));
+            }
+            worlds *= u64::from(outcomes);
+            if worlds > u64::from(MAX_WORLDS) {
+                return Err(format!("TooManyWorlds({worlds})"));
+            }
+            if self.scenarios_of_event.get(id).map_or(0, Vec::len) >= MAX_SCENARIOS_PER_EVENT {
+                return Err(format!("TooManyScenarios({id})"));
+            }
+            outcome_counts.push(outcomes);
+        }
+        Ok(outcome_counts)
+    }
+
+    /// Creates the scenario after re-running `check_new_scenario` (a failure
+    /// panics) and logs `scenario_created`. The caller runs
+    /// `on_scenario_created` and pays the storage.
+    pub(crate) fn internal_create_scenario(&mut self, event_ids: &[u64]) -> u64 {
+        let outcome_counts = self
+            .check_new_scenario(event_ids)
+            .unwrap_or_else(|e| fail(&e));
+        let world_count = outcome_counts.iter().product::<u8>();
+        self.scenario_count += 1;
+        let sid = self.scenario_count;
+        self.scenarios.insert(
+            sid,
+            Scenario {
+                event_ids: event_ids.to_vec(),
+                outcome_counts,
+                world_count,
+                possible: masks::root(world_count),
+                resolution_count: 0,
+                resolved_events: 0,
+                pool_ids: Vec::new(),
+            },
+        );
+        for id in event_ids {
+            let mut list = self.scenarios_of_event.get(id).cloned().unwrap_or_default();
+            list.push(sid);
+            self.scenarios_of_event.insert(*id, list);
+        }
+        ScenarioCreated {
+            scenario_id: sid,
+            event_ids,
+            world_count,
+        }
+        .emit();
+        sid
+    }
+
+    /// Seeds a new scenario from pledge escrow: `wnear` and `usdc` go into its
+    /// reserves and `items` are minted into the contract's custody. Every
+    /// possible world must be covered by exactly `wnear` and `usdc` (else
+    /// `SeedCoverage`), which keeps invariant 1.
+    pub(crate) fn fund_from_escrow(
+        &mut self,
+        scenario_id: u64,
+        wnear: u128,
+        usdc: u128,
+        items: &[(VerseKey, u128)],
+    ) {
+        let s = self.scenario(scenario_id);
+        let (world_count, possible) = (s.world_count, s.possible);
+        for w in 0..world_count {
+            if !masks::contains(possible, w) {
+                continue;
+            }
+            for (asset, want) in [(Asset::Wnear, wnear), (Asset::Usdc, usdc)] {
+                let covered = items
+                    .iter()
+                    .filter(|(k, _)| k.asset == asset && masks::contains(k.mask, w))
+                    .try_fold(0u128, |sum, (_, a)| sum.checked_add(*a));
+                if covered != Some(want) {
+                    fail("SeedCoverage");
+                }
+            }
+        }
+        for (asset, amount) in [(Asset::Wnear, wnear), (Asset::Usdc, usdc)] {
+            let reserve = add(self.reserve(scenario_id, asset), amount);
+            self.set_reserve(scenario_id, asset, reserve);
+        }
+        self.mint_into_custody(items, None);
+    }
+
+    /// Merges `amount` of every one of `singles` (held in custody) back into
+    /// the real asset, which leaves the reserves; the caller pays it out.
+    pub(crate) fn custody_merge_to_root(
+        &mut self,
+        scenario_id: u64,
+        asset: Asset,
+        singles: &[u8],
+        amount: u128,
+    ) {
+        if amount == 0 {
+            return;
+        }
+        let items: Vec<(VerseKey, u128)> = singles
+            .iter()
+            .map(|m| (VerseKey::new(scenario_id, asset, *m), amount))
+            .collect();
+        self.burn_from_custody(&items, None);
+        let reserve = sub(self.reserve(scenario_id, asset), amount);
+        self.set_reserve(scenario_id, asset, reserve);
     }
 
     pub(crate) fn reserve(&self, scenario_id: u64, asset: Asset) -> u128 {
