@@ -367,7 +367,7 @@ live; the numbers move with prices):
 
 | | Carl, Bold tier: plain wNEAR | Alice, Safe tier: hedged |
 |---|---|---|
-| Collateral | 1,000 NEAR in each of the four worlds | 2,000 NEAR in Ships & cuts; 7,125 / 6,453 / 5,320 USDC in Ships & holds / Delayed & cuts / Delayed & holds |
+| Collateral | 1,000 real wNEAR, which counts as 1,000 NEAR in each of the four worlds | 2,000 NEAR in Ships & cuts; 7,125 / 6,453 / 5,320 USDC in Ships & holds / Delayed & cuts / Delayed & holds |
 | Worst world | Delayed & holds, $2,592 | Delayed & holds, $5,320 |
 | Debt | $1,616 | $1,000 |
 | Health | 2,592 × 0.80 ÷ 1,616 = **1.28** | 5,320 × 0.60 ÷ 1,000 = **3.19** |
@@ -436,7 +436,7 @@ The world pools could, in theory, drift away from the real NEAR price, so a lend
 its pools imply (from their 30-minute averages) with an outside **reference price**: the median of Coinbase, Kraken,
 Gemini and CoinGecko.
 
-| Rule (`get_reference_config`) | Value |
+| Rule (`get_reference_config`; `max_deviation` and `max_haircut` from `get_market_price_config`) | Value |
 |---|---|
 | Posted within this long of being observed (`max_result_delay_sec`) | 300 seconds, and newer than the stored one |
 | Accepted range (`min_price`, `max_price`) | $0.10 to $1,000 |
@@ -669,16 +669,16 @@ still on chain and unchanged (code `G6GtUs6AqHfxRb8YCdBx5dv1bgiQ3c1gDhPE9ygQTkEt
 deployed 2026-11-12 at 12:08 UTC, [`F5X2U1CS...`](https://testnet.nearblocks.io/txns/F5X2U1CSpptsNUEUeeeixcw79ERvfGLFEpREwpnMvWc3)).
 
 <details>
-<summary><b>Twenty real transactions on the staging deployment</b> (the smoke runs of 14 Nov 2026, each checked on chain)</summary>
+<summary><b>Twenty real transactions on the staging deployment</b> (deployment, seeding, smoke runs and the two resolutions on 14 Nov 2026, each checked on chain)</summary>
 
 | What happened | Who | Transaction |
 |---|---|---|
 | The v2 contract deployed | app | [`C3KthRtF...`](https://testnet.nearblocks.io/txns/C3KthRtFPyJa68XRXNqBjvE6LpTqZfPgKsAo2U73bcpU) |
-| Split 10 wNEAR into the four worlds of SPICE × Fed | a fresh account | [`8PiGokta...`](https://testnet.nearblocks.io/txns/8PiGoktaQrvKbR9xQVM9sC6q9NVRVL71DxXuQ5eehDDK) |
-| Sold that NEAR in one world, Delayed & cuts | the same account | [`5CvVwf2y...`](https://testnet.nearblocks.io/txns/5CvVwf2yLsQZzDVsUvx5XxPCjD9hUmcda8Qh7iHc6q2F) |
+| Split 10 wNEAR into the four worlds of SPICE × Fed | a fresh account, `judge-smoke2` | [`8PiGokta...`](https://testnet.nearblocks.io/txns/8PiGoktaQrvKbR9xQVM9sC6q9NVRVL71DxXuQ5eehDDK) |
+| Hedged 10 more wNEAR: split it and sold the NEAR in one world, Delayed & cuts | `judge-smoke2` | [`5CvVwf2y...`](https://testnet.nearblocks.io/txns/5CvVwf2yLsQZzDVsUvx5XxPCjD9hUmcda8Qh7iHc6q2F) |
 | Posted an ask for NEAR in Ships & holds | bob | [`Ar9bjstg...`](https://testnet.nearblocks.io/txns/Ar9bjstgtNF2AFVE15jyFobn6aLAJdfKkAV5A8cAtjNA) |
-| Bought 2 NEAR from that ask | the same account | [`Ai3tNvAD...`](https://testnet.nearblocks.io/txns/Ai3tNvAD6sDi6GYjySQMopS5bJCip44fzz9SaTDJ7nT1) |
-| Sold NEAR straight into loan collateral | the same account | [`3Us4dxEG...`](https://testnet.nearblocks.io/txns/3Us4dxEGopbRGNY4p8AtdEqRa3JPbqujUR4HJUA9MuB7) |
+| Bought 2 NEAR from that ask | `judge-smoke2` | [`Ai3tNvAD...`](https://testnet.nearblocks.io/txns/Ai3tNvAD6sDi6GYjySQMopS5bJCip44fzz9SaTDJ7nT1) |
+| Hedged 100 wNEAR straight into loan collateral | `judge-smoke2` | [`3Us4dxEG...`](https://testnet.nearblocks.io/txns/3Us4dxEGopbRGNY4p8AtdEqRa3JPbqujUR4HJUA9MuB7) |
 | Lent 150 USDC to the Normal tier | sam | [`CarV5RRG...`](https://testnet.nearblocks.io/txns/CarV5RRGdwLe1o2o9nJuApGwWZ5oYe213GDkdTMFFzbi) |
 | Borrowed 110 USDC | uma | [`6aWQo6ow...`](https://testnet.nearblocks.io/txns/6aWQo6owFhwsuA37oekhRPq4URYWU5Yz19TUJh9ioWsL) |
 | Repaid it all | uma | [`Hr8Te74c...`](https://testnet.nearblocks.io/txns/Hr8Te74cVvymD8BLFTzrnnUcg7PsvhivFVy15KHUmVMs) |
@@ -689,10 +689,10 @@ deployed 2026-11-12 at 12:08 UTC, [`F5X2U1CS...`](https://testnet.nearblocks.io/
 | The pledge that reached its goal and opened it | alice | [`5vFZLCzA...`](https://testnet.nearblocks.io/txns/5vFZLCzAniB96gvVsudAY9WuMcKqk42ddxh8NXqAViAR) |
 | Paused pledges | owner | [`DoaqE9h9...`](https://testnet.nearblocks.io/txns/DoaqE9h9JfiEps8MYPQSu97fLyJsp6uZWM5a4hqGrcET) |
 | Unpaused them | owner | [`2hPyr89a...`](https://testnet.nearblocks.io/txns/2hPyr89awCrvpmmHD29Sgauy4Z14EkQtSbXHaxittQMn) |
-| OutLayer asked to read FRED for the October Fed meeting | – | [`GH1fftYY...`](https://testnet.nearblocks.io/txns/GH1fftYYX8RU56GsgyAadCM1yfHHFdmzcvhDdUQrijqy) |
-| October Fed answer (HOLDS) finalized | – | [`5C1dsLUL...`](https://testnet.nearblocks.io/txns/5C1dsLULtK2cnLCneEHwCWtUM86AsBKiWSHdvBLkjYfW) |
+| OutLayer asked to read FRED for the October Fed meeting | alice | [`GH1fftYY...`](https://testnet.nearblocks.io/txns/GH1fftYYX8RU56GsgyAadCM1yfHHFdmzcvhDdUQrijqy) |
+| October Fed answer (HOLDS) finalized | alice | [`5C1dsLUL...`](https://testnet.nearblocks.io/txns/5C1dsLULtK2cnLCneEHwCWtUM86AsBKiWSHdvBLkjYfW) |
 | Reporter answered NEAR on 1 Nov (YES) with evidence | reporter | [`4JUNNwUA...`](https://testnet.nearblocks.io/txns/4JUNNwUAZzHArvY6TwBtiZftuztFAxiqsQs59rmpyK9R) |
-| NEAR on 1 Nov answer finalized | – | [`C6et7nkC...`](https://testnet.nearblocks.io/txns/C6et7nkCPb6tdLyqZZqw7dnDGHHZfwXpDVvtmZn6vvYw) |
+| NEAR on 1 Nov answer finalized | reporter | [`C6et7nkC...`](https://testnet.nearblocks.io/txns/C6et7nkCPb6tdLyqZZqw7dnDGHHZfwXpDVvtmZn6vvYw) |
 
 </details>
 
@@ -1045,7 +1045,7 @@ from commit `04a3d42` (sha256 `e0392c0e...`).
 
 | Piece | How |
 |---|---|
-| Contract | `pnpm -C scripts build:wasm`, then `NEAR_NETWORK=staging pnpm -C scripts staging:accounts` (accounts and the two test tokens, written to `deployments/staging.json`) and `NEAR_NETWORK=staging pnpm -C scripts deploy:contract` (deploy + `new()` in one transaction, token registration, the reporter and its two function-call keys); `upgrade` replaces the code of a live contract |
+| Contract | `pnpm -C scripts build:wasm`, then `NEAR_NETWORK=staging pnpm -C scripts staging:accounts` (accounts and the two test tokens, written to `deployments/staging.json`) and `NEAR_NETWORK=staging pnpm -C scripts deploy:contract` (deploy + `new()` in one transaction, token registration, the reporter and its two function-call keys); run again with a different wasm, `deploy:contract` replaces the code of the live contract in place |
 | Web app and keeper | [`scripts/deploy-web.sh`](scripts/deploy-web.sh) builds `ui/` for staging (`pnpm -C ui build:staging`), bundles `scripts/api/keeper.ts` with the deployment's account ids, and deploys both to the Vercel project (`--dry-run` lists the files and deploys nothing) |
 | Vercel settings | [`deploy/vercel.json`](deploy/vercel.json): trailing slashes, a 60-second limit for `api/keeper.js`, and a cron on `/api/keeper/`. The plan allows a daily cron, so cron-job.org calls the keeper every 30 minutes and open pages ping it too |
 | Keeper secrets (environment only, never in the repository) | `KEEPER_KEY` (keeper account: liquidations), `REPORTER_KEY` (reporter: `report_reference`), `MAKER_KEY` (maker: the maker's swaps and splits), `CRON_SECRET` (sent by the cron as `Authorization: Bearer …`). [`scripts/keeper-env.sh`](scripts/keeper-env.sh) prints the `vercel env add` commands without printing a secret |
@@ -1130,8 +1130,9 @@ Because one token in every world is worth exactly one real token: exactly one wo
 <details>
 <summary><b>Can I lose more than I put in?</b></summary>
 
-You can lose your collateral if your loan is liquidated, but you never owe more than your loan: the USDC you borrowed
-is yours to keep.
+No. A liquidation can take part or all of your collateral, but nothing beyond it: the USDC you borrowed stays yours,
+and debt that no collateral is left to cover is written off, not charged to you (see
+[Insurance and bad debt](#insurance-and-bad-debt)).
 </details>
 
 <details>
