@@ -1,11 +1,13 @@
 // Shared pieces for the market, borrow, lend, resolve and admin pages: a market's artwork, a world's icon, a
-// health gauge, and a chart of each world's chance over time.
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { AreaSeries, ColorType, LineSeries, createChart, type IChartApi, type ISeriesApi, type UTCTimestamp } from 'lightweight-charts'
-import { oddsHistory } from '../lib/history'
+// health gauge, a market's worlds laid out as its grid, and a small area chart.
+import { useEffect, useRef } from 'react'
+import Link from 'next/link'
+import { AreaSeries, ColorType, createChart, type UTCTimestamp } from 'lightweight-charts'
 import { gridOf, has } from '../lib/scenario'
 import type { Market } from '../lib/types'
 import type { ChainMarket } from '../chain/adapter-model'
+import { chanceText, priceText } from '../chain/board'
+import { ordersHref } from '../chain/links'
 
 /** One colour per world, in bit order, used by charts, legends and icons. */
 export const WORLD_COLORS = ['#e9b8bb', '#7dc9a5', '#9b8cf0', '#f0c05a', '#6fb7e8', '#d77bd0', '#c9c9c9', '#ef8f5a']
@@ -55,62 +57,31 @@ export function Gauge({ value, label }: { value: number | null; label: string })
   )
 }
 
-const RANGES = [{ id: '1D', pts: 8 }, { id: '1W', pts: 56 }, { id: '1M', pts: 160 }, { id: 'ALL', pts: 160 }] as const
-
-/** Each world's chance over time, one line per world, with a legend of today's chances. */
-export function OddsChart({ m, odds, possible }: { m: Market; odds: number[]; possible: number }) {
-  const box = useRef<HTMLDivElement>(null)
-  const chart = useRef<IChartApi | null>(null)
-  const lines = useRef<ISeriesApi<'Line'>[]>([])
-  const [range, setRange] = useState<(typeof RANGES)[number]['id']>('1M')
-  const key = odds.map((x) => x.toFixed(4)).join(',') // redraw when the odds change, not on every render
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const hist = useMemo(() => oddsHistory(m.id, odds), [m.id, key])
-  const live = m.worlds.map((_, b) => b).filter((b) => has(possible, b))
-
-  useEffect(() => {
-    if (!box.current) return
-    const c = createChart(box.current, {
-      autoSize: true,
-      layout: { background: { type: ColorType.Solid, color: 'transparent' }, textColor: '#8e96a8', fontSize: 11 },
-      grid: { vertLines: { visible: false }, horzLines: { color: 'rgba(255,255,255,0.05)' } },
-      rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.1, bottom: 0.08 } },
-      timeScale: { borderVisible: false, timeVisible: false },
-      crosshair: { horzLine: { visible: false } },
-      handleScroll: false, handleScale: false,
-    })
-    chart.current = c
-    return () => { c.remove(); chart.current = null; lines.current = [] }
-  }, [])
-
-  useEffect(() => {
-    const c = chart.current
-    if (!c) return
-    lines.current.forEach((l) => c.removeSeries(l))
-    lines.current = live.map((b) => {
-      const l = c.addSeries(LineSeries, { color: WORLD_COLORS[b % WORLD_COLORS.length], lineWidth: 2, priceLineVisible: false, lastValueVisible: true, priceFormat: { type: 'custom', formatter: (v: number) => `${v.toFixed(0)}%` } })
-      l.setData(hist.map((h) => ({ time: h.time as UTCTimestamp, value: h.p[b] * 100 })))
-      return l
-    })
-    const n = RANGES.find((r) => r.id === range)!.pts
-    c.timeScale().setVisibleLogicalRange({ from: hist.length - n, to: hist.length - 1 })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hist, possible, range])
-
+/** A market's worlds as its grid: rows are the first event's outcomes, columns the others'. Each cell opens that world's order book. */
+export function WorldTable({ m }: { m: ChainMarket }) {
+  const cols = m.grid.cols
   return (
-    <div className="odds">
-      <div className="odds__legend">
-        {live.map((b) => (
-          <span key={b}><i style={{ background: WORLD_COLORS[b % WORLD_COLORS.length] }} />{m.worlds[b].outcome} <b>{Math.round(odds[b] * 100)}%</b></span>
+    <div className="feat__grid">
+      <p className="pc__note">Each world’s chance, and NEAR’s price in its pool</p>
+      <div className="xgrid" style={{ gridTemplateColumns: `${m.grid.rows.some((r) => r.label) ? 'auto ' : ''}repeat(${cols.length}, minmax(0, 1fr))` }}>
+        {m.grid.rows.some((r) => r.label) && <span aria-hidden />}
+        {cols.map((c) => <span key={c} className="xgrid__col">{c}</span>)}
+        {m.grid.rows.map((r) => (
+          <div key={r.label || 'row'} className="xgrid__line">
+            {r.label && <span className="xgrid__row">{r.label}</span>}
+            {r.worlds.map((w) => {
+              const x = m.worlds[w]
+              return (
+                <Link key={w} href={ordersHref(m.sid, { w })} className={`xgrid__cell${x.possible ? '' : ' is-dead'}`} title={`${x.outcome}: trade NEAR that pays only in this world`}>
+                  <b className="num" style={x.possible ? { color: WORLD_COLORS[w % WORLD_COLORS.length] } : undefined}>{x.possible ? chanceText(x.chance) : '0%'}</b>
+                  <span className="num">NEAR {x.possible ? priceText(x.nearPrice) : 'closed'}</span>
+                </Link>
+              )
+            })}
+          </div>
         ))}
       </div>
-      <div ref={box} className="odds__canvas" />
-      <div className="odds__foot">
-        <span className="pc__note">Chance of each world over time · demo history</span>
-        <div className="pc__intervals" role="group" aria-label="Range">
-          {RANGES.map((r) => <button key={r.id} type="button" aria-pressed={range === r.id} onClick={() => setRange(r.id)}>{r.id}</button>)}
-        </div>
-      </div>
+      {m.grid.rowTitle && <p className="pc__note feat__axes">Rows: {m.grid.rowTitle} Columns: {m.grid.colTitle}</p>}
     </div>
   )
 }
