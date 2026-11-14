@@ -65,6 +65,9 @@ export type BorrowMath = {
   belowMinLoan: boolean;
 };
 
+/** What Max and "Can borrow" offer: 99.5% of the contract's `max_borrow`, which a loan's rounding can still fit in. */
+export const borrowRoom = (v: Pick<Account, "maxBorrow">): bigint => (v.maxBorrow * 995n) / 1000n;
+
 /** web design 7.1. `market` (the tier's `market_state`) is needed for the APR after the loan. */
 export function borrowMath(v: Account, possible: number, amount: bigint | undefined, market?: LendingMarket): BorrowMath {
   const cMinLiq = worstValue(v.collateralValues, possible) ?? 0n;
@@ -75,7 +78,7 @@ export function borrowMath(v: Account, possible: number, amount: bigint | undefi
   const aprAfter = a > 0n && market ? annualRate(borrowRate(utilizationOf(market.totalBorrow + a, market.totalSupply), market.config)) : undefined;
   return {
     limit: v.borrowLimit,
-    room: (v.maxBorrow * 995n) / 1000n,
+    room: borrowRoom(v),
     cMinLiq,
     hfAfter,
     limitUsedAfter,
@@ -108,7 +111,10 @@ export function borrowBlocker(p: {
   if (after > (m.config.maxUtilization * m.totalSupply) / WAD) return `This tier lends at most ${pct(m.config.maxUtilization, WAD, 0)} of its cash; try a smaller amount`;
   if (m.config.borrowCap !== null && after > m.config.borrowCap) return `This tier's borrowing cap is ${fmtUsd(m.config.borrowCap)}`;
   if (v.debt + amount < v.minLoan) return `The minimum loan is ${fmtUsd(v.minLoan)}`;
-  if (v.debt + amount > v.borrowLimit) return "Over your borrow limit";
+  // The contract rounds a new loan's debt up by a few wei, so borrowing the whole limit fails its health check
+  // (Unhealthy): stop at the same room Max and "Can borrow" show.
+  const room = borrowRoom(v);
+  if (v.debt + amount > v.borrowLimit || amount > room) return `Over your borrow limit: at most ${fmtUsd(room)} now`;
   return undefined;
 }
 
