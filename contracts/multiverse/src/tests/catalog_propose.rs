@@ -31,6 +31,8 @@ fn texts(
     move |c| c.propose_event(q, o, r, s, deadline, category, terms)
 }
 
+type Propose = Box<dyn FnOnce(&mut crate::Contract) -> u64>;
+
 fn terms(odds0_bps: u16, mult: [u16; 2]) -> OpeningTerms {
     OpeningTerms {
         odds0_bps,
@@ -66,7 +68,7 @@ fn propose_event_check_order() {
         ),
         "NotRegistered(zed.near)",
     );
-    let vectors: Vec<(Box<dyn FnOnce(&mut crate::Contract) -> u64>, String)> = vec![
+    let vectors: Vec<(Propose, String)> = vec![
         (
             Box::new(texts("", &ok, RULE, SOURCE, 1, TERMS, d)),
             "EmptyText".into(),
