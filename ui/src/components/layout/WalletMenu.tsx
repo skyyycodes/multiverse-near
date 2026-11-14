@@ -96,7 +96,7 @@ function Panel({ account, close }: { account: string; close: () => void }) {
         )}
       </div>
       {faucetOn && !nothingToDo && <p className="wm__note">Test tokens have no value. Each mint costs a tiny fee but needs about 0.03 NEAR free to sign; registering keeps 0.1 NEAR as storage.</p>}
-      {faucetOn && lowNear && <p className="wm__note">Need testnet NEAR? near-faucet.io tops up a top-level .testnet account that already holds about 0.03 NEAR; with none, NEAR CLI&apos;s <code>near account create-account sponsor-by-faucet-service &lt;name&gt;.testnet</code> creates a new account holding 10 NEAR.</p>}
+      {faucetOn && lowNear && <p className="wm__note">Need testnet NEAR? <a href="https://near-faucet.io" target="_blank" rel="noreferrer">near-faucet.io</a> tops up a top-level .testnet account that already holds about 0.03 NEAR; with none, NEAR CLI&apos;s <code>near account create-account sponsor-by-faucet-service &lt;name&gt;.testnet</code> creates a new account holding 10 NEAR; import its key into your wallet.</p>}
       <nav className="wm__links">
         <Link href="/portfolio/">Portfolio <small>{loans ? `${loans.markets} market${loans.markets === 1 ? '' : 's'}` : '…'}</small></Link>
         <Link href="/borrow/">Loans <small>{!loans ? '…' : loans.lowest === null ? 'none' : `lowest health ${loans.lowest.toFixed(2)}`}</small></Link>

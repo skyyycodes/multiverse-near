@@ -78,8 +78,8 @@ The testnet demo is shared: what you see is the state that trades, loans and pro
 
 - A NEAR testnet account in a wallet that NEAR Connect lists on testnet: Meteor, Intear or Nightly work.
 - Some testnet NEAR: about 0.27 NEAR covers the 0.1 NEAR storage registration and the everyday actions. Testnet
-  buys a transaction's gas up front and refunds what it does not burn, so an everyday action needs about 0.16 NEAR
-  free while signing (a pledge or a liquidation 0.31) but costs about 0.001. Need testnet NEAR?
+  buys a transaction's gas up front and refunds what it does not burn, so an everyday action needs about 0.17 NEAR
+  free while signing (a pledge, a liquidation or a price check about 0.31) but costs about 0.001. Need testnet NEAR?
   https://near-faucet.io tops up a top-level `.testnet` account that already holds about 0.03 NEAR (a request is a
   transaction you sign). With no NEAR at all, NEAR CLI creates a new account holding 10 NEAR from the faucet service
   (`print-to-terminal` in place of `save-to-keychain` shows the key to import into your wallet):

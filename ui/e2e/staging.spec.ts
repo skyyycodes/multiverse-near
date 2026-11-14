@@ -304,6 +304,9 @@ test('staging: propose a combination, pledge and withdraw (as far as the chain a
     await expect(v.page.locator('article.pp').first()).toBeVisible({ timeout: 60_000 })
     if (live.length === 0) {
       info.annotations.push({ type: 'not sent', description: 'pledge and withdraw: no proposal is collecting pledges on staging' })
+    } else if ((await nearBalance(JUDGE)) < (33n * NEAR) / 100n) {
+      // a pledge attaches 300 Tgas (the auto-open needs it), so the UI asks 0.31 NEAR free
+      info.annotations.push({ type: 'not sent', description: 'pledge: 0.3 NEAR of gas bought up front is more than judge-ui1 holds' })
     } else {
       const card = v.page.locator('article.pp', { hasText: `#${live[0].proposal_id}` })
       await card.getByRole('button', { name: 'Pledge', exact: true }).click()
