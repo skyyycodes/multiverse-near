@@ -11,3 +11,17 @@ export const TOP_UP = nearToYocto("0.1");
 
 /** A registered account whose free deposit is below the floor; an unregistered one registers instead. */
 export const needsTopUp = (b: StorageBalance | null | undefined): boolean => Boolean(b) && BigInt(b!.available) < STORAGE_FLOOR;
+
+const CENT = 10n ** 22n; // 0.01 NEAR
+
+/**
+ * After a refusal "… (InsufficientStorage(needed, free))": how much to add to the deposit so the same action fits,
+ * TOP_UP at least, the gap rounded up to 0.01 NEAR plus 0.01 otherwise. Undefined for any other error.
+ */
+export function storageShortfall(error: string): bigint | undefined {
+  const m = /InsufficientStorage\((\d+),\s*(\d+)\)/.exec(error);
+  if (!m) return undefined;
+  const gap = BigInt(m[1]) > BigInt(m[2]) ? BigInt(m[1]) - BigInt(m[2]) : 0n;
+  const add = ((gap + CENT - 1n) / CENT) * CENT + CENT;
+  return add > TOP_UP ? add : TOP_UP;
+}
