@@ -337,3 +337,49 @@ pub fn assert_estimate_covers(w: &World, estimate: u128) {
         "estimate {estimate} < measured {measured}"
     );
 }
+
+/// A call that may pay out both tokens: the mocked runtime numbers the second
+/// callback's dependency past the receipt list (see `rootlp.rs`), so the
+/// `ft_transfer` + `on_payout` pairs are carried out in order here.
+pub fn call_paying<R>(
+    w: &mut World,
+    who: &str,
+    deposit: NearToken,
+    f: impl FnOnce(&mut Contract) -> R,
+) -> Result<R, String> {
+    let auto = w.auto_payouts;
+    w.auto_payouts = false;
+    let r = w.call(who, deposit, f);
+    w.auto_payouts = auto;
+    let r = r?;
+    let main = w.last.clone();
+    let mut transfer = None;
+    for call in main.calls() {
+        match call.method.as_str() {
+            "ft_transfer" => transfer = Some(call),
+            "on_payout" => {
+                let t = transfer.take().expect("on_payout without ft_transfer");
+                assert_eq!(t.deposit, 1);
+                let asset = if t.receiver_id.as_str() == WNEAR_TOKEN {
+                    Asset::Wnear
+                } else {
+                    Asset::Usdc
+                };
+                let receiver = acc(t.args["receiver_id"].as_str().unwrap());
+                let amount: u128 = t.args["amount"].as_str().unwrap().parse().unwrap();
+                *w.contract_ft.get_mut(&asset).unwrap() -= amount;
+                *w.wallets.entry((receiver.clone(), asset)).or_default() += amount;
+                w.exec(
+                    CONTRACT,
+                    NO_DEPOSIT,
+                    vec![near_sdk::PromiseResult::Successful(vec![])],
+                    |c| c.on_payout(receiver, asset, U128(amount)),
+                )
+                .expect("on_payout must never panic");
+            }
+            _ => {}
+        }
+    }
+    w.last = main;
+    Ok(r)
+}
