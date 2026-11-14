@@ -1178,7 +1178,7 @@ messages in [For developers and agents](#for-developers-and-agents). Liquidation
 </details>
 
 <details>
-<summary><b>Where do the account names with "ifverse" and "multiverse" come from?</b></summary>
+<summary><b>Where do the names <code>*.ifverse-staging.testnet</code> and <code>multiverse-lending</code> come from?</b></summary>
 
 They are earlier working names. The testnet accounts, the web address and the repository kept them when the project
 was renamed Origami Verse.
