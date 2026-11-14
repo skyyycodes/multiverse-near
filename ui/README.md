@@ -1,13 +1,13 @@
-# Multiverse UI (redesign)
+# IfVerse UI
 
-A redesigned interface for Multiverse Lending, kept beside `web/` so the two can be compared without touching the
-working app. It covers every screen `web/` has, plus a market list and a few more:
+The public IfVerse site: the redesigned interface, now the frontend of v2 on NEAR testnet (it replaces `web/`, which
+stays in the repo but is no longer deployed). It covers every screen `web/` has, plus a market list and a few more:
 
 | Route | Screen |
 |---|---|
 | `/` | Landing: the scroll story, the four-world example, open markets, FAQ |
 | `/markets` | Market board: featured market with its chance chart, search, categories, watchlist |
-| `/markets/[id]` | One market: chance of each world over time, a row per world (hedge, trade, its order book), rules, resolution, activity, holders, and the fund / hedge / borrow / lend / liquidity ticket |
+| `/market/?id=N` | One market: chance of each world over time, a row per world (hedge, trade, its order book), rules, resolution, activity, holders, and the fund / hedge / borrow / lend / liquidity ticket |
 | `/orders` | Trading screen per world: candle chart (TradingView lightweight-charts), order book with spread, limit and market orders, trades |
 | `/borrow` | Loan position, borrow capacity, liquidation price per world, collateral at risk, LTV slider |
 | `/lend` | Supply and withdraw, rate history, where the pool is lent, underwriting every world |
@@ -15,27 +15,17 @@ working app. It covers every screen `web/` has, plus a market list and a few mor
 | `/portfolio` | The range of futures you hold (worst to best world, with a "what if NEAR moves" control), value and P&L against cost, positions, orders, trades, activity, allocation |
 | `/admin` | Owner console: resolve events, move a world's price, mint test tokens, reseed |
 | `/docs` | How it works, with the testnet run and its explorer links |
-| `/markets/new` | Roadmap: propose a market (five-step wizard), pledge from both sides, owner check, open already funded |
+| `/propose/` | Propose an event or a market, pledge from both sides, owner check, open already funded (`/proposal/?p=N`: one proposal) |
+| `/split/?id=N` | Split real wNEAR or USDC into every world, or merge a full set back |
+| `/liquidate/` | At-risk loans across markets and tiers |
 | `/proposals` | Roadmap: decision markets, pass vs fail time-weighted prices against a +3% threshold, as MetaDAO decides |
 
 ## Status
 
-**It runs on an in-browser model of the protocol, not on the contract yet.** Every action works and is labelled as
-demo data; nothing is signed. The demo wallet starts with 1,000 NEAR in the SPICE × Fed market. Numbers in the
-copy (Alice's 4,881.88 USDC, health 1.22, the October Fed resolution) come from the testnet run in the main README.
-
-Wiring it to `app.multiverse-near.testnet` means replacing `src/lib/client.ts` and the store reads in
-`src/lib/scenario.ts` with `web/`'s data layer (`useData`, `useSubmit`, `call`, `ftTransferCall`). The screens
-read the same shapes the contract views return: worlds by bit (world 0 SHIPS·CUTS, 1 DELAYED·CUTS, 2 SHIPS·HOLDS,
-3 DELAYED·HOLDS), per-world prices and odds, the order book, the lending market and the events' state.
-
-Known differences from the contract, to fix during the wiring:
-
-- The demo lists the four worlds in the order Ships·Cuts, Ships·Holds, Delayed·Cuts, Delayed·Holds; the contract
-  numbers them 0, 2, 1, 3.
-- Lending is one shared pool here; the contract has one USDC market per scenario.
-- The deposit form can show NEAR Intents (1Click) quotes from other chains. They are dry runs; the contract takes
-  only wNEAR and USDC.
+Screens move from the in-browser model (`src/lib/scenario.ts`) to the contract on testnet through the chain adapter
+(`src/chain/adapter.ts`), one by one; the shell (wallet, balances, test tokens, search, toasts) already runs on the
+chain. [INTEGRATION.md](INTEGRATION.md) has the adapter API, the routes, the classes for new elements, who owns which
+file and the gates. Anything without real data is built for real or hidden.
 
 ## Run it
 
@@ -44,19 +34,22 @@ Node 22 and pnpm 10.
 ```bash
 cd ui
 pnpm install
-pnpm dev          # http://localhost:5173
-pnpm build        # production build
+pnpm dev          # http://localhost:5173, against the staging deployment
+pnpm build        # static export in out/
+pnpm build:staging  # the release build in out-staging/ (scripts/deploy-web.sh publishes it)
 pnpm typecheck
 pnpm lint
+pnpm test
 ```
 
-`.env.example` lists the variables; leave the contract ids empty to run on the in-browser model.
+The contract, token ids and RPC come from `deployments/<network>.json` (`NEXT_PUBLIC_NETWORK`, staging by default).
 
 ## Layout
 
 - `src/app/` routes (Next.js App Router), each a thin wrapper around a screen in `src/views/`
 - `src/views/` one file per screen
 - `src/components/` shared pieces: header, wallet menu, search (Ctrl/⌘+K), toasts, charts, market artwork
-- `src/lib/scenario.ts` the in-browser model and its actions; `src/lib/history.ts` the seeded demo histories
+- `src/chain/` the v2 chain layer (from `web/src/lib`) and the adapter the views read
+- `src/lib/scenario.ts` the in-browser model, until every screen is off it; `src/lib/history.ts` its seeded histories
 - `src/data/demo.ts` the demo markets, with each event's rule, deadline and sources
 - `src/styles/` the stylesheets; `public/markets/` the event artwork
