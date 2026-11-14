@@ -5,8 +5,9 @@
 //! `invariants` runs the core invariants as property tests. The rest covers
 //! NEP-245, NEP-145, the `ft_on_transfer` receiver and payouts, the pools,
 //! the order book, the router, lending and the Root LP. `layout` pins the
-//! stored layout, `migration` runs `migrate` on the production snapshot and
-//! `profile` holds the v1 profile the fixture installs.
+//! stored layout, `migration` runs `migrate` on the production snapshot,
+//! `ops` covers the pause, the owner and guardian, versions and the books,
+//! and `profile` holds the v1 profile the fixture installs.
 
 mod harness;
 mod profile;
@@ -24,6 +25,7 @@ mod masks;
 mod migration;
 mod nep145;
 mod nep245;
+mod ops;
 mod oracle;
 mod order_invariants;
 mod orders;
