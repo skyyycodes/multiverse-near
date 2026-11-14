@@ -36,7 +36,8 @@
     "liquidator": "tsx liquidator.ts",
     "soak": "tsx soak.ts",
     "measure": "tsx measure.ts",
-    "accept": "tsx accept.ts"
+    "accept": "tsx accept.ts",
+    "staging:accounts": "tsx staging-accounts.ts"
   },
   "dependencies": {
     "near-api-js": "7.4.0"
