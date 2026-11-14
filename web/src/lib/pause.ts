@@ -49,6 +49,7 @@ export type AppAction =
   | "price_push"
   | "register"
   | "storage_top_up"
+  | "storage_withdraw"
   | "faucet"
   | "pause"
   | "unpause";
@@ -98,6 +99,7 @@ export const ACTION_FLAGS: Record<AppAction, readonly PauseFlag[]> = {
   price_push: ["trade"],
   register: [],
   storage_top_up: [],
+  storage_withdraw: ["exit"],
   faucet: [],
   pause: [],
   unpause: [],

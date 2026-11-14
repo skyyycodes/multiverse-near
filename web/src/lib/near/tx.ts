@@ -80,6 +80,8 @@ export function singleOrderPlan(worldCount: number, index: number, orderId: bigi
   };
 }
 
+/** NEP-145: sends the free part of the storage deposit (returned bonds and reserves land there) back to the wallet. */
+export const storageWithdraw = (contractId: string): Tx => call(contractId, "storage_withdraw", {}, ONE_YOCTO, GAS_LIGHT);
 export const storageDeposit = (contractId: string, deposit: bigint, registrationOnly: boolean, accountId?: string): Tx =>
   call(contractId, "storage_deposit", { account_id: accountId ?? null, registration_only: registrationOnly }, deposit.toString(), GAS_LIGHT);
 

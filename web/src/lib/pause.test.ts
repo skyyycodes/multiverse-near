@@ -79,6 +79,7 @@ const SENDS: Record<AppAction, readonly string[]> = {
   price_push: ["conditional_sell"],
   register: ["storage_deposit"],
   storage_top_up: ["storage_deposit"],
+  storage_withdraw: ["storage_withdraw"],
   faucet: ["mint (token contract)"],
   pause: ["pause"],
   unpause: ["unpause"],
