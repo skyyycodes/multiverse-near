@@ -15,6 +15,7 @@ mod profile;
 mod amm;
 mod amm_lens;
 mod core;
+mod eight;
 mod events;
 mod invariants;
 mod layout;

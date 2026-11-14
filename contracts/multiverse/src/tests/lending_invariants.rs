@@ -11,6 +11,10 @@
 //! Both invariants are measured at one timestamp: the health factors before
 //! and after a resolution, and a liquidated slice against the prices of the
 //! same block. Every bad-debt liquidation is counted and printed.
+//!
+//! Every call's NEP-245 lines are replayed on a shadow ledger (EW-5). The
+//! 8-world runners put the 3-event scenario in the 2x2's place and also
+//! check EW-1..EW-4 after every action.
 
 use std::cell::RefCell;
 use std::collections::BTreeMap;
@@ -19,17 +23,19 @@ use near_sdk::NearToken;
 use proptest::prelude::*;
 use proptest::test_runner::{Config, TestRunner};
 
+use super::eight::{check_eight_worlds, PRICES_8, THIRD_QUESTION, THIRD_RULE};
 use super::harness::*;
 use super::lending::*;
 use super::liquidation::slice_value;
 use crate::amm::test_hooks;
-use crate::lending::CollateralKey;
+use crate::lending::{CollateralKey, MAX_COLLATERAL_PIECES};
 use crate::masks::single_worlds;
 use crate::types::Asset::{Usdc, Wnear};
 use multiverse_math::risk::{dust_allowance, liquidation_target};
 use multiverse_math::{mul_div_down, U256};
 
 const CASES: u32 = 256;
+const CASES_8: u32 = 24;
 const ACTORS: [&str; 3] = [ALICE, CAROL, DAVE];
 const LIQUIDATOR: &str = "leo.near";
 const GATE: u128 = 10_000 * E18;
@@ -128,15 +134,17 @@ impl Stats {
 struct Campaign {
     w: World,
     sids: [u64; 2],
-    events: [u64; 2],
+    events: Vec<u64>,
     pools: BTreeMap<(u64, u8), Pool>,
     steps: u64,
     /// Invariant 4 borrows nearer the limit and moves prices.
     liquidation: bool,
+    /// The first scenario is the 3-event one.
+    eight: bool,
 }
 
 impl Campaign {
-    fn new(liquidation: bool) -> Self {
+    fn new(liquidation: bool, eight: bool) -> Self {
         clear_prices();
         let mut w = World::new();
         w.register(DAVE, NearToken::from_near(5));
@@ -144,9 +152,20 @@ impl Campaign {
         for who in [CAROL, DAVE, LIQUIDATOR] {
             w.fund(who);
         }
-        let sids = [w.s2x2, w.s_bin];
+        let mut events = vec![w.spice, w.fed];
+        let (sids, first_prices): ([u64; 2], &[u128]) = if eight {
+            let third = w
+                .create_event(THIRD_QUESTION, &["YES", "NO"], THIRD_RULE, T0 + 50 * DAY)
+                .unwrap();
+            events.push(third);
+            let s8 = w.create_scenario(&events).unwrap();
+            ([s8, w.s_bin], &PRICES_8)
+        } else {
+            ([w.s2x2, w.s_bin], &PRICES_2X2)
+        };
+        w.track_logs();
         let mut pools = BTreeMap::new();
-        for (i, p) in PRICES_2X2.iter().enumerate() {
+        for (i, p) in first_prices.iter().enumerate() {
             pools.insert(
                 (sids[0], i as u8),
                 Pool {
@@ -172,12 +191,13 @@ impl Campaign {
             );
         }
         let mut c = Campaign {
-            events: [w.spice, w.fed],
+            events,
             w,
             sids,
             pools,
             steps: 0,
             liquidation,
+            eight,
         };
         for key in c.pools.keys().copied().collect::<Vec<_>>() {
             c.sync(key);
@@ -195,11 +215,16 @@ impl Campaign {
     /// Each actor sells 2,000 wNEAR into lending in each scenario, posts
     /// 1,000 real wNEAR, and borrows 99% of what the worst world carries.
     fn open_loans(&mut self) {
-        let masks = [
-            [L_SHAPE, BIN_DELAYED],
-            [SHIPS, BIN_SHIPS],
-            [DELAYED_HOLDS, BIN_DELAYED],
-        ];
+        let masks = if self.eight {
+            // every world but the first; SHIPS; DELAYED·HOLDS (both C outcomes)
+            [[0xFE, BIN_DELAYED], [0x55, BIN_SHIPS], [0x88, BIN_DELAYED]]
+        } else {
+            [
+                [L_SHAPE, BIN_DELAYED],
+                [SHIPS, BIN_SHIPS],
+                [DELAYED_HOLDS, BIN_DELAYED],
+            ]
+        };
         for (i, who) in ACTORS.iter().enumerate() {
             for (j, s) in self.sids.into_iter().enumerate() {
                 self.sell_into_lending(who, s, masks[i][j], 2_000 * E18);
@@ -426,7 +451,7 @@ impl Campaign {
         if self.steps < 40 || seed % 4 != 0 {
             return;
         }
-        let event = self.events[((seed >> 8) % 2) as usize];
+        let event = self.events[((seed >> 8) % self.events.len() as u64) as usize];
         if self.w.view(|c| c.get_event(event).finalized) {
             return;
         }
@@ -454,7 +479,7 @@ impl Campaign {
     fn resolve4(&mut self, seed: u64, st: &mut Stats) {
         self.steps += 1;
         let now = self.w.now;
-        for event in self.events {
+        for event in self.events.clone() {
             let (open, at) = self
                 .w
                 .view(|c| (c.has_open_proposal(event), c.finalizable_at(event)));
@@ -468,7 +493,7 @@ impl Campaign {
                 return;
             }
         }
-        let event = self.events[((seed >> 8) % 2) as usize];
+        let event = self.events[((seed >> 8) % self.events.len() as u64) as usize];
         if self.w.view(|c| c.get_event(event).finalized) {
             return;
         }
@@ -728,7 +753,7 @@ impl Campaign {
             prop_assert_eq!(borrow_sum, m.total_borrow_shares);
             prop_assert!(m.total_supply_assets >= m.total_borrow_assets);
             for list in lists {
-                prop_assert!(list.len() <= 16);
+                prop_assert!(list.len() <= MAX_COLLATERAL_PIECES);
                 prop_assert!(list.iter().all(|(_, a)| *a > 0));
                 for (i, (k, _)) in list.iter().enumerate() {
                     prop_assert!(list[i + 1..].iter().all(|(other, _)| other != k));
@@ -741,10 +766,12 @@ impl Campaign {
     }
 }
 
-fn campaign(liquidation: bool) -> Stats {
+/// Runs the campaign; with `eight` on the 3-event scenario, with EW-1..EW-4
+/// checked after every action too.
+fn campaign(liquidation: bool, eight: bool) -> Stats {
     let stats = RefCell::new(Stats::default());
     let config = Config {
-        cases: CASES,
+        cases: if eight { CASES_8 } else { CASES },
         failure_persistence: None,
         max_shrink_iters: 64,
         ..Config::default()
@@ -756,15 +783,22 @@ fn campaign(liquidation: bool) -> Stats {
     };
     let actions = proptest::collection::vec((ops, any::<u64>(), any::<u128>()), 50..=200);
     let mut runner = TestRunner::new(config);
+    let check = |c: &mut Campaign| -> Result<(), TestCaseError> {
+        c.check_books()?;
+        if eight {
+            check_eight_worlds(&mut c.w).map_err(TestCaseError::fail)?;
+        }
+        Ok(())
+    };
     let result = runner.run(&actions, |actions| {
-        let mut c = Campaign::new(liquidation);
+        let mut c = Campaign::new(liquidation, eight);
         let mut s = stats.borrow_mut();
         s.cases += 1;
-        c.check_books()?;
+        check(&mut c)?;
         for (op, seed, amount) in actions {
             c.run(op, seed, amount, &mut s);
             s.actions += 1;
-            c.check_books()?;
+            check(&mut c)?;
         }
         Ok(())
     });
@@ -777,23 +811,45 @@ fn campaign(liquidation: bool) -> Stats {
 
 #[test]
 fn invariant_3_resolution_never_lowers_hf() {
-    let s = campaign(false);
+    invariant_3("invariant_3_resolution_never_lowers_hf", false);
+}
+
+/// Invariant 3 and EW-1..EW-5 on the 3-event scenario.
+#[test]
+fn invariant_3_at_eight_worlds() {
+    invariant_3("invariant_3_at_eight_worlds", true);
+}
+
+fn invariant_3(title: &str, eight: bool) {
+    let s = campaign(false, eight);
+    let cases = u64::from(if eight { CASES_8 } else { CASES });
     println!(
-        "invariant_3_resolution_never_lowers_hf: {} cases, {} actions; successful calls {:?}; resolutions {}, \
+        "{title}: {} cases, {} actions; successful calls {:?}; resolutions {}, \
          checks around resolution {}, violations {}",
         s.cases, s.actions, s.calls, s.resolutions, s.checks_around_resolution, s.violations
     );
     assert_eq!(s.violations, 0);
     // the campaign must reach the states the invariant is about
-    assert!(s.resolutions > u64::from(CASES));
-    assert!(s.checks_around_resolution > u64::from(CASES));
+    assert!(s.resolutions > cases);
+    assert!(s.checks_around_resolution > cases);
 }
 
 #[test]
 fn invariant_4_liquidation_covers_repayment() {
-    let s = campaign(true);
+    invariant_4("invariant_4_liquidation_covers_repayment", false);
+}
+
+/// Invariant 4 and EW-1..EW-5 on the 3-event scenario.
+#[test]
+fn invariant_4_at_eight_worlds() {
+    invariant_4("invariant_4_at_eight_worlds", true);
+}
+
+fn invariant_4(title: &str, eight: bool) {
+    let s = campaign(true, eight);
+    let cases = u64::from(if eight { CASES_8 } else { CASES });
     println!(
-        "invariant_4_liquidation_covers_repayment: {} cases, {} actions; successful calls {:?}; liquidations {}, \
+        "{title}: {} cases, {} actions; successful calls {:?}; liquidations {}, \
          precondition held {}, coverage failures {}, bad-debt cases {}, bad-debt shortfalls {}, worst shortfall {} \
          bps, full seizures {}, dust rejected {}, skipped halted {}, skipped no price {}, unexpected failures {}, \
          guard mismatches {}, sizing mismatches {}, resolutions {}",
@@ -826,6 +882,6 @@ fn invariant_4_liquidation_covers_repayment() {
     );
     assert_eq!(s.guard_mismatches, 0);
     assert_eq!(s.sizing_mismatches, 0);
-    assert!(s.liquidations > u64::from(CASES));
+    assert!(s.liquidations > cases);
     assert!(s.precondition_held > 0);
 }
