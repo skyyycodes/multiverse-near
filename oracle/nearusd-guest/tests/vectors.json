@@ -1,0 +1,286 @@
+{
+  "about": "Shared vectors of the NEAR/USD median rule: oracle/nearusd-guest (tests/vectors.rs) and scripts/lib/spot.ts read this file. Prices are 18-decimal integers as decimal strings; times are Unix seconds; a null expectation means the input is refused.",
+  "decimals": [
+    { "raw": "3.5047", "wad": "3504700000000000000" },
+    { "raw": "4", "wad": "4000000000000000000" },
+    { "raw": "4.", "wad": "4000000000000000000" },
+    { "raw": "0.1", "wad": "100000000000000000" },
+    { "raw": "3.50830", "wad": "3508300000000000000" },
+    { "raw": "0.000000000000000001", "wad": "1" },
+    { "raw": "1.0000000000000000019", "wad": "1000000000000000001" },
+    { "raw": "340282366920938463463.374607431768211455", "wad": "340282366920938463463374607431768211455" },
+    { "raw": "340282366920938463464", "wad": null },
+    { "raw": "", "wad": null },
+    { "raw": ".", "wad": null },
+    { "raw": ".5", "wad": null },
+    { "raw": "-1", "wad": null },
+    { "raw": "+1", "wad": null },
+    { "raw": "1e3", "wad": null },
+    { "raw": "3,5", "wad": null },
+    { "raw": " 3.5", "wad": null },
+    { "raw": "3.5 ", "wad": null },
+    { "raw": "1.2.3", "wad": null },
+    { "raw": "abc", "wad": null }
+  ],
+  "times": [
+    { "raw": "2026-11-13T17:27:34.123456Z", "sec": 1794590854 },
+    { "raw": "2026-11-13T17:27:34Z", "sec": 1794590854 },
+    { "raw": "2026-11-13T17:27:34+00:00", "sec": 1794590854 },
+    { "raw": "1970-01-01T00:00:00Z", "sec": 0 },
+    { "raw": "2024-02-29T23:59:59Z", "sec": 1709251199 },
+    { "raw": "2026-11-13 17:27:34Z", "sec": null },
+    { "raw": "2026-11-13T17:27:34", "sec": null },
+    { "raw": "2026-11-13T17:27:34+01:00", "sec": null },
+    { "raw": "2026-02-29T00:00:00Z", "sec": null }
+  ],
+  "sources": [
+    {
+      "name": "coinbase_ticker",
+      "source": "coinbase",
+      "now": 1794590900,
+      "body": "{\"ask\":\"3.5050\",\"bid\":\"3.5040\",\"volume\":\"1234567.89\",\"trade_id\":123456789,\"price\":\"3.5047\",\"size\":\"12.5\",\"time\":\"2026-11-13T17:27:34.123456Z\",\"rfq_volume\":\"0\"}",
+      "quote": { "raw": "3.5047", "price_wad": "3504700000000000000", "observed_at": 1794590854 }
+    },
+    {
+      "name": "kraken_last_trade_at_the_guest_clock",
+      "source": "kraken",
+      "now": 1794590900,
+      "body": "{\"error\":[],\"result\":{\"NEARUSD\":{\"a\":[\"3.50840\",\"100\",\"100.000\"],\"b\":[\"3.50820\",\"50\",\"50.000\"],\"c\":[\"3.50830\",\"12.34000000\"],\"v\":[\"1000.0\",\"2000.0\"],\"p\":[\"3.5\",\"3.5\"],\"t\":[100,200],\"l\":[\"3.4\",\"3.4\"],\"h\":[\"3.6\",\"3.6\"],\"o\":\"3.45\"}}}",
+      "quote": { "raw": "3.50830", "price_wad": "3508300000000000000", "observed_at": 1794590900 }
+    },
+    {
+      "name": "gemini_timestamp_in_ms",
+      "source": "gemini",
+      "now": 1794590900,
+      "body": "{\"bid\":\"3.4800\",\"ask\":\"3.4820\",\"volume\":{\"NEAR\":\"123.4\",\"USD\":\"432.1\",\"timestamp\":1794590850000},\"last\":\"3.4810\"}",
+      "quote": { "raw": "3.4810", "price_wad": "3481000000000000000", "observed_at": 1794590850 }
+    },
+    {
+      "name": "coingecko_number_read_as_text",
+      "source": "coingecko",
+      "now": 1794590900,
+      "body": "{\"near\":{\"usd\":3.5,\"last_updated_at\":1794590840}}",
+      "quote": { "raw": "3.5", "price_wad": "3500000000000000000", "observed_at": 1794590840 }
+    },
+    {
+      "name": "kraken_error",
+      "source": "kraken",
+      "now": 1794590900,
+      "body": "{\"error\":[\"EQuery:Unknown asset pair\"]}",
+      "quote": null
+    },
+    {
+      "name": "coingecko_exponent",
+      "source": "coingecko",
+      "now": 1794590900,
+      "body": "{\"near\":{\"usd\":3.5e0,\"last_updated_at\":1794590840}}",
+      "quote": null
+    },
+    {
+      "name": "gemini_zero_price",
+      "source": "gemini",
+      "now": 1794590900,
+      "body": "{\"bid\":\"0\",\"ask\":\"0\",\"volume\":{\"timestamp\":1794590850000},\"last\":\"0.0000\"}",
+      "quote": null
+    },
+    {
+      "name": "coinbase_bad_time",
+      "source": "coinbase",
+      "now": 1794590900,
+      "body": "{\"price\":\"3.5047\",\"time\":\"yesterday\"}",
+      "quote": null
+    },
+    {
+      "name": "coinbase_not_json",
+      "source": "coinbase",
+      "now": 1794590900,
+      "body": "<html>rate limited</html>",
+      "quote": null
+    }
+  ],
+  "aggregate": [
+    {
+      "name": "median_of_four",
+      "min_sources": 3,
+      "max_spread_bps": 200,
+      "quotes": [
+        { "source": "coinbase", "raw": "3.5047", "price_wad": "3504700000000000000", "observed_at": 1794590854 },
+        { "source": "kraken", "raw": "3.5083", "price_wad": "3508300000000000000", "observed_at": 1794590900 },
+        { "source": "gemini", "raw": "3.4810", "price_wad": "3481000000000000000", "observed_at": 1794590850 },
+        { "source": "coingecko", "raw": "3.50", "price_wad": "3500000000000000000", "observed_at": 1794590840 }
+      ],
+      "result": { "price_wad": "3502350000000000000", "observed_at": 1794590840, "sources_used": 4, "spread_bps": 78, "dropped": null }
+    },
+    {
+      "name": "scripts_reading_of_13_nov",
+      "min_sources": 3,
+      "max_spread_bps": 200,
+      "quotes": [
+        { "source": "coinbase", "raw": "3.5118", "price_wad": "3511800000000000000", "observed_at": 1794590854 },
+        { "source": "kraken", "raw": "3.5111", "price_wad": "3511100000000000000", "observed_at": 1794590900 },
+        { "source": "gemini", "raw": "3.4810", "price_wad": "3481000000000000000", "observed_at": 1794590850 },
+        { "source": "coingecko", "raw": "3.51", "price_wad": "3510000000000000000", "observed_at": 1794590840 }
+      ],
+      "result": { "price_wad": "3510550000000000000", "observed_at": 1794590840, "sources_used": 4, "spread_bps": 88, "dropped": null }
+    },
+    {
+      "name": "median_of_three_is_the_middle_value",
+      "min_sources": 3,
+      "max_spread_bps": 200,
+      "quotes": [
+        { "source": "coinbase", "raw": "3.5047", "price_wad": "3504700000000000000", "observed_at": 1794590854 },
+        { "source": "kraken", "raw": "3.5083", "price_wad": "3508300000000000000", "observed_at": 1794590900 },
+        { "source": "gemini", "raw": "3.4810", "price_wad": "3481000000000000000", "observed_at": 1794590850 }
+      ],
+      "result": { "price_wad": "3504700000000000000", "observed_at": 1794590850, "sources_used": 3, "spread_bps": 78, "dropped": null }
+    },
+    {
+      "name": "drops_one_outlier",
+      "min_sources": 3,
+      "max_spread_bps": 200,
+      "quotes": [
+        { "source": "coinbase", "raw": "3.5047", "price_wad": "3504700000000000000", "observed_at": 1794590854 },
+        { "source": "kraken", "raw": "3.5083", "price_wad": "3508300000000000000", "observed_at": 1794590900 },
+        { "source": "gemini", "raw": "3.10", "price_wad": "3100000000000000000", "observed_at": 1794590830 },
+        { "source": "coingecko", "raw": "3.50", "price_wad": "3500000000000000000", "observed_at": 1794590840 }
+      ],
+      "result": { "price_wad": "3504700000000000000", "observed_at": 1794590840, "sources_used": 3, "spread_bps": 24, "dropped": "gemini" }
+    },
+    {
+      "name": "drops_at_most_once",
+      "min_sources": 3,
+      "max_spread_bps": 200,
+      "quotes": [
+        { "source": "coinbase", "raw": "3.5047", "price_wad": "3504700000000000000", "observed_at": 1794590854 },
+        { "source": "kraken", "raw": "3.5083", "price_wad": "3508300000000000000", "observed_at": 1794590900 },
+        { "source": "gemini", "raw": "3.10", "price_wad": "3100000000000000000", "observed_at": 1794590850 },
+        { "source": "coingecko", "raw": "3.90", "price_wad": "3900000000000000000", "observed_at": 1794590840 }
+      ],
+      "result": { "error": "spread 1127 bps above 200", "sources_used": 3, "spread_bps": 1127 }
+    },
+    {
+      "name": "no_drop_without_a_source_to_spare",
+      "min_sources": 4,
+      "max_spread_bps": 200,
+      "quotes": [
+        { "source": "coinbase", "raw": "3.5047", "price_wad": "3504700000000000000", "observed_at": 1794590854 },
+        { "source": "kraken", "raw": "3.5083", "price_wad": "3508300000000000000", "observed_at": 1794590900 },
+        { "source": "gemini", "raw": "3.10", "price_wad": "3100000000000000000", "observed_at": 1794590850 },
+        { "source": "coingecko", "raw": "3.50", "price_wad": "3500000000000000000", "observed_at": 1794590840 }
+      ],
+      "result": { "error": "spread 1166 bps above 200", "sources_used": 4, "spread_bps": 1166 }
+    },
+    {
+      "name": "refuses_two_sources",
+      "min_sources": 3,
+      "max_spread_bps": 200,
+      "quotes": [
+        { "source": "coinbase", "raw": "3.5047", "price_wad": "3504700000000000000", "observed_at": 1794590854 },
+        { "source": "kraken", "raw": "3.5083", "price_wad": "3508300000000000000", "observed_at": 1794590900 }
+      ],
+      "result": { "error": "too few sources (2 < 3)", "sources_used": 2, "spread_bps": 0 }
+    },
+    {
+      "name": "refuses_wide_spread",
+      "min_sources": 3,
+      "max_spread_bps": 200,
+      "quotes": [
+        { "source": "coinbase", "raw": "3.50", "price_wad": "3500000000000000000", "observed_at": 1794590900 },
+        { "source": "kraken", "raw": "3.51", "price_wad": "3510000000000000000", "observed_at": 1794590900 },
+        { "source": "gemini", "raw": "3.60", "price_wad": "3600000000000000000", "observed_at": 1794590900 }
+      ],
+      "result": { "error": "spread 285 bps above 200", "sources_used": 3, "spread_bps": 285 }
+    },
+    {
+      "name": "a_tie_drops_the_higher_value",
+      "min_sources": 3,
+      "max_spread_bps": 2000,
+      "quotes": [
+        { "source": "coinbase", "raw": "3.00", "price_wad": "3000000000000000000", "observed_at": 1794590900 },
+        { "source": "kraken", "raw": "3.50", "price_wad": "3500000000000000000", "observed_at": 1794590900 },
+        { "source": "gemini", "raw": "3.50", "price_wad": "3500000000000000000", "observed_at": 1794590900 },
+        { "source": "coingecko", "raw": "4.00", "price_wad": "4000000000000000000", "observed_at": 1794590800 }
+      ],
+      "result": { "price_wad": "3500000000000000000", "observed_at": 1794590900, "sources_used": 3, "spread_bps": 1429, "dropped": "coingecko" }
+    },
+    {
+      "name": "one_source_when_one_is_enough",
+      "min_sources": 1,
+      "max_spread_bps": 200,
+      "quotes": [
+        { "source": "kraken", "raw": "3.5083", "price_wad": "3508300000000000000", "observed_at": 1794590900 }
+      ],
+      "result": { "price_wad": "3508300000000000000", "observed_at": 1794590900, "sources_used": 1, "spread_bps": 0, "dropped": null }
+    },
+    {
+      "name": "an_even_median_rounds_down",
+      "min_sources": 2,
+      "max_spread_bps": 200,
+      "quotes": [
+        { "source": "coinbase", "raw": "3.000000000000000001", "price_wad": "3000000000000000001", "observed_at": 1794590900 },
+        { "source": "kraken", "raw": "3.000000000000000002", "price_wad": "3000000000000000002", "observed_at": 1794590900 }
+      ],
+      "result": { "price_wad": "3000000000000000001", "observed_at": 1794590900, "sources_used": 2, "spread_bps": 1, "dropped": null }
+    },
+    {
+      "name": "a_spread_at_the_limit_passes",
+      "min_sources": 3,
+      "max_spread_bps": 200,
+      "quotes": [
+        { "source": "coinbase", "raw": "0.99", "price_wad": "990000000000000000", "observed_at": 1794590900 },
+        { "source": "kraken", "raw": "1.00", "price_wad": "1000000000000000000", "observed_at": 1794590900 },
+        { "source": "gemini", "raw": "1.01", "price_wad": "1010000000000000000", "observed_at": 1794590900 }
+      ],
+      "result": { "price_wad": "1000000000000000000", "observed_at": 1794590900, "sources_used": 3, "spread_bps": 200, "dropped": null }
+    },
+    {
+      "name": "a_spread_one_above_the_limit_is_refused",
+      "min_sources": 3,
+      "max_spread_bps": 199,
+      "quotes": [
+        { "source": "coinbase", "raw": "0.99", "price_wad": "990000000000000000", "observed_at": 1794590900 },
+        { "source": "kraken", "raw": "1.00", "price_wad": "1000000000000000000", "observed_at": 1794590900 },
+        { "source": "gemini", "raw": "1.01", "price_wad": "1010000000000000000", "observed_at": 1794590900 }
+      ],
+      "result": { "error": "spread 200 bps above 199", "sources_used": 3, "spread_bps": 200 }
+    }
+  ],
+  "runs": [
+    {
+      "name": "four_sources_answer",
+      "input": "{\"min_sources\":3,\"max_spread_bps\":200}",
+      "now": 1794590900,
+      "bodies": {
+        "coinbase": "{\"price\":\"3.5047\",\"time\":\"2026-11-13T17:27:34.123456Z\"}",
+        "kraken": "{\"error\":[],\"result\":{\"NEARUSD\":{\"c\":[\"3.50830\",\"12.34\"]}}}",
+        "gemini": "{\"volume\":{\"timestamp\":1794590850000},\"last\":\"3.4810\"}",
+        "coingecko": "{\"near\":{\"usd\":3.50,\"last_updated_at\":1794590840}}"
+      },
+      "output": {
+        "price_wad": "3502350000000000000",
+        "observed_at": 1794590840,
+        "sources_used": 4,
+        "spread_bps": 78,
+        "evidence": "coinbase=3.5047 kraken=3.50830 gemini=3.4810 coingecko=3.50 median=3.50235"
+      }
+    },
+    {
+      "name": "two_sources_fail",
+      "input": "{\"min_sources\":3,\"max_spread_bps\":200}",
+      "now": 1794590900,
+      "bodies": {
+        "coinbase": null,
+        "kraken": "{\"error\":[\"EGeneral:Too many requests\"]}",
+        "gemini": "{\"volume\":{\"timestamp\":1794590850000},\"last\":\"3.4810\"}",
+        "coingecko": "{\"near\":{\"usd\":3.50,\"last_updated_at\":1794590840}}"
+      },
+      "output": {
+        "price_wad": null,
+        "observed_at": 1794590900,
+        "sources_used": 2,
+        "spread_bps": 0,
+        "evidence": "coinbase: HTTP 503 kraken: error: [\"EGeneral:Too many requests\"] gemini=3.4810 coingecko=3.50: too few sources (2 < 3)"
+      }
+    }
+  ]
+}

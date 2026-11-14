@@ -343,6 +343,8 @@ fn migrate_changes_only_state_and_adds_keys_under_new_prefixes() {
         .keys()
         .filter(|k| !before.contains_key(*k))
         .collect();
+    let record_key = StorageKey::VersionRecord.into_storage_key();
+    assert!(added.contains(&&record_key), "the VersionRecord is new");
     for key in &added {
         assert!(MIGRATE_NEW_PREFIXES.contains(&key[0]), "{key:?}");
     }
@@ -353,6 +355,9 @@ fn migrate_changes_only_state_and_adds_keys_under_new_prefixes() {
     // one created set per legacy scenario (tests/eight.rs checks the values)
     assert_eq!(under(0x2a), 12);
     assert_eq!(under(0x2b), 6);
+    // PRC, step 8: one price config per legacy scenario (tests/prices.rs,
+    // module `migration`, checks the values)
+    assert_eq!(under(0x2e), 6);
     let marker_prefix = StorageKey::AccountVersion.into_storage_key();
     for a in prod_accounts() {
         let mut key = marker_prefix.clone();

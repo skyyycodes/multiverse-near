@@ -352,6 +352,386 @@ fn dumping_one_world_for_a_minute_does_not_liquidate_a_healthy_borrower() {
         r#"{{"action":"liquidate","scenario_id":{s},"account_id":"{ALICE}","repay_amount":"max"}}"#
     );
     let liquidated = w.ft_transfer_call(CAROL, Usdc, 9_001 * E18 / scale(Usdc), &msg);
-    assert!(liquidated.is_err(), "{liquidated:?}");
+    // Under the v1 gates the pool is younger than a window, so its mean runs
+    // over the dump too: the out-of-band world pauses liquidation.
+    fails(liquidated, "PriceUnavailable(1)");
+    let status = w.view(|c| c.liquidation_status(s, acc(ALICE)));
+    assert_eq!(
+        (status.status, status.unpriced_world),
+        (crate::lending::LiquidationState::PausedNoPrice, Some(1))
+    );
     assert_eq!(w.real(CAROL, Wnear), 0);
+}
+
+// ---- ECON-1 and ECON-2 under the v2 price config (C-PRC) ----
+
+/// The binary scenario with world pools at 3.40 / 2.80 (100,000 wNEAR
+/// deep), its odds pool at 2/3 : 1/3 and Bob's 100,000 USDC supply, on the
+/// production defaults (`min_age_sec` 1,800, `min_depth` 50,000), a full
+/// window after seeding.
+fn v2_lending_world() -> (World, u64, Vec<u64>) {
+    let mut w = super::prices::v2_world();
+    let (s, pools) = super::prices::seed_bin(&mut w);
+    let msg = format!(r#"{{"action":"supply","scenario_id":{s}}}"#);
+    w.ft_transfer_call(BOB, Usdc, 100_000 * E18 / scale(Usdc), &msg)
+        .unwrap();
+    w.warp(1_801);
+    (w, s, pools)
+}
+
+/// The TWAP-implied spot (I) of the scenario now.
+fn implied(w: &mut World, s: u64) -> u128 {
+    w.view(|c| c.price_check(s)).implied_twap_spot.unwrap().0
+}
+
+/// Liquidation-side health of `who` at `lltv`, from the snapshot's prices:
+/// what lending computes once it reads the snapshot.
+fn liquidation_hf(w: &mut World, s: u64, who: &str, lltv: u128) -> u128 {
+    use crate::prices::PriceMode;
+    let who = acc(who);
+    w.view(|c| {
+        let px = c.price_snapshot(s).prices(PriceMode::Liquidate);
+        let root = c.scenario(s).root();
+        let possible = c.scenario(s).possible;
+        let mut values = vec![0u128; px.prices.len()];
+        for (piece, amount) in c.pieces(s, &who) {
+            let mask = piece.mask(root) & possible;
+            for (w, value) in values.iter_mut().enumerate() {
+                if mask & (1 << w) == 0 {
+                    continue;
+                }
+                *value += if piece.asset() == Usdc {
+                    amount
+                } else {
+                    multiverse_math::mul_div_down(amount, px.prices[w], E18)
+                };
+            }
+        }
+        let lowest = (0..values.len())
+            .filter(|w| possible & (1 << w) != 0)
+            .map(|w| values[w])
+            .min()
+            .unwrap();
+        multiverse_math::risk::health_factor(lowest, c.debt_for(s, &who), lltv).unwrap()
+    })
+}
+
+/// A wNEAR amount that moves a pool of `reserve0` wNEAR to `factor` (WAD)
+/// of its price when sold into it: `reserve0 * (1/sqrt(factor) - 1)`, before
+/// the fee.
+fn to_move_price(reserve0: u128, factor_pct: u128) -> u128 {
+    // 1/sqrt(0.70) = 1.195229, 1/sqrt(0.75) = 1.154701.
+    let inverse_sqrt = match factor_pct {
+        70 => 1_195_229,
+        75 => 1_154_701,
+        _ => panic!("unsupported factor"),
+    };
+    reserve0 * (inverse_sqrt - 1_000_000) / 1_000_000 * 1_000 / 997
+}
+
+/// ECON-2 on a v2 market: the same dump, but in a pool with a full window.
+/// The out-of-band world stays priced for liquidation at its TWAP, which
+/// the minute of dumping moved by 114 ticks: Alice stays healthy. She
+/// borrows 16,000, within the Normal tier's 0.60 borrow limit on the 2.80
+/// world (16,800); SPEC-C 8.4's 18,000 is above that limit.
+#[test]
+fn econ2_full_window_dump_does_not_liquidate() {
+    let (mut w, s, pools) = v2_lending_world();
+    post_wnear(&mut w, ALICE, s, 10_000 * E18);
+    w.call(ALICE, ONE_YOCTO, |c| c.borrow(s, U128(16_000 * E18)))
+        .unwrap();
+    w.split_ft(CAROL, s, Wnear, &[1, 2], 19_000 * E18).unwrap();
+    w.call(CAROL, ONE_YOCTO, |c| {
+        c.swap(pools[1], true, U128(18_380 * E18), U128(0))
+    })
+    .unwrap();
+    w.warp(61);
+    let sn = w.view(|c| c.price_snapshot(s));
+    let q = sn.quotes[1];
+    assert_eq!(q.status, crate::prices::WorldStatus::OutOfBand);
+    assert!(q.full_window);
+    let rows = w.view(|c| c.world_prices(s));
+    assert_eq!(rows[1].borrow_price.0, 0);
+    // TWAP 2.8 x 1.0001^-114 = 2.768.
+    let p = rows[1].liquidation_price.0;
+    assert_eq!(p, q.twap);
+    assert!(p > 2_767 * E15 && p < 2_769 * E15, "{p}");
+    // 10,000 x 2.768 x 0.70 / 16,000: HF 1.211 at the Normal tier's 0.70.
+    let hf = liquidation_hf(&mut w, s, ALICE, 700 * E15);
+    assert!(hf > 1_210 * E15 && hf < 1_212 * E15, "{hf}");
+    let msg = format!(
+        r#"{{"action":"liquidate","scenario_id":{s},"account_id":"{ALICE}","repay_amount":"max"}}"#
+    );
+    assert!(w
+        .ft_transfer_call(CAROL, Usdc, 9_001 * E18 / scale(Usdc), &msg)
+        .is_err());
+    assert_eq!(w.real(CAROL, Wnear), 0);
+}
+
+/// An LP pull makes a world shallow: liquidation there pauses, the implied
+/// spot becomes unknown and the reference haircut switches off.
+#[test]
+fn econ2_lp_pull_pauses_and_switches_the_haircut_off() {
+    let (mut w, s, pools) = v2_lending_world();
+    let honest = implied(&mut w, s);
+    super::reference::configure(&mut w, super::reference::reporter_only()).unwrap();
+    let cfg = super::reference::with_reference(crate::prices::MarketPriceCfg::V2);
+    super::reference::set_cfg(&mut w, s, cfg).unwrap();
+    // The outside price 5% under the pools: a 5% haircut on both sides.
+    super::reference::report(&mut w, honest * 95 / 100).unwrap();
+    let check = w.view(|c| c.price_check(s));
+    // f_l = rho, 0.95 to within the floors of R and rho.
+    assert_eq!(Some(check.liquidation_factor), check.ratio);
+    assert!(check.liquidation_factor.0.abs_diff(950 * E15) <= 1);
+    post_wnear(&mut w, ALICE, s, 10_000 * E18);
+    w.call(ALICE, ONE_YOCTO, |c| c.borrow(s, U128(15_000 * E18)))
+        .unwrap();
+    // The owner pulls 90% of world 1's liquidity: 28,000 USDC-if-1 left.
+    let owner = w.view(|c| c.position_of(pools[1], acc(OWNER)).unwrap());
+    let pull = owner.liquidity.0 / 10 * 9;
+    w.call(OWNER, ONE_YOCTO, |c| {
+        c.remove_liquidity(pools[1], U128(pull), U128(0), U128(0))
+    })
+    .unwrap();
+    let rows = w.view(|c| c.world_prices(s));
+    assert_eq!(rows[1].status, crate::prices::WorldStatus::Shallow);
+    assert_eq!(rows[1].liquidation_price.0, 0);
+    let check = w.view(|c| c.price_check(s));
+    assert_eq!(check.implied_twap_spot, None);
+    assert_eq!(check.liquidation_factor.0, E18);
+    // World 0 keeps its plain TWAP.
+    assert_eq!(rows[0].liquidation_price.0, rows[0].twap.0);
+    let msg = format!(
+        r#"{{"action":"liquidate","scenario_id":{s},"account_id":"{ALICE}","repay_amount":"max"}}"#
+    );
+    fails(
+        w.ft_transfer_call(CAROL, Usdc, 9_001 * E18 / scale(Usdc), &msg),
+        "PriceUnavailable(1)",
+    );
+}
+
+/// PRC-3: pushing every world far out of band, up and down, inside one
+/// block changes no liquidation price, depth, factor or guard; a second
+/// later each TWAP has moved by at most push_ticks / 1,800.
+#[test]
+fn one_block_push_never_moves_liquidation_prices() {
+    let (mut w, s, pools) = v2_lending_world();
+    let honest = implied(&mut w, s);
+    super::reference::configure(&mut w, super::reference::reporter_only()).unwrap();
+    let cfg = super::reference::with_reference(crate::prices::MarketPriceCfg::V2);
+    super::reference::set_cfg(&mut w, s, cfg).unwrap();
+    super::reference::report(&mut w, honest * 95 / 100).unwrap();
+    let before_rows = w.view(|c| c.world_prices(s));
+    let before_check = w.view(|c| c.price_check(s));
+    let before = w.view(|c| c.price_snapshot(s));
+    super::amm::give_world_tokens(&mut w, CAROL, s, 40_000 * E18, 200_000 * E18);
+    super::amm::buy(&mut w, CAROL, pools[0], 30_000 * E18);
+    super::amm::sell(&mut w, CAROL, pools[1], 30_000 * E18);
+    let after = w.view(|c| c.price_snapshot(s));
+    assert!(after
+        .statuses()
+        .iter()
+        .all(|st| *st == crate::prices::WorldStatus::OutOfBand));
+    let after_rows = w.view(|c| c.world_prices(s));
+    for (b, a) in before_rows.iter().zip(&after_rows) {
+        assert_eq!(
+            (b.liquidation_price, b.depth, b.twap),
+            (a.liquidation_price, a.depth, a.twap)
+        );
+    }
+    let after_check = w.view(|c| c.price_check(s));
+    assert_eq!(
+        (
+            after_check.liquidation_factor,
+            after_check.liquidation_guard
+        ),
+        (
+            before_check.liquidation_factor,
+            before_check.liquidation_guard
+        )
+    );
+    assert_eq!(
+        after_check.implied_twap_spot,
+        before_check.implied_twap_spot
+    );
+    w.warp(1);
+    let later = w.view(|c| c.price_snapshot(s));
+    for i in 0..2 {
+        let (l0, push) = (
+            before.quotes[i].mean_tick.unwrap(),
+            after.quotes[i].spot_tick.unwrap(),
+        );
+        let l1 = later.quotes[i].mean_tick.unwrap();
+        let bound = (i64::from(push) - i64::from(l0)).abs() / 1_800 + 1;
+        assert!(
+            (i64::from(l1) - i64::from(l0)).abs() <= bound,
+            "{i}: {l0} -> {l1}, push {push}"
+        );
+    }
+}
+
+/// A dump that drains the USDC side below the depth gate leaves the depth
+/// (USDC at the TWAP price) where it was: the world is out of band, never
+/// shallow, so one dump cannot pause liquidation in a full-window pool.
+#[test]
+fn one_block_dump_cannot_make_a_world_shallow() {
+    let mut w = super::prices::v2_world();
+    let s = w.s_bin;
+    // World 1: 4,286 wNEAR at 2.80, 12,000 USDC-if-1 against the v1 gate of
+    // 10,000.
+    let pools = super::amm::seed_worlds(
+        &mut w,
+        s,
+        &[3_400 * E15, 2_800 * E15],
+        &[100_000 * E18, 4_286 * E18],
+    );
+    super::reference::set_cfg(&mut w, s, super::profile::V1_PRICE_CFG).unwrap();
+    w.warp(61);
+    assert_eq!(
+        w.view(|c| c.price_snapshot(s)).statuses(),
+        vec![crate::prices::WorldStatus::Trusted; 2]
+    );
+    let depth = w.view(|c| c.price_snapshot(s)).quotes[1].depth;
+    super::amm::give_world_tokens(&mut w, CAROL, s, 2_000 * E18, 0);
+    super::amm::sell(&mut w, CAROL, pools[1], 1_000 * E18);
+    assert!(w.view(|c| c.pool(pools[1]).amm.reserve1()) < 10_000 * E18);
+    let q = w.view(|c| c.price_snapshot(s)).quotes[1];
+    assert_eq!(q.status, crate::prices::WorldStatus::OutOfBand);
+    assert_eq!(q.depth, depth);
+    assert!(depth > 11_990 * E18);
+}
+
+/// G9, closed: holding the likely world (2/3) 30% down for a window moves
+/// the implied spot 21% under the outside price, so the guard pauses
+/// liquidation (and borrowing).
+#[test]
+fn econ2_guard_catches_a_high_odds_world_held_down_a_window() {
+    let (mut w, s, pools) = v2_lending_world();
+    let honest = implied(&mut w, s);
+    super::reference::configure(&mut w, super::reference::reporter_only()).unwrap();
+    let cfg = super::reference::with_reference(crate::prices::MarketPriceCfg::V2);
+    super::reference::set_cfg(&mut w, s, cfg).unwrap();
+    super::amm::give_world_tokens(&mut w, CAROL, s, 30_000 * E18, 0);
+    super::amm::sell(&mut w, CAROL, pools[0], to_move_price(100_000 * E18, 70));
+    w.warp(1_801);
+    super::reference::report(&mut w, honest).unwrap();
+    let check = w.view(|c| c.price_check(s));
+    let ratio = check.ratio.unwrap().0;
+    // 3.20 / (2/3 x 2.38 + 1/3 x 2.80) = 1.27.
+    assert!(ratio > 1_260 * E15 && ratio < 1_280 * E15, "{ratio}");
+    assert!(check.liquidation_guard);
+    assert!(check
+        .borrow_block
+        .unwrap()
+        .starts_with("ReferenceDeviation("));
+    let guard = w.view(|c| c.price_snapshot(s)).liquidation_guard().unwrap();
+    assert!(guard.error().starts_with("ReferenceGuard("));
+}
+
+/// G9's documented residual: holding the unlikely world (1/3) 30% down
+/// for a window moves the implied spot only 9.6%, inside the guard's 10%,
+/// and a borrower healthy at honest prices is liquidated at the held TWAP.
+/// A later fix of the residual must change this test.
+#[test]
+fn econ2_low_odds_world_held_down_a_window_is_the_documented_residual() {
+    let (mut w, s, pools) = v2_lending_world();
+    let honest = implied(&mut w, s);
+    super::reference::configure(&mut w, super::reference::reporter_only()).unwrap();
+    let cfg = super::reference::with_reference(crate::prices::MarketPriceCfg::V2);
+    super::reference::set_cfg(&mut w, s, cfg).unwrap();
+    super::reference::report(&mut w, honest).unwrap();
+    post_wnear(&mut w, ALICE, s, 10_000 * E18);
+    w.call(ALICE, ONE_YOCTO, |c| c.borrow(s, U128(15_000 * E18)))
+        .unwrap();
+    super::amm::give_world_tokens(&mut w, CAROL, s, 30_000 * E18, 0);
+    super::amm::sell(&mut w, CAROL, pools[1], to_move_price(100_000 * E18, 70));
+    w.warp(1_801);
+    super::reference::report(&mut w, honest).unwrap();
+    let check = w.view(|c| c.price_check(s));
+    let ratio = check.ratio.unwrap().0;
+    // 3.20 / (2/3 x 3.40 + 1/3 x 1.96) = 1.096.
+    assert!(ratio > 1_090 * E15 && ratio < 1_100 * E15, "{ratio}");
+    assert!(!check.liquidation_guard);
+    assert_eq!(check.borrow_block, None);
+    let rows = w.view(|c| c.world_prices(s));
+    assert_eq!(rows[1].status, crate::prices::WorldStatus::Trusted);
+    assert_eq!(rows[1].liquidation_price, rows[1].twap);
+    // 10,000 x 1.96 x 0.75 < 15,000: liquidatable at the held TWAP.
+    assert!(liquidation_hf(&mut w, s, ALICE, 750 * E15) < E18);
+    let msg = format!(
+        r#"{{"action":"liquidate","scenario_id":{s},"account_id":"{ALICE}","repay_amount":"max"}}"#
+    );
+    w.ft_transfer_call(CAROL, Usdc, 9_001 * E18 / scale(Usdc), &msg)
+        .unwrap();
+    assert!(w.real(CAROL, Wnear) > 0);
+}
+
+/// ECON-1 held for a whole window: the TWAP follows the pump, but the
+/// outside price does not, so a reference market refuses new borrowing.
+/// Without the reference it is the documented residual.
+#[test]
+fn pumping_every_world_for_a_window_is_caught_by_the_reference() {
+    let (mut w, s, pools) = v2_lending_world();
+    let honest = implied(&mut w, s);
+    super::reference::configure(&mut w, super::reference::reporter_only()).unwrap();
+    w.split_ft(CAROL, s, Usdc, &[1, 2], 142_000 * E18).unwrap();
+    for (i, y) in [(0usize, 100_000 * P0), (1, 100_000 * P1)] {
+        // y * (sqrt 2 - 1) into the curve doubles the price.
+        let amount_in = y * 414_213_562 / 1_000_000_000 * 1_000_000 / 997_000;
+        w.call(CAROL, ONE_YOCTO, |c| {
+            c.swap(pools[i], false, U128(amount_in), U128(0))
+        })
+        .unwrap();
+    }
+    w.warp(1_801);
+    super::reference::report(&mut w, honest).unwrap();
+    // Off: the pump counts (the residual), at about twice the price.
+    let rows = w.view(|c| c.world_prices(s));
+    assert!(
+        rows[0].borrow_price.0 > 6_700 * E15,
+        "{}",
+        rows[0].borrow_price.0
+    );
+    assert_eq!(w.view(|c| c.price_check(s)).borrow_block, None);
+    // On: the reference says NEAR did not double.
+    let cfg = super::reference::with_reference(crate::prices::MarketPriceCfg::V2);
+    super::reference::set_cfg(&mut w, s, cfg).unwrap();
+    let check = w.view(|c| c.price_check(s));
+    let ratio = check.ratio.unwrap().0;
+    assert!(ratio > 490 * E15 && ratio < 510 * E15, "{ratio}");
+    assert!(check
+        .borrow_block
+        .unwrap()
+        .starts_with("ReferenceDeviation("));
+    // The borrow side would also be cut to the reference: f_b = rho.
+    assert_eq!(check.borrow_factor.0, ratio);
+}
+
+/// ECON-1 in a young pool: under the v2 age gate (1,800 s) a pump in the
+/// first second after seeding, held a minute, prices nothing.
+#[test]
+fn young_pool_pump_cannot_borrow_under_v2_defaults() {
+    let mut w = super::prices::v2_world();
+    let (s, pools) = super::prices::seed_bin(&mut w);
+    let msg = format!(r#"{{"action":"supply","scenario_id":{s}}}"#);
+    w.ft_transfer_call(BOB, Usdc, 100_000 * E18 / scale(Usdc), &msg)
+        .unwrap();
+    w.split_ft(CAROL, s, Usdc, &[1, 2], 142_000 * E18).unwrap();
+    for (i, y) in [(0usize, 100_000 * P0), (1, 100_000 * P1)] {
+        let amount_in = y * 414_213_562 / 1_000_000_000 * 1_000_000 / 997_000;
+        w.call(CAROL, ONE_YOCTO, |c| {
+            c.swap(pools[i], false, U128(amount_in), U128(0))
+        })
+        .unwrap();
+    }
+    w.warp(61);
+    let rows = w.view(|c| c.world_prices(s));
+    assert!(rows
+        .iter()
+        .all(|r| r.status == crate::prices::WorldStatus::Young && r.borrow_price.0 == 0));
+    post_wnear(&mut w, CAROL, s, 24_000 * E18);
+    let err = w
+        .call(CAROL, ONE_YOCTO, |c| c.borrow(s, U128(10_000 * E18)))
+        .unwrap_err();
+    assert!(err.starts_with("Unhealthy("), "{err}");
 }

@@ -491,7 +491,8 @@ fn the_snapshot_prices_as_v1_on_real_pools() {
 
 #[test]
 fn new_scenarios_snapshot_the_default_price_config() {
-    let mut w = World::new();
+    // The production defaults; `World::new()` installs the v1 profile's.
+    let mut w = World::new_v2();
     let (s, b) = (w.s2x2, w.s_bin);
     assert_eq!(
         w.view(|c| c.prices.configs.get(&s).copied()),
