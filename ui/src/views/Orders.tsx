@@ -1,200 +1,302 @@
+'use client'
 // The trading screen for one world, laid out like an exchange's spot page. NEAR/USDC trades inside a single world:
-// a bid escrows USDC-if-world, an ask escrows NEAR-if-world, and both pay out only if that world happens.
-//   pair bar      price, 24h change, high, low and volume of the world's pool; the market picker
-//   order book    one box: buy orders on top, price and spread in the middle, sell orders below
-//   chart         TradingView lightweight-charts candles with volume and moving averages, or the depth view
-//   order form    limit or market, buy and sell side by side; a limit that crosses the book fills first, the rest rests
-//   right column  every world you can trade, then the trades in this one
-//   bottom tabs   your open orders, your trade history, and what you hold in each world of this market
-// Trading pauses while a result is in dispute.
-import { useEffect, useMemo, useState } from 'react'
-import { PriceChart } from '../components/PriceChart'
-import { Button } from '../components/ui'
+// what you hold there (NEAR-if-world and USDC-if-world) buys and sells against the world's resting orders and its pool,
+// and both pay out only if that world happens. Everything on it reads the contract on testnet.
+//   pair bar      the pool price, the best bid and ask, the pool's depth; the market picker
+//   world strip   every world of every open market, at its pool price
+//   order book    one box: buy orders on top, the pool price and spread in the middle, sell orders below
+//   chart         the pool's price after each of the market's recent swaps, or the depth of the resting orders
+//   order form    limit or market, buy and sell side by side. A limit takes the orders that cross it and the rest
+//                 rests on the book; a market order takes orders while they beat the pool, then uses the pool. One
+//                 transaction either way, paid from what you hold in this world.
+//   pool trades   the swaps that moved this world's pool
+//   bottom tabs   your open orders (cancel any time), and what you hold in each world of this market
+// Trading pauses while a result is in dispute; resting a new order does not.
+import { useState } from 'react'
 import Link from 'next/link'
-import { day, tape } from '../lib/history'
-import { YOU, actions, bitsOf, bookOf, liveOdds, outcomeIn, useStore, type Order } from '../lib/scenario'
-import { useWallet } from '../lib/wallet'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { PriceChart } from '../components/PriceChart'
+import { WORLD_COLORS, WorldIcon } from '../components/Grand'
+import { PageLoading } from '../components/layout/PageLoading'
+import { ActionButton } from '../components/ui/ActionButton'
+import { marketId, useActions, useBlocker, useMarket, useMarkets, type Announce, type ChainMarket } from '../chain/adapter'
+import {
+  avgPrice, expiryOf, levels, limitTrade, LIVES, marketTrade, maxFor, myOrders, orderState, priceLine, priceMoves,
+  tradeBlocker, tradeGas, withSlippage, worldTradeTx, type Level, type PoolState, type WorldTrade,
+} from '../chain/book'
+import { CONTRACT_ID } from '../chain/data/client'
+import type { Scenario, World } from '../chain/domain'
+import { errorLine } from '../chain/errors'
+import { accountLabel, fmt, fmtCompactUsd, inputText, parseAmount, utcDate } from '../chain/format'
+import { usePoolState } from '../chain/hooks/useBook'
+import { useChainClock, useNowSeconds } from '../chain/hooks/useClock'
+import { useAppConfig, useTrade } from '../chain/hooks/useData'
+import { marketsHref, ordersHref, resolveHref, splitHref } from '../chain/links'
+import { useWallet } from '../chain/near/wallet'
+import { cellBook, proceeds, type Order } from '../chain/orders'
+import { chain } from '../config'
 
-const fmt = (n: number, d = 2) => n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })
+const ONE = 10n ** 18n
 const num = (v: string) => v.replace(/[^0-9.]/g, '')
-const time = (t: number) => new Date(t).toLocaleTimeString('en-GB', { hour12: false })
-const DEPTHS = [5, 10, 15, 20]
-const GROUPS = [0.01, 0.05, 0.1]
+const DEPTHS = [5, 10, 15, 25]
+const GROUPS = [
+  { label: '0.0001', step: 10n ** 14n },
+  { label: '0.01', step: 10n ** 16n },
+  { label: '0.05', step: 5n * 10n ** 16n },
+  { label: '0.10', step: 10n ** 17n },
+]
 type View = 'both' | 'bids' | 'asks'
-
-// one price level: every resting order in a price bucket
-type Level = { price: number; amount: number; total: number; sum: number; orders: Order[]; mine: boolean }
-
-// bids round down and asks round up, so a grouped level never shows a better price than the orders in it
-function levels(orders: Order[], side: 'bid' | 'ask', step: number, depth: number): Level[] {
-  const key = (p: number) => Math.round((side === 'bid' ? Math.floor(p / step + 1e-9) : Math.ceil(p / step - 1e-9)) * step * 100) / 100
-  const out: Level[] = []
-  for (const o of orders) {
-    const price = key(o.price)
-    let l = out.find((x) => x.price === price)
-    if (!l) { l = { price, amount: 0, total: 0, sum: 0, orders: [], mine: false }; out.push(l) }
-    l.amount += o.amount
-    l.total += o.amount * o.price
-    l.orders.push(o)
-    l.mine ||= o.owner === YOU
-  }
-  out.sort((a, b) => (side === 'bid' ? b.price - a.price : a.price - b.price))
-  let run = 0
-  return out.slice(0, depth).map((l) => ({ ...l, sum: (run += l.total) }))
+const p4 = (x: bigint) => fmt(x, 4)
+const n2 = (x: bigint) => fmt(x, 2)
+/** A swap's time: the clock today, the date before that. */
+const stamp = (sec: number, now: number) =>
+  now - sec < 86_400
+    ? new Date(sec * 1000).toLocaleTimeString('en-GB', { hour12: false })
+    : new Date(sec * 1000).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
+const worldOf = (s: Scenario, mask: number) => s.worlds.find((x) => x.mask === mask)
+/** A pool move in percent, two decimals; a move too small to show at that reads "<0.01%". */
+function move(prev: bigint, price: bigint): string {
+  const up = price >= prev
+  const bp = ((up ? price - prev : prev - price) * 100n * ONE) / prev
+  return bp < 10n ** 16n ? `${up ? '+' : '−'}<0.01%` : `${up ? '+' : '−'}${fmt(bp, 2)}%`
 }
+/** A world's chance in whole percent; a whole-percent 0 shows its first decimal instead. */
+const chanceText = (c: number) => (c > 0 && c < 0.01 ? `${(c * 100).toFixed(1)}%` : `${Math.round(c * 100)}%`)
 
 // one half of the book. Buys sit above the middle with the best bid lowest, right next to it; sells sit below with
 // the best ask highest. The running sum and its depth bar grow away from the middle on both sides.
-function Rows({ side, rows, max, onPick }: { side: 'bid' | 'ask'; rows: Level[]; max: number; onPick: (l: Level) => void }) {
+function Rows({ side, rows, max, dec, me, onPick }: { side: 'bid' | 'ask'; rows: Level[]; max: bigint; dec: number; me: string | null; onPick: (l: Level) => void }) {
   const shown = side === 'bid' ? [...rows].reverse() : rows
   return (
     <div className={`obx__side obx__side--${side}`} aria-label={side === 'bid' ? 'Buy orders' : 'Sell orders'}>
       {rows.length === 0 && <p className="obx__empty">No {side === 'bid' ? 'buy' : 'sell'} orders.</p>}
       {shown.map((l) => (
         <button
-          key={l.price}
+          key={String(l.price)}
           type="button"
           className={`obx__row${l.mine ? ' is-mine' : ''}`}
           onClick={() => onPick(l)}
-          title={l.orders.map((o) => `${o.owner === YOU ? 'You' : o.owner}: ${fmt(o.amount)} NEAR at $${o.price.toFixed(2)}`).join('\n')}
+          title={l.orders.map((o) => `#${o.id} ${me && o.maker.toLowerCase() === me.toLowerCase() ? 'You' : accountLabel(o.maker)}: ${n2(o.remaining)} NEAR at ${p4(o.price)}`).join('\n')}
         >
-          <i className="obx__bar" style={{ width: `${(l.sum / max) * 100}%` }} aria-hidden />
-          <span className="obx__price num">{fmt(l.price)}</span>
-          <span className="num">{fmt(l.amount)}</span>
-          <span className="num">{fmt(l.sum)}</span>
+          <i className="obx__bar" style={{ width: `${Number((l.sum * 10_000n) / (max > 0n ? max : 1n)) / 100}%` }} aria-hidden />
+          <span className="obx__price num">{fmt(l.price, dec)}</span>
+          <span className="num">{n2(l.amount)}</span>
+          <span className="num">{n2(l.sum)}</span>
         </button>
       ))}
     </div>
   )
 }
 
-// fill against the book: you buy from asks up to `limit` (or any price), or sell into bids down to it, best first
-function sweep(book: Order[], side: 'buy' | 'sell', amount: number, limit: number | null) {
-  let left = amount, cost = 0
-  const fills: { o: Order; q: number }[] = []
-  for (const o of book) {
-    if (left <= 1e-9) break
-    if (o.owner === YOU) continue
-    if (limit !== null && (side === 'buy' ? o.price > limit + 1e-9 : o.price < limit - 1e-9)) break
-    const q = Math.min(left, o.amount)
-    fills.push({ o, q }); cost += q * o.price; left -= q
-  }
-  return { fills, filled: amount - left, cost, left }
+type Preset = { price: bigint; n: number }
+
+type TicketCtx = {
+  sid: number
+  world: World
+  name: string
+  held: { near: bigint; usdc: bigint }
+  asks: Order[]
+  bids: Order[]
+  pool: PoolState | null | undefined
+  halted: boolean
+  me: string | null
+  openOrders: number
+  /** Unix seconds an order posted now would expire at. */
+  expiry: () => number
 }
 
-function Ticket({ side, type, mid, w, near, usdc, asks, bids, halted, preset, connected, onConnect }: {
-  side: 'buy' | 'sell'; type: 'limit' | 'market'; mid: string; w: number; near: number; usdc: number
-  asks: Order[]; bids: Order[]; halted: boolean; preset: number | null; connected: boolean; onConnect: () => void
-}) {
+function Ticket({ side, type, ctx, preset }: { side: 'buy' | 'sell'; type: 'limit' | 'market'; ctx: TicketCtx; preset?: Preset }) {
+  const actions = useActions()
   const [price, setPrice] = useState('')
   const [amount, setAmount] = useState('')
   const [seen, setSeen] = useState(preset)
-  if (preset !== seen) { setSeen(preset); if (preset !== null) setPrice(preset.toFixed(2)) } // a click on the book fills the price
-  const p = type === 'limit' ? Number(price) || 0 : null
-  const a = Number(amount) || 0
-  const book = side === 'buy' ? asks : bids
-  const run = sweep(book, side, a, p)
-  const rest = type === 'limit' ? run.left : 0 // what would rest on the book as your own order
-  const spend = side === 'buy' ? run.cost + rest * (p ?? 0) : a // USDC for a buy, NEAR for a sell
-  const avbl = side === 'buy' ? usdc : near
-  const total = run.cost + rest * (p ?? 0)
-  const ok = a > 0 && (type === 'market' || (p ?? 0) > 0) && spend <= avbl + 1e-9 && !halted && (type === 'limit' || run.filled > 0)
-  const best = book.find((o) => o.owner !== YOU)?.price
+  if (preset !== seen) { setSeen(preset); if (preset) setPrice(inputText(preset.price, 4)) } // a click on the book fills the price
+  const { sid, world, name, held, pool, me } = ctx
+  const book = side === 'buy' ? ctx.asks : ctx.bids
+  const limit = type === 'limit' ? parseAmount(price, 18) : undefined
+  const a = parseAmount(amount, 18)
+  const plan = (n: bigint): WorldTrade | undefined =>
+    type === 'limit' ? (limit ? limitTrade(side, n, limit, book, me) : undefined) : marketTrade(side, n, book, pool ?? null, me)
+  const t = a ? plan(a) : undefined
+  const avbl = side === 'buy' ? held.usdc : held.near
+  const unit = side === 'buy' ? 'USDC' : 'NEAR'
+  const best = book.find((o) => !me || o.maker.toLowerCase() !== me.toLowerCase())?.price
 
-  const pctOf = (k: number) => {
-    if (side === 'sell') return setAmount(String(Math.floor(near * k * 100) / 100))
-    const px = p || best || 0
-    if (px > 0) setAmount(String(Math.floor((usdc * k / px) * 100) / 100))
+  let blocker: string | undefined
+  if (type === 'limit' && !limit) blocker = 'Enter a price'
+  else if (!a) blocker = 'Enter an amount'
+  else if (type === 'market' && pool === undefined) blocker = 'Reading the pool…'
+  else if (!t) blocker = side === 'buy' ? 'Nothing to buy from: no asks, no pool' : 'Nothing to sell into: no bids, no pool'
+  else if (ctx.halted && (t.takes.length > 0 || t.pool)) blocker = 'Paused during a dispute'
+  else blocker = tradeBlocker(t, avbl, { limit: limit ?? null, openOrders: ctx.openOrders })
+
+  // the share buttons: a sale sells that share of your NEAR here; a buy spends that share of your USDC here
+  const pctOf = (k: bigint) => {
+    const budget = (avbl * k) / 100n
+    if (side === 'sell') return setAmount(budget > 0n ? inputText(budget, 4) : '')
+    const hi = type === 'limit' ? (limit ? (budget * ONE) / limit + 1n : 0n) : (pool?.wnear ?? 0n) + book.reduce((s, o) => s + o.remaining, 0n)
+    const most = maxFor(budget, hi, plan)
+    setAmount(most > 0n ? inputText(most, 4) : '')
   }
-  const submit = () => {
-    run.fills.forEach((f) => actions.takeOrder(f.o.id, f.q))
-    if (rest > 1e-9 && p) actions.postOrder(mid, w, side === 'buy' ? 'bid' : 'ask', p, rest)
-    setAmount('')
+  const total = t ? (side === 'buy' ? t.spend : t.usdc + (t.rest > 0n && limit ? proceeds(t.rest, limit) : 0n)) : undefined
+  const poolPx = pool && pool.wnear > 0n ? (pool.usdc * ONE) / pool.wnear : undefined
+  const throughPool = type === 'limit' && t && t.rest > 0n && limit && poolPx !== undefined && (side === 'buy' ? limit > poolPx : limit < poolPx)
+
+  const announce = (x: WorldTrade): Announce => {
+    const now = x.near > 0n
+    const rests = x.rest > 0n
+    const order = side === 'buy' ? 'bid' : 'ask'
+    return {
+      kind: 'trade',
+      title: side === 'buy' ? 'Buy' : 'Sell',
+      market: sid,
+      pending: now ? `${side === 'buy' ? 'Buying' : 'Selling'} ${n2(x.near)} NEAR in ${name}…` : `Posting your ${order}…`,
+      done: now && rests ? `Filled ${n2(x.near)} NEAR; the rest rests at ${p4(limit!)}` : now ? `${side === 'buy' ? 'Bought' : 'Sold'} ${n2(x.near)} NEAR in ${name}` : `Your ${order} rests at ${p4(limit!)}`,
+    }
   }
 
   return (
     <div className={`tk tk--${side}`}>
       {type === 'limit' ? (
         <label className="tk__field"><span>Price</span>
-          <input inputMode="decimal" placeholder={best?.toFixed(2) ?? '0.00'} value={price} onChange={(e) => setPrice(num(e.target.value))} aria-label={`${side} price`} />
+          <input inputMode="decimal" placeholder={best ? inputText(best, 4) : '0.00'} value={price} onChange={(e) => setPrice(num(e.target.value))} aria-label={`${side} price`} />
           <em>USDC</em>
         </label>
       ) : (
-        <div className="tk__field tk__field--fixed"><span>Price</span><b>Best market price</b><em>USDC</em></div>
+        <div className="tk__field tk__field--fixed"><span>Price</span><b>{side === 'buy' ? 'Best asks, then the pool' : 'Best bids, then the pool'}</b><em>USDC</em></div>
       )}
       <label className="tk__field"><span>Amount</span>
         <input inputMode="decimal" placeholder="0.00" value={amount} onChange={(e) => setAmount(num(e.target.value))} aria-label={`${side} amount`} />
         <em>NEAR</em>
       </label>
-      <div className="tk__pcts" role="group" aria-label="Share of available">
-        {[0.25, 0.5, 0.75, 1].map((k) => <button key={k} type="button" onClick={() => pctOf(k)}>{k * 100}%</button>)}
+      <div className="tk__pcts" role="group" aria-label="Share of what you hold here">
+        {[25n, 50n, 75n, 100n].map((k) => <button key={String(k)} type="button" onClick={() => pctOf(k)} disabled={avbl === 0n}>{String(k)}%</button>)}
       </div>
-      <div className="tk__field tk__field--fixed"><span>Total</span><b className="num">{a > 0 ? fmt(total) : '–'}</b><em>USDC</em></div>
-      {connected && <p className="tk__line"><span>Available in this world</span><b className="num">{fmt(avbl)} {side === 'buy' ? 'USDC' : 'NEAR'}</b></p>}
-      {a > 0 && (
+      <div className="tk__field tk__field--fixed"><span>{side === 'buy' ? 'Total' : 'You get'}</span><b className="num">{total !== undefined ? n2(total) : '–'}</b><em>USDC</em></div>
+      {me && <p className="tk__line"><span>Available in this world</span><b className="num">{n2(avbl)} {unit}</b></p>}
+      {t && (
         <p className="tk__line tk__line--muted">
-          {run.filled > 0 ? <>Fills {fmt(run.filled)} NEAR now at avg {fmt(run.cost / run.filled)}</> : type === 'market' ? 'No orders on that side to fill' : 'Nothing crosses the book'}
-          {rest > 1e-9 && type === 'limit' && <>; {fmt(rest)} NEAR rests as your order</>}
-          {type === 'market' && run.left > 1e-9 && run.filled > 0 && <>; only {fmt(run.filled)} NEAR on the book</>}
+          {t.near > 0n
+            ? <>Fills {n2(t.near)} NEAR now at avg {p4(avgPrice(t))} ({t.takes.length > 0 ? `${t.takes.length} order${t.takes.length === 1 ? '' : 's'}` : ''}{t.takes.length > 0 && t.pool ? ' + ' : ''}{t.pool ? 'pool' : ''})</>
+            : 'Nothing crosses the book'}
+          {t.rest > 0n && <>; {n2(t.rest)} NEAR rests as your order</>}
+          {t.pool && <>. The pool part must {side === 'buy' ? `give at least ${n2(withSlippage(t.pool.near))} NEAR` : `pay at least ${n2(withSlippage(t.pool.usdc))} USDC`}, or nothing happens.</>}
         </p>
       )}
-      {!connected ? <Button onClick={onConnect}>Connect wallet to {side}</Button> : <Button onClick={submit} disabled={!ok}>
-        {halted ? 'Paused during a dispute' : spend > avbl + 1e-9 ? `Not enough ${side === 'buy' ? 'USDC' : 'NEAR'} in this world` : `${side === 'buy' ? 'Buy' : 'Sell'} NEAR`}
-      </Button>}
+      {throughPool && <p className="tk__line tk__line--muted">{side === 'buy' ? 'Above' : 'Below'} the pool price ({p4(poolPx!)}): anyone can {side === 'buy' ? 'sell into' : 'buy from'} it through the pool at once.</p>}
+      <ActionButton
+        label={`${side === 'buy' ? 'Buy' : 'Sell'} NEAR`}
+        blocker={blocker}
+        action={t && t.rest > 0n && t.takes.length === 0 ? 'post_order' : side}
+        gas={t ? tradeGas(t).toString() : undefined}
+        run={() => actions.send(worldTradeTx(CONTRACT_ID, t!, { sid, mask: world.mask, poolId: world.poolId, limit: limit ?? null, expirySec: ctx.expiry() }), announce(t!), { needs: { contract: true } })}
+        onDone={() => setAmount('')}
+      />
     </div>
   )
 }
 
+// One of your orders: cancel gives the escrow back to what you hold in its world, whatever state the order is in.
+function Cancel({ order, sid }: { order: Order; sid: number }) {
+  const actions = useActions()
+  const blocked = useBlocker('cancel_order')
+  const [busy, setBusy] = useState(false)
+  return (
+    <button type="button" className="ob__act" disabled={busy || Boolean(blocked)} title={blocked} onClick={async () => { setBusy(true); try { await actions.cancelOrder(order.id, sid) } finally { setBusy(false) } }}>
+      {busy ? 'Cancelling…' : 'Cancel'}
+    </button>
+  )
+}
+
 export default function Orders() {
-  const { account, connect, connectDemo } = useWallet()
-  const { markets, sc, orders, fills } = useStore()
-  const tradable = markets.filter((m) => !m.settled)
-  const [mid, setMid] = useState(tradable[0]?.id ?? '')
-  const m = markets.find((x) => x.id === mid) ?? tradable[0]
-  const s = sc[m.id]
-  const live = bitsOf(s.possible, m.worlds.length)
-  const [pickW, setPickW] = useState(live[0] ?? 0)
-  const w = live.includes(pickW) ? pickW : live[0]
+  const params = useSearchParams()
+  const router = useRouter()
+  const { accountId, connect } = useWallet()
+  const cfg = useAppConfig().data
+  const { markets } = useMarkets()
+  const sid = marketId(params.get('id')) ?? chain.anchorMarket
+  const { market: m, isLoading, notFound, error } = useMarket(sid)
+  const trade = useTrade(sid, accountId)
+  const now = useNowSeconds()
+  const clock = useChainClock(trade.data?.nowSec, trade.dataUpdatedAt)
+  const s = trade.data?.scenario
+  const live = s ? s.worlds.filter((x) => x.possible) : []
+  const asked = Number(params.get('w'))
+  const world = live.find((x) => x.index === asked) ?? live[0]
+  const pool = usePoolState(world?.poolId)
+
   const [depth, setDepth] = useState(15)
-  const [group, setGroup] = useState(0.01)
+  const [group, setGroup] = useState(1)
   const [view, setView] = useState<View>('both')
   const [type, setType] = useState<'limit' | 'market'>('limit')
-  const [preset, setPreset] = useState<{ side: 'buy' | 'sell'; price: number } | null>(null)
-  const [bottom, setBottom] = useState<'open' | 'history' | 'holdings'>('open')
-  const [rightTab, setRightTab] = useState<'market' | 'mine'>('market')
+  const [life, setLife] = useState(1)
+  const [preset, setPreset] = useState<{ side: 'buy' | 'sell'; price: bigint; n: number } | null>(null)
+  const [bottom, setBottom] = useState<'open' | 'holdings'>('open')
   const [query, setQuery] = useState('')
-  // a link like /orders?m=ships-fed&w=3 (the Trade button on a market page) opens on that world
-  useEffect(() => {
-    const q = new URLSearchParams(window.location.search)
-    const id = q.get('m'), b = Number(q.get('w'))
-    if (id && markets.some((x) => x.id === id)) { setMid(id); if (Number.isInteger(b)) setPickW(b) }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
-  const book = useMemo(() => bookOf(orders, m.id, w), [orders, m.id, w])
-  const bids = useMemo(() => levels(book.bids, 'bid', group, depth), [book.bids, group, depth])
-  const asks = useMemo(() => levels(book.asks, 'ask', group, depth), [book.asks, group, depth])
-  const max = Math.max(1, bids.at(-1)?.sum ?? 0, asks.at(-1)?.sum ?? 0)
-  const halted = s.proposals.some(Boolean)
-  const price = s.price[w]
-  const bestBid = book.bids[0]?.price, bestAsk = book.asks[0]?.price
-  const spread = bestBid !== undefined && bestAsk !== undefined ? bestAsk - bestBid : null
-  const d = day(m.id, w, price)
-  // the clock is read in the browser only, so the server's render and the browser's agree
-  const [now, setNow] = useState<number | null>(null)
-  useEffect(() => { setNow(Date.now()) }, [])
-  const trades = useMemo(() => (now === null ? [] : tape(m.id, w, price, now)), [m.id, w, price, now])
-  const mineHere = fills.filter((f) => f.scenario === m.id && f.world === w)
-  const myOrders = orders.filter((o) => o.owner === YOU && o.scenario === m.id)
-  const myFills = fills.filter((f) => f.scenario === m.id)
-  const choose = (id: string, b: number) => { setMid(id); setPickW(b); setPreset(null) }
+  const choose = (id: number, w?: number) => { setPreset(null); router.replace(ordersHref(id, { w }), { scroll: false }) }
+  const book = s && world && trade.data
+    ? cellBook(trade.data.orders, { scenarioId: s.scenarioId, possible: s.possible, resolutionCount: s.resolutionCount }, world.mask, now)
+    : { bids: [], asks: [] }
 
-  // every world of every open market, for the list on the right
+  // every world of every open market, for the strip
+  const tradable = (markets ?? []).filter((x) => !x.settled)
   const q = query.trim().toLowerCase()
-  const worldsList = tradable.flatMap((x) => bitsOf(sc[x.id].possible, x.worlds.length).map((b) => ({ x, b, p: sc[x.id].price[b], ch: day(x.id, b, sc[x.id].price[b]).pct })))
-    .filter(({ x, b }) => !q || `${x.worlds[b].outcome} ${x.question}`.toLowerCase().includes(q))
+  const chips = tradable.flatMap((x) => x.worlds.filter((y) => y.possible).map((y) => ({ x, y })))
+    .filter(({ x, y }) => !q || `${y.outcome} ${x.question}`.toLowerCase().includes(q))
 
-  if (!w && w !== 0) return null
+  if (notFound && !isLoading) {
+    return (
+      <div className="page tr desk">
+        <header className="tr__pair"><div className="tr__id"><h1 className="mk__title">Order book</h1><p className="tr__means">Trade NEAR inside one world of a market.</p></div></header>
+        <div className="tr__panel desk__empty"><p><b>No market #{params.get('id')}.</b> The link may be wrong, or the market is on another deployment.</p><Link className="mk__btn mk__btn--buy" href={marketsHref}>See the markets</Link></div>
+      </div>
+    )
+  }
+  if (cfg && !cfg.orderBook) {
+    return (
+      <div className="page tr desk">
+        <header className="tr__pair"><div className="tr__id"><h1 className="mk__title">Order book</h1></div></header>
+        <div className="tr__panel desk__empty"><p><b>Not live yet.</b> The order book is not open on this deployment.</p><Link className="mk__btn mk__btn--buy" href={marketsHref}>See the markets</Link></div>
+      </div>
+    )
+  }
+  if (!m || !s || !trade.data) {
+    const err = error ?? trade.error
+    return err ? <PageLoading label={errorLine(err.message)} /> : <PageLoading />
+  }
+  if (m.settled || !world) {
+    return (
+      <div className="page tr desk">
+        <header className="tr__pair"><div className="tr__id"><h1 className="mk__title">{m.question}</h1><p className="tr__means">Order book</p></div></header>
+        <div className="tr__panel desk__empty"><p><b>This market has settled.</b> Its book is closed; what you hold in the world that happened pays out on Resolve.</p><Link className="mk__btn mk__btn--buy" href={resolveHref(sid)}>Redeem</Link></div>
+      </div>
+    )
+  }
+
+  const cw = m.worlds[world.index]
+  const name = cw?.outcome ?? world.label
+  const me = accountId
+  const step = GROUPS[group].step
+  const dec = step >= 10n ** 16n ? 2 : 4
+  const bids = levels(book.bids, 'bid', step, depth, me)
+  const asks = levels(book.asks, 'ask', step, depth, me)
+  const max = [bids.at(-1)?.sum ?? 0n, asks.at(-1)?.sum ?? 0n].reduce((a, b) => (a > b ? a : b), 1n)
+  const price = world.poolInitialized ? world.wnearPrice : 0n
+  const bestBid = book.bids[0]?.price
+  const bestAsk = book.asks[0]?.price
+  const spread = bestBid !== undefined && bestAsk !== undefined ? bestAsk - bestBid : null
+  const mine = myOrders(trade.data.orders, me, sid)
+  const state = { scenarioId: s.scenarioId, possible: s.possible, resolutionCount: s.resolutionCount }
+  const points = priceLine(trade.data.impact, world.index)
+  const moves = priceMoves(trade.data.impact, world.index).slice(0, 40)
+  const held = { near: world.userWnear, usdc: world.userUsdc }
+  const ctx: TicketCtx = {
+    sid, world, name, held, pool, me, halted: s.halted, openOrders: mine.length, asks: book.asks, bids: book.bids,
+    expiry: () => expiryOf(clock.now, now, LIVES[life].seconds),
+  }
+  const nowNum = Number(now)
+
   return (
     <div className="page obx tr">
       {/* ---------- pair bar ---------- */}
@@ -202,51 +304,53 @@ export default function Orders() {
         <div className="tr__id">
           <div className="tr__title">
             <h1>NEAR/USDC</h1>
-            <span className="tr__world">{m.worlds[w].outcome}</span>
+            <span className="tr__world">{name}</span>
             <label className="tr__market">
               <span>Change market</span>
-              <select value={m.id} onChange={(e) => choose(e.target.value, 0)} aria-label="Change market">
-                {tradable.map((x) => <option key={x.id} value={x.id}>{x.question}</option>)}
+              <select value={sid} onChange={(e) => choose(Number(e.target.value))} aria-label="Change market">
+                {(tradable.some((x) => x.sid === sid) ? tradable : [m, ...tradable]).map((x: ChainMarket) => <option key={x.sid} value={x.sid}>{x.question}</option>)}
               </select>
             </label>
           </div>
           <p className="tr__q">{m.question}</p>
-          {/* what this world is, in plain words: the pieces traded here pay out only if all of it happens */}
+          {/* what this world is, in plain words: the pieces traded here pay out only if it happens */}
           <p className="tr__means">
-            Pays out only if {m.events.map((ev, e) => <span key={ev.name}>{e > 0 && ' and '}<b>{ev.name.toLowerCase()}: {ev.outcomes[outcomeIn(m, e, w)].toLowerCase()}</b></span>)}.
-            {' '}{Math.round(liveOdds(m, s)[w] * 100)}% chance today.
+            Pays out only if the market ends in <b>{name.toLowerCase()}</b>.
+            {m.oddsKnown && cw && <>{' '}{chanceText(cw.chance)} chance today.</>}
           </p>
         </div>
         <div className="tr__quote">
-          <b className="num">{fmt(price)}</b>
-          <span className={`num ${d.change >= 0 ? 'is-up' : 'is-down'}`}>{d.change >= 0 ? '+' : ''}{fmt(d.change)} ({d.change >= 0 ? '+' : ''}{(d.pct * 100).toFixed(2)}%) 24h</span>
+          <b className="num">{price > 0n ? p4(price) : '–'}</b>
+          <span className="tr__sub">pool price, USDC per NEAR</span>
         </div>
         <dl className="tr__stats">
-          <div><dt>24h high</dt><dd className="num">{fmt(d.high)}</dd></div>
-          <div><dt>24h low</dt><dd className="num">{fmt(d.low)}</dd></div>
-          <div><dt>24h volume</dt><dd className="num">{fmt(d.usdc, 0)} USDC</dd></div>
+          <div><dt>Best bid</dt><dd className="num is-up">{bestBid !== undefined ? p4(bestBid) : '–'}</dd></div>
+          <div><dt>Best ask</dt><dd className="num is-down">{bestAsk !== undefined ? p4(bestAsk) : '–'}</dd></div>
+          <div><dt>Pool depth</dt><dd className="num">{pool ? fmtCompactUsd(pool.usdc) : '–'}</dd></div>
+          <div><dt>Resting orders</dt><dd className="num">{book.bids.length + book.asks.length}</dd></div>
         </dl>
       </header>
 
-      {halted && <p className="ob__halt">A result is in its dispute window, so this market’s trading is paused until it’s final or disputed.</p>}
+      {s.halted && <p className="ob__halt">A result is in its dispute window, so this market’s trading is paused until it’s final or disputed. You can still rest an order or cancel one.</p>}
 
       {/* ---------- every world you can trade, as a strip of chips ---------- */}
       <nav className="tr__strip" aria-label="Worlds">
         <input className="tr__find" type="search" placeholder="Find a world" aria-label="Find a world" value={query} onChange={(e) => setQuery(e.target.value)} />
         <div className="tr__chips">
-          {worldsList.map(({ x, b, p, ch }) => (
-            <button key={`${x.id}-${b}`} type="button" aria-pressed={x.id === m.id && b === w} className="tr__chip" onClick={() => choose(x.id, b)} title={x.question}>
-              <b>{x.worlds[b].outcome}</b>
-              <span className="num">{fmt(p)} <em className={ch >= 0 ? 'is-up' : 'is-down'}>{ch >= 0 ? '+' : ''}{(ch * 100).toFixed(2)}%</em></span>
+          {chips.map(({ x, y }) => (
+            <button key={`${x.sid}-${y.index}`} type="button" aria-pressed={x.sid === sid && y.index === world.index} className="tr__chip" onClick={() => choose(x.sid, y.index)} title={x.question}>
+              <b>{y.outcome}</b>
+              <span className="num">{y.nearPrice > 0 ? y.nearPrice.toFixed(2) : '–'} <em>#{x.sid}</em></span>
             </button>
           ))}
-          {worldsList.length === 0 && <span className="tr__none">No world matches.</span>}
+          {markets && chips.length === 0 && <span className="tr__none">No world matches.</span>}
+          {!markets && <span className="tr__none">Reading the markets…</span>}
         </div>
       </nav>
 
       <div className="tr__grid">
         {/* ---------- order book ---------- */}
-        <section className="obx__box tr__book" aria-label={`Order book for ${m.worlds[w].outcome}`}>
+        <section className="obx__box tr__book" aria-label={`Order book for ${name}`}>
           <div className="obx__boxhead">
             <span className="obx__boxtitle">Order book</span>
             <div className="obx__view" role="group" aria-label="Show">
@@ -258,130 +362,118 @@ export default function Orders() {
               <select value={depth} onChange={(e) => setDepth(Number(e.target.value))}>{DEPTHS.map((x) => <option key={x} value={x}>{x}</option>)}</select>
             </label>
             <label className="obx__ctl"><span>Group</span>
-              <select value={group} onChange={(e) => setGroup(Number(e.target.value))}>{GROUPS.map((g) => <option key={g} value={g}>{g.toFixed(2)}</option>)}</select>
+              <select value={group} onChange={(e) => setGroup(Number(e.target.value))}>{GROUPS.map((g, i) => <option key={g.label} value={i}>{g.label}</option>)}</select>
             </label>
           </div>
           <div className="obx__row obx__row--head">
             <span>Price (USDC)</span><span>Amount (NEAR)</span><span>Sum (USDC)</span>
           </div>
-          {view !== 'asks' && <Rows side="bid" rows={bids} max={max} onPick={(l) => setPreset({ side: 'sell', price: l.price })} />}
+          {view !== 'asks' && <Rows side="bid" rows={bids} max={max} dec={dec} me={me} onPick={(l) => setPreset({ side: 'sell', price: l.price, n: Date.now() })} />}
           <div className="obx__mid">
-            <span className="obx__mid-main"><b className="num">{fmt(price)}</b><span className="obx__mid-label">pool</span></span>
-            <span className="obx__mid-main obx__mid-spread"><b className="num">{spread === null ? '–' : fmt(spread)}</b><span className="obx__mid-label">{spread === null ? 'spread, one-sided' : `spread ${((spread / price) * 100).toFixed(2)}%`}</span></span>
+            <span className="obx__mid-main"><b className="num">{price > 0n ? p4(price) : '–'}</b><span className="obx__mid-label">pool</span></span>
+            <span className="obx__mid-main obx__mid-spread"><b className="num">{spread === null ? '–' : p4(spread)}</b><span className="obx__mid-label">{spread === null ? 'spread, one-sided' : price > 0n ? `spread ${fmt((spread * 100n * ONE) / price, 2)}%` : 'spread'}</span></span>
           </div>
-          {view !== 'bids' && <Rows side="ask" rows={asks} max={max} onPick={(l) => setPreset({ side: 'buy', price: l.price })} />}
-          <p className="obx__hint">Click a level to put its price in the order form.</p>
+          {view !== 'bids' && <Rows side="ask" rows={asks} max={max} dec={dec} me={me} onPick={(l) => setPreset({ side: 'buy', price: l.price, n: Date.now() })} />}
+          <p className="obx__hint">Click a level to put its price in the order form. A dot marks your own.</p>
         </section>
 
         {/* ---------- chart and order form ---------- */}
         <div className="tr__center">
-          <PriceChart market={m.id} world={w} price={price} bids={book.bids} asks={book.asks} />
+          <PriceChart points={points} bids={book.bids} asks={book.asks} price={price} color={WORLD_COLORS[world.index % WORLD_COLORS.length]} />
 
           <section className="tr__form" aria-label="Place an order">
             <div className="tr__formhead">
               <div className="pc__tabs" role="group" aria-label="Order type">
                 {(['limit', 'market'] as const).map((x) => <button key={x} type="button" aria-pressed={type === x} onClick={() => setType(x)}>{x === 'limit' ? 'Limit' : 'Market'}</button>)}
               </div>
-              <span className="pc__note">Trades NEAR-if-{m.worlds[w].outcome} for USDC-if-{m.worlds[w].outcome}</span>
+              {type === 'limit' && (
+                <label className="obx__ctl tr__life"><span>Good for</span>
+                  <select value={life} onChange={(e) => setLife(Number(e.target.value))}>{LIVES.map((l, i) => <option key={l.label} value={i}>{l.label}</option>)}</select>
+                </label>
+              )}
+              <span className="pc__note">Trades NEAR-if-{name} for USDC-if-{name}</span>
             </div>
             {/* one balance only: what you hold inside this world, which is what the form trades */}
-            {account ? (
+            {accountId ? (
               <p className="tr__bal">
-                <span>You hold in <b>{m.worlds[w].outcome}</b></span>
-                <b className="num">{fmt(s.near[w])} NEAR</b>
-                <b className="num">{fmt(s.usdc[w])} USDC</b>
-                <Link href={`/market/?id=${m.id}`}>Add funds</Link>
+                <span>You hold in <b>{name}</b></span>
+                <b className="num">{n2(held.near)} NEAR</b>
+                <b className="num">{n2(held.usdc)} USDC</b>
+                <Link href={splitHref(sid)}>Add funds</Link>
               </p>
             ) : (
               <p className="tr__bal tr__bal--gate">
                 <span>Connect a wallet to trade.</span>
-                <button type="button" className="tr__link" onClick={connect}>Connect NEAR wallet</button>
-                <button type="button" className="tr__link" onClick={connectDemo}>Use the demo wallet</button>
+                <button type="button" className="tr__link" onClick={() => void connect()}>Connect NEAR wallet</button>
               </p>
             )}
             <div className="tr__tickets">
-              <Ticket key={`buy-${m.id}-${w}`} side="buy" type={type} mid={m.id} w={w} near={s.near[w]} usdc={s.usdc[w]} asks={book.asks} bids={book.bids} halted={halted} preset={preset?.side === 'buy' ? preset.price : null} connected={!!account} onConnect={connect} />
-              <Ticket key={`sell-${m.id}-${w}`} side="sell" type={type} mid={m.id} w={w} near={s.near[w]} usdc={s.usdc[w]} asks={book.asks} bids={book.bids} halted={halted} preset={preset?.side === 'sell' ? preset.price : null} connected={!!account} onConnect={connect} />
+              <Ticket key={`buy-${sid}-${world.index}-${type}`} side="buy" type={type} ctx={ctx} preset={preset?.side === 'buy' ? preset : undefined} />
+              <Ticket key={`sell-${sid}-${world.index}-${type}`} side="sell" type={type} ctx={ctx} preset={preset?.side === 'sell' ? preset : undefined} />
             </div>
           </section>
         </div>
 
-        {/* ---------- worlds and trades ---------- */}
+        {/* ---------- the pool's recent trades ---------- */}
         <aside className="tr__right">
-          <section className="tr__panel tr__trades" aria-label="Trades">
-            <div className="pc__tabs" role="group" aria-label="Trades">
-              <button type="button" aria-pressed={rightTab === 'market'} onClick={() => setRightTab('market')}>Market trades</button>
-              <button type="button" aria-pressed={rightTab === 'mine'} onClick={() => setRightTab('mine')}>My trades</button>
-            </div>
+          <section className="tr__panel tr__trades" aria-label="Pool trades">
+            <div className="desk__head"><h2 className="obx__boxtitle">Pool trades</h2><span className="pc__note">{moves.length > 0 ? `last ${moves.length}` : ''}</span></div>
             <div className="tr__list">
-              <div className="tr__li tr__li--head tr__li--trade"><span>Price (USDC)</span><span>Amount (NEAR)</span><span>Time</span></div>
-              {(rightTab === 'mine'
-                ? mineHere.map((f) => ({ price: f.price, amount: f.amount, at: f.at, buy: f.side === 'buy' }))
-                : [...mineHere.map((f) => ({ price: f.price, amount: f.amount, at: f.at, buy: f.side === 'buy' })), ...trades].sort((a, b) => b.at - a.at)
-              ).slice(0, 24).map((t, i) => (
-                <div key={i} className="tr__li tr__li--trade">
-                  <span className={`num ${t.buy ? 'is-up' : 'is-down'}`}>{fmt(t.price)}</span>
-                  <span className="num">{fmt(t.amount)}</span>
-                  <span className="num">{time(t.at)}</span>
+              <div className="tr__li tr__li--head tr__li--trade"><span>Price (USDC)</span><span>Move</span><span>Time</span></div>
+              {moves.map((x) => (
+                <div key={x.at} className="tr__li tr__li--trade">
+                  <span className={`num ${x.up ? 'is-up' : 'is-down'}`}>{p4(x.price)}</span>
+                  <span className="num">{move(x.prev, x.price)}</span>
+                  <span className="num" title={utcDate(x.at)}>{stamp(x.at, nowNum)}</span>
                 </div>
               ))}
-              {rightTab === 'mine' && mineHere.length === 0 && <p className="obx__empty">No trades of yours in this world yet.</p>}
+              {moves.length === 0 && <p className="obx__empty">No swap has moved this world’s pool lately.</p>}
             </div>
-            {rightTab === 'market' && <p className="pc__note">Other traders’ trades are demo data.</p>}
+            <p className="pc__note">Swaps that moved this world’s pool, newest first, from the contract’s record of the market’s last 64. Order fills are not listed.</p>
           </section>
         </aside>
       </div>
 
-      {/* ---------- your orders, trades and holdings ---------- */}
+      {/* ---------- your orders and holdings ---------- */}
       <section className="tr__bottom" aria-label="Your activity">
         <div className="pc__tabs" role="group" aria-label="Your activity">
-          <button type="button" aria-pressed={bottom === 'open'} onClick={() => setBottom('open')}>Open orders ({myOrders.length})</button>
-          <button type="button" aria-pressed={bottom === 'history'} onClick={() => setBottom('history')}>Trade history ({myFills.length})</button>
+          <button type="button" aria-pressed={bottom === 'open'} onClick={() => setBottom('open')}>Open orders ({mine.length})</button>
           <button type="button" aria-pressed={bottom === 'holdings'} onClick={() => setBottom('holdings')}>Holdings</button>
         </div>
-        {!account ? <p className="obx__empty">Connect a wallet to see your orders and holdings.</p> : bottom === 'open' ? (
-          myOrders.length === 0 ? <p className="obx__empty">No open orders in this market.</p> : (
+        {!accountId ? <p className="obx__empty">Connect a wallet to see your orders and holdings.</p> : bottom === 'open' ? (
+          mine.length === 0 ? <p className="obx__empty">No open orders in this market.</p> : (
             <div className="pg-table">
-              <div className="pg-table__row pg-table__row--head tr__row5"><span>World</span><span>Side</span><span>Price</span><span>Amount</span><span /></div>
-              {myOrders.map((o) => (
-                <div key={o.id} className="pg-table__row tr__row5">
-                  <span>{m.worlds[o.world].outcome}</span>
-                  <span className={o.side === 'bid' ? 'is-up' : 'is-down'}>{o.side === 'bid' ? 'Buy' : 'Sell'}</span>
-                  <span className="num">{fmt(o.price)}</span>
-                  <span className="num">{fmt(o.amount)} NEAR</span>
-                  <span><button type="button" className="ob__act" onClick={() => actions.cancelOrder(o.id)}>Cancel</button></span>
-                </div>
-              ))}
-            </div>
-          )
-        ) : bottom === 'history' ? (
-          myFills.length === 0 ? <p className="obx__empty">No trades in this market yet.</p> : (
-            <div className="pg-table">
-              <div className="pg-table__row pg-table__row--head tr__row5"><span>Time</span><span>World</span><span>Side</span><span>Price</span><span>Amount</span></div>
-              {myFills.map((f, i) => (
-                <div key={i} className="pg-table__row tr__row5">
-                  <span className="num">{time(f.at)}</span>
-                  <span>{m.worlds[f.world].outcome}</span>
-                  <span className={f.side === 'buy' ? 'is-up' : 'is-down'}>{f.side === 'buy' ? 'Buy' : 'Sell'} from {f.with}</span>
-                  <span className="num">{fmt(f.price)}</span>
-                  <span className="num">{fmt(f.amount)} NEAR</span>
-                </div>
-              ))}
+              <div className="pg-table__row pg-table__row--head tr__row6"><span>World</span><span>Side</span><span>Price</span><span>Left</span><span>Until</span><span /></div>
+              {mine.map((o) => {
+                const ow = worldOf(s, o.mask)
+                const why = orderState(o, state, now)
+                return (
+                  <div key={String(o.id)} className="pg-table__row tr__row6">
+                    <button type="button" className="tr__wbtn" onClick={() => ow && ow.possible && choose(sid, ow.index)}>{ow ? (m.worlds[ow.index]?.outcome ?? ow.label) : `Worlds ${o.mask}`}</button>
+                    <span className={o.side === 'bid' ? 'is-up' : 'is-down'}>{o.side === 'bid' ? 'Buy' : 'Sell'}</span>
+                    <span className="num">{p4(o.price)}</span>
+                    <span className="num">{n2(o.remaining)} of {n2(o.amount)} NEAR</span>
+                    <span className={why ? 'tone--watch' : 'num'}>{why ?? utcDate(o.expiry)}</span>
+                    <span><Cancel order={o} sid={sid} /></span>
+                  </div>
+                )
+              })}
             </div>
           )
         ) : (
           <div className="pg-table">
             <div className="pg-table__row pg-table__row--head"><span>World</span><span>NEAR</span><span>USDC</span><span>Worth here</span></div>
-            {live.map((b) => (
-              <button key={b} type="button" className={`pg-table__row tr__hold${b === w ? ' is-on' : ''}`} onClick={() => choose(m.id, b)}>
-                <span>{m.worlds[b].outcome}</span>
-                <span className="num">{fmt(s.near[b])}</span>
-                <span className="num">{fmt(s.usdc[b])}</span>
-                <span className="num">${fmt(s.near[b] * s.price[b] + s.usdc[b])}</span>
+            {live.map((x) => (
+              <button key={x.index} type="button" className={`pg-table__row tr__hold${x.index === world.index ? ' is-on' : ''}`} onClick={() => choose(sid, x.index)}>
+                <span className="desk__mk"><WorldIcon m={m} w={x.index} size={22} />{m.worlds[x.index]?.outcome ?? x.label}</span>
+                <span className="num">{n2(x.userWnear)}</span>
+                <span className="num">{n2(x.userUsdc)}</span>
+                <span className="num">${n2(proceeds(x.userWnear, x.wnearPrice) + x.userUsdc)}</span>
               </button>
             ))}
           </div>
         )}
+        {accountId && bottom === 'holdings' && <p className="pc__note">What you hold outside lending, priced at each world’s pool. <Link className="tr__link" href={splitHref(sid)}>Split or merge</Link></p>}
       </section>
     </div>
   )

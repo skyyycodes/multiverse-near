@@ -1,2 +1,28 @@
 /* Order book, split and the hedge ticket (track UI-C): rules for new elements on these pages. Shared files (tokens,
    system, unify, ui, landing, desk, global-ui) stay as they are; a new rule goes here, in the same language. */
+
+/* ---------- order book ---------- */
+/* the pair bar's price: what it is, under it, where the 24h change used to be */
+.tr__quote .tr__sub { font-size: 11px; color: var(--u-muted); }
+/* the market number after a world's price in the strip, quieter than the price */
+.tr__chip em { color: var(--u-muted); }
+/* how long a limit order rests, beside the Limit / Market tabs */
+.tr__formhead .tr__life { padding: 3px 4px 3px 10px; font-size: 11px; }
+.tr__formhead .pc__note { margin-left: auto; }
+/* the chart's empty state keeps the chart's height, so the form below does not jump */
+.pc .pc__none { display: grid; place-items: center; min-height: 430px; text-align: center; }
+@media (max-width: 860px) { .pc .pc__none { min-height: 320px; } }
+.tk__pcts button:disabled { opacity: 0.4; cursor: not-allowed; }
+/* your open orders: world, side, price, left, until, cancel */
+.tr__row6 { grid-template-columns: minmax(0, 1.4fr) 0.6fr 0.8fr minmax(0, 1.3fr) minmax(0, 1.2fr) 80px; align-items: center; }
+.tr__row6 > span:last-child { justify-self: end; }
+.tr__wbtn { padding: 0; border: 0; background: none; color: var(--u-ink); font: inherit; text-align: left; cursor: pointer; }
+.tr__wbtn:hover { text-decoration: underline; text-underline-offset: 3px; }
+.ob__act:disabled { opacity: 0.45; cursor: not-allowed; }
+.tr__bottom > .pc__note { margin-top: 8px; }
+.tr__bottom > .pc__note .tr__link { margin-left: 6px; }
+.tr__trades > .pc__note { margin-top: 8px; line-height: 1.5; }
+@media (max-width: 760px) {
+  .tr__row6 { grid-template-columns: 1fr 1fr; }
+  .tr__row6.pg-table__row--head { display: none; }
+}
