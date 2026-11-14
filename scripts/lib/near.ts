@@ -736,7 +736,7 @@ export interface SendDeps {
 const defaultSendDeps = (): SendDeps => ({ pool: rpcPool as unknown as SendDeps["pool"], clock: systemClock });
 
 /** Whether any node of the pool knows the transaction (waitUntil NONE answers at once). */
-async function txKnown(hash: string, signerId: string, deps: SendDeps): Promise<boolean> {
+export async function txKnown(hash: string, signerId: string, deps: SendDeps): Promise<boolean> {
   try {
     await deps.pool.run((p) => p.viewTransactionStatusWithReceipts({ txHash: hash, accountId: signerId, waitUntil: "NONE" }), {
       label: `status ${hash}`,
@@ -750,7 +750,7 @@ async function txKnown(hash: string, signerId: string, deps: SendDeps): Promise<
 }
 
 /** Polls a transaction the chain knows until it reaches `waitUntil`. */
-async function waitKnown(hash: string, signerId: string, waitUntil: TxExecutionStatus, deps: SendDeps): Promise<TxOutcome> {
+export async function waitKnown(hash: string, signerId: string, waitUntil: TxExecutionStatus, deps: SendDeps): Promise<TxOutcome> {
   const timeout = deps.waitTimeoutMs ?? 120_000;
   const deadline = deps.clock.now() + timeout;
   for (;;) {
