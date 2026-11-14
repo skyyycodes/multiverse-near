@@ -18,7 +18,7 @@ import { errorLine } from "./errors";
 import { capOf, faucetMints, mintLabel, mintTx, type FaucetConfig } from "./faucet";
 import { cost } from "./orders";
 import { useNowSeconds } from "./hooks/useClock";
-import { POLL_MS, useAppConfig, useBalances, keepWithin } from "./hooks/useData";
+import { appConfigQuery, POLL_MS, useAppConfig, useBalances, keepWithin } from "./hooks/useData";
 import { fetchLendingTiers } from "./hooks/useLending";
 import { useEventTexts, useMarketList, useMarketsOf } from "./hooks/useMarkets";
 import { useAccountInfo, usePauseState } from "./hooks/useOps";
@@ -304,13 +304,14 @@ export function useActions() {
         await wallet.connect();
         return { ok: false, error: "Connect a wallet first." };
       }
-      if (!config) return { ok: false, error: "Still reading the contract; try again in a moment." };
       const t = txToast(a.kind, a.title, a.pending, a.market);
       setBusy(a.pending);
       try {
-        await ensure(needs, t.step);
+        // pressed before the contract's configuration arrived: read it now instead of doing nothing
+        const cfg: AppConfig = config ?? (await qc.fetchQuery<AppConfig>(appConfigQuery));
+        await ensure(needs, t.step, cfg);
         t.step(a.pending);
-        const hash = await go(t.step, config, wallet.accountId);
+        const hash = await go(t.step, cfg, wallet.accountId);
         t.done(a.done, txUrl(hash));
         return { ok: true, hash };
       } catch (e) {
@@ -321,7 +322,7 @@ export function useActions() {
         setBusy(null);
       }
     },
-    [wallet, config, ensure],
+    [wallet, config, ensure, qc],
   );
 
   return useMemo(() => {

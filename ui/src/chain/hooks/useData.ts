@@ -65,14 +65,17 @@ export function checkTokens(c: AppConfig): AppConfig {
   return c;
 }
 
+/** The contract's configuration, as a query: `useAppConfig` subscribes to it, an action that runs before it has
+ *  loaded fetches it once (adapter.ts). */
+export const appConfigQuery = {
+  queryKey: ["config", CONTRACT_ID],
+  queryFn: async (): Promise<AppConfig> => checkTokens(decodeConfig(await view<AppConfigView>("get_app_config"))),
+  staleTime: 60_000,
+  retry: 2,
+};
+
 export function useAppConfig() {
-  return useQuery({
-    queryKey: ["config", CONTRACT_ID],
-    queryFn: async (): Promise<AppConfig> => checkTokens(decodeConfig(await view<AppConfigView>("get_app_config"))),
-    staleTime: 60_000,
-    refetchInterval: 60_000,
-    retry: 2,
-  });
+  return useQuery({ ...appConfigQuery, refetchInterval: 60_000 });
 }
 
 /**

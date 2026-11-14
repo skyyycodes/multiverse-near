@@ -56,8 +56,9 @@ export function useEnsureRegistered(config: AppConfig | undefined) {
   const wallet = useWallet();
   const submit = useSubmit();
   return useCallback(
-    async (needs: Needs | undefined, step: Step) => {
+    async (needs: Needs | undefined, step: Step, cfg: AppConfig | undefined = config) => {
       const account = wallet.accountId;
+      const config = cfg;
       if (!needs || !account || !config) return;
       const src = await readSource();
       if (needs.contract) {
