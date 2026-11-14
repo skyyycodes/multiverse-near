@@ -131,10 +131,10 @@ export function blockerText(raw: string, ctx: ErrorContext = {}): string | undef
   return undefined;
 }
 
-/** A failed action's error in plain words; the raw text when the table does not know it. */
 const RATE_LIMITED = /Rate limits exceeded|"code":\s*-429|HTTP 429/;
 const RPC_BUSY = "The NEAR RPC is busy right now and sent nothing: try again in a few seconds";
 
+/** A failed action's error in plain words; the raw text when the table does not know it. */
 export function humanError(raw: string, ctx: ErrorContext = {}): string {
   const text = raw.trim();
   // Wallet and RPC refusals before the contract runs (InvalidTxError), worded by the node, not the contract.

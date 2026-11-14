@@ -69,7 +69,8 @@ describe("contract errors", () => {
     expect(humanError("LackBalanceForState { account_id: a.testnet, amount: 1 }")).toBe("Not enough NEAR in your wallet to keep its storage after this transaction");
     expect(humanError('{"jsonrpc": "2.0", "error": {"code": -429, "message": "Rate limits exceeded. For higher rate limits get a subscription"}, "id": "1"}')).toBe(
       "The NEAR RPC is busy right now and sent nothing: try again in a few seconds",
-    );    // the toast keeps the node's JSON out of its text
+    );
+    // the toast keeps the node's JSON out of its text
     expect(errorLine('{"jsonrpc": "2.0", "error": {"code": -429, "message": "THIS ENDPOINT IS DEPRECATED"}, "id": "1"}')).toBe(
       "The NEAR RPC is busy right now and sent nothing: try again in a few seconds",
     );
