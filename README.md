@@ -130,10 +130,11 @@ pnpm -C ui dev:staging   # http://localhost:5173, reads app.ifverse-staging.test
 
 ### Do X - see Y
 
-1. Open the site. It starts on a landing page. Click Markets in the top bar: search (also Ctrl/⌘+K), category
-   chips and Sort (Money in pools, Ending soon, Newest). Click a card: `/market/?id=1` shows one row per world, the
-   rules and resolution, the ticket (Fund, Hedge, Borrow, Lend, Liquidity) and related markets; `/market/?id=8`
-   has eight worlds.
+1. Open the site. It starts on a landing page. Click Markets in the top bar (under Menu on a phone). The first
+   page after the landing opens a three-step intro once per browser: click Next through it or close it with ×.
+   Markets has search (also Ctrl/⌘+K), category chips and Sort (Money in pools, Ending soon, Newest). Click a
+   card: `/market/?id=1` shows one row per world, the rules and resolution, the ticket (Fund, Hedge, Borrow, Lend,
+   Liquidity) and related markets; `/market/?id=8` has eight worlds.
 2. Click "Connect wallet" ("Connect" on a phone) and pick a wallet, then click your account name and "Get test
    tokens".
 3. Fund tab: split wNEAR or USDC into every world still possible (the split page, `/split/?id=1`, also merges a
@@ -174,7 +175,7 @@ Measured on 2026-11-14 on `main` (`d46de5e`): 856 tests pass, 0 fail, 0 ignored.
 | `multiverse-math` `tests/pools.rs` | 26 |
 | `multiverse-math` `tests/properties.rs` | 15 |
 | `multiverse-math` `tests/libraries.rs` | 10 |
-| `multiverse-math` `tests/reference_vectors.rs` (4,188 reference vector lines generated from the prototype's maths) | 2 |
+| `multiverse-math` `tests/reference_vectors.rs` (4,188 reference vector lines computed from the prototype's maths) | 2 |
 | `mock-ft` unit tests | 25 |
 
 `cargo fmt --all --check` and `cargo clippy --workspace --all-targets -- -D warnings` pass. `docs/TESTING.md`
@@ -344,7 +345,8 @@ NEP-245 `mt_transfer_call`, NEAR refunds, and the OutLayer request.
 
 - **`ft_transfer_call` with an action.** Every action that takes real tokens is one `ft_transfer_call` whose `msg`
   names it: `deposit`, `split`, `conditional_sell`, `conditional_buy`, `sell_and_borrow`, `post_order`, `supply`,
-  `repay`, `deposit_collateral`, `liquidate`, `close_after_resolution`, `lp_deposit`, `spot_swap`. No approval step.
+  `repay`, `deposit_collateral`, `liquidate`, `close_after_resolution`, `lp_deposit`, `spot_swap`, `fund_insurance`,
+  `pledge`. No approval step.
   `ft_on_transfer` returns what the action did not use and the token contract refunds it; any failed check panics
   and the token contract refunds everything (the e2e failure step checks this with a malformed `msg`). The contract
   keeps 18-decimal internal units; for the 24-decimal wNEAR the part of a deposit below one internal unit is
