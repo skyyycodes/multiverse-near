@@ -381,7 +381,7 @@ function ProposerBox({ p }: { p: ProposalT }) {
       )}
       {back > 0n && (
         <>
-          <p className="ticket__help">Returned bonds and reserves wait in your storage balance on the contract. Take {nearText(back)} NEAR back; {nearText(STORAGE_MARGIN)} NEAR stays for your next proposal or pledge.</p>
+          <p className="ticket__help">You have {nearText(back + STORAGE_MARGIN)} NEAR free in your storage balance on the contract: left from registering, or a bond or reserve that came back. Take {nearText(back)} NEAR back; {nearText(STORAGE_MARGIN)} NEAR stays for your next proposal or pledge.</p>
           <TicketTx
             label={`Withdraw ${nearText(back)} NEAR`}
             busyLabel="Withdrawing…"
