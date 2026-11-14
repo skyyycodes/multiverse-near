@@ -142,9 +142,12 @@ impl Pair {
     }
 }
 
+/// `(less, more)` amounts of one odds pool, or `(wNEAR, USDC)` of a world.
+type Amounts = (u128, u128);
+
 /// The tree's pairs with their odds, and per pair `(unit_less, unit_more)`:
 /// the USDC each side takes per wNEAR of base depth (step 1).
-fn units(i: &SeedInput) -> Result<(Vec<Pair>, Vec<(u128, u128)>), PlanError> {
+fn units(i: &SeedInput) -> Result<(Vec<Pair>, Vec<Amounts>), PlanError> {
     let unit = md(i.beta, i.s, WAD, Rounding::Down)?;
     let mut pairs = Vec::new();
     let mut per_unit = Vec::new();
@@ -226,15 +229,15 @@ pub fn seed_plan(i: &SeedInput) -> Result<SeedPlan, PlanError> {
         }
         sides.push((less, more));
     }
-    let mut used = vec![0u128; n];
-    for w in 0..n {
-        let world_usdc = md(d, i.p[w], WAD, Rounding::Down)?;
+    let mut used = Vec::with_capacity(n);
+    for price in i.p {
+        let world_usdc = md(d, *price, WAD, Rounding::Down)?;
         if world_usdc == 0 {
             return Err(PlanError::ZeroBase);
         }
-        used[w] = world_usdc;
+        used.push(world_usdc);
     }
-    let consumption = |sides: &[(u128, u128)], w: usize| -> Result<u128, PlanError> {
+    let consumption = |sides: &[Amounts], w: usize| -> Result<u128, PlanError> {
         let mut c = 0u128;
         for (pair, &(less, more)) in pairs.iter().zip(sides) {
             if pair.less_mask() & (1 << w) != 0 {
@@ -287,7 +290,7 @@ pub fn seed_plan(i: &SeedInput) -> Result<SeedPlan, PlanError> {
             candidates.push(i.pledged_wnear.min(cap[w]));
         }
     }
-    let layout = |a: u128| -> Result<(Vec<(u128, u128)>, u128), PlanError> {
+    let layout = |a: u128| -> Result<(Vec<Amounts>, u128), PlanError> {
         let mut world = Vec::with_capacity(n);
         let mut idle_value = 0u128;
         for w in 0..n {
@@ -308,7 +311,7 @@ pub fn seed_plan(i: &SeedInput) -> Result<SeedPlan, PlanError> {
         }
         Ok((world, idle_value))
     };
-    let mut best: Option<(u128, Vec<(u128, u128)>, u128)> = None;
+    let mut best: Option<(u128, Vec<Amounts>, u128)> = None;
     for a in candidates {
         let (world, idle_value) = layout(a)?;
         let better = match &best {
