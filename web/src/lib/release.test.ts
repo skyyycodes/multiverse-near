@@ -1,9 +1,10 @@
 // The release check (scripts/check-release.mjs) on hand-made build outputs: each rule must pass a good output and fail
 // the bad one it exists for. The on-chain OutLayer read is stood in for.
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { checkRelease } from "../../scripts/check-release.mjs";
 
@@ -11,6 +12,9 @@ const PROD = { rpcUrl: "https://rpc", contractId: "app.multiverse-near.testnet",
 const STAGING = { rpcUrl: "https://rpc", contractId: "app.ifverse-staging.testnet", wnear: "w", usdc: "u" };
 const FRED = Buffer.from("fred guest bytes");
 const FRED_SHA = createHash("sha256").update(FRED).digest("hex");
+// A staging build serves the NEAR/USD guest committed in oracle/nearusd-guest/dist, byte for byte, once it exists.
+const COMMITTED_GUEST = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "oracle", "nearusd-guest", "dist", "nearusd-guest.wasm");
+const NEARUSD = existsSync(COMMITTED_GUEST) ? readFileSync(COMMITTED_GUEST) : Buffer.from("nearusd");
 
 function dir(prefix: string): string {
   return mkdtempSync(join(tmpdir(), prefix));
@@ -51,7 +55,7 @@ function staging(extra: Out = {}): Out {
   return {
     "index.html": "<html><title>IfVerse</title></html>",
     "_next/static/chunks/app.js": `const e={contractId:"${STAGING.contractId}"};window.__nearDemo;`,
-    "outlayer/nearusd-guest.wasm": Buffer.from("nearusd"),
+    "outlayer/nearusd-guest.wasm": NEARUSD,
     "version.json": version("staging", STAGING.contractId),
     ...extra,
   };
