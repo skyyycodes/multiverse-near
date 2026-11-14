@@ -321,7 +321,7 @@ function Posted({ m, v, tier }: { m: ChainMarket; v: Account; tier: Tier }) {
         <div className="desk__tr desk__tr--head lc__tr"><span>Piece</span><span>Amount</span><span>Pays in</span><span /></div>
         {v.collateral.map((c) => (
           <div key={c.tokenId} className="desk__tr lc__tr">
-            <span className="desk__mk">{c.isReal ? `Real ${c.asset === 'wnear' ? 'wNEAR' : 'USDC'}` : c.label}</span>
+            <span className="desk__mk">{c.isReal ? `Real ${c.asset === 'wnear' ? 'wNEAR' : 'USDC'}` : `${c.asset === 'wnear' ? 'wNEAR' : 'USDC'} piece`}</span>
             <span className="num">{fmtAsset(c.asset, c.amount)} {c.asset === 'wnear' ? 'wNEAR' : 'USDC'}</span>
             <span>{c.isReal ? 'Every world' : worldsOf(m, c.mask)}</span>
             <span>

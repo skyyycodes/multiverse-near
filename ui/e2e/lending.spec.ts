@@ -46,6 +46,19 @@ test.describe('lending', () => {
     report('bob', log)
   })
 
+  test('root liquidity: add NEAR and USDC in every world, then withdraw it all (bob)', async ({ page, context }) => {
+    const log = await demoWallet(context, persona('bob'))
+    await page.goto(`/lend/?id=${MARKET}&tier=safe`)
+    const panel = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Underwrite every world' }) })
+    await panel.getByLabel('wNEAR to add').fill('2')
+    await panel.getByLabel('USDC to add').fill('6')
+    await expect(panel.locator('.tk__line').filter({ hasText: 'Shares you would get' })).not.toContainText('–', { timeout: 60_000 })
+    await act(page, 'Add liquidity in every world', 'Liquidity added in every world')
+    await expect(panel.getByRole('button', { name: 'Withdraw all' })).toBeVisible({ timeout: 60_000 })
+    await act(page, 'Withdraw all', 'Liquidity withdrawn')
+    report('bob', log)
+  })
+
   test('borrow: repay, borrow, post and take back collateral in the Bold tier (carl)', async ({ page, context }) => {
     const log = await demoWallet(context, persona('carl'))
     await page.goto(`/borrow/?id=${MARKET}&tier=bold`)
