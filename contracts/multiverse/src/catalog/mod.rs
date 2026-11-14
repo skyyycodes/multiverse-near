@@ -20,7 +20,7 @@ mod pledge;
 mod pricing;
 mod propose;
 mod registry;
-mod seed;
+pub(crate) mod seed;
 mod status;
 mod views;
 

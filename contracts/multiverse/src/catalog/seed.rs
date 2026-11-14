@@ -137,6 +137,8 @@ impl Contract {
         let (wnear, usdc) = self.claim_unused_for(proposal_id, &mut p, &account, &mut pledge);
         self.store_pledge(proposal_id, &mut p, &account, pledge);
         self.save_proposal(proposal_id, p);
+        self.payout(&account, Asset::Wnear, wnear);
+        self.payout(&account, Asset::Usdc, usdc);
         self.charge_storage(&account, before);
         PledgeReturn {
             wnear: U128(wnear),
@@ -148,7 +150,8 @@ impl Contract {
     /// world minimums (`world_count` long, dead worlds ignored) apply before
     /// the merge. Locked until `unlock_at_sec` unless one world is left; with
     /// debt in the market no live world pool may fall below its lending
-    /// depth. Returns the real (wNEAR, USDC) paid out.
+    /// depth. A unused part still due is paid with it. Returns the real
+    /// (wNEAR, USDC) the shares paid out.
     #[payable]
     pub fn seed_withdraw(
         &mut self,
@@ -192,9 +195,8 @@ impl Contract {
             }
         }
         let before = env::storage_usage();
-        if !pledge.unused_paid {
-            self.claim_unused_for(proposal_id, &mut p, &account, &mut pledge);
-        }
+        // The unused part, when still due, is paid with the withdrawal.
+        let unused = self.claim_unused_for(proposal_id, &mut p, &account, &mut pledge);
 
         // 1-2: a slice of every live position (fees booked into idle first),
         // then of every live idle token.
@@ -306,8 +308,8 @@ impl Contract {
             usdc_out: U128(usdc_out),
         }
         .emit();
-        self.payout(&account, Asset::Wnear, wnear_out);
-        self.payout(&account, Asset::Usdc, usdc_out);
+        self.payout(&account, Asset::Wnear, wnear_out + unused.0);
+        self.payout(&account, Asset::Usdc, usdc_out + unused.1);
         self.charge_storage(&account, before);
         (U128(wnear_out), U128(usdc_out))
     }
@@ -340,8 +342,9 @@ impl Contract {
         Ok((p, pledge))
     }
 
-    /// Pays `account`'s unused part once; the last claim sweeps the escrow's
-    /// rounding dust to the contract's own balance.
+    /// Settles `account`'s unused part once (the caller pays it out); the
+    /// last claim sweeps the escrow's rounding dust to the contract's own
+    /// balance.
     fn claim_unused_for(
         &mut self,
         pid: u64,
@@ -387,8 +390,6 @@ impl Contract {
             reason: "unused",
         }
         .emit();
-        self.payout(account, Asset::Wnear, wnear);
-        self.payout(account, Asset::Usdc, usdc);
         (wnear, usdc)
     }
 
