@@ -5,7 +5,11 @@ export type Network = "testnet" | "staging" | "sandbox" | "rehearsal";
 export type Chain = "testnet" | "sandbox";
 
 const NETWORKS: readonly Network[] = ["testnet", "staging", "sandbox", "rehearsal"];
-const TESTNET_FALLBACKS = ["https://rpc.testnet.fastnear.com", "https://near-testnet.drpc.org"];
+// The browser reads testnet from dRPC first. FastNEAR's edge now and then answers a page's preflighted reads without
+// CORS headers, which the browser logs as errors (the failover then recovers); its addresses stay as the fallbacks.
+// The keeper and the scripts keep the deployment's own rpcUrl.
+const TESTNET_FIRST = "https://near-testnet.drpc.org";
+const TESTNET_FALLBACKS = ["https://rpc.testnet.fastnear.com"];
 
 const network: Network = (NETWORKS as readonly string[]).includes(process.env.NEXT_PUBLIC_NETWORK ?? "")
   ? (process.env.NEXT_PUBLIC_NETWORK as Network)
@@ -29,7 +33,7 @@ export const ENV = {
   wnearId: process.env.NEXT_PUBLIC_WNEAR_ID || "",
   usdcId: process.env.NEXT_PUBLIC_USDC_ID || "",
   /** Tried in order on transport errors. */
-  rpcUrls: listedRpcs.length > 0 ? listedRpcs : chain === "testnet" ? [primaryRpc, ...TESTNET_FALLBACKS] : [primaryRpc],
+  rpcUrls: listedRpcs.length > 0 ? listedRpcs : chain === "testnet" ? [...new Set([TESTNET_FIRST, primaryRpc, ...TESTNET_FALLBACKS])] : [primaryRpc],
   explorer: process.env.NEXT_PUBLIC_EXPLORER || "",
   /** What the admin screen tells the operator to run to reset the demo; "" on staging and production (never reset). */
   resetCommand: process.env.NEXT_PUBLIC_RESET_COMMAND || "",

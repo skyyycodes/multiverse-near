@@ -93,7 +93,7 @@ describe("networks and build settings", () => {
     vi.stubEnv("NEXT_PUBLIC_RPC_URL", "https://test.rpc.fastnear.com");
     let m = await import("./env");
     expect(m.ENV).toMatchObject({ network: "staging", chain: "testnet", contractId: "app.ifverse-staging.testnet", resetCommand: "" });
-    expect(m.ENV.rpcUrls).toEqual(["https://test.rpc.fastnear.com", "https://rpc.testnet.fastnear.com", "https://near-testnet.drpc.org"]);
+    expect(m.ENV.rpcUrls).toEqual(["https://near-testnet.drpc.org", "https://test.rpc.fastnear.com", "https://rpc.testnet.fastnear.com"]);
     expect(m.networkLabel()).toBe("staging · testnet");
 
     vi.resetModules();
