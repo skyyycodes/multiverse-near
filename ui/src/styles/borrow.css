@@ -36,7 +36,8 @@
 /* phone: the market's name takes its own line, the fourth column (rate, or LTV) gives way, and the button column is
    as wide in the head row as in the rows, so the columns line up */
 @media (max-width: 760px) {
-  .bw__tr { grid-template-columns: repeat(3, minmax(0, 1fr)) 70px; gap: 6px 8px; }
+  .bw__tr { grid-template-columns: repeat(3, minmax(0, 1fr)) 68px; gap: 6px; font-size: 12px; }
+  .bw__tr .mk__btn { min-width: 0; width: 100%; padding: 6px 8px; }
   .bw__tr > :first-child { grid-column: 1 / -1; }
   .bw__tr > :nth-child(4), .bw__tr.desk__tr--head > :first-child { display: none; }
 }
