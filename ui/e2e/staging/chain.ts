@@ -16,14 +16,17 @@ export const deployment = JSON.parse(readFileSync(join(REPO, "deployments", "sta
   usdc: string;
   personas: Record<string, string>;
 };
-const RPC = process.env.STAGING_RPC || deployment.rpcUrl;
+// Not the site's RPC (deployment.rpcUrl): the harness's own polling would spend the page's rate limit, and a 429 from it
+// arrives without CORS headers, which the browser logs as a console error.
+const RPC = process.env.STAGING_RPC || "https://rpc.testnet.near.org";
 export const CONTRACT = deployment.contractId;
 export const ROOT = deployment.root;
 export const persona = (name: string): string => (name === "owner" ? deployment.root : (deployment.personas[name] ?? `${name}.${deployment.root}`));
 
-/** Where existing keys are read from, and where keys of accounts the spec creates are written (both gitignored). */
+/** Where existing keys are read from, and where keys of accounts the spec creates are written (NEAR_KEYS_DIR first, so a
+ *  worktree keeps them with the others; both gitignored). */
 const KEY_DIRS = [process.env.NEAR_KEYS_DIR, join(REPO, ".keys", "staging")].filter((d): d is string => Boolean(d));
-const NEW_KEYS = join(REPO, ".keys", "staging");
+const NEW_KEYS = process.env.NEAR_KEYS_DIR || join(REPO, ".keys", "staging");
 
 const provider = new JsonRpcProvider({ url: RPC });
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -145,9 +148,10 @@ export type Signed = { tx: WalletTx; hash: string; ok: boolean; error?: string }
 
 /**
  * Exposes `window.__nearDemo` signing as `accountId`, and connects it on load. Every signed transaction is logged.
- * `welcomed: false` leaves the first-visit intro (Onboarding) in place.
+ * `welcomed: false` leaves the first-visit intro (Onboarding) in place; `autoConnect: false` leaves the page
+ * disconnected until the visitor presses Connect and picks the demo wallet.
  */
-export async function demoWallet(context: BrowserContext, accountId: string, log: Signed[] = [], o: { welcomed?: boolean } = {}): Promise<Signed[]> {
+export async function demoWallet(context: BrowserContext, accountId: string, log: Signed[] = [], o: { welcomed?: boolean; autoConnect?: boolean } = {}): Promise<Signed[]> {
   const account = signer(accountId);
   const send = async (tx: WalletTx) => {
     sending++;
@@ -188,12 +192,12 @@ export async function demoWallet(context: BrowserContext, accountId: string, log
         throw new Error(`The test wallet does not do ${method}`);
     }
   });
-  await context.addInitScript((welcomed: boolean) => {
-    (window as unknown as { __nearDemoAutoConnect: boolean }).__nearDemoAutoConnect = true;
+  await context.addInitScript(([welcomed, auto]: [boolean, boolean]) => {
+    (window as unknown as { __nearDemoAutoConnect: boolean }).__nearDemoAutoConnect = auto;
     try {
       if (welcomed) localStorage.setItem("ov-intro-seen", "1");
     } catch {}
-  }, o.welcomed ?? true);
+  }, [o.welcomed ?? true, o.autoConnect ?? true] as [boolean, boolean]);
   return log;
 }
 
