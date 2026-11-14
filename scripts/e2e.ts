@@ -33,8 +33,9 @@ import {
   wmul,
 } from "./lib/demo.ts";
 import { requireDeployments } from "./lib/deployments.ts";
+import { check, expectFailure, Flow, Pending } from "./lib/flow.ts";
 import { HOLDS } from "./lib/fred.ts";
-import { call, NETWORK, REPO_ROOT, RPC_URL, TxFailedError } from "./lib/near.ts";
+import { call, NETWORK, REPO_ROOT, RPC_URL } from "./lib/near.ts";
 import { fedCutsOdds } from "./lib/polymarket.ts";
 import { pieceCovers, Protocol, type DemoRecord, type OrderView } from "./lib/protocol.ts";
 import { reporterDeps } from "./lib/reporter.ts";
@@ -51,65 +52,6 @@ const { values: opts } = parseArgs({
 });
 
 const e18 = (n: bigint): bigint => n * WAD;
-
-class Pending extends Error {}
-
-function check(ok: boolean, what: string): void {
-  if (!ok) throw new Error(`check failed: ${what}`);
-  console.log(`    ok: ${what}`);
-}
-
-/** Runs `task`, which must fail; returns the failure text. */
-async function expectFailure(task: Promise<unknown>, pattern: RegExp, what: string): Promise<string> {
-  try {
-    await task;
-  } catch (err) {
-    const text = err instanceof Error ? err.message : String(err);
-    if (!pattern.test(text)) throw new Error(`${what}: failed, but not with ${pattern}: ${text}`);
-    console.log(`    ok: ${what} (${pattern.exec(text)?.[0] ?? ""})`);
-    return text;
-  }
-  throw new Error(`${what}: expected a failure, but it went through`);
-}
-
-const notImplemented = (err: unknown): string | undefined =>
-  err instanceof TxFailedError ? /NotImplemented\(([a-z_]+)\)/.exec(err.message)?.[1] : undefined;
-
-interface StepResult {
-  name: string;
-  status: "ok" | "pending" | "failed";
-  detail: string;
-}
-
-class Flow {
-  readonly results: StepResult[] = [];
-  private readonly missing = new Set<string>();
-
-  async step(name: string, needs: string[], task: () => Promise<void>): Promise<void> {
-    const blocked = needs.filter((n) => this.missing.has(n));
-    console.log(`\n== ${name}`);
-    if (blocked.length > 0) {
-      console.log(`  pending: needs ${blocked.join(", ")}`);
-      this.results.push({ name, status: "pending", detail: `needs ${blocked.join(", ")}` });
-      this.missing.add(name);
-      return;
-    }
-    try {
-      await task();
-      this.results.push({ name, status: "ok", detail: "" });
-    } catch (err) {
-      const missing = err instanceof Pending ? err.message : notImplemented(err);
-      if (missing) {
-        console.log(`  pending: ${missing} is not in this contract build`);
-        this.results.push({ name, status: "pending", detail: `${missing} not implemented` });
-        this.missing.add(name);
-        return;
-      }
-      this.results.push({ name, status: "failed", detail: err instanceof Error ? err.message : String(err) });
-      throw err;
-    }
-  }
-}
 
 async function assertBacked(p: Protocol, record: DemoRecord): Promise<void> {
   for (const sid of [record.scenario_2x2, record.scenario_binary]) {
