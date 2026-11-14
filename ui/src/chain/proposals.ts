@@ -207,6 +207,19 @@ export const worldsOf = (eventCount: number): number => 2 ** eventCount;
 
 // ---- the new-event form (6.8) ----
 
+/**
+ * When the contract keeps a proposal's bond, worded once for every screen: a new event's comes back at approval, a
+ * combination's when its market opens; until then it goes to the storage fund if the owner rejects a new event as spam
+ * (`reject_proposal`), if a combination is cancelled (`cancel_proposal`), or if the proposal expires or is pushed out
+ * under the spam floor (`settle`). Any other end returns it.
+ */
+export function bondRule(kind: "event" | "market", spamFloorBps: number): string {
+  const floor = `${spamFloorBps / 100}%`;
+  return kind === "event"
+    ? `The bond comes back when the owner approves the question. Until then it is kept only if the owner rejects it as spam, or it ends with under ${floor} of its goal pledged.`
+    : `The bond comes back when the market opens. It is kept if you cancel the proposal, or if it ends with under ${floor} of its goal pledged; any other end returns it.`;
+}
+
 export const LIMITS = { question: 280, outcome: 32, rule: 1024, source: 256 } as const;
 export const CATEGORIES = ["Economy", "Crypto", "Tech", "Other"] as const;
 
@@ -226,7 +239,8 @@ export type FormErrors = Partial<Record<"question" | "outcome0" | "outcome1" | "
 /** Each field's problem, mirroring the contract's text, deadline and terms checks; empty when the form can be sent. */
 export function eventFormErrors(f: EventForm, nowSec: number, params: Pick<MarketParams, "minPledgeWindowSec" | "minMarketLifeSec" | "oddsClampBps" | "multABps">): FormErrors {
   const e: FormErrors = {};
-  const text = (v: string, max: number, name: string) => (v.trim() === "" ? `Write the ${name}` : utf8Bytes(v) > max ? `At most ${max} bytes` : undefined);
+  // the form sends each text trimmed, so the limits count the trimmed text
+  const text = (v: string, max: number, name: string) => (v.trim() === "" ? `Write the ${name}` : utf8Bytes(v.trim()) > max ? `At most ${max} bytes` : undefined);
   e.question = text(f.question, LIMITS.question, "question");
   e.rule = text(f.rule, LIMITS.rule, "rule");
   e.source = text(f.source, LIMITS.source, "data source");

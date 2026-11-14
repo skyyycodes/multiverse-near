@@ -35,6 +35,6 @@ export function txToast(kind: ToastKind, title: string, text: string, market?: n
   return {
     step: (line: string) => emit({ id, kind, state: "pending", title, text: line, market }),
     done: (line: string, href?: string) => emit({ id, kind, state: "done", title, text: line, href, market }),
-    failed: (line: string) => emit({ id, kind, state: "failed", title, text: line, market }),
+    failed: (line: string, href?: string) => emit({ id, kind, state: "failed", title, text: line, href, market }),
   };
 }

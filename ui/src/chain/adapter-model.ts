@@ -4,7 +4,7 @@
 // Numbers named like `chance`, `nearPrice`, `usdc` are JS numbers for display and charts only; every amount that
 // moves money stays a bigint (the `…Wad` fields), and actions take bigints.
 import type { Account, BorrowSnapshot, Collateral, EventMeta, EventState, LiquidationState, MarketCard, MarketOrigin, MarketStatus, ProposalSource, Scenario, Tier } from "./domain";
-import { annualRate } from "./lending";
+import { annualRate, borrowRoom } from "./lending";
 import { marketHref } from "./links";
 import { categoryName, digit, isPossible, kindLabel, shortDate, STATUS_LABEL, survivor, utcMinute } from "./market";
 import { TIERS } from "./tiers";
@@ -105,8 +105,11 @@ export type ChainMarket = {
   categories: string[];
   /** "Single event", "Combination · 4 worlds", "3 events · 8 worlds". */
   kind: string;
-  /** "31 Mar 2027" (the soonest open deadline), or "Settled". */
+  /** "31 Mar 2027" (the last open event's deadline: the market settles once every event is answered), or "Settled". */
   resolves: string;
+  /** The last open event's deadline (0 when none is set). */
+  resolvesSec: number;
+  /** The contract's `deadline_sec`: the soonest open event's deadline, i.e. the next answer due. */
   deadlineSec: number;
   createdAtSec: number;
   status: MarketStatus;
@@ -220,6 +223,7 @@ export function chainMarket(card: MarketCard, texts: ReadonlyMap<number, EventSt
     };
   });
   const settled = card.status === "resolved";
+  const resolvesSec = events.reduce((t, e) => (!e.finalized && e.deadlineSec > t ? e.deadlineSec : t), 0);
   const cats = card.categories.length ? card.categories : [...new Set(events.map((e) => e.category))];
   return {
     sid: card.scenarioId,
@@ -233,7 +237,8 @@ export function chainMarket(card: MarketCard, texts: ReadonlyMap<number, EventSt
     category: categoryName(cats[0] ?? 0),
     categories: cats.map(categoryName),
     kind: kindLabel(events.length, card.worldCount),
-    resolves: settled ? "Settled" : card.deadlineSec ? shortDate(card.deadlineSec) : "No deadline",
+    resolves: settled ? "Settled" : resolvesSec ? shortDate(resolvesSec) : "No deadline",
+    resolvesSec,
     deadlineSec: card.deadlineSec,
     createdAtSec: card.createdAtSec,
     status: card.status,
@@ -291,7 +296,7 @@ export type Position = {
   /** Health factor against the borrow-side values; null without debt. */
   borrowHealth: number | null;
   worstWorld: number | null;
-  /** What you can borrow in this tier now, USDC. */
+  /** What you can borrow in this tier now, USDC: the Borrow page's room (`borrowRoom`), not the contract's whole `max_borrow`. */
   maxBorrow: number;
   maxBorrowWad: bigint;
   borrowLimit: number;
@@ -355,8 +360,8 @@ export function positionOf(snap: BorrowSnapshot, tier: Tier): Position {
     health: hf(a.healthFactor),
     borrowHealth: hf(a.borrowHealthFactor),
     worstWorld: a.worstWorld,
-    maxBorrow: toNum(a.maxBorrow),
-    maxBorrowWad: a.maxBorrow,
+    maxBorrow: toNum(borrowRoom(a)),
+    maxBorrowWad: borrowRoom(a),
     borrowLimit: toNum(a.borrowLimit),
     minLoan: toNum(a.minLoan),
     liquidation: a.liquidation,

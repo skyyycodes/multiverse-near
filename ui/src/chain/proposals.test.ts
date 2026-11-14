@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { MarketParamsView } from "./domain";
 import {
   deadlineSpreadNote,
+  bondRule,
   eventFormErrors,
   nearText,
   normaliseTerms,
@@ -166,6 +167,8 @@ describe("the new-event form", () => {
 
   it("counts bytes, not characters", () => {
     expect(eventFormErrors({ ...good, question: "é".repeat(141) }, now, params).question).toBe("At most 280 bytes");
+    // the limit counts what is sent: the trimmed text
+    expect(eventFormErrors({ ...good, question: `  ${"é".repeat(140)}  ` }, now, params).question).toBeUndefined();
   });
 });
 
@@ -224,5 +227,12 @@ describe("the proposal page (web 6.9)", () => {
     expect(pledgeActions("opened", seed)).toMatchObject({ pledge: false, withdraw: false, claim: true, seed: true });
     expect(pledgeActions("opened", { ...seed, unusedPaid: true }).claim).toBe(false);
     expect(pledgeActions("opened", { ...seed, unusedUsdc: 0n }).claim).toBe(false);
+  });
+});
+
+describe("the bond's rule, worded once", () => {
+  it("names approval for a new event and the opening for a combination, with the spam floor", () => {
+    expect(bondRule("event", 1_000)).toBe("The bond comes back when the owner approves the question. Until then it is kept only if the owner rejects it as spam, or it ends with under 10% of its goal pledged.");
+    expect(bondRule("market", 1_000)).toMatch(/^The bond comes back when the market opens\. It is kept if you cancel the proposal, or if it ends with under 10% of its goal pledged/);
   });
 });

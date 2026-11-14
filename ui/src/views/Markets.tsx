@@ -136,7 +136,11 @@ function Featured({ m }: { m: ChainMarket }) {
 function Card({ m, now, starred }: { m: ChainMarket; now: number; starred: boolean }) {
   const worlds = byChance(m)
   const winner = m.winner === undefined ? undefined : m.worlds[m.winner]
-  const left = m.settled ? null : daysUntil(m.deadlineSec, now)
+  // the market resolves with its last event; a combination whose next answer is sooner says so instead
+  const last = m.settled ? null : daysUntil(m.resolvesSec, now)
+  const next = m.settled || m.deadlineSec >= m.resolvesSec ? null : daysUntil(m.deadlineSec, now)
+  const soon = (d: number | null) => d !== null && d > 0 && d <= 45
+  const days = (d: number) => `${d} day${d === 1 ? '' : 's'}`
   return (
     <div className="mk-cardwrap">
       <button type="button" className={`star${starred ? ' is-on' : ''}`} aria-pressed={starred} aria-label={starred ? `Remove ${m.question} from watchlist` : `Add ${m.question} to watchlist`} onClick={() => toggleWatch(m.id)}>{starred ? '★' : '☆'}</button>
@@ -145,9 +149,9 @@ function Card({ m, now, starred }: { m: ChainMarket; now: number; starred: boole
           <MarketArt m={m} size={44} />
           <span className="mk-card__q">{m.question}</span>
         </span>
-        {left !== null && left > 0 && left <= 45 && <span className="mk-card__ends">Ends in {left} day{left === 1 ? '' : 's'}</span>}
+        {soon(last) ? <span className="mk-card__ends">Resolves in {days(last!)}</span> : soon(next) ? <span className="mk-card__ends">Next answer in {days(next!)}</span> : null}
         {m.settled && winner ? (
-          <span className="mk-card__result"><span className="rs__state rs__state--final">Settled</span> {winner.outcome} <small>happened. The other world{m.worldCount > 2 ? 's' : ''} closed at zero.</small></span>
+          <span className="mk-card__result"><span className="rs__state rs__state--final">Settled</span> {winner.outcome} happened. <small>The other world{m.worldCount > 2 ? 's' : ''} closed at zero.</small></span>
         ) : !m.oddsKnown ? (
           <span className="mk-card__worlds"><span className="pc__note">Odds not known yet</span></span>
         ) : (

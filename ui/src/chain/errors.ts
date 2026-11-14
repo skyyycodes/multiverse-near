@@ -131,6 +131,9 @@ export function blockerText(raw: string, ctx: ErrorContext = {}): string | undef
   return undefined;
 }
 
+const RATE_LIMITED = /Rate limits exceeded|"code":\s*-429|HTTP 429/;
+const RPC_BUSY = "The NEAR RPC is busy right now and sent nothing: try again in a few seconds";
+
 /** A failed action's error in plain words; the raw text when the table does not know it. */
 export function humanError(raw: string, ctx: ErrorContext = {}): string {
   const text = raw.trim();
@@ -139,7 +142,7 @@ export function humanError(raw: string, ctx: ErrorContext = {}): string {
   if (/NotEnoughBalance|Not enough balance for /.test(text)) return "Not enough NEAR in your wallet for this transaction's gas";
   if (/LackBalanceForState/.test(text)) return "Not enough NEAR in your wallet to keep its storage after this transaction";
   // A public RPC turning the wallet's broadcast away: nothing was sent.
-  if (/Rate limits exceeded|"code":\s*-429|HTTP 429/.test(text)) return "The NEAR RPC is busy right now and sent nothing: try again in a few seconds";
+  if (RATE_LIMITED.test(text)) return RPC_BUSY;
   const e = parseContractError(text);
   if (!e) return text;
   const [a, b] = e.args;
@@ -150,6 +153,9 @@ export function humanError(raw: string, ctx: ErrorContext = {}): string {
       return `Liquidations resume at ${when(a)}`;
     case "BelowMinLoan":
       return `The minimum loan is ${usd(b)}`;
+    // health after the action, then the world; the health is left out: 0.999… would print as a healthy-looking 1.00
+    case "Unhealthy":
+      return "That would put your loan over its borrow limit at today's prices: borrow a little less, take back less collateral, or add collateral first";
     case "DustDebtLeft":
       return `That would leave ${usd(a)} owed, under the ${usd(b)} minimum: repay all of it or leave at least ${usd(b)}`;
     case "UtilizationCap": {
@@ -277,6 +283,8 @@ export function humanError(raw: string, ctx: ErrorContext = {}): string {
 /** The result line of a failed action: plain words, then the contract's exact text. */
 export function errorLine(raw: string, ctx: ErrorContext = {}): string {
   const text = humanError(raw, ctx);
+  // the node's JSON reply says nothing more than the sentence does
+  if (text === RPC_BUSY) return text;
   return text === raw.trim() ? text : `${text} (${raw.trim()})`;
 }
 

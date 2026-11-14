@@ -16,9 +16,10 @@ export const deployment = JSON.parse(readFileSync(join(REPO, "deployments", "sta
   usdc: string;
   personas: Record<string, string>;
 };
-// Not the site's RPC (deployment.rpcUrl): the harness's own polling would spend the page's rate limit, and a 429 from it
-// arrives without CORS headers, which the browser logs as a console error.
-const RPC = process.env.STAGING_RPC || "https://rpc.testnet.near.org";
+// Not the page's first RPC (dRPC, ui/src/chain/env.ts): the harness's own polling would spend the page's rate limit,
+// and a 429 from it arrives without CORS headers, which the browser logs as a console error. FastNEAR, the page's
+// fallback, from docs.near.org's provider list; rpc.testnet.near.org is deprecated and throttled.
+const RPC = process.env.STAGING_RPC || "https://test.rpc.fastnear.com";
 export const CONTRACT = deployment.contractId;
 export const ROOT = deployment.root;
 export const persona = (name: string): string => (name === "owner" ? deployment.root : (deployment.personas[name] ?? `${name}.${deployment.root}`));

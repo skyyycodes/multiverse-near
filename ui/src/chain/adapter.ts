@@ -49,7 +49,7 @@ import {
   withdrawSupply as withdrawSupplyTx,
   type Tx,
 } from "./near/tx";
-import type { TxOutcome } from "./near/outcome";
+import { TxError, type TxOutcome } from "./near/outcome";
 import { useWallet } from "./near/wallet";
 import type { WorldPlan, Order, Side } from "./orders";
 import { pauseBlocker, type AppAction } from "./pause";
@@ -317,7 +317,8 @@ export function useActions() {
         return { ok: true, hash };
       } catch (e) {
         const error = errorLine(errorText(e));
-        t.failed(error);
+        // a transaction that landed and failed links to itself on the explorer
+        t.failed(error, e instanceof TxError && e.hash ? txUrl(e.hash) : undefined);
         return { ok: false, error };
       } finally {
         setBusy(null);

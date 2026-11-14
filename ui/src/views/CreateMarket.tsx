@@ -27,6 +27,7 @@ import { categoryName } from '../chain/market'
 import { createdProposalId } from '../chain/near/outcome'
 import { GAS_MAX, proposeEvent, proposeMarket } from '../chain/near/tx'
 import {
+  bondRule,
   deadlineSpreadNote,
   eventFormErrors,
   LIMITS,
@@ -123,7 +124,7 @@ export default function CreateMarket() {
   const earliest = p ? nowSec + p.params.minPledgeWindowSec + p.params.minMarketLifeSec : undefined
   const checkArgs = useDebounced(
     kind === 'event' && !errors.question && !errors.deadline && !errors.terms && f.deadlineSec !== undefined
-      ? { question: f.question, terms: { odds0Bps: f.odds0Bps, multBps: f.multBps }, deadlineSec: f.deadlineSec }
+      ? { question: f.question.trim(), terms: { odds0Bps: f.odds0Bps, multBps: f.multBps }, deadlineSec: f.deadlineSec }
       : undefined,
     400,
   )
@@ -147,7 +148,7 @@ export default function CreateMarket() {
       ['A deadline far enough out', !errors.deadline, errors.deadline],
       ['Not proposed already', ec ? ec.liveProposal === null : false, ec?.liveProposal != null ? `Proposal #${ec.liveProposal} asks the same question` : undefined],
       ['The contract can price it today', ec ? ec.blocker === null : false, ec?.blocker ? humanError(ec.blocker) : undefined],
-      ['No trader could easily make it happen', notCausable],
+      ['No trader could easily make it happen', notCausable, 'Tick the box below to continue'],
     ]
     : [
       [`One to ${MAX_EVENTS} open events`, picked.length > 0 && picked.length <= MAX_EVENTS],
@@ -164,7 +165,7 @@ export default function CreateMarket() {
   const submit = () =>
     actions.send(
       kind === 'event'
-        ? proposeEvent(CONTRACT_ID, { question: f.question, outcomeNames: [f.outcomes[0], f.outcomes[1]], rule: f.rule, source: f.source, deadlineSec: f.deadlineSec!, category: f.category, terms: { odds0Bps: f.odds0Bps, multBps: f.multBps } }, deposit!)
+        ? proposeEvent(CONTRACT_ID, { question: f.question.trim(), outcomeNames: [f.outcomes[0].trim(), f.outcomes[1].trim()], rule: f.rule.trim(), source: f.source.trim(), deadlineSec: f.deadlineSec!, category: f.category, terms: { odds0Bps: f.odds0Bps, multBps: f.multBps } }, deposit!)
         : proposeMarket(CONTRACT_ID, picked, deposit!),
       proposalAnnounce('Proposal', 'Proposing…', 'Proposed: pledges can start'),
       {
@@ -239,7 +240,7 @@ export default function CreateMarket() {
                       </button>
                     </div>
                     <p className="pc__note">
-                      You attach {kind === 'event' ? nearText(p.params.bondNewEvent + p.reserveW2) : `${nearText(p.params.bondMarket + p.reserveW2)} to ${nearText(p.params.bondMarket + p.reserveW8)}`} NEAR: a bond, back {kind === 'event' ? 'at approval' : 'when it opens or ends normally'}, plus a storage reserve for the new market.
+                      You attach {kind === 'event' ? nearText(p.params.bondNewEvent + p.reserveW2) : `${nearText(p.params.bondMarket + p.reserveW2)} to ${nearText(p.params.bondMarket + p.reserveW8)}`} NEAR: a bond plus a storage reserve for the new market. {bondRule(kind, p.params.spamFloorBps)}
                     </p>
                   </>
                 )}
@@ -360,7 +361,7 @@ export default function CreateMarket() {
                         <p className="tk__line"><span>Pledging closes</span><b className="num">{c.expiresAtSec ? utcDate(c.expiresAtSec) : '–'}</b></p>
                         <p className="tk__line"><span>You attach now</span><b className="num">{nearText(c.bond + c.reserve + extra)} NEAR</b></p>
                         {extra > 0n && <p className="pc__note">Including {nearText(extra)} NEAR for the proposal’s own storage; what it does not use stays in your storage balance, withdrawable.</p>}
-                        <p className="pc__note">Bond {nearText(c.bond)} NEAR, back when it opens or ends normally, and kept if you cancel it. Reserve {nearText(c.reserve)} NEAR pays the new market’s storage; the rest comes back.</p>
+                        <p className="pc__note">Bond {nearText(c.bond)} NEAR. {bondRule('market', p.params.spamFloorBps)} Reserve {nearText(c.reserve)} NEAR pays the new market’s storage; the rest comes back.</p>
                       </>
                     )}
                   </>
@@ -475,7 +476,7 @@ function EventFunding({ f, set, mult, setMult, p, o0, o1, ec, errors, extra }: {
           <p className="tk__line"><span>Pledge goal</span><b className="num">{fmt(ec.goal, 0)} USDC</b></p>
           <p className="tk__line"><span>Best mix</span><b className="num">≈ {fmtNear(ec.idealWnear)} wNEAR + {fmt(ec.idealUsdc, 0)} USDC</b></p>
           <p className="tk__line"><span>You attach now</span><b className="num">{nearText(ec.bond + ec.reserve + extra)} NEAR</b></p>
-          <p className="pc__note">Bond {nearText(ec.bond)} NEAR, back at approval (kept only if the owner rejects it as spam). Reserve {nearText(ec.reserve)} NEAR pays the new market’s storage; the rest comes back.{extra > 0n ? ` Plus ${nearText(extra)} NEAR for the proposal’s own storage, kept in your storage balance.` : ''}</p>
+          <p className="pc__note">Bond {nearText(ec.bond)} NEAR. {bondRule('event', p.params.spamFloorBps)} Reserve {nearText(ec.reserve)} NEAR pays the new market’s storage; the rest comes back.{extra > 0n ? ` Plus ${nearText(extra)} NEAR for the proposal’s own storage, kept in your storage balance.` : ''}</p>
           {ec.blocker && <p className="ov__warn">{humanError(ec.blocker)}</p>}
         </>
       ) : (
@@ -491,7 +492,7 @@ function RulesPanel({ p }: { p: MarketParamsView | undefined }) {
     <section className="tr__panel">
       <h2 className="obx__boxtitle">How proposals work</h2>
       <ol className="steps steps--col">
-        <li><span className="steps__n">1</span><b>Bond and reserve</b><p>A refundable bond plus a storage reserve. The bond is kept only if a combination is cancelled, or a proposal ends with less than {p.params.spamFloorBps / 100}% of its goal.</p></li>
+        <li><span className="steps__n">1</span><b>Bond and reserve</b><p>A bond plus a storage reserve. New event: {bondRule('event', p.params.spamFloorBps)} Combination: {bondRule('market', p.params.spamFloorBps)}</p></li>
         <li><span className="steps__n">2</span><b>Pledges are real money</b><p>Locked until the market opens; until then every pledger can withdraw everything.</p></li>
         <li><span className="steps__n">3</span><b>It opens by itself</b><p>At the goal, a combination opens at once and a new event once the owner approved it. Pledges become the starting liquidity.</p></li>
         <li><span className="steps__n">4</span><b>Or every pledge comes back</b><p>If it expires, is rejected, or an event resolves first, every pledge is refunded in full.</p></li>

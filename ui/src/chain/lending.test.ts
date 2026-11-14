@@ -269,7 +269,13 @@ describe("borrow and repay blockers (SPEC 3.6.4 order)", () => {
     expect(borrowBlocker({ ...base, amount: wad("6000") })).toBe("This tier lends at most 90% of its cash; try a smaller amount");
     expect(borrowBlocker({ ...base, market: { ...market, config: { ...NORMAL, borrowCap: wad("85100") } } })).toBe("This tier's borrowing cap is $85,100.00");
     expect(borrowBlocker({ ...base, amount: wad("50") })).toBe("The minimum loan is $100.00");
-    expect(borrowBlocker({ ...base, amount: wad("3001") })).toBe("Over your borrow limit");
+    expect(borrowBlocker({ ...base, amount: wad("3001") })).toBe("Over your borrow limit: at most $2,985.00 now");
+  });
+
+  it("refuses exactly the limit (the contract rounds the new debt up) but passes Max's room", () => {
+    expect(borrowBlocker({ ...base, amount: wad("3000") })).toBe("Over your borrow limit: at most $2,985.00 now");
+    expect(borrowBlocker({ ...base, amount: wad("2985") })).toBeUndefined();
+    expect(borrowBlocker({ ...base, amount: wad("2985.01") })).toBe("Over your borrow limit: at most $2,985.00 now");
   });
 
   it("names the price check when new borrowing is blocked", () => {

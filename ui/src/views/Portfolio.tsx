@@ -9,14 +9,14 @@
 //                 "what if NEAR moves" is a labelled what-if over your real holdings
 //   loans         every loan and supply by market and tier, beside health and the wallet
 //   tabs          positions by market, open orders
-import { useState, type ReactNode } from 'react'
+import { useState, type CSSProperties, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useActions, useMarkets, useWalletBalances, type ChainMarket } from '../chain/adapter'
 import { useMarketsOf } from '../chain/hooks/useMarkets'
 import { errorLine } from '../chain/errors'
 import { fmt, fmtHf, fmtNear, fmtPrice, fmtUsd, hfTone, pct } from '../chain/format'
 import { useHoldings } from '../chain/hooks/useLiquidation'
-import { WAD } from '../chain/lending'
+import { borrowRoom, WAD } from '../chain/lending'
 import { holdsAnything, marketHoldings, useOpenOrders, useTiersOf, type MarketHoldings } from '../chain/lending-screens'
 import { hedgeShape, oddsWeighted, tierPositions, worldWorth } from '../chain/lending-view'
 import { borrowHref, lendHref, marketHref, marketsHref, ordersHref, resolveHref } from '../chain/links'
@@ -121,7 +121,7 @@ function Mine({ account }: { account: string }) {
   const best = held.reduce((s, h) => s + (h.best !== undefined ? h.values[h.best] : 0n), 0n) + supplied + walletValue
   const hfs = held.map((h) => h.lowestHealth).filter((x): x is bigint => x !== null)
   const lowest = hfs.length ? hfs.reduce((a, b) => (b < a ? b : a)) : null
-  const borrowable = held.flatMap((h) => h.tiers).reduce((s, t) => s + (t.account?.maxBorrow ?? 0n), 0n)
+  const borrowable = held.flatMap((h) => h.tiers).reduce((s, t) => s + (t.account ? borrowRoom(t.account) : 0n), 0n)
   const openOrders = orders.orders ?? []
   // where the money is, on average: NEAR and dollars held in worlds (weighted by each world's chance), lent, wallet
   const nearExposure = held.reduce((s, h) => s + oddsWeighted(h.held.near.map((x, w) => (x * (h.market.worlds[w]?.price ?? 0n)) / WAD), h.market.worlds.map((w) => w.odds), h.market.possible), 0n)
@@ -289,7 +289,7 @@ function Futures({ h }: { h: MarketHoldings }) {
         <span><i className="orng__k orng__k--usdc" />Ringed: holds USDC</span>
       </div>
 
-      <div className="fgrid" style={{ gridTemplateColumns: `${grid.rows.length > 1 ? 'auto ' : ''}repeat(${grid.cols.length}, minmax(0, 1fr))` }}>
+      <div className={`fgrid${grid.rows.length > 1 ? ' fgrid--rows' : ''}${grid.cols.length > 2 ? ' fgrid--wide' : ''}`} style={{ '--cols': grid.cols.length } as CSSProperties}>
         {grid.rows.length > 1 && <span />}
         {grid.cols.map((c) => <span key={c} className="fgrid__axis">{c}</span>)}
         {grid.rows.map((row) => [

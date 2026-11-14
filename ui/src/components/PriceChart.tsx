@@ -7,11 +7,13 @@ import { ColorType, CrosshairMode, LineSeries, LineType, createChart, type IChar
 import type { PricePoint } from '../chain/book'
 import type { Order } from '../chain/orders'
 import { toNum } from '../chain/adapter'
+import { fmt, fmtFloat } from '../chain/format'
 
 const UP = '#7dc9a5' // the trading screen's buy colour: a muted green that sits with the maroon brand
 const DOWN = '#cf6b78' // its sell colour: the brand's rose, deepened
-const p2 = (n: number) => n.toFixed(2)
-const when = (sec: number) => new Date(sec * 1000).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
+const p2 = (n: number) => fmtFloat(n, 2)
+// UTC, like the chart's own time axis and the rest of the app
+const when = (sec: number) => `${new Date(sec * 1000).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' })} UTC`
 
 function Line({ points, color }: { points: PricePoint[]; color: string }) {
   const box = useRef<HTMLDivElement>(null)
@@ -35,7 +37,7 @@ function Line({ points, color }: { points: PricePoint[]; color: string }) {
       rightPriceScale: { borderColor: 'rgba(255,255,255,0.08)', scaleMargins: { top: 0.12, bottom: 0.12 } },
       timeScale: { borderColor: 'rgba(255,255,255,0.08)', timeVisible: true, rightOffset: 2 },
     })
-    series.current = c.addSeries(LineSeries, { color, lineWidth: 2, lineType: LineType.WithSteps, priceFormat: { type: 'price', precision: 4, minMove: 0.0001 } })
+    series.current = c.addSeries(LineSeries, { color, lineWidth: 2, lineType: LineType.WithSteps, priceFormat: { type: 'custom', minMove: 0.0001, formatter: (p: number) => fmtFloat(p, 4) } })
     chart.current = c
     return () => { c.remove(); chart.current = null; series.current = null }
   }, [color])
@@ -57,7 +59,7 @@ function Line({ points, color }: { points: PricePoint[]; color: string }) {
   return (
     <>
       <div className="pc__legend num">
-        <span>Price <b>{at ? at.value.toFixed(4) : '–'}</b></span>
+        <span>Price <b>{points[shown] ? fmt(points[shown].price, 4) : '–'}</b></span>
         <span>At <b>{at ? when(at.time) : '–'}</b></span>
         <span>Over these swaps <b className={ch >= 0 ? 'is-up' : 'is-down'}>{ch >= 0 ? '+' : ''}{first > 0 ? ((ch / first) * 100).toFixed(2) : '0.00'}%</b></span>
         <span>Swaps <b>{data.length}</b></span>
@@ -68,8 +70,9 @@ function Line({ points, color }: { points: PricePoint[]; color: string }) {
 }
 
 // cumulative resting size away from the price: bids stepping down to the left, asks stepping up to the right
-function Depth({ bids, asks, price }: { bids: Order[]; asks: Order[]; price: number }) {
+function Depth({ bids, asks, pool }: { bids: Order[]; asks: Order[]; pool: bigint }) {
   const W = 800, H = 300, pad = 28
+  const price = toNum(pool)
   const sideOf = (os: Order[]) => { let run = 0; return os.map((o) => ({ p: toNum(o.price), q: (run += toNum(o.remaining)) })) }
   const b = sideOf(bids), a = sideOf(asks)
   const mid = price > 0 ? price : (b[0]?.p ?? a[0]?.p ?? 1)
@@ -90,7 +93,7 @@ function Depth({ bids, asks, price }: { bids: Order[]; asks: Order[]; price: num
       <path d={steps(b, -1)} fill="rgba(125,201,165,0.14)" stroke={UP} strokeWidth="1.5" />
       <path d={steps(a, 1)} fill="rgba(207,107,120,0.16)" stroke={DOWN} strokeWidth="1.5" />
       {price > 0 && <line x1={x(price)} x2={x(price)} y1={pad} y2={H - pad} stroke="rgba(255,255,255,0.3)" strokeDasharray="4 4" />}
-      {price > 0 && <text x={x(price)} y={pad - 8} textAnchor="middle" fill="#f2f2ee" fontSize="12">pool {p2(price)}</text>}
+      {price > 0 && <text x={x(price)} y={pad - 8} textAnchor="middle" fill="#f2f2ee" fontSize="12">pool {fmt(pool, 2)}</text>}
       {[lo, mid, hi].map((p) => <text key={p} x={x(p)} y={H - 8} textAnchor="middle" fill="#8e96a8" fontSize="11">{p2(p)}</text>)}
       <text x={W - pad} y={pad + 12} textAnchor="end" fill="#8e96a8" fontSize="11">{Math.round(top / 1.1).toLocaleString('en-US')} NEAR</text>
     </svg>
@@ -115,7 +118,7 @@ export function PriceChart({ points, bids, asks, price, color = UP }: { points: 
           : <Line points={points} color={color} />
         : empty
           ? <p className="obx__empty pc__none">No resting orders in this world.</p>
-          : <Depth bids={bids} asks={asks} price={toNum(price)} />}
+          : <Depth bids={bids} asks={asks} pool={price} />}
     </section>
   )
 }

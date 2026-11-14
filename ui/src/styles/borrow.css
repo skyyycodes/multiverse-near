@@ -33,6 +33,14 @@
 
 .bw__tr { grid-template-columns: minmax(0, 2.2fr) repeat(4, minmax(0, 0.8fr)) auto; }
 .bw__tr .mk__btn { min-width: 70px; padding: 6px 10px; }
+/* phone: the market's name takes its own line, the fourth column (rate, or LTV) gives way, and the button column is
+   as wide in the head row as in the rows, so the columns line up */
+@media (max-width: 760px) {
+  .bw__tr { grid-template-columns: repeat(3, minmax(0, 1fr)) 68px; gap: 6px; font-size: 12px; }
+  .bw__tr .mk__btn { min-width: 0; width: 100%; padding: 6px 8px; }
+  .bw__tr > :first-child { grid-column: 1 / -1; }
+  .bw__tr > :nth-child(4), .bw__tr.desk__tr--head > :first-child { display: none; }
+}
 .params { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; margin: 0; }
 .params > div { padding: 10px 12px; border: 1px solid var(--u-line); border-radius: var(--radius); background: var(--u-raise); }
 .params dt { font-size: 12px; font-weight: 600; color: var(--u-ink); }
