@@ -23,7 +23,7 @@ import { categoryName, isWebSource } from '../chain/market'
 import { openedMarketId, seedWithdrawnLine } from '../chain/near/outcome'
 import { call, cancelProposal, GAS_CALL, GAS_LIGHT, GAS_MAX, ONE_YOCTO, openMarket, seedWithdraw, topUpDeposit, topUpProposal } from '../chain/near/tx'
 import { useWallet } from '../chain/near/wallet'
-import { isLive, nearText, parseProposalParam, pledgeActions, proposalStage, proposalTitle, seedMinimums, spanWords, worldLabels } from '../chain/proposals'
+import { isLive, isTerminal, nearText, parseProposalParam, pledgeActions, proposalStage, proposalTitle, seedMinimums, spanWords, worldLabels } from '../chain/proposals'
 
 const STAGE_TONE = { pos: 'final', neg: 'off', warn: 'live', neutral: 'open', info: 'open' } as const
 
@@ -119,7 +119,7 @@ function Stage({ p, labels }: { p: ProposalT; labels?: string[] }) {
           <p className="tk__line"><span>Seed shares unlock</span><b className="num">{utcDate(p.opened.unlockAtSec)}</b></p>
           <Link href={marketHref(p.opened.scenarioId)} className="mk__btn mk__btn--buy gv__go">Trade market #{p.opened.scenarioId}</Link>
         </>
-      ) : (
+      ) : isTerminal(p.status) && p.pledgers === 0 ? null : (
         <div className="gv__stack">
           <PledgeProgress p={p} />
           <p className="tk__line"><span>Best mix to reach the goal</span><b className="num">≈ {fmtNear(p.idealWnear)} wNEAR + {fmt(p.idealUsdc, 0)} USDC</b></p>
@@ -134,6 +134,14 @@ const Source = ({ s }: { s: string }) => (isWebSource(s) ? <a href={s} target="_
 
 function Questions({ p, events }: { p: ProposalT; events: EventState[] }) {
   const metas = useEventMetas(p.eventIds)
+  if (p.kind === 'new_event' && !p.newEvent) {
+    return (
+      <section className="tr__panel">
+        <h2 className="obx__boxtitle">The question</h2>
+        <p className="tr__means">No longer stored: once a new event is rejected, cancelled or expires, the contract keeps only its numbers.</p>
+      </section>
+    )
+  }
   if (p.newEvent) {
     const e = p.newEvent
     return (
