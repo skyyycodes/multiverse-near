@@ -1,0 +1,24 @@
+{
+  "scenario_id": 5,
+  "config": {
+    "min_age_sec": 1800,
+    "min_depth": "50000000000000000000000",
+    "reference": true,
+    "max_deviation": "100000000000000000",
+    "max_haircut": "200000000000000000"
+  },
+  "reference": {
+    "price": "3510550000000000000",
+    "observed_at": 1794620000,
+    "age_sec": 120,
+    "source": "outlayer",
+    "sources_used": 4,
+    "spread_bps": 88
+  },
+  "implied_twap_spot": "3037693300000000000",
+  "ratio": "1155660000000000000",
+  "borrow_block": "ReferenceDeviation(3037693300000000000, 3510550000000000000)",
+  "borrow_factor": "1000000000000000000",
+  "liquidation_factor": "1000000000000000000",
+  "liquidation_guard": true
+}

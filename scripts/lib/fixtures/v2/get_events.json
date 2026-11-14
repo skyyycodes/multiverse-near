@@ -1,0 +1,36 @@
+[
+  {
+    "id": 1,
+    "question": "Will SPICE ship in nearcore 2.10?",
+    "rule": "Team-controlled outcomes file (demo).",
+    "outcome_names": [
+      "SHIPS",
+      "DELAYED"
+    ],
+    "deadline_sec": 1796428800,
+    "proposed_at_sec": 0,
+    "proposed_outcome": 0,
+    "proposal_open": false,
+    "finalized": false,
+    "outcome": 0,
+    "finalizable_at_sec": 0,
+    "proposed_by": null
+  },
+  {
+    "id": 2,
+    "question": "Will the Fed cut at the December 2026 meeting?",
+    "rule": "CUTS if the FRED DFEDTARU on 2026-12-10 is below the 2026-12-08 value.",
+    "outcome_names": [
+      "CUTS",
+      "HOLDS"
+    ],
+    "deadline_sec": 1797033600,
+    "proposed_at_sec": 1797040000,
+    "proposed_outcome": 1,
+    "proposal_open": true,
+    "finalized": false,
+    "outcome": 0,
+    "finalizable_at_sec": 1797040120,
+    "proposed_by": "outlayer"
+  }
+]

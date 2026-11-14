@@ -1,0 +1,22 @@
+{
+  "enabled": true,
+  "guest": {
+    "outlayer_id": "outlayer.testnet",
+    "wasm_url": "https://ifverse-staging.vercel.app/outlayer/nearusd-guest.wasm",
+    "wasm_sha256": "8c809e11f5b4b37627baa5c0a65a8587ef5f3e4918d1e0bb42cb2f87a5ae1660",
+    "resource_limits": {
+      "max_instructions": 1000000000,
+      "max_memory_mb": 128,
+      "max_execution_seconds": 30
+    },
+    "deposit": "5000000000000000000000"
+  },
+  "reporter_id": "resolver.ifverse-staging.testnet",
+  "min_sources": 3,
+  "max_spread_bps": 200,
+  "max_result_delay_sec": 120,
+  "borrow_max_age_sec": 3600,
+  "liquidation_max_age_sec": 300,
+  "min_price": "10000000000000000",
+  "max_price": "10000000000000000000000"
+}

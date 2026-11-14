@@ -1,0 +1,10 @@
+{
+  "paused": [
+    "lend",
+    "liquidate"
+  ],
+  "since_sec": 1794620000,
+  "liquidations_resume_at_sec": 0,
+  "guardian_id": "guardian.ifverse-staging.testnet",
+  "pending_owner_id": null
+}

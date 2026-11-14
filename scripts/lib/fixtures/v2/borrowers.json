@@ -1,0 +1,36 @@
+{
+  "scenario_id": 1,
+  "tier": "normal",
+  "total": 2,
+  "from_index": 0,
+  "next_index": null,
+  "now_sec": 1794620000,
+  "rows": [
+    {
+      "index": 0,
+      "account_id": "carl.multiverse-near.testnet",
+      "debt": "892822257000000000000",
+      "health_factor": "951870000000000000",
+      "worst_world": 3,
+      "c_min": "1133134240000000000000",
+      "liquidation": "liquidatable",
+      "unpriced_world": null,
+      "max_repay": "446411128000000000000",
+      "full_seize_repay": "1079175467000000000000",
+      "write_off_ready": false
+    },
+    {
+      "index": 1,
+      "account_id": "alice.multiverse-near.testnet",
+      "debt": "3000000000000000000000",
+      "health_factor": "1301000000000000000",
+      "worst_world": 3,
+      "c_min": "5576000000000000000000",
+      "liquidation": "none",
+      "unpriced_world": null,
+      "max_repay": "1500000000000000000000",
+      "full_seize_repay": "5311000000000000000000",
+      "write_off_ready": false
+    }
+  ]
+}

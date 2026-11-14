@@ -1,0 +1,16 @@
+{
+  "canonical": [
+    1,
+    2
+  ],
+  "world_count": 4,
+  "blocker": "MarketExists(5)",
+  "listed_market": 5,
+  "live_proposal": null,
+  "goal": "52000000000000000000000",
+  "ideal_wnear": "5100000000000000000000",
+  "ideal_usdc": "36500000000000000000000",
+  "bond": "50000000000000000000000",
+  "reserve": "150000000000000000000000",
+  "expires_at_sec": 1795812000
+}

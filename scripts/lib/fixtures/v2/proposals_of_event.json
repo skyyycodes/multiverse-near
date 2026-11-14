@@ -1,0 +1,34 @@
+[
+  {
+    "proposal_id": 13,
+    "kind": "market",
+    "proposer": "uma.ifverse-staging.testnet",
+    "void_reason": null,
+    "blocker": null,
+    "event_ids": [
+      1,
+      2
+    ],
+    "world_count": 4,
+    "category": 0,
+    "deadline_sec": 1798761600,
+    "created_at_sec": 1794600000,
+    "approved_at_sec": 1794600000,
+    "expires_at_sec": 1795812000,
+    "open_not_before_sec": 0,
+    "goal": "47000000000000000000000",
+    "ideal_wnear": "4600000000000000000000",
+    "ideal_usdc": "33000000000000000000000",
+    "s_hint": "3037693300000000000",
+    "pledged_wnear": "4100000000000000000000",
+    "pledged_usdc": "25800000000000000000000",
+    "pledgers": 7,
+    "progress_bps": 7346,
+    "bond": "50000000000000000000000",
+    "reserve": "150000000000000000000000",
+    "seed_lock_sec": 604800,
+    "opened": null,
+    "status": "pledging",
+    "new_event": null
+  }
+]

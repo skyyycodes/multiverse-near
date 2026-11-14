@@ -1,0 +1,24 @@
+{
+  "from_scenario": 1,
+  "next_scenario": null,
+  "wnear": {
+    "reserves": "700000000000000000000000",
+    "lending_cash": "0",
+    "insurance": "0",
+    "internal": "649",
+    "collateral": "6000000000000000000000",
+    "spot_pool": "0",
+    "pledges": "0",
+    "total": "706000000000000000000649"
+  },
+  "usdc": {
+    "reserves": "9000000000000000000000000",
+    "lending_cash": "3000000000000000000000000",
+    "insurance": "640000000000000000000",
+    "internal": "846845361198000000000000",
+    "collateral": "0",
+    "spot_pool": "0",
+    "pledges": "0",
+    "total": "12846845361198000000000000"
+  }
+}

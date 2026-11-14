@@ -1,0 +1,29 @@
+{
+  "total_supply": "100000000000000000000000",
+  "total_borrow": "80000000000000000000000",
+  "total_supply_shares": "100000000000000000000000",
+  "total_borrow_shares": "80000000000000000000000",
+  "utilization": "800000000000000000",
+  "supply_rate_per_sec": "1826484018",
+  "borrow_rate_per_sec": "2536783358",
+  "last_update_sec": 1794600000,
+  "tier": "bold",
+  "insurance": "640000000000000000000",
+  "liquid": "20000000000000000000000",
+  "bad_debt_covered": "0",
+  "bad_debt_socialized": "0",
+  "borrowers": 2,
+  "frozen": false,
+  "config": {
+    "lltv": "800000000000000000",
+    "borrow_ltv": "700000000000000000",
+    "liquidation_bonus": "80000000000000000",
+    "reserve_factor": "100000000000000000",
+    "rate_base": "951293759",
+    "rate_slope1": "2853881278",
+    "rate_slope2": "19977168949",
+    "rate_kink": "800000000000000000",
+    "max_utilization": "900000000000000000",
+    "borrow_cap": null
+  }
+}
