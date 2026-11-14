@@ -1008,10 +1008,20 @@ mod tests {
             if plan.usable_value >= goal {
                 proptest::prop_assert!(plan.base + 1 >= crate::fixed::mul_div_down(DEPTH, WAD, min_p));
             }
-            // Before rounding, the goal is linear in the depth.
-            let (_, a1, u1) = goal_for(&input(&q, &p, 0, 0), DEPTH, 1, 1).unwrap();
-            let (_, a2, u2) = goal_for(&input(&q, &p, 0, 0), 2 * DEPTH, 1, 1).unwrap();
-            proptest::prop_assert!((2 * u1).abs_diff(u2) <= 16 && (2 * a1).abs_diff(a2) <= 4 * WAD / min_p + 4, "u {} {} a {} {} p {:?} q {:?}", u1, u2, a1, a2, p, q);
+            // Before rounding, the goal is linear in the depth, within its
+            // roundings: d* and U* are ceilings, so U*(2D) - 2 U*(D) is under
+            // 2 u + 2 units (u = USDC per unit of base depth); the planner's
+            // base depth from U* is then off by under 6 units, each worth at
+            // most ceil(A*/d*) wNEAR, plus the floors of the world sums.
+            let shape = input(&q, &p, 0, 0);
+            let (_, a1, u1) = goal_for(&shape, DEPTH, 1, 1).unwrap();
+            let (_, a2, u2) = goal_for(&shape, 2 * DEPTH, 1, 1).unwrap();
+            let (pairs, per_unit) = units(&shape).unwrap();
+            let per_base = usdc_per_base(&shape, &pairs, &per_unit).unwrap().div_ceil(WAD);
+            let per_depth = a1.div_ceil(crate::fixed::mul_div_up(DEPTH, WAD, min_p));
+            proptest::prop_assert!((2 * u1).abs_diff(u2) <= 2 * per_base + 2
+                && (2 * a1).abs_diff(a2) <= 6 * per_depth + 4 * WAD / min_p + 4,
+                "u {} {} a {} {} p {:?} q {:?}", u1, u2, a1, a2, p, q);
         }
     }
 }
