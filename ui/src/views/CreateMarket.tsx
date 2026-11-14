@@ -11,13 +11,14 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { ProposalChip, TicketTx } from '../components/governance/Gov'
+import { useStorageFree } from '../chain/hooks/useStorageFree'
 import { MarketArt } from '../components/Grand'
 import { eventArt, useActions, useMarkets, type ChainEvent } from '../chain/adapter'
 import { CONTRACT_ID } from '../chain/data/client'
 import type { MarketParamsView } from '../chain/domain'
 import { errorLine, humanError } from '../chain/errors'
 import { fmt, fmtNear, fmtPrice, parseUtcInput, utcDate, utcInputValue, utf8Bytes } from '../chain/format'
-import { PROPOSE_CATEGORIES, proposalAnnounce } from '../chain/governance'
+import { PROPOSE_CATEGORIES, proposalAnnounce, STORAGE_MARGIN, storageTopUp } from '../chain/governance'
 import { useNowSeconds } from '../chain/hooks/useClock'
 import { useDebounced } from '../chain/hooks/useDebounced'
 import { useEventCheck, useMarketCheck, useMarketParams, useProposalList } from '../chain/hooks/useProposal'
@@ -132,7 +133,12 @@ export default function CreateMarket() {
 
   // what a submit attaches, and what stops it
   const W = kind === 'event' ? 2 : (c?.worldCount ?? worldsOf(Math.max(1, picked.length)))
-  const deposit = kind === 'event' ? (ec ? ec.bond + ec.reserve : p ? proposalDeposit('new_event', 2, p).total : undefined) : c ? c.bond + c.reserve : p ? proposalDeposit('market', W, p).total : undefined
+  const base = kind === 'event' ? (ec ? ec.bond + ec.reserve : p ? proposalDeposit('new_event', 2, p).total : undefined) : c ? c.bond + c.reserve : p ? proposalDeposit('market', W, p).total : undefined
+  // the proposal's own record is stored at the proposer's expense: what the bond and reserve leave over tops the free
+  // storage balance up to the margin (it stays there, withdrawable); a new account registers with plenty
+  const free = useStorageFree()
+  const extra = free === undefined ? 0n : storageTopUp(free, STORAGE_MARGIN)
+  const deposit = base === undefined ? undefined : base + extra
   const checks: readonly (readonly [string, boolean, string?])[] = kind === 'event'
     ? [
       ['A clear question with two outcomes', !errors.question && !errors.outcome0 && !errors.outcome1, errors.question ?? errors.outcome0 ?? errors.outcome1],
@@ -341,7 +347,7 @@ export default function CreateMarket() {
                 )}
 
                 {step === 4 && (kind === 'event' ? (
-                  <EventFunding f={f} set={set} mult={mult} setMult={setMult} p={p} o0={o0} o1={o1} ec={ec} errors={errors.terms} />
+                  <EventFunding f={f} set={set} mult={mult} setMult={setMult} p={p} o0={o0} o1={o1} ec={ec} errors={errors.terms} extra={extra} />
                 ) : (
                   <>
                     <h2 className="obx__boxtitle">Funding goal</h2>
@@ -352,7 +358,8 @@ export default function CreateMarket() {
                         <p className="tk__line"><span>Pledge goal</span><b className="num">{fmt(c.goal, 0)} USDC</b></p>
                         <p className="tk__line"><span>Best mix</span><b className="num">≈ {fmtNear(c.idealWnear)} wNEAR + {fmt(c.idealUsdc, 0)} USDC</b></p>
                         <p className="tk__line"><span>Pledging closes</span><b className="num">{c.expiresAtSec ? utcDate(c.expiresAtSec) : '–'}</b></p>
-                        <p className="tk__line"><span>You attach now</span><b className="num">{nearText(c.bond + c.reserve)} NEAR</b></p>
+                        <p className="tk__line"><span>You attach now</span><b className="num">{nearText(c.bond + c.reserve + extra)} NEAR</b></p>
+                        {extra > 0n && <p className="pc__note">Including {nearText(extra)} NEAR for the proposal’s own storage; what it does not use stays in your storage balance, withdrawable.</p>}
                         <p className="pc__note">Bond {nearText(c.bond)} NEAR, back when it opens or ends normally, and kept if you cancel it. Reserve {nearText(c.reserve)} NEAR pays the new market’s storage; the rest comes back.</p>
                       </>
                     )}
@@ -425,7 +432,7 @@ export default function CreateMarket() {
 }
 
 /** Step 5 of a new event: the opening terms (chance, NEAR in each world as a share of today) and what they cost. */
-function EventFunding({ f, set, mult, setMult, p, o0, o1, ec, errors }: {
+function EventFunding({ f, set, mult, setMult, p, o0, o1, ec, errors, extra }: {
   f: EventForm
   set: (patch: Partial<EventForm>) => void
   mult: [string, string]
@@ -435,6 +442,7 @@ function EventFunding({ f, set, mult, setMult, p, o0, o1, ec, errors }: {
   o1: string
   ec: ReturnType<typeof useEventCheck>['data']
   errors?: string
+  extra: bigint
 }) {
   const norm = normaliseTerms(f.odds0Bps, f.multBps)
   const clamp = p.params.oddsClampBps / 100
@@ -466,8 +474,8 @@ function EventFunding({ f, set, mult, setMult, p, o0, o1, ec, errors }: {
           <p className="tk__line"><span>Opening price if {o1}</span><b className="num">{fmtPrice(ec.prices[1])}</b></p>
           <p className="tk__line"><span>Pledge goal</span><b className="num">{fmt(ec.goal, 0)} USDC</b></p>
           <p className="tk__line"><span>Best mix</span><b className="num">≈ {fmtNear(ec.idealWnear)} wNEAR + {fmt(ec.idealUsdc, 0)} USDC</b></p>
-          <p className="tk__line"><span>You attach now</span><b className="num">{nearText(ec.bond + ec.reserve)} NEAR</b></p>
-          <p className="pc__note">Bond {nearText(ec.bond)} NEAR, back at approval (kept only if the owner rejects it as spam). Reserve {nearText(ec.reserve)} NEAR pays the new market’s storage; the rest comes back.</p>
+          <p className="tk__line"><span>You attach now</span><b className="num">{nearText(ec.bond + ec.reserve + extra)} NEAR</b></p>
+          <p className="pc__note">Bond {nearText(ec.bond)} NEAR, back at approval (kept only if the owner rejects it as spam). Reserve {nearText(ec.reserve)} NEAR pays the new market’s storage; the rest comes back.{extra > 0n ? ` Plus ${nearText(extra)} NEAR for the proposal’s own storage, kept in your storage balance.` : ''}</p>
           {ec.blocker && <p className="ov__warn">{humanError(ec.blocker)}</p>}
         </>
       ) : (

@@ -164,3 +164,25 @@ describe("the owner console", () => {
     expect(parseGrace("")).toBeUndefined();
   });
 });
+
+describe("the storage balance", () => {
+  const NEAR = 10n ** 24n;
+  it("tops the free part up to the margin, and keeps the margin when withdrawing", async () => {
+    const { STORAGE_MARGIN, storageTopUp, storageToWithdraw } = await import("./governance");
+    expect(STORAGE_MARGIN).toBe((2n * NEAR) / 100n);
+    expect(storageTopUp(0n)).toBe(STORAGE_MARGIN);
+    expect(storageTopUp(undefined)).toBe(STORAGE_MARGIN);
+    expect(storageTopUp(NEAR / 100n)).toBe(NEAR / 100n);
+    expect(storageTopUp(NEAR)).toBe(0n);
+    expect(storageToWithdraw((3n * NEAR) / 10n)).toBe((28n * NEAR) / 100n);
+    expect(storageToWithdraw(STORAGE_MARGIN)).toBe(0n);
+    expect(storageToWithdraw(STORAGE_MARGIN + NEAR / 10_000n)).toBe(0n);
+  });
+
+  it("says a storage refusal in plain words", async () => {
+    const { humanError } = await import("./errors");
+    expect(humanError("InsufficientStorage(9190000000000000000000, 0)")).toBe(
+      "Your storage balance on IfVerse is 0.010 NEAR short for this: add a little NEAR to it and try again",
+    );
+  });
+});

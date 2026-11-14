@@ -95,6 +95,23 @@ export const proposalAnnounce = (title: string, pending: string, done: string): 
 export const pledgeWords = (pl: Pick<Pledge, "usdc" | "wnear">): string =>
   [pl.usdc > 0n ? `${fmt(pl.usdc)} USDC` : "", pl.wnear > 0n ? `${fmtNear(pl.wnear)} wNEAR` : ""].filter(Boolean).join(" + ") || "nothing";
 
+// ---- the storage balance on the contract (NEP-145) ----
+
+/**
+ * Proposals and pledges are stored at the caller's expense: the contract charges the bytes to the caller's storage
+ * balance and refuses with InsufficientStorage when its free part is short. A screen keeps this much free.
+ */
+export const STORAGE_MARGIN = 20_000_000_000_000_000_000_000n; // 0.02 NEAR
+
+/** What to add so the free storage balance reaches the margin (0 when it already does). */
+export const storageTopUp = (free: bigint | undefined, margin = STORAGE_MARGIN): bigint => (free === undefined ? margin : free >= margin ? 0n : margin - free);
+
+/** The free NEAR worth taking back, keeping the margin for the next proposal or pledge (0 below a thousandth). */
+export function storageToWithdraw(free: bigint, margin = STORAGE_MARGIN): bigint {
+  const out = free - margin;
+  return out >= 1_000_000_000_000_000_000_000n ? out : 0n;
+}
+
 // ---- resolution ----
 
 export const RESOLVE_STEPS = ["Open", "Proposed", "Dispute window", "Final"] as const;

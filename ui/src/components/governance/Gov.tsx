@@ -10,14 +10,15 @@ import { CONTRACT_ID } from '../../chain/data/client'
 import type { MarketParams, Pledge, ProposalSummary } from '../../chain/domain'
 import { humanError } from '../../chain/errors'
 import { accountLabel, fmt, fmtNear, inputText, parseAmount, utcDate } from '../../chain/format'
-import { PROPOSAL_CHIP, pledgeBar, pledgeWords, proposalAnnounce, timeLeft, type ChipTone } from '../../chain/governance'
+import { PROPOSAL_CHIP, pledgeBar, pledgeWords, proposalAnnounce, STORAGE_MARGIN, storageTopUp, timeLeft, type ChipTone } from '../../chain/governance'
 import { useAppConfig } from '../../chain/hooks/useData'
+import { useStorageFree } from '../../chain/hooks/useStorageFree'
 import { useDebounced } from '../../chain/hooks/useDebounced'
 import { useMarketParams, usePledgePreview } from '../../chain/hooks/useProposal'
 import { marketHref, proposalHref } from '../../chain/links'
 import { categoryName, pledgedValue } from '../../chain/market'
 import { pledgeResult, pledgeReturnedLine } from '../../chain/near/outcome'
-import { approveProposal, claimUnused, GAS_CALL, GAS_MAX, ONE_YOCTO, pledge as pledgeTx, rejectProposal, withdrawPledge } from '../../chain/near/tx'
+import { approveProposal, claimUnused, GAS_CALL, GAS_MAX, ONE_YOCTO, pledge as pledgeTx, rejectProposal, storageDeposit, withdrawPledge } from '../../chain/near/tx'
 import { normaliseTerms, pledgeActions, spanWords, STATUS_LABEL, termsProblem } from '../../chain/proposals'
 import type { Asset } from '../../chain/types'
 import { toTokenCeil } from '../../chain/units'
@@ -31,14 +32,20 @@ export function Chip({ tone, children }: { tone: ChipTone; children: ReactNode }
 
 type TxProps = ComponentProps<typeof ActionButton>
 
+/** The screen's own blocker, else "Reading the contract…" until the config every action needs has arrived. */
+function useReady(blocker: string | undefined): string | undefined {
+  const cfg = useAppConfig().data
+  return blocker ?? (cfg ? undefined : 'Reading the contract…')
+}
+
 /** A transaction button the size of the desk's small buttons (mk__btn), green for "go", rose for "back out". */
-export function SmallTx({ tone = 'plain', ...props }: TxProps & { tone?: 'buy' | 'sell' | 'plain' }) {
-  return <span className={`gv__tx gv__tx--${tone}`}><ActionButton {...props} /></span>
+export function SmallTx({ tone = 'plain', blocker, ...props }: TxProps & { tone?: 'buy' | 'sell' | 'plain' }) {
+  return <span className={`gv__tx gv__tx--${tone}`}><ActionButton {...props} blocker={useReady(blocker)} /></span>
 }
 
 /** A ticket's full-width button, in the trading screen's green (tk--buy) or maroon (tk--sell). */
-export function TicketTx({ tone = 'buy', ...props }: TxProps & { tone?: 'buy' | 'sell' }) {
-  return <div className={`tk tk--${tone}`}><ActionButton {...props} /></div>
+export function TicketTx({ tone = 'buy', blocker, ...props }: TxProps & { tone?: 'buy' | 'sell' }) {
+  return <div className={`tk tk--${tone}`}><ActionButton {...props} blocker={useReady(blocker)} /></div>
 }
 
 /** The proposal's status as a chip: "Collecting pledges · 12 d left", "In review", "Opened". */
@@ -117,6 +124,7 @@ export function PledgeForm({ p, onDone, help }: { p: Pick<ProposalSummary, 'prop
   const cfg = useAppConfig().data
   const mp = useMarketParams().data
   const balances = useWalletBalances()
+  const free = useStorageFree()
   const [asset, setAsset] = useState<Asset>('usdc')
   const [text, setText] = useState('')
   const [line, setLine] = useState<string>()
@@ -172,8 +180,13 @@ export function PledgeForm({ p, onDone, help }: { p: Pick<ProposalSummary, 'prop
         action="pledge"
         gas={GAS_MAX}
         deposit={ONE_YOCTO}
-        run={(): Promise<ActionResult> => {
+        run={async (): Promise<ActionResult> => {
           setLine(undefined)
+          // a pledge is stored at the pledger's expense: top the free storage balance up first when it is nearly empty
+          if (free !== undefined && free < STORAGE_MARGIN / 2n) {
+            const top = await actions.send(storageDeposit(CONTRACT_ID, storageTopUp(free), false), proposalAnnounce('Storage', 'Adding a little NEAR to your storage balance…', 'Storage balance topped up'))
+            if (!top.ok) return top
+          }
           const tokens = toTokenCeil(amount!, token!.decimals)
           return actions.send(pledgeTx(token!.tokenId, CONTRACT_ID, tokens, p.proposalId), proposalAnnounce('Pledge', `Pledging ${text} ${sym}…`, 'Pledged'), {
             needs: { contract: true, tokens: [asset] },

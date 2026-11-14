@@ -7,7 +7,8 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { Chip, OwnerCheck, PledgeExits, PledgeForm, PledgeProgress, ProposalChip, TicketTx } from '../components/governance/Gov'
-import { pledgeWords, proposalAnnounce } from '../chain/governance'
+import { useStorageFree } from '../chain/hooks/useStorageFree'
+import { pledgeWords, proposalAnnounce, STORAGE_MARGIN, storageToWithdraw } from '../chain/governance'
 import { MarketArt } from '../components/Grand'
 import { eventArt, ruleText, useActions, useEventMetas, useIsOwner, useMarket } from '../chain/adapter'
 import { CONTRACT_ID } from '../chain/data/client'
@@ -15,13 +16,12 @@ import type { EventState, MarketParamsView, Pledge, Proposal as ProposalT } from
 import { errorLine, humanError, parseContractError } from '../chain/errors'
 import { accountLabel, fmt, fmtNear, fmtPrice, parseAmount, pct, relTime, utcDate } from '../chain/format'
 import { useNowSeconds } from '../chain/hooks/useClock'
-import { useAppConfig, useRegistration } from '../chain/hooks/useData'
 import { useDebounced } from '../chain/hooks/useDebounced'
 import { useEvents, useMarketParams, usePledge, useProposal, useSeedPreview } from '../chain/hooks/useProposal'
 import { marketHref, proposeHref } from '../chain/links'
 import { categoryName, isWebSource } from '../chain/market'
 import { openedMarketId, seedWithdrawnLine } from '../chain/near/outcome'
-import { cancelProposal, GAS_CALL, GAS_LIGHT, GAS_MAX, openMarket, seedWithdraw, topUpDeposit, topUpProposal } from '../chain/near/tx'
+import { call, cancelProposal, GAS_CALL, GAS_LIGHT, GAS_MAX, ONE_YOCTO, openMarket, seedWithdraw, topUpDeposit, topUpProposal } from '../chain/near/tx'
 import { useWallet } from '../chain/near/wallet'
 import { isLive, nearText, parseProposalParam, pledgeActions, proposalStage, proposalTitle, seedMinimums, spanWords, worldLabels } from '../chain/proposals'
 
@@ -344,10 +344,7 @@ function MyPledge({ p, pl }: { p: ProposalT; pl: Pledge }) {
 
 function ProposerBox({ p }: { p: ProposalT }) {
   const actions = useActions()
-  const { accountId } = useWallet()
-  const cfg = useAppConfig().data
-  const reg = useRegistration(accountId, cfg?.wnear, cfg?.usdc).data
-  const free = reg?.contract ? BigInt(reg.contract.available) : 0n
+  const back = storageToWithdraw(useStorageFree() ?? 0n)
   const live = p.status === 'review' || p.status === 'pledging'
   const hasPledges = p.pledgedUsdc > 0n || p.pledgedWnear > 0n
   const bondText =
@@ -356,7 +353,7 @@ function ProposerBox({ p }: { p: ProposalT }) {
       : p.status === 'review'
         ? `In review, cancelling returns the bond (${nearText(p.bond)} NEAR) and the reserve (${nearText(p.reserve)} NEAR).`
         : `The bond came back at approval; cancelling returns the reserve (${nearText(p.reserve)} NEAR).`
-  if (!live && free === 0n) return null
+  if (!live && back === 0n) return null
   return (
     <section className="tr__panel mk__ticket">
       <h2 className="obx__boxtitle">Your proposal</h2>
@@ -374,15 +371,15 @@ function ProposerBox({ p }: { p: ProposalT }) {
           />
         </>
       )}
-      {free > 0n && (
+      {back > 0n && (
         <>
-          <p className="ticket__help">Returned bonds and reserves wait in your storage balance on the contract: {nearText(free)} NEAR is free to take back.</p>
+          <p className="ticket__help">Returned bonds and reserves wait in your storage balance on the contract. Take {nearText(back)} NEAR back; {nearText(STORAGE_MARGIN)} NEAR stays for your next proposal or pledge.</p>
           <TicketTx
-            label={`Withdraw ${nearText(free)} NEAR`}
+            label={`Withdraw ${nearText(back)} NEAR`}
             busyLabel="Withdrawing…"
             action="storage_withdraw"
             gas={GAS_LIGHT}
-            run={() => actions.storageWithdraw()}
+            run={() => actions.send(call(CONTRACT_ID, 'storage_withdraw', { amount: back.toString() }, ONE_YOCTO, GAS_LIGHT), { kind: 'wallet', title: 'Storage', pending: 'Withdrawing free NEAR…', done: 'Free NEAR is back in your wallet' })}
           />
         </>
       )}

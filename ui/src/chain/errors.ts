@@ -1,6 +1,7 @@
 // Contract errors in plain words (web design 5.5, 6.9; SPEC.md K3). The contract's own text always stays visible after
 // the plain words ("{text} ({raw})"), for support and for the recorder; anything this table does not know passes
 // through unchanged.
+import { BRAND } from "./brand";
 import { fmt, fmtHf, fmtNear, fmtPrice, fmtUsd, pct, utcDate } from "./format";
 import { marketHref, proposalHref } from "./links";
 import { FLAG_LABEL, type PauseFlag } from "./pause";
@@ -204,6 +205,12 @@ export function humanError(raw: string, ctx: ErrorContext = {}): string {
       return `Proposal #${a} is ${(b ?? "").toLowerCase()}`;
     case "SeedLocked":
       return `Locked until ${when(b)}`;
+    case "InsufficientStorage": {
+      const need = int(a);
+      const have = int(b);
+      if (need !== undefined && have !== undefined) return `Your storage balance on ${BRAND.name} is ${yoctoNear(need > have ? need - have : 0n)} NEAR short for this: add a little NEAR to it and try again`;
+      break;
+    }
     case "SeedDepthFloor": {
       const max = int(b);
       return `Lenders depend on this pool: withdraw at most ${max === undefined ? b : fmt(max)} shares now`;
