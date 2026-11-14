@@ -63,6 +63,9 @@ describe("contract errors", () => {
     expect(humanError('{"InvalidTxError":{"NotEnoughBalance":{"signer_id":"a.testnet","balance":"1","cost":"2"}}}')).toBe(
       "Not enough NEAR in your wallet for this transaction's gas",
     );
+    expect(humanError("Not enough balance for judge-ui1.ifverse-staging.testnet (balance: 199191738947645300000000, cost: 300920140233601000000001)")).toBe(
+      "Not enough NEAR in your wallet for this transaction's gas",
+    );
     expect(humanError("LackBalanceForState { account_id: a.testnet, amount: 1 }")).toBe("Not enough NEAR in your wallet to keep its storage after this transaction");
     expect(humanError('{"jsonrpc": "2.0", "error": {"code": -429, "message": "Rate limits exceeded. For higher rate limits get a subscription"}, "id": "1"}')).toBe(
       "The NEAR RPC is busy right now and sent nothing: try again in a few seconds",

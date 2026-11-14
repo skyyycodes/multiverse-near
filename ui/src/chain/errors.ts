@@ -123,7 +123,8 @@ export function blockerText(raw: string, ctx: ErrorContext = {}): string | undef
 export function humanError(raw: string, ctx: ErrorContext = {}): string {
   const text = raw.trim();
   // Wallet and RPC refusals before the contract runs (InvalidTxError), worded by the node, not the contract.
-  if (/NotEnoughBalance/.test(text)) return "Not enough NEAR in your wallet for this transaction's gas";
+  // (the node's name for it, or near-api-js's "Not enough balance for <account> (balance: …, cost: …)")
+  if (/NotEnoughBalance|Not enough balance for /.test(text)) return "Not enough NEAR in your wallet for this transaction's gas";
   if (/LackBalanceForState/.test(text)) return "Not enough NEAR in your wallet to keep its storage after this transaction";
   // A public RPC turning the wallet's broadcast away: nothing was sent.
   if (/Rate limits exceeded|"code":\s*-429|HTTP 429/.test(text)) return "The NEAR RPC is busy right now and sent nothing: try again in a few seconds";
