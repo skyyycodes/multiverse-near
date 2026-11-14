@@ -1,10 +1,10 @@
 import { Suspense } from "react";
-import { PendingScreen } from "@/components/shell/PendingScreen";
+import { AtRiskScreen } from "@/components/liquidate/AtRiskScreen";
 
 export default function Page() {
   return (
     <Suspense>
-      <PendingScreen title="At-risk loans" demo="liquidate" />
+      <AtRiskScreen />
     </Suspense>
   );
 }

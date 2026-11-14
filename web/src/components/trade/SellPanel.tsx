@@ -2,6 +2,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { TierSelect } from "@/components/lending/TierSelect";
 import { InlineButton } from "@/components/ui/Button";
 import { Segmented } from "@/components/ui/Bits";
 import { AmountField } from "@/components/ui/Field";
@@ -16,11 +17,14 @@ import { fmt, fmtNear, fmtPrice, inputText, parseAmount } from "@/lib/format";
 import type { Balances } from "@/lib/hooks/useData";
 import { useQuoteSell } from "@/lib/hooks/useData";
 import { useDebounced } from "@/lib/hooks/useDebounced";
+import { useLendingTiers } from "@/lib/hooks/useLending";
 import { useSalePlan } from "@/lib/hooks/useSalePlan";
+import { useCollateralTier } from "@/lib/hooks/useScenario";
 import { useSubmit } from "@/lib/hooks/useTx";
 import { via, type Order, type WorldPlan } from "@/lib/orders";
-import { call, ftTransferCall, GAS_FT_CALL, ONE_YOCTO, planFills, planMinOut } from "@/lib/near/tx";
+import { planFills, planMinOut, sellFromInner, sellFromWallet } from "@/lib/near/tx";
 import { useWallet } from "@/lib/near/wallet";
+import { sellTier, TIER_LABEL } from "@/lib/tiers";
 import { toTokenFloor } from "@/lib/units";
 
 const ONE = 10n ** 18n;
@@ -58,6 +62,10 @@ export function SellPanel({ config, scenario, events, orders, nowSec, balances, 
   const quote = useQuoteSell(scenario.scenarioId, quoteAmount, selected);
   const proceeds = quote.data;
   const plan = useSalePlan(scenario, selected, quoteAmount, proceeds, orders, wallet.accountId, nowSec);
+  const tiers = useLendingTiers(toLending ? scenario.scenarioId : undefined, wallet.accountId);
+  const remembered = useCollateralTier(`${CONTRACT_ID}:${scenario.scenarioId}`);
+  const tier = sellTier(remembered.tier, tiers.data);
+  const tierFrozen = Boolean(tiers.data?.find((t) => t.tier === tier)?.market.frozen);
 
   const innerWnear = balances?.innerWnear ?? 0n;
   const source = from === "inner" && innerWnear > 0n ? "inner" : "wallet";
@@ -73,32 +81,16 @@ export function SellPanel({ config, scenario, events, orders, nowSec, balances, 
   else if (amount > available) blocker = "Not enough wNEAR in this wallet";
   else if (!quoteFresh || !plan.ready) blocker = "Getting prices…";
   else if (sold.some((w) => !plan.plans[w.index]?.total)) blocker = "No price in one of the worlds";
+  else if (toLending && tierFrozen) blocker = `The ${TIER_LABEL[tier]} tier is frozen: pick another tier`;
 
   async function run(): Promise<string> {
     const plans = planFills(plan.plans);
     const minOut = planMinOut(plan.plans);
+    const p = { scenarioId: scenario.scenarioId, sellMask: selected, plans, minOut, toLending, tier };
     try {
-      if (source === "inner") {
-        return await submit(
-          call(
-            CONTRACT_ID,
-            "conditional_sell",
-            { scenario_id: scenario.scenarioId, amount: amount!.toString(), sell_mask: selected, plans, min_out: minOut, to_lending: toLending },
-            ONE_YOCTO,
-            GAS_FT_CALL,
-          ),
-        );
-      }
+      if (source === "inner") return await submit(sellFromInner(CONTRACT_ID, { ...p, amount: amount! }));
       const tokens = toTokenFloor(amount!, config.wnear.decimals);
-      const tx = ftTransferCall(config.wnear.tokenId, CONTRACT_ID, tokens, {
-        action: "conditional_sell",
-        scenario_id: scenario.scenarioId,
-        sell_mask: selected,
-        plans,
-        min_out: minOut,
-        to_lending: toLending,
-      });
-      return await submit(tx, tokens);
+      return await submit(sellFromWallet(config.wnear.tokenId, CONTRACT_ID, tokens, p), tokens);
     } catch (e) {
       // An order may have been taken first: refetch the book so the next attempt plans again.
       void qc.invalidateQueries({ queryKey: ["trade"] });
@@ -216,10 +208,11 @@ export function SellPanel({ config, scenario, events, orders, nowSec, balances, 
           data-demo="sell-to-lending"
         />
         <span>
-          Keep the result as loan collateral, so you can borrow real USDC against it next (Borrow screen). Off: the
-          tokens go to your wallet.
+          Keep the result as loan collateral in the {TIER_LABEL[tier]} tier, so you can borrow real USDC against it next
+          (Borrow screen). Off: the tokens go to your wallet.
         </span>
       </label>
+      {toLending && <TierSelect tiers={tiers.data} value={tier} onChange={remembered.setTier} />}
 
       <TxButton
         demo="sell-confirm"

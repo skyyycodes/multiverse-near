@@ -38,11 +38,12 @@ export function Block({
 }
 
 /** A card that is always a white sheet (asides and nested panels): floating on desktop, outlined inside the phone's sheet. */
-export function Sheet({ children, className = "", demo }: { children: ReactNode; className?: string; demo?: string }) {
+export function Sheet({ children, className = "", demo, tier }: { children: ReactNode; className?: string; demo?: string; tier?: string }) {
   const desktop = useIsDesktop();
   return (
     <section
       data-demo={demo}
+      data-tier={tier}
       className={`flex flex-col gap-4 rounded-[28px] bg-sheet ${desktop ? "p-6 shadow-card" : "border border-line p-5 shadow-[0_10px_30px_-24px_rgba(1,4,39,0.5)]"} ${className}`}
     >
       {children}
