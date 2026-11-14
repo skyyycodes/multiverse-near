@@ -17,6 +17,8 @@ mod amm_lens;
 mod bad_debt;
 mod borrowers;
 mod cash_out;
+mod catalog_fixture;
+mod catalog_open;
 mod core;
 mod eight;
 mod events;

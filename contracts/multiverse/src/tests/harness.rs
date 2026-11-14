@@ -610,6 +610,7 @@ impl World {
             .predecessor_account_id(predecessor.clone())
             .attached_deposit(deposit)
             .block_timestamp(self.now * 1_000_000_000)
+            .block_height(self.now)
             .prepaid_gas(Gas::from_tgas(self.prepaid_tgas))
             .account_balance(NearToken::from_near(10_000))
             .build()
