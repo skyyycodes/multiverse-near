@@ -14,7 +14,7 @@ use near_sdk::{env, AccountId, NearToken};
 
 use super::harness::*;
 use super::lending::*;
-use super::migration::{migrated_prod, prod_account, prod_args, Prod, PROD_CONTRACT};
+use super::migration::{migrated_prod, prod_account, prod_args, Prod, PROD_CONTRACT, PROD_OWNER};
 use super::tiers::*;
 use crate::lending::tiers::{MarketId, Tier, TierConfig, TierState};
 use crate::lending::{CollateralKey, LiquidationState};
@@ -251,12 +251,14 @@ fn migrated_prod_at_the_golden_read() -> Prod {
     p
 }
 
-/// Lifts every pause flag, as the owner's `unpause` does after R1-R17 (with
-/// no grace here).
+/// The owner lifts every pause flag after R1-R17, with no liquidation grace.
 fn unpause_all(p: &mut Prod) {
-    let me = prod_account(PROD_CONTRACT);
-    p.call(&me, NearToken::from_yoctonear(0), |c| c.pause.flags = 0)
-        .unwrap();
+    let owner = prod_account(PROD_OWNER);
+    p.call(&owner, NearToken::from_yoctonear(1), |c| {
+        c.unpause(PauseFlag::GUARDIAN.to_vec(), Some(0))
+    })
+    .unwrap();
+    assert_eq!(p.view(|c| c.pause.paused()), Vec::<PauseFlag>::new());
 }
 
 #[test]
@@ -478,14 +480,31 @@ fn a_straggler_borrower_leaves_a_gap_that_their_upgrade_closes() {
         p.view(|c| c.lending_backfill_proof()),
         Some((1, 0, CARL_SHARES))
     );
+    // While the gap is open the owner cannot unpause lend or liquidate.
+    let owner = prod_account(PROD_OWNER);
+    let one = NearToken::from_yoctonear(1);
+    for flag in [PauseFlag::Lend, PauseFlag::Liquidate] {
+        assert_eq!(
+            p.call(&owner, one, |c| c.unpause(vec![flag], Some(0))),
+            Err(format!("BorrowerBackfillIncomplete(1, 0, {CARL_SHARES})"))
+        );
+    }
     // Folding Carl (upgrade_accounts, or his first touch) indexes him.
-    let me = prod_account(PROD_CONTRACT);
-    p.call(&me, NearToken::from_yoctonear(0), |c| {
-        c.upgrade_account(&carl())
-    })
-    .unwrap();
+    let n = p
+        .call(&prod_account("bob"), one, |c| {
+            c.upgrade_accounts(vec![carl()])
+        })
+        .unwrap();
+    assert_eq!(n, 1);
     assert_eq!(p.view(|c| c.lending_backfill_proof()), None);
     assert_eq!(p.view(|c| c.borrower_count(1, None)), 1);
+    // The proof balances now: unpausing clears the gap flag.
+    p.call(&owner, one, |c| {
+        c.unpause(vec![PauseFlag::Lend, PauseFlag::Liquidate], Some(0))
+    })
+    .unwrap();
+    assert!(!p.view(|c| c.legacy_backfill_open));
+    assert_eq!(p.view(|c| c.pause.paused()), Vec::<PauseFlag>::new());
 }
 
 #[test]
