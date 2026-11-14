@@ -1,0 +1,788 @@
+{
+ "get_app_config": {
+  "owner_id": "test.near",
+  "reporter_id": "resolver.test.near",
+  "wnear": {
+   "token_id": "wnear.test.near",
+   "symbol": "wNEAR",
+   "decimals": 24
+  },
+  "usdc": {
+   "token_id": "usdc.test.near",
+   "symbol": "USDC",
+   "decimals": 6
+  },
+  "lltv": "750000000000000000",
+  "liquidation_bonus": "50000000000000000",
+  "borrow_rate_per_sec": "1585489599",
+  "dispute_window_sec": 30,
+  "twap_window_sec": 1800,
+  "twap_min_age_sec": 60,
+  "min_pool_depth": "10000000000000000000000",
+  "fee_base_pips": 3000,
+  "fee_cap_pips": 15000,
+  "order_book": true,
+  "root_lp": true,
+  "spot_pool_id": 11,
+  "event_count": 3,
+  "scenario_count": 2,
+  "demo": {
+   "fed_event": 2,
+   "implied_spot": "3037693299999999998",
+   "odds_cuts_bps": 100,
+   "odds_ships_bps": 6667,
+   "odds_source": "Fed: Polymarket fed-decision-in-december-20260729232808632 as read on 2026-11-06 (offline fallback)",
+   "past_fed_event": 3,
+   "ravi_order": "1",
+   "scenario_2x2": 1,
+   "scenario_binary": 2,
+   "seeded_at_sec": 1794484995,
+   "seeded_block": 827,
+   "spice_event": 1,
+   "spot_from": "2x2"
+  }
+ },
+ "trade_view": {
+  "scenario": {
+   "scenario_id": 1,
+   "world_count": 4,
+   "possible": 15,
+   "resolution_count": 0,
+   "halted": false,
+   "event_ids": [
+    1,
+    2
+   ],
+   "spot_price": "3037693299990000000",
+   "worlds": [
+    {
+     "index": 0,
+     "mask": 1,
+     "label": "SHIPS·CUTS",
+     "possible": true,
+     "pool_initialized": true,
+     "wnear_price": "3700000000000000000",
+     "backed": true,
+     "wnear_token_id": "1:wnear:1",
+     "usdc_token_id": "1:usdc:1",
+     "user_wnear": "0",
+     "user_usdc": "0",
+     "collateral_wnear": "0",
+     "collateral_usdc": "0",
+     "odds": "6666999999999999",
+     "pool_id": 1
+    },
+    {
+     "index": 1,
+     "mask": 2,
+     "label": "DELAYED·CUTS",
+     "possible": true,
+     "pool_initialized": true,
+     "wnear_price": "3000000000000000000",
+     "backed": true,
+     "wnear_token_id": "1:wnear:2",
+     "usdc_token_id": "1:usdc:2",
+     "user_wnear": "0",
+     "user_usdc": "0",
+     "collateral_wnear": "0",
+     "collateral_usdc": "0",
+     "odds": "3333000000000000",
+     "pool_id": 2
+    },
+    {
+     "index": 2,
+     "mask": 4,
+     "label": "SHIPS·HOLDS",
+     "possible": true,
+     "pool_initialized": true,
+     "wnear_price": "3300000000000000000",
+     "backed": true,
+     "wnear_token_id": "1:wnear:4",
+     "usdc_token_id": "1:usdc:4",
+     "user_wnear": "0",
+     "user_usdc": "0",
+     "collateral_wnear": "0",
+     "collateral_usdc": "0",
+     "odds": "660033000000000000",
+     "pool_id": 3
+    },
+    {
+     "index": 3,
+     "mask": 8,
+     "label": "DELAYED·HOLDS",
+     "possible": true,
+     "pool_initialized": true,
+     "wnear_price": "2500000000000000000",
+     "backed": true,
+     "wnear_token_id": "1:wnear:8",
+     "usdc_token_id": "1:usdc:8",
+     "user_wnear": "0",
+     "user_usdc": "0",
+     "collateral_wnear": "0",
+     "collateral_usdc": "0",
+     "odds": "329967000000000001",
+     "pool_id": 4
+    }
+   ],
+   "odds_known": true,
+   "implied_spot": "3037693299999999998"
+  },
+  "events": [
+   {
+    "id": 1,
+    "question": "Will SPICE ship on NEAR mainnet by Mar 31, 2027?",
+    "rule": "SHIPS if SPICE, NEAR's separation of consensus and execution, is active on NEAR mainnet before 2027-04-01 00:00 UTC; otherwise DELAYED. During the hackathon this event is resolved from a team-controlled outcomes file (demo).",
+    "outcome_names": [
+     "SHIPS",
+     "DELAYED"
+    ],
+    "deadline_sec": 1806537599,
+    "proposed_at_sec": 0,
+    "proposed_outcome": 0,
+    "proposal_open": false,
+    "finalized": false,
+    "outcome": 0,
+    "finalizable_at_sec": 0,
+    "proposed_by": null
+   },
+   {
+    "id": 2,
+    "question": "Will the Fed cut at its December meeting?",
+    "rule": "CUTS if and only if the upper limit of the federal funds target range (FRED DFEDTARU) after the Dec 8-9, 2026 FOMC meeting is lower than before it; otherwise HOLDS (a hike resolves HOLDS).",
+    "outcome_names": [
+     "CUTS",
+     "HOLDS"
+    ],
+    "deadline_sec": 1796842800,
+    "proposed_at_sec": 0,
+    "proposed_outcome": 0,
+    "proposal_open": false,
+    "finalized": false,
+    "outcome": 0,
+    "finalizable_at_sec": 0,
+    "proposed_by": null
+   }
+  ],
+  "orders": [
+   {
+    "id": "1",
+    "maker": "ravi.test.near",
+    "scenario_id": 1,
+    "mask": 8,
+    "side": "bid",
+    "price": "2450000000000000000",
+    "amount": "1000000000000000000000",
+    "remaining": "1000000000000000000000",
+    "escrow": "2450000000000000000000",
+    "expiry_sec": 1797076994,
+    "epoch": 0
+   }
+  ],
+  "impact": [
+   {
+    "at_sec": 1794484960,
+    "prices": [
+     "3700000000000000000",
+     "0",
+     "0",
+     "0"
+    ]
+   },
+   {
+    "at_sec": 1794484961,
+    "prices": [
+     "3700000000000000000",
+     "3000000000000000000",
+     "0",
+     "0"
+    ]
+   },
+   {
+    "at_sec": 1794484962,
+    "prices": [
+     "3700000000000000000",
+     "3000000000000000000",
+     "3300000000000000000",
+     "0"
+    ]
+   },
+   {
+    "at_sec": 1794484963,
+    "prices": [
+     "3700000000000000000",
+     "3000000000000000000",
+     "3300000000000000000",
+     "2500000000000000000"
+    ]
+   }
+  ],
+  "now_sec": 1794485004
+ },
+ "borrow_view": {
+  "scenario": {
+   "scenario_id": 1,
+   "world_count": 4,
+   "possible": 15,
+   "resolution_count": 0,
+   "halted": false,
+   "event_ids": [
+    1,
+    2
+   ],
+   "spot_price": "3037693299990000000",
+   "worlds": [
+    {
+     "index": 0,
+     "mask": 1,
+     "label": "SHIPS·CUTS",
+     "possible": true,
+     "pool_initialized": true,
+     "wnear_price": "3700000000000000000",
+     "backed": true,
+     "wnear_token_id": "1:wnear:1",
+     "usdc_token_id": "1:usdc:1",
+     "user_wnear": "0",
+     "user_usdc": "0",
+     "collateral_wnear": "0",
+     "collateral_usdc": "0",
+     "odds": "6666999999999999",
+     "pool_id": 1
+    },
+    {
+     "index": 1,
+     "mask": 2,
+     "label": "DELAYED·CUTS",
+     "possible": true,
+     "pool_initialized": true,
+     "wnear_price": "3000000000000000000",
+     "backed": true,
+     "wnear_token_id": "1:wnear:2",
+     "usdc_token_id": "1:usdc:2",
+     "user_wnear": "0",
+     "user_usdc": "0",
+     "collateral_wnear": "0",
+     "collateral_usdc": "0",
+     "odds": "3333000000000000",
+     "pool_id": 2
+    },
+    {
+     "index": 2,
+     "mask": 4,
+     "label": "SHIPS·HOLDS",
+     "possible": true,
+     "pool_initialized": true,
+     "wnear_price": "3300000000000000000",
+     "backed": true,
+     "wnear_token_id": "1:wnear:4",
+     "usdc_token_id": "1:usdc:4",
+     "user_wnear": "0",
+     "user_usdc": "0",
+     "collateral_wnear": "0",
+     "collateral_usdc": "0",
+     "odds": "660033000000000000",
+     "pool_id": 3
+    },
+    {
+     "index": 3,
+     "mask": 8,
+     "label": "DELAYED·HOLDS",
+     "possible": true,
+     "pool_initialized": true,
+     "wnear_price": "2500000000000000000",
+     "backed": true,
+     "wnear_token_id": "1:wnear:8",
+     "usdc_token_id": "1:usdc:8",
+     "user_wnear": "0",
+     "user_usdc": "0",
+     "collateral_wnear": "0",
+     "collateral_usdc": "0",
+     "odds": "329967000000000001",
+     "pool_id": 4
+    }
+   ],
+   "odds_known": true,
+   "implied_spot": "3037693299999999998"
+  },
+  "account": {
+   "debt": "0",
+   "health_factor": null,
+   "worst_world": 0,
+   "collateral_values": [
+    "0",
+    "0",
+    "0",
+    "0"
+   ],
+   "world_price_ok": [
+    false,
+    false,
+    false,
+    false
+   ],
+   "collateral": [],
+   "supplied": "0",
+   "supply_principal": "0",
+   "market_supply": "100000000000000000000000",
+   "market_borrow": "0",
+   "utilization": "0",
+   "borrow_rate_per_sec": "1585489599",
+   "supply_rate_per_sec": "0",
+   "lltv": "750000000000000000",
+   "liquidation": "none",
+   "unpriced_world": null
+  },
+  "now_sec": 1794485004
+ },
+ "lend_view": {
+  "account": {
+   "debt": "0",
+   "health_factor": null,
+   "worst_world": 0,
+   "collateral_values": [
+    "0",
+    "0",
+    "0",
+    "0"
+   ],
+   "world_price_ok": [
+    false,
+    false,
+    false,
+    false
+   ],
+   "collateral": [],
+   "supplied": "100000000000000000000000",
+   "supply_principal": "100000000000000000000000",
+   "market_supply": "100000000000000000000000",
+   "market_borrow": "0",
+   "utilization": "0",
+   "borrow_rate_per_sec": "1585489599",
+   "supply_rate_per_sec": "0",
+   "lltv": "750000000000000000",
+   "liquidation": "none",
+   "unpriced_world": null
+  },
+  "root_lp": {
+   "share_supply": "0",
+   "your_shares": "0",
+   "share_decimals": 18,
+   "preview_withdraw": null,
+   "holdings": [
+    {
+     "world": 0,
+     "wnear_idle": "0",
+     "usdc_idle": "0",
+     "wnear_fees": "0",
+     "usdc_fees": "0"
+    },
+    {
+     "world": 1,
+     "wnear_idle": "0",
+     "usdc_idle": "0",
+     "wnear_fees": "0",
+     "usdc_fees": "0"
+    },
+    {
+     "world": 2,
+     "wnear_idle": "0",
+     "usdc_idle": "0",
+     "wnear_fees": "0",
+     "usdc_fees": "0"
+    },
+    {
+     "world": 3,
+     "wnear_idle": "0",
+     "usdc_idle": "0",
+     "wnear_fees": "0",
+     "usdc_fees": "0"
+    }
+   ]
+  },
+  "worlds": [
+   {
+    "index": 0,
+    "mask": 1,
+    "label": "SHIPS·CUTS",
+    "possible": true
+   },
+   {
+    "index": 1,
+    "mask": 2,
+    "label": "DELAYED·CUTS",
+    "possible": true
+   },
+   {
+    "index": 2,
+    "mask": 4,
+    "label": "SHIPS·HOLDS",
+    "possible": true
+   },
+   {
+    "index": 3,
+    "mask": 8,
+    "label": "DELAYED·HOLDS",
+    "possible": true
+   }
+  ]
+ },
+ "resolve_view": {
+  "scenario": {
+   "scenario_id": 1,
+   "world_count": 4,
+   "possible": 15,
+   "resolution_count": 0,
+   "halted": false,
+   "event_ids": [
+    1,
+    2
+   ],
+   "spot_price": "3037693299990000000",
+   "worlds": [
+    {
+     "index": 0,
+     "mask": 1,
+     "label": "SHIPS·CUTS",
+     "possible": true,
+     "pool_initialized": true,
+     "wnear_price": "3700000000000000000",
+     "backed": true,
+     "wnear_token_id": "1:wnear:1",
+     "usdc_token_id": "1:usdc:1",
+     "user_wnear": "0",
+     "user_usdc": "0",
+     "collateral_wnear": "0",
+     "collateral_usdc": "0",
+     "odds": "6666999999999999",
+     "pool_id": 1
+    },
+    {
+     "index": 1,
+     "mask": 2,
+     "label": "DELAYED·CUTS",
+     "possible": true,
+     "pool_initialized": true,
+     "wnear_price": "3000000000000000000",
+     "backed": true,
+     "wnear_token_id": "1:wnear:2",
+     "usdc_token_id": "1:usdc:2",
+     "user_wnear": "0",
+     "user_usdc": "0",
+     "collateral_wnear": "0",
+     "collateral_usdc": "0",
+     "odds": "3333000000000000",
+     "pool_id": 2
+    },
+    {
+     "index": 2,
+     "mask": 4,
+     "label": "SHIPS·HOLDS",
+     "possible": true,
+     "pool_initialized": true,
+     "wnear_price": "3300000000000000000",
+     "backed": true,
+     "wnear_token_id": "1:wnear:4",
+     "usdc_token_id": "1:usdc:4",
+     "user_wnear": "0",
+     "user_usdc": "0",
+     "collateral_wnear": "0",
+     "collateral_usdc": "0",
+     "odds": "660033000000000000",
+     "pool_id": 3
+    },
+    {
+     "index": 3,
+     "mask": 8,
+     "label": "DELAYED·HOLDS",
+     "possible": true,
+     "pool_initialized": true,
+     "wnear_price": "2500000000000000000",
+     "backed": true,
+     "wnear_token_id": "1:wnear:8",
+     "usdc_token_id": "1:usdc:8",
+     "user_wnear": "0",
+     "user_usdc": "0",
+     "collateral_wnear": "0",
+     "collateral_usdc": "0",
+     "odds": "329967000000000001",
+     "pool_id": 4
+    }
+   ],
+   "odds_known": true,
+   "implied_spot": "3037693299999999998"
+  },
+  "events": [
+   {
+    "id": 1,
+    "question": "Will SPICE ship on NEAR mainnet by Mar 31, 2027?",
+    "rule": "SHIPS if SPICE, NEAR's separation of consensus and execution, is active on NEAR mainnet before 2027-04-01 00:00 UTC; otherwise DELAYED. During the hackathon this event is resolved from a team-controlled outcomes file (demo).",
+    "outcome_names": [
+     "SHIPS",
+     "DELAYED"
+    ],
+    "deadline_sec": 1806537599,
+    "proposed_at_sec": 0,
+    "proposed_outcome": 0,
+    "proposal_open": false,
+    "finalized": false,
+    "outcome": 0,
+    "finalizable_at_sec": 0,
+    "proposed_by": null
+   },
+   {
+    "id": 2,
+    "question": "Will the Fed cut at its December meeting?",
+    "rule": "CUTS if and only if the upper limit of the federal funds target range (FRED DFEDTARU) after the Dec 8-9, 2026 FOMC meeting is lower than before it; otherwise HOLDS (a hike resolves HOLDS).",
+    "outcome_names": [
+     "CUTS",
+     "HOLDS"
+    ],
+    "deadline_sec": 1796842800,
+    "proposed_at_sec": 0,
+    "proposed_outcome": 0,
+    "proposal_open": false,
+    "finalized": false,
+    "outcome": 0,
+    "finalizable_at_sec": 0,
+    "proposed_by": null
+   }
+  ],
+  "past_fed_event": {
+   "id": 3,
+   "question": "Did the Fed cut at its October 27-28, 2026 meeting?",
+   "rule": "CUTS if and only if both limits of the federal funds target range (FRED DFEDTARU and DFEDTARL) are lower on 2026-10-29 than on 2026-10-27; HOLDS if neither is; if they disagree, nothing is reported.",
+   "outcome_names": [
+    "CUTS",
+    "HOLDS"
+   ],
+   "deadline_sec": 1793210400,
+   "proposed_at_sec": 0,
+   "proposed_outcome": 0,
+   "proposal_open": false,
+   "finalized": false,
+   "outcome": 0,
+   "finalizable_at_sec": 0,
+   "proposed_by": null
+  },
+  "account": {
+   "debt": "0",
+   "health_factor": null,
+   "worst_world": 0,
+   "collateral_values": [
+    "0",
+    "0",
+    "0",
+    "0"
+   ],
+   "world_price_ok": [
+    false,
+    false,
+    false,
+    false
+   ],
+   "collateral": [],
+   "supplied": "0",
+   "supply_principal": "0",
+   "market_supply": "100000000000000000000000",
+   "market_borrow": "0",
+   "utilization": "0",
+   "borrow_rate_per_sec": "1585489599",
+   "supply_rate_per_sec": "0",
+   "lltv": "750000000000000000",
+   "liquidation": "none",
+   "unpriced_world": null
+  },
+  "now_sec": 1794485004
+ },
+ "admin_view": {
+  "scenario": {
+   "scenario_id": 1,
+   "world_count": 4,
+   "possible": 15,
+   "resolution_count": 0,
+   "halted": false,
+   "event_ids": [
+    1,
+    2
+   ],
+   "spot_price": "3037693299990000000",
+   "worlds": [
+    {
+     "index": 0,
+     "mask": 1,
+     "label": "SHIPS·CUTS",
+     "possible": true,
+     "pool_initialized": true,
+     "wnear_price": "3700000000000000000",
+     "backed": true,
+     "wnear_token_id": "1:wnear:1",
+     "usdc_token_id": "1:usdc:1",
+     "user_wnear": "0",
+     "user_usdc": "0",
+     "collateral_wnear": "0",
+     "collateral_usdc": "0",
+     "odds": "6666999999999999",
+     "pool_id": 1
+    },
+    {
+     "index": 1,
+     "mask": 2,
+     "label": "DELAYED·CUTS",
+     "possible": true,
+     "pool_initialized": true,
+     "wnear_price": "3000000000000000000",
+     "backed": true,
+     "wnear_token_id": "1:wnear:2",
+     "usdc_token_id": "1:usdc:2",
+     "user_wnear": "0",
+     "user_usdc": "0",
+     "collateral_wnear": "0",
+     "collateral_usdc": "0",
+     "odds": "3333000000000000",
+     "pool_id": 2
+    },
+    {
+     "index": 2,
+     "mask": 4,
+     "label": "SHIPS·HOLDS",
+     "possible": true,
+     "pool_initialized": true,
+     "wnear_price": "3300000000000000000",
+     "backed": true,
+     "wnear_token_id": "1:wnear:4",
+     "usdc_token_id": "1:usdc:4",
+     "user_wnear": "0",
+     "user_usdc": "0",
+     "collateral_wnear": "0",
+     "collateral_usdc": "0",
+     "odds": "660033000000000000",
+     "pool_id": 3
+    },
+    {
+     "index": 3,
+     "mask": 8,
+     "label": "DELAYED·HOLDS",
+     "possible": true,
+     "pool_initialized": true,
+     "wnear_price": "2500000000000000000",
+     "backed": true,
+     "wnear_token_id": "1:wnear:8",
+     "usdc_token_id": "1:usdc:8",
+     "user_wnear": "0",
+     "user_usdc": "0",
+     "collateral_wnear": "0",
+     "collateral_usdc": "0",
+     "odds": "329967000000000001",
+     "pool_id": 4
+    }
+   ],
+   "odds_known": true,
+   "implied_spot": "3037693299999999998"
+  },
+  "events": [
+   {
+    "id": 1,
+    "question": "Will SPICE ship on NEAR mainnet by Mar 31, 2027?",
+    "rule": "SHIPS if SPICE, NEAR's separation of consensus and execution, is active on NEAR mainnet before 2027-04-01 00:00 UTC; otherwise DELAYED. During the hackathon this event is resolved from a team-controlled outcomes file (demo).",
+    "outcome_names": [
+     "SHIPS",
+     "DELAYED"
+    ],
+    "deadline_sec": 1806537599,
+    "proposed_at_sec": 0,
+    "proposed_outcome": 0,
+    "proposal_open": false,
+    "finalized": false,
+    "outcome": 0,
+    "finalizable_at_sec": 0,
+    "proposed_by": null
+   },
+   {
+    "id": 2,
+    "question": "Will the Fed cut at its December meeting?",
+    "rule": "CUTS if and only if the upper limit of the federal funds target range (FRED DFEDTARU) after the Dec 8-9, 2026 FOMC meeting is lower than before it; otherwise HOLDS (a hike resolves HOLDS).",
+    "outcome_names": [
+     "CUTS",
+     "HOLDS"
+    ],
+    "deadline_sec": 1796842800,
+    "proposed_at_sec": 0,
+    "proposed_outcome": 0,
+    "proposal_open": false,
+    "finalized": false,
+    "outcome": 0,
+    "finalizable_at_sec": 0,
+    "proposed_by": null
+   }
+  ],
+  "past_fed_event": {
+   "id": 3,
+   "question": "Did the Fed cut at its October 27-28, 2026 meeting?",
+   "rule": "CUTS if and only if both limits of the federal funds target range (FRED DFEDTARU and DFEDTARL) are lower on 2026-10-29 than on 2026-10-27; HOLDS if neither is; if they disagree, nothing is reported.",
+   "outcome_names": [
+    "CUTS",
+    "HOLDS"
+   ],
+   "deadline_sec": 1793210400,
+   "proposed_at_sec": 0,
+   "proposed_outcome": 0,
+   "proposal_open": false,
+   "finalized": false,
+   "outcome": 0,
+   "finalizable_at_sec": 0,
+   "proposed_by": null
+  },
+  "owner_id": "test.near",
+  "now_sec": 1794485004
+ },
+ "preview_lp_deposit": {
+  "shares": "7905694150420948328997",
+  "wnear_kept": [
+   "5000000000000000000000",
+   "5000000000000000000000",
+   "5000000000000000000000",
+   "5000000000000000000000"
+  ],
+  "usdc_kept": [
+   "18499999999999999999999",
+   "15000000000000000000000",
+   "16500000000000000000000",
+   "12500000000000000000000"
+  ]
+ },
+ "quote_sell": [
+  "0",
+  "5865050885346196835107",
+  "6451555973880816518618",
+  "4748297375815592703719"
+ ],
+ "get_pool": {
+  "id": 1,
+  "kind": "within",
+  "scenario_id": 1,
+  "world": 0,
+  "mask0": 1,
+  "mask1": 1,
+  "token0": "1:wnear:1",
+  "token1": "1:usdc:1",
+  "reserve0": "100000000000000000000000",
+  "reserve1": "370000000000000000000000",
+  "wnear_reserve": "100000000000000000000000",
+  "usdc_reserve": "370000000000000000000000",
+  "liquidity": "192353840616713447518553",
+  "fees0": "0",
+  "fees1": "0",
+  "fee_pips": 3000,
+  "swap_count": 0,
+  "price": "3700000000000000000",
+  "twap_price": null,
+  "twap_ok": false
+ },
+ "storage_balance_of": {
+  "total": "600000000000000000000000",
+  "available": "599120000000000000000000"
+ },
+ "storage_balance_bounds": {
+  "min": "100000000000000000000000",
+  "max": null
+ }
+}
