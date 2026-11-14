@@ -1,0 +1,49 @@
+{
+  "source": "contracts/multiverse/src/tests/receiver.rs:L237-273 (DESIGN_MESSAGES), copied byte for byte",
+  "messages": [
+    {
+      "action": "conditional_sell",
+      "msg": "{\"action\":\"conditional_sell\",\"scenario_id\":1,\"sell_mask\":14,\"plans\":[[],[],[],[{\"order_id\":\"1\",\"amount\":\"1000000000000000000000\"}]],\"min_out\":[\"0\",\"0\",\"0\",\"0\"],\"to_lending\":true}"
+    },
+    {
+      "action": "conditional_buy",
+      "msg": "{\"action\":\"conditional_buy\",\"scenario_id\":1,\"buy_mask\":1,\"plans\":[[],[],[],[]],\"min_out\":[\"0\",\"0\",\"0\",\"0\"],\"to_lending\":false}"
+    },
+    {
+      "action": "sell_and_borrow",
+      "msg": "{\"action\":\"sell_and_borrow\",\"scenario_id\":1,\"sell_mask\":14,\"plans\":[[],[],[],[]],\"min_out\":[\"0\",\"0\",\"0\",\"0\"],\"borrow_amount\":\"3000000000000000000000\"}"
+    },
+    {
+      "action": "post_order",
+      "msg": "{\"action\":\"post_order\",\"scenario_id\":1,\"mask\":8,\"side\":\"bid\",\"price\":\"2450000000000000000\",\"amount\":\"1000000000000000000000\",\"expiry_sec\":1795000000}"
+    },
+    {
+      "action": "supply",
+      "msg": "{\"action\":\"supply\",\"scenario_id\":1}"
+    },
+    {
+      "action": "repay",
+      "msg": "{\"action\":\"repay\",\"scenario_id\":1,\"all\":true}"
+    },
+    {
+      "action": "deposit_collateral",
+      "msg": "{\"action\":\"deposit_collateral\",\"scenario_id\":1}"
+    },
+    {
+      "action": "liquidate",
+      "msg": "{\"action\":\"liquidate\",\"scenario_id\":1,\"account_id\":\"carl.x.testnet\",\"repay_amount\":\"max\"}"
+    },
+    {
+      "action": "close_after_resolution",
+      "msg": "{\"action\":\"close_after_resolution\",\"scenario_id\":1}"
+    },
+    {
+      "action": "lp_deposit",
+      "msg": "{\"action\":\"lp_deposit\",\"scenario_id\":1,\"wnear_amount\":\"5000000000000000000000\",\"min_shares\":\"0\"}"
+    },
+    {
+      "action": "spot_swap",
+      "msg": "{\"action\":\"spot_swap\",\"min_out\":\"0\"}"
+    }
+  ]
+}
