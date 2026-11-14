@@ -346,3 +346,100 @@ test("configFromEnv refuses a malformed key and never needs one", () => {
   assert.equal(cfg.reporter, undefined);
   assert.equal(configFromEnv({ REPORTER_KEY }, targets).reporter?.accountId, "resolver.t");
 });
+
+// The maker
+
+const MAKER_KEY = KeyPair.fromRandom("ed25519").toString() as KeyPairString;
+
+/** One lendable 2-world market: odds 0.6 / 0.4, world prices 3.80 and 2.70, implied 3.36. */
+function makerChain(reference: unknown, over: { registered?: boolean } = {}): FakeChain {
+  const c = chainWith({ reference });
+  c.nonces.set(`maker.t/${pk(MAKER_KEY)}`, 277_000_000n * 1_000_000n + 3n);
+  const card = {
+    scenario_id: 1, listed: true, origin: "owner", proposal_id: null, event_ids: [1, 2], world_count: 2, possible: 3, status: "open",
+    categories: [1], deadline_sec: NOW_SEC + 86_400, created_at_sec: NOW_SEC - 86_400, odds: [(6n * WAD / 10n).toString(), (4n * WAD / 10n).toString()],
+    odds_known: true, world_prices: ["3800000000000000000", "2700000000000000000"], implied_spot: "3360000000000000000", pool_value: "0",
+    min_world_depth: "0", pool_count: 3, lendable: true, seed: null,
+  };
+  c.views.set("list_markets", () => ({ markets: [card, { ...card, scenario_id: 2, lendable: false }], next_from: null }));
+  c.views.set("price_check", (a) => ({
+    scenario_id: a.scenario_id,
+    config: { min_age_sec: 1_800, min_depth: "0", reference: true, max_deviation: (WAD / 10n).toString(), max_haircut: "0" },
+    reference: null, implied_twap_spot: "3350000000000000000", ratio: null, borrow_block: null, borrow_factor: WAD.toString(), liquidation_factor: WAD.toString(), liquidation_guard: false,
+  }));
+  const pool = (id: number, world: number, wnear: bigint, price: bigint, fee: number) => ({
+    id, kind: "within", scenario_id: 1, world, mask0: 1 << world, mask1: 1 << world, token0: `1:wnear:${1 << world}`, token1: `1:usdc:${1 << world}`,
+    wnear_reserve: wnear.toString(), usdc_reserve: ((wnear * price) / WAD).toString(), price: price.toString(), fee_pips: fee,
+  });
+  c.views.set("pools_of", () => [pool(1, 0, 100_000n * WAD, 380n * WAD / 100n, 15_000), pool(2, 1, 60_000n * WAD, 270n * WAD / 100n, 4_306)]);
+  c.views.set("mt_batch_balance_of", (a) => (a.token_ids as string[]).map(() => "0"));
+  if (!over.registered) c.views.set("storage_balance_of", (a) => (a.account_id === "maker.t" ? null : { total: "500000000000000000000000", available: "400000000000000000000000" }));
+  c.views.set("usdc.t.faucet_config", () => ({ owner_id: "usdc.t", max_mint_per_call: "10000000000000" }));
+  return c;
+}
+const stored = (price: bigint, ageSec: number) => ({ price: price.toString(), observed_at: NOW_SEC - ageSec, stored_at: NOW_SEC - ageSec, age_sec: ageSec, source: "reporter", sources_used: 3, spread_bps: 50, request: 0, pending: false });
+const makerCfg = (over: Partial<KeeperConfig> = {}) => config({ keeper: undefined, reporter: undefined, wnearId: "wnear.t", maker: { accountId: "maker.t", key: MAKER_KEY }, ...over });
+
+test("the maker follows the reference posted in the same round and sends nothing inside the 4% band", async () => {
+  const c = makerChain(stored(3_300_000_000_000_000_000n, 400));
+  const s = await runRound(makerCfg({ reporter: { accountId: "resolver.t", key: REPORTER_KEY } }), deps(c));
+  assert.equal(s.reference?.action, "posted");
+  assert.deepEqual(s.maker?.reference, { price: "3.34145", ageSec: 35, postedThisRound: true });
+  assert.equal(s.maker?.markets.length, 1, "only the lendable market");
+  assert.equal(s.maker?.markets[0]?.action, "within");
+  assert.equal(s.maker?.markets[0]?.offBps, 55);
+  assert.deepEqual(c.sent.map((t) => t.signer), ["resolver.t"]);
+  assert.equal(s.ok, true);
+});
+
+test("past 4% the maker registers, mints, splits and swaps every world in one transaction; a second round in the window is locked", async () => {
+  const ref = (3_360_000_000_000_000_000n * 106n) / 100n;
+  const dry = makerChain(stored(ref, 100));
+  const d = await runRound(makerCfg({ dryRun: true }), deps(dry));
+  assert.equal(d.maker?.markets[0]?.action, "dry_run");
+  assert.equal(d.maker?.markets[0]?.moves?.length, 2);
+  assert.equal(dry.sent.length, 0);
+
+  const c = makerChain(stored(ref, 100));
+  const s = await runRound(makerCfg(), deps(c));
+  const row = s.maker?.markets[0];
+  assert.equal(row?.action, "sent", JSON.stringify(s.maker));
+  assert.equal(row?.offBps, 600);
+  assert.deepEqual(row?.moves?.map((m) => m.pay), ["usdc", "usdc"]);
+  const w = windowNonce(277_606_100);
+  assert.deepEqual(
+    c.sent.map((t) => [t.receiver, t.actions.map((a) => a.method).join("+"), t.nonce - w]),
+    [["app.t", "storage_deposit", 0n], ["usdc.t", "mint", 1n], ["usdc.t", "ft_transfer_call", 2n], ["app.t", "swap+swap", 3n]],
+  );
+  assert.equal(c.sent[0]?.actions[0]?.deposit, 10n ** 23n, "0.1 NEAR, the contract's minimum");
+  const split = c.sent[2]?.actions[0]?.args;
+  assert.deepEqual(JSON.parse(split?.msg as string), { action: "split", scenario_id: 1, to_masks: [1, 2] });
+  assert.equal(split?.amount, c.sent[1]?.actions[0]?.args.amount, "mints exactly what the split needs");
+  const swaps = c.sent[3]?.actions ?? [];
+  assert.deepEqual(swaps.map((a) => [a.args.pool_id, a.args.zero_for_one, a.deposit]), [[1, false, 1n], [2, false, 1n]]);
+  for (const a of swaps) assert.ok(BigInt(a.args.min_out as string) > 0n, "every swap has a min_out");
+  assert.equal(s.ok, true);
+
+  const again = await runRound(makerCfg(), deps(c));
+  assert.equal(again.maker?.markets[0]?.action, "locked");
+  assert.equal(c.sent.length, 4);
+});
+
+test("the maker leaves a stale reference and a jump past 25% alone", async () => {
+  const stale = await runRound(makerCfg(), deps(makerChain(stored(3_560_000_000_000_000_000n, 1_000))));
+  assert.match(stale.maker?.skipped ?? "", /1000 s old/);
+  const far = makerChain(stored(4_500_000_000_000_000_000n, 60));
+  const s = await runRound(makerCfg(), deps(far));
+  assert.equal(s.maker?.markets[0]?.action, "too_far");
+  assert.equal(far.sent.length, 0);
+});
+
+test("configFromEnv: MAKER_KEY signs as the maker target; MAKER_THRESHOLD_BPS moves the band", () => {
+  const targets = { contractId: "app.t", usdcId: "usdc.t", keeperId: "keeper.t", reporterId: "resolver.t", makerId: "maker.t", wnearId: "wnear.t" };
+  const cfg = configFromEnv({ MAKER_KEY, MAKER_THRESHOLD_BPS: "250" }, targets);
+  assert.equal(cfg.maker?.accountId, "maker.t");
+  assert.equal(cfg.makerPlan.thresholdBps, 250);
+  assert.equal(configFromEnv({}, targets).makerPlan.thresholdBps, 400);
+  assert.throws(() => configFromEnv({ MAKER_THRESHOLD_BPS: "4%" }, targets), /MAKER_THRESHOLD_BPS/);
+  assert.throws(() => configFromEnv({ MAKER_KEY }, { ...targets, makerId: undefined }), /maker account is unknown/);
+});

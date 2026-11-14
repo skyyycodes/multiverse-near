@@ -5,7 +5,12 @@
 //   (b) liquidates every liquidatable loan of every lending market: discovery by `lending_tiers` +
 //       `borrowers(max_health_factor = 1)`, sizing by `liquidation_quote`, cash-out only when the
 //       proceeds cover the repayment (liquidator.ts), signed by the keeper account, which mints
-//       itself testnet USDC from the faucet when its float runs low.
+//       itself testnet USDC from the faucet when its float runs low;
+//   (c) between the two, the maker: when a lendable market's implied spot sits more than ~4% from
+//       the fresh reference, swaps every world pool of it back by one factor (maker.ts), signed by
+//       the maker account, which mints itself wNEAR or USDC from the faucet and splits it into the
+//       worlds when its verse balances fall short. Threshold-based: smaller moves (demo trades, a
+//       tester) are left alone, so nothing fights over the pools.
 // It runs as a Vercel function (api/keeper.ts: a cron every minute and a ping from open pages)
 // and from the command line (keeper.ts).
 //
@@ -22,16 +27,20 @@ import { actions, baseDecode, baseEncode, createTransaction, KeyPair, KeyPairSig
 import { AccessKeyDoesNotExistError } from "near-api-js/rpc-errors";
 
 import { multiverseItems } from "./events.ts";
+import { singles } from "./demo.ts";
 import { decide, DEFAULT_DECIDE, type DecideOptions, type Decision } from "./liquidator.ts";
+import { MAKER_DEFAULTS, makerPools, planMaker, splitNeed, type MakerMove, type MakerOptions, type PoolRow } from "./maker.ts";
 import { encodeMsg, type Tier } from "./msgs.ts";
 import { checkOutcome, SendUnresolved, sendSigned, TxFailedError, txKnown, waitKnown, type SendDeps, type TxOutcome } from "./near.ts";
 import { classifyRpcError, endpointsFor, errorText, RpcPool, systemClock } from "./rpc.ts";
 import { fetchSources, formatWad, spotFrom, type FetchLike } from "./nearusd.ts";
-import { parseNear, tgas } from "./units.ts";
+import { formatNear, parseNear, roundUpToStep, tgas, toRaw } from "./units.ts";
 import {
   decodeBorrowers,
   decodeLiquidationQuote,
+  decodeMarketList,
   decodePauseView,
+  decodePriceCheck,
   decodeReference,
   decodeReferenceConfig,
   decodeStorageBalance,
@@ -51,11 +60,16 @@ export interface KeeperConfig {
   contractId: string;
   usdcId: string;
   usdcDecimals: number;
+  /** The wNEAR token; absent = no maker step. */
+  wnearId?: string;
+  wnearDecimals: number;
   rpcUrls: string[];
   /** Signs `report_reference`; absent = no reference step. */
   reporter?: Signing;
   /** Signs liquidations and faucet mints; absent = no liquidation step. */
   keeper?: Signing;
+  /** Signs the maker's swaps, splits and faucet mints; absent = no maker step. */
+  maker?: Signing;
   windowBlocks: number;
   /** Whole round, and the point after which no new transaction starts. */
   budgetMs: number;
@@ -68,12 +82,15 @@ export interface KeeperConfig {
   decide: DecideOptions;
   /** Faucet mints top the keeper's USDC up to this, in token units. */
   usdcFloat: bigint;
+  /** The maker's band and slippage; it moves only against a reference at most `maxRefAgeSec` old. */
+  makerPlan: MakerOptions & { maxRefAgeSec: number };
   /** Quote and decide, send nothing. */
   dryRun: boolean;
 }
 
 export const DEFAULTS = {
   usdcDecimals: 6,
+  wnearDecimals: 24,
   windowBlocks: 100,
   budgetMs: 45_000,
   sendCutoffMs: 35_000,
@@ -82,6 +99,7 @@ export const DEFAULTS = {
   maxPerRound: 10,
   decide: DEFAULT_DECIDE,
   usdcFloat: 5_000n * 10n ** 6n,
+  makerPlan: { ...MAKER_DEFAULTS, maxRefAgeSec: 900 },
   dryRun: false,
 } as const;
 
@@ -93,10 +111,12 @@ export interface KeeperTargets {
   usdcId: string;
   keeperId: string;
   reporterId: string;
+  wnearId?: string;
+  makerId?: string;
   rpcUrls?: string[];
 }
 
-/** The config from the environment: KEEPER_KEY, REPORTER_KEY and optional overrides of `targets`. */
+/** The config from the environment: KEEPER_KEY, REPORTER_KEY, MAKER_KEY and optional overrides of `targets`. */
 export function configFromEnv(env: NodeJS.ProcessEnv, targets: KeeperTargets): KeeperConfig {
   const key = (name: string): KeyPairString | undefined => {
     const v = env[name]?.trim();
@@ -106,6 +126,11 @@ export function configFromEnv(env: NodeJS.ProcessEnv, targets: KeeperTargets): K
   };
   const keeperKey = key("KEEPER_KEY");
   const reporterKey = key("REPORTER_KEY");
+  const makerKey = key("MAKER_KEY");
+  const makerId = env.MAKER_ACCOUNT_ID || targets.makerId;
+  if (makerKey && !makerId) throw new Error("MAKER_KEY is set but the maker account is unknown (MAKER_ACCOUNT_ID)");
+  const threshold = env.MAKER_THRESHOLD_BPS?.trim();
+  if (threshold && !/^[1-9][0-9]{0,3}$/.test(threshold)) throw new Error("MAKER_THRESHOLD_BPS is not a whole number of basis points in 1..9999");
   const listed = (env.NEAR_RPC_URLS ?? "")
     .split(",")
     .map((s) => s.trim())
@@ -114,9 +139,12 @@ export function configFromEnv(env: NodeJS.ProcessEnv, targets: KeeperTargets): K
     ...DEFAULTS,
     contractId: env.KEEPER_CONTRACT_ID || targets.contractId,
     usdcId: env.KEEPER_USDC_ID || targets.usdcId,
+    wnearId: env.KEEPER_WNEAR_ID || targets.wnearId,
     rpcUrls: listed.length > 0 ? listed : (targets.rpcUrls ?? TESTNET_RPC_URLS),
     keeper: keeperKey ? { accountId: env.KEEPER_ACCOUNT_ID || targets.keeperId, key: keeperKey } : undefined,
     reporter: reporterKey ? { accountId: env.REPORTER_ACCOUNT_ID || targets.reporterId, key: reporterKey } : undefined,
+    maker: makerKey && makerId ? { accountId: makerId, key: makerKey } : undefined,
+    makerPlan: threshold ? { ...DEFAULTS.makerPlan, thresholdBps: Number(threshold) } : DEFAULTS.makerPlan,
     dryRun: env.KEEPER_DRY_RUN === "1",
   };
 }
@@ -301,12 +329,37 @@ export interface LiquidationAction {
   checks?: { repaidWithinBudget: boolean; cashAtLeastMinOut: boolean | null };
 }
 
+export type SetupTx = { what: string; tx: string; status: string; error?: string };
+
 export interface LiquidationResult {
   skipped?: string;
   markets: number;
   candidates: number;
   actions: LiquidationAction[];
-  setup: { what: string; tx: string; status: string; error?: string }[];
+  setup: SetupTx[];
+}
+
+export interface MakerMarket {
+  scenarioId: number;
+  /** From the pools' spot prices, what the maker moves. */
+  implied: string;
+  /** From full-window TWAPs, what the borrowing check reads (it follows the spot over the window). */
+  impliedTwap: string | null;
+  borrowBlock: string | null;
+  offBps: number | null;
+  action: "within" | "too_far" | "skipped" | "dry_run" | "sent" | "failed" | "locked" | "deferred" | "lost" | "unresolved";
+  reason?: string;
+  moves?: { pool: number; world: number; pay: "wnear" | "usdc"; amountIn: string; minOut: string; from: string; to: string }[];
+  tx?: string;
+}
+
+export interface MakerResult {
+  skipped?: string;
+  accountId?: string;
+  reference?: { price: string; ageSec: number; postedThisRound: boolean };
+  thresholdBps: number;
+  markets: MakerMarket[];
+  setup: SetupTx[];
 }
 
 export interface RoundSummary {
@@ -319,6 +372,7 @@ export interface RoundSummary {
   reporter: { accountId: string; open: boolean; reason: string } | null;
   keeper: { accountId: string; open: boolean; reason: string } | null;
   reference: ReferenceResult | null;
+  maker: MakerResult | null;
   liquidations: LiquidationResult | null;
   errors: string[];
 }
@@ -335,23 +389,32 @@ const str = (v: bigint | null | undefined): string | null => (v === null || v ==
 const WAD_TO_USDC = (decimals: number): bigint => 10n ** BigInt(18 - decimals);
 /** A 300 Tgas call needs 0.3 NEAR of prepaid gas at testnet's 1e9 yocto/gas, plus the margin. */
 const GAS_FLOAT = parseNear("0.31");
+/** The free NEAR a call with `gas` prepaid needs, on the same 1e9 yocto/gas assumption. */
+const floatFor = (gas: bigint): bigint => gas * 10n ** 9n + parseNear("0.01");
 const STORAGE_DEPOSIT = parseNear("0.25");
+/** The contract's minimum (storage_balance_bounds); the maker's verse balances take ~0.002 a market. */
+const MAKER_STORAGE = parseNear("0.1");
+const SPLIT_GAS = tgas(100);
 
 class Round {
   readonly errors: string[] = [];
-  private registered = false;
+  private readonly registered = new Set<string>();
+  /** The price `report_reference` posted in this round (final views may not show it yet). */
+  private posted: { price: bigint; observedAt: number } | null = null;
   readonly cfg: KeeperConfig;
   readonly deps: RoundDeps;
   readonly started: number;
   readonly reporter: Lane | null;
   readonly keeper: Lane | null;
+  readonly maker: Lane | null;
 
-  constructor(cfg: KeeperConfig, deps: RoundDeps, started: number, reporter: Lane | null, keeper: Lane | null) {
+  constructor(cfg: KeeperConfig, deps: RoundDeps, started: number, lanes: Lanes) {
     this.cfg = cfg;
     this.deps = deps;
     this.started = started;
-    this.reporter = reporter;
-    this.keeper = keeper;
+    this.reporter = lanes.reporter;
+    this.keeper = lanes.keeper;
+    this.maker = lanes.maker;
   }
 
   now(): number {
@@ -411,8 +474,139 @@ class Round {
       [actions.functionCall("report_reference", { price: price.toString(), observed_at: out.observedAt }, tgas(30), 0n)],
       `${lane.accountId}: report_reference ${formatWad(price)}`,
     );
-    if (sent.status === "ok") return { action: "posted", tx: sent.hash, ...reading };
+    if (sent.status === "ok") {
+      this.posted = { price, observedAt: out.observedAt };
+      return { action: "posted", tx: sent.hash, ...reading };
+    }
     return { action: sent.status, tx: sent.hash, reason: sent.error, ...reading };
+  }
+
+  // (c) the maker
+
+  async makerStep(pause: PauseView): Promise<MakerResult> {
+    const o = this.cfg.makerPlan;
+    const result: MakerResult = { thresholdBps: o.thresholdBps, markets: [], setup: [] };
+    const lane = this.maker;
+    if (!lane) return { ...result, skipped: "no MAKER_KEY" };
+    result.accountId = lane.accountId;
+    if (!this.cfg.wnearId) return { ...result, skipped: "the wNEAR token is unknown" };
+    for (const flag of ["trade", "mint"] as const) if (pause.paused.includes(flag)) return { ...result, skipped: `the ${flag} flag is paused` };
+    let ref = this.posted;
+    if (!ref) {
+      const stored = decodeReference(await this.view("get_reference"));
+      ref = stored && stored.price !== "0" ? { price: BigInt(stored.price), observedAt: stored.observed_at } : null;
+    }
+    if (!ref) return { ...result, skipped: "no reference stored" };
+    const ageSec = Math.max(0, this.nowSec() - ref.observedAt);
+    result.reference = { price: formatWad(ref.price), ageSec, postedThisRound: ref === this.posted };
+    if (ageSec > o.maxRefAgeSec) return { ...result, skipped: `the reference is ${ageSec} s old; the maker follows one at most ${o.maxRefAgeSec} s old` };
+
+    const list = decodeMarketList(await this.view("list_markets", { from_id: null, limit: 100, listed_only: true }));
+    for (const m of list.markets.filter((x) => x.lendable)) {
+      const sid = m.scenario_id;
+      const check = decodePriceCheck(await this.view("price_check", { scenario_id: sid }));
+      const implied = BigInt(m.implied_spot);
+      const row: MakerMarket = {
+        scenarioId: sid,
+        implied: formatWad(implied),
+        impliedTwap: check.implied_twap_spot === null ? null : formatWad(BigInt(check.implied_twap_spot)),
+        borrowBlock: check.borrow_block,
+        offBps: null,
+        action: "skipped",
+      };
+      result.markets.push(row);
+      if (!check.config.reference) {
+        row.reason = "the market does not check the reference";
+        continue;
+      }
+      if (implied === 0n) {
+        row.reason = "implied spot unknown";
+        continue;
+      }
+      const plan = planMaker(ref.price, implied, makerPools(await this.view<PoolRow[]>("pools_of", { scenario_id: sid })), o);
+      row.offBps = plan.offBps;
+      if (plan.kind === "within") {
+        Object.assign(row, { action: "within", reason: `${plan.offBps} bps from the reference, under ${o.thresholdBps}` });
+        continue;
+      }
+      if (plan.kind === "too_far") {
+        Object.assign(row, { action: "too_far", reason: `${plan.offBps} bps is more than ${o.maxBps}: not drift; left for a person` });
+        continue;
+      }
+      row.moves = plan.moves.map((x) => ({
+        pool: x.poolId,
+        world: x.world,
+        pay: x.wnearIn ? "wnear" : "usdc",
+        amountIn: formatWad(x.amountIn),
+        minOut: formatWad(x.minOut),
+        from: formatWad(x.from),
+        to: formatWad(x.to),
+      }));
+      if (plan.moves.length === 0) {
+        Object.assign(row, { action: "within", reason: "no pool needs a swap" });
+        continue;
+      }
+      if (this.cfg.dryRun) {
+        row.action = "dry_run";
+        continue;
+      }
+      try {
+        await this.make(lane, sid, m.world_count, plan.moves, row, result.setup);
+      } catch (err) {
+        Object.assign(row, { action: "failed", reason: errorText(err).slice(0, 300) });
+      }
+    }
+    return result;
+  }
+
+  /** Registration, the inputs (faucet mint + split into every world, only for what the verse balances lack), then all swaps in one transaction. */
+  private async make(lane: Lane, sid: number, worlds: number, moves: MakerMove[], row: MakerMarket, setup: SetupTx[]): Promise<void> {
+    const chain = this.deps.chain;
+    const stop = (action: MakerMarket["action"], reason: string): void => void Object.assign(row, { action, reason });
+    const gate = (): boolean => {
+      if (!lane.open) stop("locked", lane.reason);
+      else if (this.elapsed() > this.cfg.sendCutoffMs) stop("deferred", "round time used up; next round");
+      else return true;
+      return false;
+    };
+    if (!gate()) return;
+    const reg = await this.ensureRegistered(lane, MAKER_STORAGE, setup);
+    if (reg) return stop(lane.open ? "skipped" : "locked", reg);
+    const ids = [...new Set(moves.map((x) => x.tokenIn))];
+    const held = await this.view<string[]>("mt_batch_balance_of", { account_id: lane.accountId, token_ids: ids });
+    const need = splitNeed(moves, (id) => BigInt(held[ids.indexOf(id)] ?? "0"));
+    for (const asset of ["usdc", "wnear"] as const) {
+      if (need[asset] === 0n || !gate()) continue;
+      const [token, decimals] = asset === "usdc" ? [this.cfg.usdcId, this.cfg.usdcDecimals] : [this.cfg.wnearId as string, this.cfg.wnearDecimals];
+      const raw = toRaw(roundUpToStep(need[asset], decimals), decimals);
+      const why = (await this.ensureToken(lane, token, raw, 0n, setup)) ?? (await this.gasOk(lane, 0n, SPLIT_GAS));
+      if (why) return stop(lane.open ? "skipped" : "locked", why);
+      if (!gate()) return;
+      const msg = encodeMsg({ action: "split", scenario_id: sid, to_masks: singles(worlds) }, 2);
+      const sent = await lane.send(
+        chain,
+        token,
+        [actions.functionCall("ft_transfer_call", { receiver_id: this.cfg.contractId, amount: raw.toString(), memo: null, msg }, SPLIT_GAS, 1n)],
+        `${lane.accountId}: split ${raw} ${asset} units into the ${worlds} worlds of ${sid}`,
+      );
+      setup.push({ what: `split ${raw} ${asset} units into the ${worlds} worlds of ${sid}`, tx: sent.hash, status: sent.status, error: "error" in sent ? sent.error : undefined });
+      if (sent.status !== "ok") return stop(sent.status === "failed" ? "failed" : sent.status, `split: ${sent.error}`);
+    }
+    if (!gate()) return;
+    // one transaction: the swaps land together or not at all (a min_out miss reverts them all);
+    // a world-pool swap burns ~6.3 Tgas (seed swaps on staging), so 30 each is ample
+    const per = tgas(Math.min(30, Math.floor(280 / moves.length)));
+    const why = await this.gasOk(lane, 0n, per * BigInt(moves.length));
+    if (why) return stop("skipped", why);
+    const sent = await lane.send(
+      chain,
+      this.cfg.contractId,
+      moves.map((x) => actions.functionCall("swap", { pool_id: x.poolId, zero_for_one: x.wnearIn, amount_in: x.amountIn.toString(), min_out: x.minOut.toString() }, per, 1n)),
+      `${lane.accountId}: ${moves.length} swaps in ${sid}`,
+    );
+    row.tx = sent.hash;
+    if (sent.status === "ok") row.action = "sent";
+    else stop(sent.status, sent.error);
   }
 
   // (b) liquidations
@@ -450,54 +644,55 @@ class Round {
     return this.view("liquidation_quote", { scenario_id: sid, account_id: account, tier, repay_amount: "max", receive }).then((x) => decodeLiquidationQuote(x));
   }
 
-  /** Free NEAR for one more call with `deposit`, or why not. */
-  private async gasOk(lane: Lane, deposit = 0n): Promise<string | null> {
+  /** Free NEAR for one more call with `deposit` and `gas` prepaid (300 Tgas: GAS_FLOAT), or why not. */
+  private async gasOk(lane: Lane, deposit = 0n, gas = tgas(300)): Promise<string | null> {
+    const float = gas === tgas(300) ? GAS_FLOAT : floatFor(gas);
     const free = await this.deps.chain.freeNear(lane.accountId);
-    return free >= GAS_FLOAT + deposit ? null : `InsufficientGasFloat: ${lane.accountId} has ${free} yocto free, needs ${GAS_FLOAT + deposit}`;
+    return free >= float + deposit ? null : `InsufficientGasFloat: ${lane.accountId} has ${free} yocto free, needs ${float + deposit}`;
   }
 
-  /** NEP-145 registration with the contract, once per round, before the first liquidation. */
-  private async ensureRegistered(lane: Lane, setup: LiquidationResult["setup"]): Promise<string | null> {
-    if (this.registered) return null;
+  /** NEP-145 registration with the contract, once per round and account, before its first send there. */
+  private async ensureRegistered(lane: Lane, deposit: bigint, setup: SetupTx[]): Promise<string | null> {
+    if (this.registered.has(lane.accountId)) return null;
     const bal = decodeStorageBalance(await this.view("storage_balance_of", { account_id: lane.accountId }));
     if (bal && BigInt(bal.available) >= parseNear("0.05")) {
-      this.registered = true;
+      this.registered.add(lane.accountId);
       return null;
     }
-    const why = await this.gasOk(lane, STORAGE_DEPOSIT);
+    const why = await this.gasOk(lane, deposit, tgas(30));
     if (why) return why;
     const sent = await lane.send(
       this.deps.chain,
       this.cfg.contractId,
-      [actions.functionCall("storage_deposit", { account_id: lane.accountId, registration_only: false }, tgas(30), STORAGE_DEPOSIT)],
+      [actions.functionCall("storage_deposit", { account_id: lane.accountId, registration_only: false }, tgas(30), deposit)],
       `${lane.accountId}: storage_deposit`,
     );
-    setup.push({ what: "storage_deposit 0.25 NEAR", tx: sent.hash, status: sent.status, error: "error" in sent ? sent.error : undefined });
+    setup.push({ what: `storage_deposit ${formatNear(deposit)} NEAR`, tx: sent.hash, status: sent.status, error: "error" in sent ? sent.error : undefined });
     if (sent.status !== "ok") return `storage_deposit ${sent.status}`;
-    this.registered = true;
+    this.registered.add(lane.accountId);
     return null;
   }
 
-  /** Mints testnet USDC from the open faucet until the keeper holds `need` (token units). */
-  private async ensureUsdc(lane: Lane, need: bigint, setup: LiquidationResult["setup"]): Promise<string | null> {
-    const balance = BigInt(await this.view<string>("ft_balance_of", { account_id: lane.accountId }, this.cfg.usdcId).catch(() => "0"));
+  /** Mints from the token's open faucet until the lane's account holds `need` (token units), topping up to `float`. */
+  private async ensureToken(lane: Lane, tokenId: string, need: bigint, float: bigint, setup: SetupTx[]): Promise<string | null> {
+    const balance = BigInt(await this.view<string>("ft_balance_of", { account_id: lane.accountId }, tokenId).catch(() => "0"));
     if (balance >= need) return null;
-    const cap = BigInt((await this.view<{ max_mint_per_call: string }>("faucet_config", {}, this.cfg.usdcId)).max_mint_per_call);
-    const target = need > this.cfg.usdcFloat ? need : this.cfg.usdcFloat;
+    const cap = BigInt((await this.view<{ max_mint_per_call: string }>("faucet_config", {}, tokenId)).max_mint_per_call);
+    const target = need > float ? need : float;
     // at most five capped mints in one transaction
     const amounts: bigint[] = [];
     for (let left = target - balance; left > 0n && amounts.length < 5; left -= cap) amounts.push(left < cap ? left : cap);
     const minted = amounts.reduce((s, x) => s + x, 0n);
     if (balance + minted < need) return `the faucet cap (${cap} per call) cannot cover ${need}`;
-    const why = await this.gasOk(lane);
+    const why = await this.gasOk(lane, 0n, tgas(10 * amounts.length));
     if (why) return why;
     const mints = amounts.map((amount) => actions.functionCall("mint", { account_id: lane.accountId, amount: amount.toString() }, tgas(10), 0n));
-    const sent = await lane.send(this.deps.chain, this.cfg.usdcId, mints, `${lane.accountId}: faucet mint ${minted}`);
-    setup.push({ what: `faucet mint ${minted} USDC units`, tx: sent.hash, status: sent.status, error: "error" in sent ? sent.error : undefined });
+    const sent = await lane.send(this.deps.chain, tokenId, mints, `${lane.accountId}: faucet mint ${minted} of ${tokenId}`);
+    setup.push({ what: `faucet mint ${minted} ${tokenId === this.cfg.usdcId ? "USDC" : tokenId} units`, tx: sent.hash, status: sent.status, error: "error" in sent ? sent.error : undefined });
     return sent.status === "ok" ? null : `faucet mint ${sent.status}`;
   }
 
-  private async execute(lane: Lane, sid: number, tier: Tier, row: BorrowerRow, d: Decision, a: LiquidationAction, setup: LiquidationResult["setup"]): Promise<void> {
+  private async execute(lane: Lane, sid: number, tier: Tier, row: BorrowerRow, d: Decision, a: LiquidationAction, setup: SetupTx[]): Promise<void> {
     const chain = this.deps.chain;
     if (d.kind === "write_off") {
       const why = await this.gasOk(lane);
@@ -511,7 +706,7 @@ class Round {
     if (d.kind !== "liquidate") return;
     const unit = WAD_TO_USDC(this.cfg.usdcDecimals);
     const budgetRaw = d.budget / unit;
-    for (const step of [() => this.ensureRegistered(lane, setup), () => this.ensureUsdc(lane, budgetRaw, setup), () => this.gasOk(lane)]) {
+    for (const step of [() => this.ensureRegistered(lane, STORAGE_DEPOSIT, setup), () => this.ensureToken(lane, this.cfg.usdcId, budgetRaw, this.cfg.usdcFloat, setup), () => this.gasOk(lane)]) {
       const why = await step();
       if (why) return void Object.assign(a, { status: "skipped", reason: why });
       if (!lane.open) return void Object.assign(a, { status: "locked", reason: lane.reason });
@@ -620,14 +815,20 @@ class Round {
   }
 }
 
-/** Opens a lane per configured key (one access-key read each). */
-export async function openLanes(cfg: KeeperConfig, chain: KeeperChain): Promise<{ reporter: Lane | null; keeper: Lane | null }> {
-  const make = async (s: Signing | undefined): Promise<Lane | null> => (s ? new Lane(s).start(chain, cfg.windowBlocks) : null);
-  const [reporter, keeper] = await Promise.all([make(cfg.reporter), make(cfg.keeper)]);
-  return { reporter, keeper };
+export interface Lanes {
+  reporter: Lane | null;
+  keeper: Lane | null;
+  maker: Lane | null;
 }
 
-/** One round: the reference, then the liquidations. Never throws; errors land in the summary. */
+/** Opens a lane per configured key (one access-key read each). */
+export async function openLanes(cfg: KeeperConfig, chain: KeeperChain): Promise<Lanes> {
+  const make = async (s: Signing | undefined): Promise<Lane | null> => (s ? new Lane(s).start(chain, cfg.windowBlocks) : null);
+  const [reporter, keeper, maker] = await Promise.all([make(cfg.reporter), make(cfg.keeper), make(cfg.maker)]);
+  return { reporter, keeper, maker };
+}
+
+/** One round: the reference, the maker, then the liquidations. Never throws; errors land in the summary. */
 export async function runRound(cfg: KeeperConfig, deps: RoundDeps): Promise<RoundSummary> {
   const now = deps.now ?? Date.now;
   const started = now();
@@ -641,6 +842,7 @@ export async function runRound(cfg: KeeperConfig, deps: RoundDeps): Promise<Roun
     reporter: null,
     keeper: null,
     reference: null,
+    maker: null,
     liquidations: null,
     errors: [],
   };
@@ -650,13 +852,18 @@ export async function runRound(cfg: KeeperConfig, deps: RoundDeps): Promise<Roun
     const laneInfo = (l: Lane | null): RoundSummary["keeper"] => (l ? { accountId: l.accountId, open: l.open, reason: l.reason } : null);
     summary.reporter = laneInfo(lanes.reporter);
     summary.keeper = laneInfo(lanes.keeper);
-    summary.window = lanes.keeper?.window ?? lanes.reporter?.window ?? null;
-    const round = new Round(cfg, deps, started, lanes.reporter, lanes.keeper);
+    summary.window = lanes.keeper?.window ?? lanes.reporter?.window ?? lanes.maker?.window ?? null;
+    const round = new Round(cfg, deps, started, lanes);
     summary.errors = round.errors;
     try {
       summary.reference = await round.reference(pause);
     } catch (err) {
       summary.reference = { action: "failed", reason: errorText(err).slice(0, 300) };
+    }
+    try {
+      summary.maker = await round.makerStep(pause);
+    } catch (err) {
+      summary.errors.push(`maker: ${errorText(err).slice(0, 300)}`);
     }
     try {
       summary.liquidations = await round.liquidations(pause);
@@ -668,7 +875,9 @@ export async function runRound(cfg: KeeperConfig, deps: RoundDeps): Promise<Roun
   } catch (err) {
     summary.errors.push(errorText(err).slice(0, 300));
   }
-  const failedActions = summary.liquidations?.actions.some((a) => a.status === "failed" || a.status === "unresolved") ?? false;
+  const failedActions =
+    (summary.liquidations?.actions.some((a) => a.status === "failed" || a.status === "unresolved") ?? false) ||
+    (summary.maker?.markets.some((m) => m.action === "failed" || m.action === "unresolved") ?? false);
   summary.ok = summary.errors.length === 0 && summary.reference?.action !== "failed" && summary.reference?.action !== "unresolved" && !failedActions;
   summary.ms = now() - started;
   return summary;
@@ -679,7 +888,7 @@ export async function runRound(cfg: KeeperConfig, deps: RoundDeps): Promise<Roun
  * before it runs a round (one access-key read).
  */
 export async function windowTaken(cfg: KeeperConfig, chain: KeeperChain): Promise<{ taken: boolean; window: number | null }> {
-  const s = cfg.keeper ?? cfg.reporter;
+  const s = cfg.keeper ?? cfg.reporter ?? cfg.maker;
   if (!s) return { taken: false, window: null };
   const lane = await new Lane(s).start(chain, cfg.windowBlocks);
   return { taken: !lane.open && lane.window !== null, window: lane.window };
