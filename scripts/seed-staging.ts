@@ -458,10 +458,14 @@ async function aliceFedOctStep(): Promise<void> {
 
 // Phase b
 
-async function fullWindow(key: string): Promise<void> {
+/**
+ * Throws until every world of the market is trusted (lending), or with `windowOnly` until every world
+ * pool has a full TWAP window (a reference market: its depth gate is `min_reference_depth_usdc`).
+ */
+async function fullWindow(key: string, windowOnly = false): Promise<void> {
   const sid = J.markets[key]?.sid as number;
   const rows = await P.worldPrices(sid);
-  const bad = rows.filter((r) => r.status !== "trusted");
+  const bad = rows.filter((r) => (windowOnly ? !r.full_window : r.status !== "trusted"));
   if (bad.length > 0) {
     const since = J.markets[key]?.poolsAt ?? J.markets[key]?.openedAt ?? 0;
     const left = since + 1_800 - (await chainNowSec());
@@ -598,7 +602,7 @@ async function nearDec31Step(): Promise<string> {
 // Phase c
 
 async function deepenStep(): Promise<string> {
-  await fullWindow("near-dec31");
+  await fullWindow("near-dec31", true);
   const sid = J.markets["near-dec31"]?.sid as number;
   const pools = await P.view<{ id: number; kind: string; mask0: number; mask1: number; reserve0: string; reserve1: string }[]>("pools_of", { scenario_id: sid });
   const odds = pools.find((p) => p.kind === "between");
