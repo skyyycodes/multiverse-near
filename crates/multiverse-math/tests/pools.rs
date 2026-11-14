@@ -568,6 +568,141 @@ proptest! {
     }
 }
 
+/// Odds of three independent events from basis points (world = a + 2b + 4c), split down the 8-world tree as the
+/// contract reads it: each level `floor(parent · share)` and `parent − that`, so they sum to exactly 1e18.
+fn independent_odds_8(a_bps: u128, b_bps: u128, c_bps: u128) -> Vec<u128> {
+    let pairs = odds::pairs(8);
+    odds::odds(8, 0xFF, |x, y| {
+        let level = pairs.iter().position(|p| *p == (x, y)).unwrap();
+        let bps = match level {
+            0 => c_bps,
+            1 | 2 => b_bps,
+            _ => a_bps,
+        };
+        Some(bps * 100_000_000_000_000)
+    })
+    .unwrap()
+}
+
+/// The 8-world prices of the worked example: the demo's 2x2 under YES, 0.95 of it under NO.
+const PRICES_8: [u128; 8] = [
+    3_700 * E15,
+    3_000 * E15,
+    3_300 * E15,
+    2_500 * E15,
+    3_515 * E15,
+    2_850 * E15,
+    3_135 * E15,
+    2_375 * E15,
+];
+
+/// The worked example (SHIPS 0.6667, CUTS 0.01, YES 0.5) read back from 7 seeded odds pools.
+#[test]
+fn odds_8_match_configured_odds() {
+    let q = independent_odds_8(6667, 100, 5000);
+    assert_eq!(
+        q[..4],
+        [
+            3_333_500_000_000_000,
+            1_666_500_000_000_000,
+            330_016_500_000_000_000,
+            164_983_500_000_000_000
+        ]
+    );
+    assert_eq!(q[..4], q[4..]);
+    let pools = odds_pools(&q);
+    assert_eq!(pools.len(), 7);
+    let read = odds_from_pools(8, 0xFF, &pools).unwrap();
+    assert_eq!(read.iter().sum::<u128>(), WAD);
+    for w in 0..8 {
+        assert!(
+            read[w].abs_diff(q[w]) <= 10,
+            "world {w}: {} vs {}",
+            read[w],
+            q[w]
+        );
+    }
+    // implied spot 2.96175097 (within 1e-9), inside [min p, max p]
+    let implied = odds::implied_spot(&read, 0xFF, |w| Some(PRICES_8[usize::from(w)])).unwrap();
+    let reference = 2_961_750_967_500_000_000u128;
+    assert!(
+        implied.abs_diff(reference) * 1_000_000_000 <= reference,
+        "{implied}"
+    );
+    assert!((2_375 * E15..=3_700 * E15).contains(&implied));
+}
+
+/// Whichever event resolves first, and then the others in any order, the same 7 pools price the survivors at
+/// their conditional odds (within pool rounding), and a lone survivor needs no pool.
+#[test]
+fn odds_8_renormalize_in_every_resolution_order() {
+    let q = independent_odds_8(6667, 3000, 4000);
+    let pools = odds_pools(&q);
+    let orders: [[usize; 3]; 6] = [
+        [0, 1, 2],
+        [0, 2, 1],
+        [1, 0, 2],
+        [1, 2, 0],
+        [2, 0, 1],
+        [2, 1, 0],
+    ];
+    for order in orders {
+        for outcomes in 0u8..8 {
+            let mut possible = 0xFFu8;
+            for (step, k) in order.iter().enumerate() {
+                let outcome = (outcomes >> k) & 1;
+                possible &= (0..8u8)
+                    .filter(|w| (w >> k) & 1 == outcome)
+                    .fold(0, |m, w| m | 1 << w);
+                let read = odds_from_pools(8, possible, &pools).unwrap();
+                assert_eq!(
+                    read.iter().sum::<u128>(),
+                    WAD,
+                    "{order:?} {outcomes} step {step}"
+                );
+                let left: u128 = (0..8)
+                    .filter(|w| possible & (1 << w) != 0)
+                    .map(|w| q[w])
+                    .sum();
+                for w in 0..8 {
+                    if possible & (1 << w) == 0 {
+                        assert_eq!(read[w], 0);
+                    } else {
+                        // q_w / P(survivors), within the pools' rounding
+                        let expected = q[w] * WAD / left;
+                        assert!(
+                            read[w].abs_diff(expected) <= 100,
+                            "{order:?} {outcomes} w{w}: {} vs {expected}",
+                            read[w]
+                        );
+                    }
+                }
+            }
+            assert_eq!(possible.count_ones(), 1);
+            assert_eq!(
+                odds_from_pools(8, possible, &[]).unwrap()[possible.trailing_zeros() as usize],
+                WAD
+            );
+        }
+    }
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(256))]
+
+    /// Any configured 3-event odds read back from the 8-world tree within 10 units per world, summing to 1e18.
+    #[test]
+    fn odds_8_match_seeded_odds(a in 1u128..=9999, b in 1u128..=9999, c in 1u128..=9999) {
+        let q = independent_odds_8(a, b, c);
+        prop_assert_eq!(q.iter().sum::<u128>(), WAD);
+        let read = odds_from_pools(8, 0xFF, &odds_pools(&q)).unwrap();
+        prop_assert_eq!(read.iter().sum::<u128>(), WAD);
+        for w in 0..8 {
+            prop_assert!(read[w].abs_diff(q[w]) <= 10, "world {}: {} vs {}", w, read[w], q[w]);
+        }
+    }
+}
+
 #[test]
 fn move_to_up_and_down_lands_on_the_target() {
     // The spot pool at 3.00 with L = 5,000,000e18, moved to 3.20 then 2.90. A constant-product pool lands within its

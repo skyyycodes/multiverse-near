@@ -378,12 +378,12 @@ proptest! {
     /// Whatever the pools hold and whichever worlds are left, known odds add up to exactly 1e18 and dead worlds get 0.
     #[test]
     fn odds_sum_to_exactly_one(
-        four in any::<bool>(),
-        reserves in vec((1u128..=u128::MAX / 2, 1u128..=u128::MAX / 2), 3),
+        events in 1u32..=3,
+        reserves in vec((1u128..=u128::MAX / 2, 1u128..=u128::MAX / 2), 7),
         mask_seed in any::<u8>(),
     ) {
-        let world_count = if four { 4 } else { 2 };
-        let root = (1u8 << world_count) - 1;
+        let world_count = 1u8 << events;
+        let root = ((1u16 << world_count) - 1) as u8;
         let possible = (mask_seed % root) + 1;
         let q = odds::odds(world_count, possible, |x, y| {
             let index = odds::pairs(world_count).iter().position(|&pair| pair == (x, y)).unwrap();
@@ -397,6 +397,47 @@ proptest! {
                 prop_assert_eq!(*odds, 0);
             }
         }
+    }
+
+    /// EW-7: resolving the events of a 1-, 2- or 3-event scenario one by one, in any order and with any outcomes,
+    /// the odds read from the same pools sum to exactly 1e18 after every step, dead worlds get 0, and a survivor
+    /// alone holds everything without a pool.
+    #[test]
+    fn odds_sum_to_one_in_every_resolution_order(
+        events in 1usize..=3,
+        reserves in vec((1u128..=u128::MAX / 2, 1u128..=u128::MAX / 2), 7),
+        order_seed in any::<u64>(),
+        outcomes in vec(0u8..=1, 3),
+    ) {
+        let world_count = 1u8 << events;
+        let mut order: Vec<usize> = (0..events).collect();
+        let mut seed = order_seed;
+        for i in (1..order.len()).rev() {
+            order.swap(i, (seed % (i as u64 + 1)) as usize);
+            seed /= i as u64 + 1;
+        }
+        let share = |x: u8, y: u8| {
+            let index = odds::pairs(world_count).iter().position(|&pair| pair == (x, y)).unwrap();
+            let (r_x, r_y) = reserves[index];
+            odds::share_x(r_x, r_y)
+        };
+        let mut possible = ((1u16 << world_count) - 1) as u8;
+        for (step, k) in order.iter().enumerate() {
+            // worlds whose digit for event k is the outcome
+            let keep = (0..world_count)
+                .filter(|w| (w >> k) & 1 == outcomes[*k])
+                .fold(0u8, |m, w| m | 1 << w);
+            possible &= keep;
+            let q = odds::odds(world_count, possible, share).unwrap();
+            prop_assert_eq!(q.iter().sum::<u128>(), WAD, "after {} resolutions", step + 1);
+            for (w, odds) in q.iter().enumerate() {
+                prop_assert_eq!(*odds == 0, possible & (1 << w) == 0, "world {}", w);
+            }
+        }
+        // every event resolved: one world, priced with no pool at all
+        prop_assert_eq!(possible.count_ones(), 1);
+        let q = odds::odds(world_count, possible, |_, _| None).unwrap();
+        prop_assert_eq!(q[possible.trailing_zeros() as usize], WAD);
     }
 }
 
