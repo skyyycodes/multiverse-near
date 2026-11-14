@@ -110,7 +110,7 @@ function Stage({ p, labels }: { p: ProposalT; labels?: string[] }) {
     <section className="tr__panel">
       <div className="desk__head">
         <h2 className="obx__boxtitle">{stage.title}</h2>
-        <Chip tone={STAGE_TONE[stage.tone]}>{p.status === 'opened' ? 'Open' : `${(p.progressBps / 100).toFixed(p.progressBps % 100 === 0 ? 0 : 1)}% funded`}</Chip>
+        <Chip tone={STAGE_TONE[stage.tone]}>{p.status === 'opened' ? 'Open' : `${(p.progressBps / 100).toFixed(p.progressBps % 100 === 0 ? 0 : 1)}% pledged`}</Chip>
       </div>
       {stage.detail && <p className="tr__means">{stage.detail}</p>}
       {p.status === 'opened' && p.opened ? (
@@ -123,7 +123,7 @@ function Stage({ p, labels }: { p: ProposalT; labels?: string[] }) {
         <div className="gv__stack">
           <PledgeProgress p={p} />
           <p className="tk__line"><span>Best mix to reach the goal</span><b className="num">≈ {fmtNear(p.idealWnear)} wNEAR + {fmt(p.idealUsdc, 0)} USDC</b></p>
-          {needs && isLive(p.status) && <p className="pc__note">More {needs === 'wnear' ? 'wNEAR' : 'USDC'} pledges would help most right now.</p>}
+          {needs && isLive(p.status) && <p className="pc__note">{needs === 'wnear' ? 'The pools take wNEAR and USDC together, so USDC pledged without wNEAR beside it waits for wNEAR before it counts as usable: more wNEAR pledges would help most right now.' : 'The pools take wNEAR and USDC together, so wNEAR pledged without USDC beside it waits for USDC before it counts as usable: more USDC pledges would help most right now.'}</p>}
         </div>
       )}
     </section>

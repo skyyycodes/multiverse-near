@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { MarketParamsView } from "./domain";
 import {
   deadlineSpreadNote,
+  bondRule,
   eventFormErrors,
   nearText,
   normaliseTerms,
@@ -226,5 +227,12 @@ describe("the proposal page (web 6.9)", () => {
     expect(pledgeActions("opened", seed)).toMatchObject({ pledge: false, withdraw: false, claim: true, seed: true });
     expect(pledgeActions("opened", { ...seed, unusedPaid: true }).claim).toBe(false);
     expect(pledgeActions("opened", { ...seed, unusedUsdc: 0n }).claim).toBe(false);
+  });
+});
+
+describe("the bond's rule, worded once", () => {
+  it("names approval for a new event and the opening for a combination, with the spam floor", () => {
+    expect(bondRule("event", 1_000)).toBe("The bond comes back when the owner approves the question. Until then it is kept only if the owner rejects it as spam, or it ends with under 10% of its goal pledged.");
+    expect(bondRule("market", 1_000)).toMatch(/^The bond comes back when the market opens\. It is kept if you cancel the proposal, or if it ends with under 10% of its goal pledged/);
   });
 });
