@@ -13,7 +13,7 @@ import { accountLabel, fmt, fmtAsset, fmtHf, fmtUsd, parseAmount, pct } from '..
 import { useDebounced } from '../../chain/hooks/useDebounced'
 import { useLiquidationQuote, useVerseLabel } from '../../chain/hooks/useLiquidation'
 import { cashMinOut, liquidateBlocker, liquidationBudget, maxRepaysAll, realPiece, type AtRiskRow } from '../../chain/liquidation'
-import { liquidate } from '../../chain/near/tx'
+import { GAS_MAX, liquidate } from '../../chain/near/tx'
 import { TIER_LABEL } from '../../chain/tiers'
 import { toInternal } from '../../chain/units'
 import { ActionButton } from '../ui/ActionButton'
@@ -111,6 +111,7 @@ export function LiquidateTicket({ cfg, row, market }: { cfg: AppConfig; row: AtR
           busyLabel="Liquidating…"
           blocker={blocker}
           action={receive === 'cash' ? 'liquidate_cash' : 'liquidate_tokens'}
+          gas={GAS_MAX}
           run={() =>
             actions.send(
               liquidate(cfg.usdc.tokenId, CONTRACT_ID, budgetTokens, { scenarioId: row.scenarioId, accountId: row.accountId, repayAmount: mode === 'max' ? 'max' : amount!, tier: row.tier, receive, minOut: receive === 'cash' ? minOut : undefined }),

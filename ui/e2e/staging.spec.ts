@@ -135,21 +135,22 @@ test('staging: a fresh account connects and gets test tokens', async ({ browser 
   }
 })
 
-/** A 300 Tgas call (every ft_transfer_call: split, sell, supply, repay, pledge) reserves 0.3 NEAR of gas up front, most of it
- *  refunded. 0.3 NEAR less the 0.1 NEAR storage registration is below that, so the account this run created gets 0.2 NEAR
- *  more from the root, once: the most a run may take. An older account under the floor stops the run instead. */
-const GAS_FLOOR = (33n * NEAR) / 100n
+/** A routine ft_transfer_call (split, sell, supply, repay: 150 Tgas) keeps 0.15 NEAR of gas bought up front, most of it
+ *  refunded; the UI asks 0.16 free. 0.3 NEAR less the 0.1 NEAR storage registration covers that, so an account under
+ *  0.18 NEAR is short: the account this run created gets 0.2 NEAR more from the root, once (the most a run may take). An
+ *  older account under the floor stops the run instead. */
+const GAS_FLOOR = (18n * NEAR) / 100n
 let createdNow = false
 let toppedUp = false
 async function enoughForGas() {
   const have = await nearBalance(JUDGE)
   if (have >= GAS_FLOOR) return
   if (!createdNow || toppedUp) {
-    throw new Error(`${JUDGE} holds ${Number(have / 10n ** 21n) / 1000} NEAR; a 300 Tgas call needs ${Number(GAS_FLOOR / 10n ** 21n) / 1000}. Send it a little NEAR by hand.`)
+    throw new Error(`${JUDGE} holds ${Number(have / 10n ** 21n) / 1000} NEAR; a 150 Tgas call needs ${Number(GAS_FLOOR / 10n ** 21n) / 1000}. Send it a little NEAR by hand.`)
   }
   const hash = await topUp(JUDGE, (2n * NEAR) / 10n)
   toppedUp = true
-  txs.push({ step: 'top up judge-ui1 with 0.2 NEAR (root): a 300 Tgas call reserves 0.3 NEAR', account: ROOT, hash, ok: true })
+  txs.push({ step: 'top up judge-ui1 with 0.2 NEAR (root): a 150 Tgas call reserves 0.15 NEAR', account: ROOT, hash, ok: true })
 }
 
 type OrderView = { id: string; mask: number; side: string; price: string; remaining: string }

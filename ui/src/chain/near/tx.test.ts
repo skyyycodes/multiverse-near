@@ -16,7 +16,9 @@ import {
   gasFloat,
   GAS_CALL,
   GAS_FT_CALL,
+  GAS_FT_ROUTINE,
   GAS_LIGHT,
+  GAS_MAX,
   liquidate,
   merge,
   ONE_YOCTO,
@@ -25,6 +27,7 @@ import {
   planFills,
   planMinOut,
   pledge,
+  postOrder,
   proposeEvent,
   proposeMarket,
   rejectProposal,
@@ -67,7 +70,7 @@ describe("transactions the wallet signs", () => {
     const p = tx.actions[0].params;
     expect(p.methodName).toBe("ft_transfer_call");
     expect(p.deposit).toBe(ONE_YOCTO);
-    expect(p.gas).toBe(GAS_FT_CALL);
+    expect(p.gas).toBe(GAS_FT_ROUTINE);
     expect(p.args.receiver_id).toBe("app.multiverse-lending.testnet");
     expect(p.args.amount).toBe("2000000000000000000");
     expect(typeof p.args.msg).toBe("string");
@@ -126,7 +129,7 @@ describe("tiers in msgs and calls (WI-5)", () => {
   it("T1: a sale kept as collateral names its tier last; a sale that keeps nothing never names one", () => {
     const plans = [[], [], [], [{ order_id: "4", amount: "1000000000000000000000" }]];
     const t = one(sellFromWallet(WNEAR, APP, 2_000n * NEAR, { scenarioId: 5, sellMask: 14, plans, minOut: ["0", "1", "2", "3"], toLending: true, tier: "safe" }));
-    expect(t).toMatchObject({ receiver: WNEAR, method: "ft_transfer_call", deposit: "1", gas: GAS_FT_CALL });
+    expect(t).toMatchObject({ receiver: WNEAR, method: "ft_transfer_call", deposit: "1", gas: GAS_FT_ROUTINE });
     expect(t.args).toMatchObject({ receiver_id: APP, amount: (2_000n * NEAR).toString(), memo: null });
     expect(t.msg).toBe(
       '{"action":"conditional_sell","scenario_id":5,"sell_mask":14,"plans":[[],[],[],[{"order_id":"4","amount":"1000000000000000000000"}]],"min_out":["0","1","2","3"],"to_lending":true,"tier":"safe"}',
@@ -139,7 +142,7 @@ describe("tiers in msgs and calls (WI-5)", () => {
 
   it("T2 and T4: the inner-balance sale and an accepted ask", () => {
     const t2 = one(sellFromInner(APP, { scenarioId: 5, amount: 10n, sellMask: 1, plans: [[], []], minOut: ["9", "0"], toLending: true, tier: "bold" }));
-    expect(t2).toMatchObject({ receiver: APP, method: "conditional_sell", deposit: "1", gas: GAS_FT_CALL });
+    expect(t2).toMatchObject({ receiver: APP, method: "conditional_sell", deposit: "1", gas: GAS_FT_ROUTINE });
     expect(t2.args).toEqual({ scenario_id: 5, amount: "10", sell_mask: 1, plans: [[], []], min_out: ["9", "0"], to_lending: true, tier: "bold" });
     const t4 = one(acceptAsk(USDC, APP, 1_875_000_000n, { scenarioId: 1, buyMask: 1, plans: [[{ order_id: "2", amount: "500" }], []], minOut: ["500", "0"] }));
     expect(JSON.parse(t4.msg!)).toEqual({ action: "conditional_buy", scenario_id: 1, buy_mask: 1, plans: [[{ order_id: "2", amount: "500" }], []], min_out: ["500", "0"], to_lending: false });
@@ -157,7 +160,7 @@ describe("lending transactions", () => {
     expect(one(repay(USDC, APP, 3_003_000_000n, { scenarioId: 5, all: true, tier: "bold" })).msg).toBe('{"action":"repay","scenario_id":5,"all":true,"tier":"bold"}');
     expect(one(repay(USDC, APP, 1n, { scenarioId: 5, all: false })).msg).toBe('{"action":"repay","scenario_id":5,"all":false}');
     const t10 = one(supply(USDC, APP, 5_000_000_000n, { scenarioId: 5, tier: "safe" }));
-    expect(t10).toMatchObject({ receiver: USDC, method: "ft_transfer_call", gas: GAS_FT_CALL, deposit: "1", msg: '{"action":"supply","scenario_id":5,"tier":"safe"}' });
+    expect(t10).toMatchObject({ receiver: USDC, method: "ft_transfer_call", gas: GAS_FT_ROUTINE, deposit: "1", msg: '{"action":"supply","scenario_id":5,"tier":"safe"}' });
     expect(t10.args.amount).toBe("5000000000");
     expect(one(withdrawSupply(APP, { scenarioId: 5, amount: null, tier: "bold" }))).toMatchObject({
       method: "withdraw_supply",
@@ -192,7 +195,7 @@ describe("lending transactions", () => {
     const cash = one(
       liquidate(USDC, APP, 446_857_540n, { scenarioId: 1, accountId: "carl.multiverse-near.testnet", repayAmount: "max", receive: "cash", minOut: 460_329_761_843_022_353_409n }),
     );
-    expect(cash).toMatchObject({ receiver: USDC, method: "ft_transfer_call", gas: GAS_FT_CALL, deposit: "1" });
+    expect(cash).toMatchObject({ receiver: USDC, method: "ft_transfer_call", gas: GAS_MAX, deposit: "1" });
     expect(cash.args.amount).toBe("446857540");
     expect(cash.msg).toBe(
       '{"action":"liquidate","scenario_id":1,"account_id":"carl.multiverse-near.testnet","repay_amount":"max","receive":"cash","min_out":"460329761843022353409"}',
@@ -201,6 +204,7 @@ describe("lending transactions", () => {
     expect(bold.msg).toBe('{"action":"liquidate","scenario_id":5,"account_id":"x.testnet","repay_amount":"446","tier":"bold","receive":"cash","min_out":"1"}');
     const tokens = one(liquidate(USDC, APP, 1n, { scenarioId: 5, accountId: "x.testnet", repayAmount: "max", tier: "safe", receive: "tokens" }));
     expect(tokens.msg).toBe('{"action":"liquidate","scenario_id":5,"account_id":"x.testnet","repay_amount":"max","tier":"safe"}');
+    expect(tokens.gas).toBe(GAS_MAX);
     expect(() => liquidate(USDC, APP, 1n, { scenarioId: 5, accountId: "x", repayAmount: "max", receive: "cash" })).toThrow(/needs min_out/);
     expect(() => liquidate(USDC, APP, 1n, { scenarioId: 5, accountId: "x", repayAmount: "max", receive: "tokens", minOut: 1n })).toThrow(/never sends min_out/);
   });
@@ -252,7 +256,7 @@ describe("markets, proposals and pledges", () => {
 
   it("T29-T37", () => {
     const t29 = one(pledge(USDC, APP, 1_000_000_000n, 12));
-    expect(t29).toMatchObject({ receiver: USDC, method: "ft_transfer_call", gas: GAS_FT_CALL, deposit: "1", msg: '{"action":"pledge","proposal_id":12}' });
+    expect(t29).toMatchObject({ receiver: USDC, method: "ft_transfer_call", gas: GAS_MAX, deposit: "1", msg: '{"action":"pledge","proposal_id":12}' });
     expect(one(withdrawPledge(APP, 12))).toMatchObject({ method: "withdraw_pledge", args: { proposal_id: 12, wnear: null, usdc: null }, gas: GAS_CALL, deposit: "1" });
     expect(one(withdrawPledge(APP, 12, { wnear: 0n, usdc: 250n * 10n ** 18n })).args).toEqual({ proposal_id: 12, wnear: "0", usdc: "250000000000000000000" });
     expect(one(claimUnused(APP, 12))).toMatchObject({ method: "claim_unused", args: { proposal_id: 12 }, gas: GAS_CALL, deposit: "1" });
@@ -322,5 +326,27 @@ describe("the gas float (WI-10)", () => {
     // a proposal attaches its bond and reserve on top of the gas
     expect(gasFloat({ amount: (5n * 10n ** 23n).toString(), storageUsage: 0 }, GAS_FT_CALL, 3n * 10n ** 23n)).toMatchObject({ short: true, needText: "0.61" });
     expect(gasFloat({ amount: (5n * 10n ** 23n).toString(), storageUsage: 0 }, GAS_LIGHT, "0")).toMatchObject({ short: false, needText: "0.04" });
+  });
+
+  it("a routine call (150 Tgas) fits an account made with 0.3 NEAR after its 0.1 NEAR registration; 300 Tgas does not", () => {
+    expect(gasFloat({ amount: "0", storageUsage: 0 }, GAS_FT_ROUTINE, ONE_YOCTO)).toMatchObject({ need: 16n * 10n ** 22n + 1n, needText: "0.17" });
+    // judge-ui1 after the mints and the registration: 0.1992 NEAR, 182 bytes
+    const judge = { amount: "199200000000000000000000", storageUsage: 182 };
+    expect(gasFloat(judge, GAS_FT_ROUTINE, ONE_YOCTO).short).toBe(false);
+    expect(gasFloat(judge, GAS_MAX, ONE_YOCTO).short).toBe(true);
+  });
+
+  it("every routine ft_transfer_call attaches 150 Tgas; pledge and liquidation keep 300", () => {
+    const routine = [
+      split(WNEAR, APP, 1n, { scenarioId: 1, toMasks: [1, 2] }),
+      repay(USDC, APP, 1n, { scenarioId: 1, all: false }),
+      depositCollateral(USDC, APP, 1n, { scenarioId: 1 }),
+      closeWithDebt(USDC, APP, 1n, { scenarioId: 1 }),
+      fundInsurance(USDC, APP, 1n, { scenarioId: 1 }),
+      postOrder(USDC, APP, 1n, { scenarioId: 1, mask: 1, side: "bid", price: 1n, amount: 1n, expirySec: 1 }),
+      ftTransferCall(WNEAR, APP, 1n, { action: "deposit" }),
+    ];
+    for (const t of routine) expect(one(t).gas).toBe(GAS_FT_ROUTINE);
+    expect(one(pledge(USDC, APP, 1n, 1)).gas).toBe(GAS_MAX);
   });
 });

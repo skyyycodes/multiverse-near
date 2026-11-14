@@ -12,9 +12,19 @@ import type { Asset } from "../types";
 
 export const ONE_YOCTO = "1";
 /**
- * The per-transaction maximum, for every ft_transfer_call and for calls that schedule work: the heaviest accepted
- * 8-world trade burns about 44 Tgas in the contract receipt (SPEC-contract 7), a pledge's detached auto-open needs
- * 215 Tgas left, and request_reference / request_resolution need 240 Tgas prepaid.
+ * Gas for the everyday ft_transfer_calls (split, sell, buy, post_order, supply, repay, collateral, close, deposits)
+ * and the direct trades from the inner balance. The token keeps 30 Tgas and hands ft_on_transfer the other 120
+ * (NEP-141, near-contract-standards 5.14); only a close with debt schedules anything from there (a payout, 10 + 5 Tgas
+ * per asset). The heaviest accepted 8-world trade needs about 38 Tgas (SPEC-contract 7, gate 55); live receipts burn
+ * 4-9. Testnet buys all prepaid gas up front at 1e9 yocto per gas (GAS_PRICE_YOCTO) and refunds the unused part, so
+ * this needs 0.15 NEAR free when signing, not 0.3.
+ */
+export const GAS_FT_ROUTINE = "150000000000000";
+/**
+ * The per-transaction maximum, for calls that need it: a goal-reaching pledge and approve_proposal schedule the
+ * opening (215 Tgas must be left), request_reference / request_resolution need 240 Tgas prepaid, a cash-out
+ * liquidation sells and merges before its payout (both liquidation modes keep it), and open_market / seed_withdraw
+ * build or take apart the pools of every world (SPEC-contract 7 gates: 150 and 120 Tgas). Proposals keep it too.
  */
 export const GAS_FT_CALL = "300000000000000";
 export const GAS_MAX = GAS_FT_CALL;
@@ -61,8 +71,8 @@ export function call(receiverId: string, methodName: string, args: Record<string
 }
 
 /** `amount` is in the token's own units; the msg is a JSON string inside the JSON args. */
-export function ftTransferCall(tokenId: string, receiverId: string, amount: bigint, msg: FtAction): Tx {
-  return call(tokenId, "ft_transfer_call", { receiver_id: receiverId, amount: amount.toString(), memo: null, msg: JSON.stringify(msg) }, ONE_YOCTO, GAS_FT_CALL);
+export function ftTransferCall(tokenId: string, receiverId: string, amount: bigint, msg: FtAction, gas: string = GAS_FT_ROUTINE): Tx {
+  return call(tokenId, "ft_transfer_call", { receiver_id: receiverId, amount: amount.toString(), memo: null, msg: JSON.stringify(msg) }, ONE_YOCTO, gas);
 }
 
 /** Per-world fills for a sale or buy: one array per world index, empty where nothing is traded. */
@@ -118,7 +128,7 @@ export const sellFromInner = (contractId: string, p: TradePlan & { sellMask: num
       p.toLending ? p.tier : undefined,
     ),
     ONE_YOCTO,
-    GAS_FT_CALL,
+    GAS_FT_ROUTINE,
   );
 
 /** T4 (and a buy kept as collateral): USDC for NEAR in `buyMask`'s worlds; `minOut` is NEAR per world. */
@@ -143,7 +153,7 @@ export const buyFromInner = (contractId: string, p: TradePlan & { buyMask: numbe
       p.toLending ? p.tier : undefined,
     ),
     ONE_YOCTO,
-    GAS_FT_CALL,
+    GAS_FT_ROUTINE,
   );
 
 /** T3: accept one bid (sell into it, nothing kept as collateral). */
@@ -224,7 +234,8 @@ export const closeAfterResolution = (contractId: string, p: { scenarioId: number
 
 /**
  * T38: liquidate with a USDC budget (token units). Cash mode sells the seized pieces and must name `minOut`; tokens
- * mode sends neither `receive` nor `min_out` (the contract refuses `MinOutRequired` / `MinOutWithoutCash`).
+ * mode sends neither `receive` nor `min_out` (the contract refuses `MinOutRequired` / `MinOutWithoutCash`). Both
+ * attach the full 300 Tgas: a cash-out sells in up to 8 worlds, merges and pays out (gate 80 Tgas, an estimate).
  */
 export function liquidate(
   usdcId: string,
@@ -243,10 +254,10 @@ export function liquidate(
   );
   if (p.receive === "cash") {
     if (p.minOut === undefined) throw new Error("a cash-out liquidation needs min_out");
-    return ftTransferCall(usdcId, contractId, budgetTokens, { ...base, receive: "cash", min_out: u128(p.minOut) });
+    return ftTransferCall(usdcId, contractId, budgetTokens, { ...base, receive: "cash", min_out: u128(p.minOut) }, GAS_MAX);
   }
   if (p.minOut !== undefined) throw new Error("a tokens-mode liquidation never sends min_out");
-  return ftTransferCall(usdcId, contractId, budgetTokens, base);
+  return ftTransferCall(usdcId, contractId, budgetTokens, base, GAS_MAX);
 }
 
 /** T39 */
@@ -344,7 +355,7 @@ export const proposeEvent = (contractId: string, e: NewEventArgs, deposit: bigin
 
 /** T29: 300 Tgas, because a pledge that reaches the goal schedules the opening (it needs 215 Tgas left). */
 export const pledge = (tokenId: string, contractId: string, tokens: bigint, proposalId: number): Tx =>
-  ftTransferCall(tokenId, contractId, tokens, { action: "pledge", proposal_id: proposalId });
+  ftTransferCall(tokenId, contractId, tokens, { action: "pledge", proposal_id: proposalId }, GAS_MAX);
 
 /** T30: null takes all of that asset; an amount takes exactly that (0 = none of it). A refund passes both null. */
 export const withdrawPledge = (contractId: string, proposalId: number, amounts: { wnear: bigint | null; usdc: bigint | null } = { wnear: null, usdc: null }): Tx =>
@@ -406,7 +417,10 @@ export const setMarketListing = (contractId: string, scenarioId: number, listed:
 
 // ---- the gas float (WI-10) ----
 
-/** Testnet sells prepaid gas at `min_gas_purchase_price`: 1e9 yoctoNEAR per gas unit, so 300 Tgas costs 0.3 NEAR. */
+/**
+ * Testnet sells prepaid gas at `min_gas_purchase_price`: 1e9 yoctoNEAR per gas unit, so 150 Tgas must be free as
+ * 0.15 NEAR and 300 Tgas as 0.3 NEAR when the transaction is signed; the unburnt part comes back a few blocks later.
+ */
 export const GAS_PRICE_YOCTO = 1_000_000_000n;
 /** NEAR's storage price: 1e19 yoctoNEAR per byte (10 kB per NEAR). */
 export const STORAGE_PRICE_YOCTO = 10n ** 19n;

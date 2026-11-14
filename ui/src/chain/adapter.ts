@@ -31,7 +31,7 @@ import {
   dispute as disputeTx,
   finalize as finalizeTx,
   ftTransferCall,
-  GAS_FT_CALL,
+  GAS_FT_ROUTINE,
   gasFloat,
   merge as mergeTx,
   ONE_YOCTO,
@@ -255,6 +255,7 @@ export function useIsOwner(): boolean {
 /**
  * Why an action cannot run right now, in the words a button shows, or undefined: a pause of that action, then too
  * little NEAR for its gas and deposit. Mirrors web's TxButton; the screen adds its own blockers (amount, balance) first.
+ * Without a `gas`, the action is a routine one (150 Tgas, so about 0.16 NEAR free); the heavy ones pass GAS_MAX.
  */
 export function useBlocker(action: AppAction, o: { gas?: string; deposit?: bigint | string } = {}): string | undefined {
   const { accountId } = useWallet();
@@ -264,7 +265,7 @@ export function useBlocker(action: AppAction, o: { gas?: string; deposit?: bigin
   if (!accountId) return undefined;
   const paused = pauseBlocker(action, pause.data, now);
   if (paused) return paused;
-  const float = signer.data ? gasFloat(signer.data, o.gas ?? GAS_FT_CALL, o.deposit ?? ONE_YOCTO) : undefined;
+  const float = signer.data ? gasFloat(signer.data, o.gas ?? GAS_FT_ROUTINE, o.deposit ?? ONE_YOCTO) : undefined;
   return float?.short ? `You need at least ${float.needText} NEAR in your wallet for this action` : undefined;
 }
 
