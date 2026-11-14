@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 import { Screen } from "@/components/shell/Screen";
 import { EventCard } from "@/components/resolve/EventCard";
 import { EventOracle } from "@/components/resolve/EventOracle";
@@ -19,9 +20,11 @@ import type { AppConfig, EventState, Scenario } from "@/lib/domain";
 import { ENV } from "@/lib/env";
 import { fmt, fmtNear, fmtPrice, parseAmount, shortAccount } from "@/lib/format";
 import { useChainClock } from "@/lib/hooks/useClock";
-import { useAdmin, useBalances, useCellQuotes, useQuoteSell, useScenarioId } from "@/lib/hooks/useData";
+import { useAdmin, useBalances, useCellQuotes, useQuoteSell } from "@/lib/hooks/useData";
+import { forgetMarket, useMarketRef, useMarketUrlRewrite, useScenarioInfo } from "@/lib/hooks/useMarket";
 import { useIsDesktop } from "@/lib/hooks/useMedia";
 import { useSubmit } from "@/lib/hooks/useTx";
+import { marketsHref } from "@/lib/links";
 import { call, ftTransferCall } from "@/lib/near/tx";
 import { useWallet } from "@/lib/near/wallet";
 import { toTokenFloor } from "@/lib/units";
@@ -37,7 +40,17 @@ export function AdminScreen() {
 function Admin({ config }: { config: AppConfig }) {
   const wallet = useWallet();
   const desktop = useIsDesktop();
-  const sid = useScenarioId(config);
+  // Not behind MarketGuard: the owner needs this screen right after a fresh deploy, before any market exists. The
+  // market of the URL (or the last one opened here) feeds the market blocks only once the contract confirms it.
+  const ref = useMarketRef(config);
+  const info = useScenarioInfo(ref.sid);
+  const sid = info.data ? ref.sid : undefined;
+  const unknown = Boolean(info.error && /UnknownScenario/.test(info.error.message));
+  const noMarket = ref.sid === undefined || unknown;
+  useMarketUrlRewrite(ref, sid !== undefined);
+  useEffect(() => {
+    if (unknown && ref.sid !== undefined && ref.source === "last") forgetMarket(ref.sid);
+  }, [unknown, ref.sid, ref.source]);
   const view = useAdmin(sid, wallet.accountId);
   const quotes = useCellQuotes(config, sid, wallet.accountId);
   const clock = useChainClock(view.data?.nowSec, view.dataUpdatedAt);
@@ -96,9 +109,24 @@ function Admin({ config }: { config: AppConfig }) {
             {d.pastFedEvent && card(d.pastFedEvent, "Past Fed decision · FRED data", false)}
           </Block>
         </>
+      ) : noMarket ? (
+        <Block demo="admin-no-market">
+          <p className="text-[13px] leading-relaxed text-mute">
+            {ref.invalid !== undefined
+              ? `“${ref.invalid}” is not a market number.`
+              : ref.sid === undefined
+                ? "No market yet."
+                : `No market #${ref.sid} on this deployment.`}{" "}
+            Operations, the review queue, the reference and the market parameters work without one; a market opens from
+            an approved proposal.{" "}
+            <Link href={marketsHref} className="font-medium text-cobalt-ink underline-offset-2 hover:underline">
+              See the markets
+            </Link>
+          </p>
+        </Block>
       ) : (
         <Block>
-          <ChainWait error={view.error?.message} onRetry={() => void view.refetch()} />
+          <ChainWait error={(info.error ?? view.error)?.message} onRetry={() => void (info.error ? info.refetch() : view.refetch())} />
         </Block>
       )}
     </Screen>
