@@ -6,7 +6,8 @@
 //   1. the bundle inlines deployments/<network>.json's contractId (and no other network's), and version.json names the
 //      same network and contract;
 //   2. no file holds the fixture sentinel or the fixture persona list (WI-6: no design data in a real bundle);
-//   3. no HTML or JS says "In Multiverse", and "Multiverse Lending" appears only inside "formerly Multiverse Lending";
+//   3. no HTML or JS says "In Multiverse" or the redesign's working name "Origami", and "Multiverse Lending" appears only
+//      inside "formerly Multiverse Lending";
 //   4. the demo-wallet bridge (`__nearDemo`) is present for staging, rehearsal and sandbox, and absent for testnet;
 //   5. testnet serves outlayer/fred-guest.wasm with the sha256 pinned on chain by OutLayerConfig; staging serves
 //      outlayer/nearusd-guest.wasm (the bytes committed in oracle/nearusd-guest/dist when that file exists);
@@ -106,6 +107,7 @@ export async function checkRelease(outDir, network, { prelaunch = false, deploym
   // 3. brand
   for (const f of pages) {
     if (f.body.includes("In Multiverse")) failures.push(`${f.path} says "In Multiverse"`);
+    if (f.ext !== ".css" && f.body.includes("Origami")) failures.push(`${f.path} says "Origami"`);
     const old = count(f.body, "Multiverse Lending");
     const allowed = count(f.body, "formerly Multiverse Lending");
     if (old > allowed) failures.push(`${f.path} says "Multiverse Lending" outside "formerly Multiverse Lending" (${old - allowed}x)`);

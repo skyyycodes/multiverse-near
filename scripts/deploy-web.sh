@@ -2,11 +2,11 @@
 # Assembles the Vercel deploy directory of the public app and deploys it to production of the
 # existing project "multiverse-lending" (https://multiverse-lending.vercel.app).
 #
-#   scripts/deploy-web.sh [--dry-run] [--web-out <dir>] [--deployments <file>] [--out <dir>] [--no-check]
+#   scripts/deploy-web.sh [--dry-run] [--ui-out <dir>] [--deployments <file>] [--out <dir>] [--no-check]
 #
-# The directory (default .deploy/web, gitignored):
-#   public/                 the static site: the staging web build (default web/out-staging, from
-#                           `pnpm -C web build:staging`) plus /outlayer/fred-guest.wasm (the exact
+# The site is the ui/ app (the redesign; web/ is no longer deployed). The directory (default .deploy/web, gitignored):
+#   public/                 the static site: the staging ui build (default ui/out-staging, from
+#                           `pnpm -C ui build:staging`) plus /outlayer/fred-guest.wasm (the exact
 #                           bytes production serves today, sha256 8c809e11..., which the v1 contract's
 #                           OutLayer config pins) and /outlayer/nearusd-guest.wasm (oracle/nearusd-guest/dist)
 #   api/keeper.js           scripts/api/keeper.ts bundled by esbuild (no dependencies to install), with
@@ -16,7 +16,7 @@
 #
 # --dry-run assembles and lists the files, deploys nothing. Without it: `vercel deploy --prod`. A Hobby
 # account refuses crons that run more than once a day; then the cron falls back to daily and the
-# page pings (web/src/lib/keeper-ping.ts) keep the keeper running while the site is open.
+# page pings (ui/src/chain/keeper-ping.ts) keep the keeper running while the site is open.
 # Secrets: scripts/keeper-env.sh prints the `vercel env add` commands (KEEPER_KEY, REPORTER_KEY, CRON_SECRET).
 set -euo pipefail
 
@@ -30,17 +30,17 @@ NEARUSD_SHA256="6034aac8620b4559660c0315f1d4897509b6c3a722290e6c426ab50c21f52fc7
 
 DRY_RUN=0
 CHECK=1
-WEB_OUT="$REPO/web/out-staging"
+WEB_OUT="$REPO/ui/out-staging"
 DEPLOYMENTS="$REPO/deployments/staging.json"
 OUT="$REPO/.deploy/web"
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY_RUN=1 ;;
     --no-check) CHECK=0 ;;
-    --web-out) WEB_OUT="$(cd "$2" && pwd -P)"; shift ;;
+    --ui-out|--web-out) WEB_OUT="$(cd "$2" && pwd -P)"; shift ;;
     --deployments) DEPLOYMENTS="$2"; shift ;;
     --out) OUT="$2"; shift ;;
-    -h|--help) sed -n '2,23p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,24p' "$0"; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
   shift
@@ -49,14 +49,14 @@ done
 die() { echo "deploy-web: $*" >&2; exit 1; }
 sha256() { shasum -a 256 "$1" | cut -d' ' -f1; }
 
-[ -f "$WEB_OUT/index.html" ] || die "$WEB_OUT/index.html is missing: run \`pnpm -C web build:staging\` first"
+[ -f "$WEB_OUT/index.html" ] || die "$WEB_OUT/index.html is missing: run \`pnpm -C ui build:staging\` first"
 [ -f "$DEPLOYMENTS" ] || die "$DEPLOYMENTS is missing"
 if [ -f "$WEB_OUT/version.json" ]; then
   network="$(node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).network||"")' "$WEB_OUT/version.json")"
   [ "$network" = "staging" ] || die "$WEB_OUT was built for '$network', not staging"
 fi
 if [ "$CHECK" = 1 ]; then
-  node "$REPO/web/scripts/check-release.mjs" "$WEB_OUT" staging || die "the web build fails the release check (--no-check skips it)"
+  node "$REPO/ui/scripts/check-release.mjs" "$WEB_OUT" staging || die "the ui build fails the release check (--no-check skips it)"
 fi
 
 # The account ids the keeper works on, from the deployment record (public ids only).

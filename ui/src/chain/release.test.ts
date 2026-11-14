@@ -91,6 +91,8 @@ describe("the release check", () => {
     expect(old).toContain('index.html says "Multiverse Lending" outside "formerly Multiverse Lending" (1x)');
     const chip = await check(output(production({ "_next/static/chunks/b.js": 'label:"In Multiverse"' })), "testnet");
     expect(chip).toContain('_next/static/chunks/b.js says "In Multiverse"');
+    const working = await check(output(staging({ "_next/static/chunks/c.js": 'title:"Origami Verse"' })), "staging");
+    expect(working).toContain('_next/static/chunks/c.js says "Origami"');
   });
 
   it("wants the demo-wallet bridge off testnet and only there", async () => {
