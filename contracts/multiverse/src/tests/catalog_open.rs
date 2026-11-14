@@ -1,12 +1,13 @@
 //! Opening markets from pledges (SPEC-C 3.7.5, 8.6): both kinds at 2 and 4
-//! worlds, the custody seeding and the vault, the storage paid from the
-//! reserve then `storage_fund`, slot priority, the waiting blockers and the
-//! detached `auto_open`.
+//! worlds and a combination at 8, the custody seeding and the vault, the
+//! storage paid from the reserve then `storage_fund`, slot priority, the
+//! waiting blockers and the detached `auto_open`.
 
 use near_sdk::json_types::U128;
 use near_sdk::NearToken;
 
 use super::catalog_fixture::*;
+use super::eight::check_eight_worlds;
 use crate::catalog::{MarketOrigin, ProposalStatus, ProposalViewStatus};
 use crate::types::Asset::{Usdc, Wnear};
 use crate::types::WAD;
@@ -576,4 +577,59 @@ fn kind_b_prices_ignore_a_same_block_push() {
         (after.s_ref, after.odds.clone(), after.prices.clone()),
         (before.s_ref, before.odds, before.prices)
     );
+}
+
+// ---- Eight worlds (after C-EW: LogScope groups the opening's lines) ----
+
+#[test]
+fn eight_world_combination_opens_and_exits() {
+    let mut w = market_world();
+    w.track_logs();
+    let (spice, fed) = (w.spice, w.fed);
+    let (e, _) = owner_market(&mut w, "Will it snow in Delhi?", &DEMO_BIN, 5_000);
+    w.warp(WINDOW);
+    let pid = propose_market(&mut w, DAVE, &[fed, e, spice]).unwrap();
+    let p = record(&mut w, pid);
+    assert_eq!(p.world_count, 8);
+    assert_eq!(p.reserve, params(&mut w).reserve_for(8));
+    let estimate = w.view(|c| c.open_storage_estimate(pid, &c.proposal_record(pid)));
+    fund(&mut w, pid);
+    let sid = replay_auto_open(&mut w)[0].expect("opens");
+    assert_estimate_covers(&w, estimate);
+    let s = w.view(|c| c.get_scenario(sid));
+    assert_eq!(s.pool_ids.len(), 15);
+    let mints = logged(&w, "mt_mint");
+    assert_eq!(mints[0]["token_ids"].as_array().unwrap().len(), 22);
+    // Log budget of the opening (SPEC-C 7): <= 60 lines, <= 9,830 bytes. The
+    // NEP-245 lines replay on the shadow ledger (EW-5, `track_logs`).
+    let lines = w.last.logs.len();
+    let bytes: usize = w.last.logs.iter().map(String::len).sum();
+    assert!(lines <= 60 && bytes <= 9_830, "{lines} lines, {bytes} B");
+    let measured = u(&logged(&w, "market_opened")[0]["storage_cost"]);
+    assert!(
+        measured * 10 <= p.reserve * 6,
+        "storage within 60% of the reserve"
+    );
+    let implied = w.view(|c| c.implied_spot_of(sid));
+    let s_ref = record(&mut w, pid).open.s_ref;
+    assert!(implied.abs_diff(s_ref) * 100_000 < s_ref);
+    assert_all_backed(&mut w);
+    assert_conserved(&mut w);
+    check_eight_worlds(&mut w).unwrap();
+    // An exit at eight worlds after a partial resolution.
+    w.admin_resolve(fed, 1).unwrap();
+    let lock = record(&mut w, pid).seed_lock_sec;
+    w.warp(lock);
+    let mins = vec![U128(0); 8];
+    call_paying(&mut w, ALICE, ONE_YOCTO, |c| {
+        c.seed_withdraw(pid, None, mins.clone(), mins)
+    })
+    .unwrap();
+    let lines = w.last.logs.len();
+    let bytes: usize = w.last.logs.iter().map(String::len).sum();
+    assert!(lines <= 30 && bytes <= 12_288, "{lines} lines, {bytes} B");
+    assert_all_backed(&mut w);
+    assert_conserved(&mut w);
+    assert_books(&mut w);
+    check_eight_worlds(&mut w).unwrap();
 }
