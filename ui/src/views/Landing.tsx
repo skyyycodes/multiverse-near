@@ -5,7 +5,8 @@ import { Dome } from '../components/DomeSlot'
 import { Button, Faq } from '../components/ui'
 import { usd } from '../lib/format'
 import { useTween } from '../lib/useTween'
-import { links } from '../config'
+import { chain, links } from '../config'
+import { accountUrl } from '../chain/env'
 import { demoMarkets } from '../data/demo'
 
 const FAQ = [
@@ -178,7 +179,7 @@ export default function Landing() {
       <section className="landing-faq">
         <div className="landing-faq__side">
           <h2>Questions</h2>
-          <p className="landing-faq__note">Built on NEAR testnet for the NEAR hackathon, from Paradigm’s <a href={links.paper} target="_blank" rel="noreferrer">Multiverse Finance</a> paper. The contract is live at <a href="https://testnet.nearblocks.io/address/app.multiverse-near.testnet" target="_blank" rel="noreferrer">app.multiverse-near.testnet</a>. The full mechanics, with the testnet run, are in <Link href="/docs">How it works</Link>.</p>
+          <p className="landing-faq__note">Built on NEAR testnet for the NEAR hackathon, from Paradigm’s <a href={links.paper} target="_blank" rel="noreferrer">Multiverse Finance</a> paper. The contract is live at <a href={accountUrl(chain.contractId)} target="_blank" rel="noreferrer">{chain.contractId}</a>. The full mechanics, with the testnet run, are in <Link href="/docs">How it works</Link>.</p>
         </div>
         <Faq items={FAQ} />
       </section>

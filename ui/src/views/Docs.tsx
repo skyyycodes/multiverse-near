@@ -5,7 +5,8 @@ import { CollateralBars } from '../components/CollateralBars'
 import { demoMarkets } from '../data/demo'
 import { FEE, LLTV, fresh } from '../lib/scenario'
 import { Button } from '../components/ui'
-import { links } from '../config'
+import { chain, links } from '../config'
+import { useAppConfig } from '../chain/hooks/useData'
 
 // Alice's sale and loan as they ran on NEAR testnet on 2026-11-12 (README, LEARN.md lesson 10, DESIGN.md): she
 // keeps 2,000 NEAR in Ships & cuts and sells it in the other three worlds, the L-shape, mask 14 (0b1110).
@@ -36,7 +37,7 @@ const TERMS = [
   ['Backing rule', 'In every world still possible, for every asset, what all verses pay there adds up to the reserves. The app shows it as “every world balances”.'],
   ['Health factor', 'Worst world × 75% ÷ debt. Borrowing and withdrawing collateral need it at 1 or more; below 1, anyone can liquidate.'],
   ['Swap fee', 'World pools charge 0.30%, rising to 1.50% when the last 8 swaps all went one way. After Alice’s sale, the three pools she sold into charged 1.50%.'],
-  ['Reporter', 'The account that proposes an event’s result: resolver.multiverse-near.testnet, or OutLayer for the FRED-backed Fed event.'],
+  ['Reporter', 'The account that proposes an event’s result with its evidence, or OutLayer for the FRED-backed Fed events.'],
 ]
 
 // the gaps LEARN.md lists for a real-money launch, plus what's specific to this interface
@@ -60,16 +61,18 @@ const AFTER = (() => {
   return { ...s, near, usdc, debt: DEBT }
 })()
 
-// the deployment on NEAR testnet, from the upstream README and deployments/testnet.json
+// the deployment this build reads (deployments/<network>.json), owner and reporter from the contract itself
 const NB = 'https://testnet.nearblocks.io'
-const ACCOUNTS: [string, string][] = [
-  ['Protocol contract', 'app.multiverse-near.testnet'],
-  ['Owner', 'multiverse-near.testnet'],
-  ['Reporter', 'resolver.multiverse-near.testnet'],
-  ['Mock wNEAR', 'wnear.multiverse-near.testnet'],
-  ['Mock USDC', 'usdc.multiverse-near.testnet'],
-  ['Alice (sells and borrows)', 'alice.multiverse-near.testnet'],
-]
+function useAccounts(): [string, string][] {
+  const cfg = useAppConfig().data
+  return [
+    ['Protocol contract', chain.contractId],
+    ...(cfg ? [['Owner', cfg.ownerId] as [string, string]] : []),
+    ...(cfg?.reporterId ? [['Reporter', cfg.reporterId] as [string, string]] : []),
+    ['Mock wNEAR', chain.wnear],
+    ['Mock USDC', chain.usdc],
+  ]
+}
 const FED_TX: [string, string][] = [
   ['set_outlayer_config', 'FUZHqurtQEqXxGjLwDuWzjNZ8pYR8wdYJVX2kHsUNaJM'],
   ['request_resolution', '5DKPy7JXgjs4UMP8Bpt2AEyepa4QVswQcBRtwu6p4rgk'],
@@ -108,6 +111,7 @@ function useActiveSection() {
 }
 
 export default function Docs() {
+  const accounts = useAccounts()
   const active = useActiveSection()
   return (
     <div className="page docs">
@@ -148,7 +152,7 @@ export default function Docs() {
 
       <section className="docs__section" id="example">
         <h2>Alice on NEAR testnet</h2>
-        <p>This ran on <code>app.multiverse-near.testnet</code> on 12 November 2026. The seeded pools price NEAR at $3.70 in Ships &amp; cuts, $3.30 in Ships &amp; holds, $3.00 in Delayed &amp; cuts and $2.50 in Delayed &amp; holds. Alice holds 2,000 NEAR, wants NEAR only if everything goes well, and picks the other three worlds. One click, one signature: her NEAR is split into all four worlds and sold for USDC of the same world in the three she fears.</p>
+        <p>This ran on the first testnet contract on 12 November 2026. The seeded pools price NEAR at $3.70 in Ships &amp; cuts, $3.30 in Ships &amp; holds, $3.00 in Delayed &amp; cuts and $2.50 in Delayed &amp; holds. Alice holds 2,000 NEAR, wants NEAR only if everything goes well, and picks the other three worlds. One click, one signature: her NEAR is split into all four worlds and sold for USDC of the same world in the three she fears.</p>
         <div className="docs__table" role="table">
           <div role="row" className="docs__tr docs__tr--head"><span>World</span><span>NEAR price</span><span>Before</span><span>After</span></div>
           {ALICE.map((r) => (
@@ -198,7 +202,7 @@ export default function Docs() {
         <h2>On NEAR testnet</h2>
         <p>Everything runs in one contract on NEAR testnet with mock tokens. The full flow (Alice’s sale and loan, Ravi’s and Sam’s orders, Uma’s liquidity, Carl’s liquidation by Leo, the reporter’s proposals and Alice’s close) ran there on 12 November 2026 in 88 transactions, with real waits for the 30-minute price window.</p>
         <dl className="docs__terms">
-          {ACCOUNTS.map(([role, id]) => <div key={id}><dt>{role}</dt><dd><a href={`${NB}/address/${id}`} target="_blank" rel="noreferrer"><code>{id}</code> ↗</a></dd></div>)}
+          {accounts.map(([role, id]) => <div key={id}><dt>{role}</dt><dd><a href={`${NB}/address/${id}`} target="_blank" rel="noreferrer"><code>{id}</code> ↗</a></dd></div>)}
         </dl>
         <p className="docs__caption">The October Fed meeting, resolved from FRED by OutLayer: {FED_TX.map(([name, tx], i) => <span key={tx}>{i > 0 && ' · '}<a href={`${NB}/txns/${tx}`} target="_blank" rel="noreferrer"><code>{name}</code> ↗</a></span>)}</p>
         <p>The hosted app for that deployment is <a href="https://multiverse-lending.vercel.app" target="_blank" rel="noreferrer">multiverse-lending.vercel.app</a>, and <a href={links.learn} target="_blank" rel="noreferrer">the guide from zero</a> walks through all of it lesson by lesson.</p>
