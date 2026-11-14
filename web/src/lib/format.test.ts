@@ -3,6 +3,13 @@ import {
   accountLabel,
   countdown,
   fmt,
+  fmtBps,
+  fmtCompactUsd,
+  fmtPct,
+  parseUtcInput,
+  relTime,
+  utcInputValue,
+  utf8Bytes,
   fmtHf,
   fmtAsset,
   fmtNear,
@@ -136,5 +143,58 @@ describe("accounts", () => {
     expect(accountLabel("ravi.multiverse-lending.testnet").length).toBe(20);
     expect(accountLabel("ravi.multiverse-lending.testnet")).not.toBe(accountLabel("ravi.other-lending.testnet"));
     expect(accountLabel("f".repeat(64))).toBe("ffffff…ffff");
+  });
+});
+
+describe("v2 formats", () => {
+  const usd = (s: string) => parseAmount(s)!;
+  it("compact dollars, truncated toward zero, at every boundary", () => {
+    expect(fmtCompactUsd(usd("950"))).toBe("$950");
+    expect(fmtCompactUsd(usd("999.99"))).toBe("$999.99");
+    expect(fmtCompactUsd(usd("999.999"))).toBe("$999.99");
+    expect(fmtCompactUsd(usd("1000"))).toBe("$1.0k");
+    expect(fmtCompactUsd(usd("42150"))).toBe("$42.1k");
+    expect(fmtCompactUsd(usd("999999.99"))).toBe("$999.9k");
+    expect(fmtCompactUsd(usd("1000000"))).toBe("$1.00M");
+    expect(fmtCompactUsd(usd("1259999"))).toBe("$1.25M");
+    expect(fmtCompactUsd(usd("2500000000"))).toBe("$2.50B");
+    expect(fmtCompactUsd(0n)).toBe("$0");
+    expect(fmtCompactUsd(-usd("42150"))).toBe("-$42.1k");
+  });
+
+  it("basis points and WAD fractions as percentages", () => {
+    expect(fmtBps(6_700)).toBe("67%");
+    expect(fmtBps(6_931)).toBe("69.31%");
+    expect(fmtBps(6_930)).toBe("69.3%");
+    expect(fmtBps(12_100)).toBe("121%");
+    expect(fmtBps(0)).toBe("0%");
+    expect(fmtPct(400_000_000_000_000_000n, 1)).toBe("40.0%");
+    expect(fmtPct(666_666_666_666_666_667n, 2)).toBe("66.67%");
+  });
+
+  it("relative times", () => {
+    expect(relTime(5 * 86_400 + 100)).toBe("in 5 d");
+    expect(relTime(3 * 3_600)).toBe("in 3 h");
+    expect(relTime(12 * 60 + 59)).toBe("in 12 min");
+    expect(relTime(40)).toBe("in 40 s");
+    expect(relTime(0)).toBe("now");
+    expect(relTime(-120)).toBe("2 min ago");
+    expect(relTime(-90_000n)).toBe("1 d ago");
+  });
+
+  it("counts UTF-8 bytes as the contract does", () => {
+    expect(utf8Bytes("abc")).toBe(3);
+    expect(utf8Bytes("é")).toBe(2);
+    expect(utf8Bytes("€")).toBe(3);
+    expect(utf8Bytes("🌍")).toBe(4);
+  });
+
+  it("reads and writes datetime-local values as UTC", () => {
+    expect(utcInputValue(1_814_399_999)).toBe("2027-06-30T23:59");
+    expect(parseUtcInput("2027-06-30T23:59")).toBe(1_814_399_940);
+    expect(parseUtcInput("2027-06-30T23:59:59")).toBe(1_814_399_999);
+    expect(parseUtcInput("2027-02-30T10:00")).toBeUndefined();
+    expect(parseUtcInput("")).toBeUndefined();
+    expect(parseUtcInput("tomorrow")).toBeUndefined();
   });
 });

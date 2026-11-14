@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Instrument_Serif, JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import { ClientShell } from "@/components/shell/ClientShell";
+import { BRAND } from "@/lib/brand";
 import "./globals.css";
 
 const display = Space_Grotesk({ subsets: ["latin"], weight: ["300", "400", "500", "700"], variable: "--font-space-grotesk" });
@@ -9,8 +10,8 @@ const serif = Instrument_Serif({ subsets: ["latin"], weight: "400", style: "ital
 const mono = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-jetbrains" });
 
 export const metadata: Metadata = {
-  title: "Multiverse Lending",
-  description: "Hold a position that exists only if a specific event happens. Sell NEAR only in the futures you fear, borrow against the worst one. On NEAR.",
+  title: BRAND.name,
+  description: BRAND.short,
 };
 
 export const viewport: Viewport = {

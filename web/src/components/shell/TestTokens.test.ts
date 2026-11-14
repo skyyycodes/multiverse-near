@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Balances } from "@/lib/hooks/useData";
 import { WalletContext, type WalletApi } from "@/lib/near/wallet";
 import { EmptyWalletHint, FAUCET_ON, FaucetProgress, hintShown, walletEmpty } from "./TestTokens";
@@ -31,8 +31,27 @@ function render(el: ReactElement, w: WalletApi): string {
 }
 
 describe("get test tokens", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
   it("is on for the testnet build", () => {
     expect(FAUCET_ON).toBe(true);
+  });
+
+  it("is on wherever the chain is testnet (production and staging), off on a sandbox and in design data", async () => {
+    const faucet = async (env: Record<string, string>) => {
+      vi.resetModules();
+      vi.unstubAllEnvs();
+      for (const [k, v] of Object.entries(env)) vi.stubEnv(k, v);
+      return (await import("./TestTokens")).FAUCET_ON;
+    };
+    expect(await faucet({ NEXT_PUBLIC_NETWORK: "testnet", NEXT_PUBLIC_CHAIN: "testnet" })).toBe(true);
+    expect(await faucet({ NEXT_PUBLIC_NETWORK: "staging", NEXT_PUBLIC_CHAIN: "testnet" })).toBe(true);
+    expect(await faucet({ NEXT_PUBLIC_NETWORK: "sandbox", NEXT_PUBLIC_CHAIN: "sandbox" })).toBe(false);
+    expect(await faucet({ NEXT_PUBLIC_NETWORK: "rehearsal", NEXT_PUBLIC_CHAIN: "sandbox" })).toBe(false);
+    expect(await faucet({ NEXT_PUBLIC_NETWORK: "staging", NEXT_PUBLIC_CHAIN: "testnet", NEXT_PUBLIC_FIXTURES: "1" })).toBe(false);
   });
 
   it("counts a wallet as empty only when it holds no wNEAR and no USDC", () => {
@@ -68,10 +87,10 @@ describe("get test tokens", () => {
 
   it("lists each finished step, and nothing before the first", () => {
     expect(render(createElement(FaucetProgress, { done: [] }), wallet(null))).toBe("");
-    const html = render(createElement(FaucetProgress, { done: ["2,000 wNEAR minted to your wallet", "Registered with Multiverse"] }), wallet(null));
+    const html = render(createElement(FaucetProgress, { done: ["2,000 wNEAR minted to your wallet", "Registered with IfVerse"] }), wallet(null));
     expect(html).toContain('data-demo="faucet-progress"');
     expect(html).toContain("2,000 wNEAR minted to your wallet");
-    expect(html).toContain("Registered with Multiverse");
+    expect(html).toContain("Registered with IfVerse");
     expect(html.match(/<li/g)).toHaveLength(2);
   });
 });

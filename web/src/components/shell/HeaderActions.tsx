@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useState } from "react";
 import { IconBell, IconHelp, IconWallet } from "@/components/brand/Icons";
 import { shortAccount } from "@/lib/format";
-import { useAppConfig, useHalted, useScenarioId } from "@/lib/hooks/useData";
+import { useHalted } from "@/lib/hooks/useData";
+import { useCurrentMarketId } from "@/lib/hooks/useMarket";
+import { resolveHref } from "@/lib/links";
 import { useWallet } from "@/lib/near/wallet";
 import { AccountSheet } from "./AccountSheet";
 
@@ -19,14 +21,13 @@ export function HelpLink() {
   );
 }
 
-/** Resolution status: pulses while a result waits out its dispute window. */
+/** Resolution status of the current market (the URL's or the last one opened): pulses during a dispute window. */
 export function StatusBell() {
-  const config = useAppConfig();
-  const sid = useScenarioId(config.data);
+  const sid = useCurrentMarketId();
   const halted = useHalted(sid).data;
   return (
     <Link
-      href="/resolve/"
+      href={sid === undefined ? "/resolve/" : resolveHref(sid)}
       aria-label={halted ? "A result is proposed and in its dispute window" : "Resolution status"}
       title={halted ? "A result is proposed and in its dispute window" : "Resolution status"}
       className={iconButton}

@@ -1,4 +1,4 @@
-import type { ReadSource } from "../data/source";
+import type { AccountInfo, ReadSource } from "../data/source";
 import type { TxOutcome } from "./outcome";
 import { cleanError } from "./outcome";
 
@@ -106,6 +106,15 @@ export function createRpcSource(urls: string[]): ReadSource {
     },
     async txStatus(hash: string, accountId: string): Promise<TxOutcome> {
       return each((url) => rpc<TxOutcome>(url, "tx", { tx_hash: hash, sender_account_id: accountId, wait_until: "FINAL" }));
+    },
+    async account(accountId: string): Promise<AccountInfo> {
+      const r = await each((url) =>
+        rpc<{ amount?: string; code_hash?: string; storage_usage?: number }>(url, "query", { request_type: "view_account", finality: "final", account_id: accountId }),
+      );
+      if (typeof r.amount !== "string" || typeof r.code_hash !== "string" || typeof r.storage_usage !== "number") {
+        throw new ChainError(`view_account ${accountId}: unexpected answer`);
+      }
+      return { codeHash: r.code_hash, amount: r.amount, storageUsage: r.storage_usage };
     },
   };
 }

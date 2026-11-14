@@ -24,6 +24,21 @@ function account(p: Partial<Account> = {}): Account {
     lltv: wad("0.75"),
     liquidation: "none",
     unpricedWorld: null,
+    // the v2 keys as a v1 view decodes them (one Normal tier lent up to its lltv)
+    tier: "normal",
+    borrowLtv: wad("0.75"),
+    borrowHealthFactor: null,
+    borrowLimit: 0n,
+    maxBorrow: 0n,
+    liquidationBonus: 0n,
+    insurance: 0n,
+    minLoan: 0n,
+    frozen: false,
+    maxRepay: 0n,
+    writeOffReady: false,
+    worldStatus: ["trusted", "trusted", "trusted", "trusted"],
+    borrowBlock: null,
+    liquidationFactor: WAD,
     ...p,
   };
 }

@@ -11,6 +11,7 @@ import { ChainWait } from "@/components/ui/Notice";
 import { Block, Sheet, SheetTitle } from "@/components/ui/Surface";
 import { TxButton } from "@/components/ui/TxButton";
 import { WorldGrid, WorldPicker } from "@/components/world/WorldGrid";
+import { BRAND } from "@/lib/brand";
 import { CONTRACT_ID } from "@/lib/data/client";
 import type { AppConfig, EventState, Scenario } from "@/lib/domain";
 import { ENV } from "@/lib/env";
@@ -67,7 +68,7 @@ function Admin({ config }: { config: AppConfig }) {
       aside={
         <>
           {s && <PricePush key={pickKey} config={config} s={s} mask={picked} isOwner={isOwner} onPick={toggle} picker={!desktop} events={d.events} />}
-          <ResetCommand />
+          {ENV.resetCommand && <ResetCommand />}
         </>
       }
     >
@@ -140,6 +141,7 @@ function ResolveControls({ event: e, now, isOwner }: { event: EventState; now?: 
       <div className="grid gap-2 sm:grid-cols-2">
         <TxButton
           demo="resolve-now"
+          action="admin_resolve"
           needs={{ contract: true }}
           size="md"
           label={outcome === undefined ? "Resolve now" : `Resolve now: ${e.outcomeNames[outcome]}`}
@@ -149,6 +151,7 @@ function ResolveControls({ event: e, now, isOwner }: { event: EventState; now?: 
         />
         <TxButton
           demo="dispute"
+          action="dispute"
           needs={{ contract: true }}
           size="md"
           tone="secondary"
@@ -203,7 +206,9 @@ function PricePush({
 
   return (
     <Sheet demo="price-push">
-      <SheetTitle sub="Sells NEAR-if-w for USDC-if-w in one world's pool, inside the Multiverse contract, from this wallet. The price moves because a real swap happened, never because someone typed a number. You keep NEAR-if-w in the other worlds.">
+      <SheetTitle
+        sub={`Sells NEAR-if-w for USDC-if-w in one world's pool, inside the ${BRAND.name} contract, from this wallet. The price moves because a real swap happened, never because someone typed a number. You keep NEAR-if-w in the other worlds.`}
+      >
         Price push
       </SheetTitle>
       {picker && <WorldPicker scenario={s} events={events} selected={mask} onToggle={onPick} demo="push-pick" />}
@@ -227,6 +232,7 @@ function PricePush({
       />
       <TxButton
         demo="push-confirm"
+        action="price_push"
         label={world ? `Push ${world.label} down` : "Push the price down"}
         busyLabel="Pushing…"
         blocker={blocker}
@@ -259,6 +265,7 @@ function PricePush({
       <div className="flex flex-col gap-2 border-t border-line pt-4">
         <TxButton
           demo="mint-wnear"
+          action="faucet"
           tone="secondary"
           size="md"
           label={amount ? `Mint ${fmtNear(amount)} test wNEAR to my wallet` : "Mint test wNEAR to my wallet"}

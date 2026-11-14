@@ -173,6 +173,7 @@ function FinalizeButton({ event, now, blockTime }: { event: EventState; now?: bi
   return (
     <TxButton
       demo="finalize"
+      action="finalize"
       tone="secondary"
       size="md"
       label="Finalize"
@@ -268,6 +269,7 @@ function ClosePanel({ config, s, v, walletUsdc }: { config: AppConfig; s: Scenar
 
       <TxButton
         demo="close-confirm"
+        action="close"
         label="Close and redeem"
         busyLabel="Closing…"
         blocker={blocker}
@@ -310,6 +312,7 @@ function WalletRedeem({ s }: { s: Scenario }) {
               size="md"
               tone="secondary"
               demo="redeem"
+              action="redeem"
               label="Redeem"
               busyLabel="Redeeming…"
               needs={{ contract: true, tokens: [r.asset] }}

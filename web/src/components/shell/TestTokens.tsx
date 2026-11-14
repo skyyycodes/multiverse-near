@@ -3,18 +3,20 @@
 import { useState } from "react";
 import { TxButton } from "@/components/ui/TxButton";
 import type { Tone } from "@/components/ui/Button";
+import { BRAND } from "@/lib/brand";
 import { CONTRACT_ID, readSource } from "@/lib/data/client";
 import type { AppConfig } from "@/lib/domain";
 import { ENV } from "@/lib/env";
 import { capOf, dropLabel, faucetMints, mintLabel, mintTx, type FaucetConfig } from "@/lib/faucet";
 import { useAppConfig, useBalances, useRegistration, type Balances } from "@/lib/hooks/useData";
-import { registerTx, useSubmit } from "@/lib/hooks/useTx";
+import { registerTx, TOP_UP, useSubmit } from "@/lib/hooks/useTx";
+import { GAS_LIGHT } from "@/lib/near/tx";
 import { useWallet } from "@/lib/near/wallet";
 import type { Asset, StorageBalance, StorageBounds } from "@/lib/types";
 import { toInternal } from "@/lib/units";
 
-/** The open mint exists on the testnet mock tokens only; design data signs nothing. */
-export const FAUCET_ON = ENV.network === "testnet" && process.env.NEXT_PUBLIC_FIXTURES !== "1";
+/** The open, capped mint exists on the mock tokens on the testnet chain (production and staging); design data signs nothing. */
+export const FAUCET_ON = ENV.chain === "testnet" && process.env.NEXT_PUBLIC_FIXTURES !== "1";
 
 /** True for a connected wallet that holds no wNEAR and no USDC at all. */
 export const walletEmpty = (b: Balances | undefined): boolean => Boolean(b && b.wnear === 0n && b.usdc === 0n);
@@ -44,7 +46,7 @@ export function FaucetProgress({ done, dark }: { done: readonly string[]; dark?:
 
 /**
  * "Get test tokens": mints the drop of each mock token the wallet holds less than, to the connected account itself
- * (so the token registers it), then registers the account with Multiverse if it is not yet. Each is one transaction
+ * (so the token registers it), then registers the account with the contract if it is not yet. Each is one transaction
  * the wallet asks to approve; a retry after a failure skips what already landed.
  */
 export function GetTestTokens({
@@ -80,6 +82,9 @@ export function GetTestTokens({
     <div className="flex flex-col gap-2">
       <TxButton
         demo={demo}
+        action="faucet"
+        gas={GAS_LIGHT}
+        deposit={TOP_UP}
         tone={tone}
         size={size}
         label="Get test tokens"
@@ -94,7 +99,7 @@ export function GetTestTokens({
       <FaucetProgress done={done} dark={dark} />
       {cfg && (
         <p className={`text-[12px] leading-relaxed ${dark ? "text-white/60" : "text-mute"}`}>
-          Mints {dropLabel(cfg)} to your wallet, then pays Multiverse&apos;s 0.1 NEAR storage deposit if you have none: up to three
+          Mints {dropLabel(cfg)} to your wallet, then pays {BRAND.name}&apos;s 0.1 NEAR storage deposit if you have none: up to three
           wallet approvals. Testnet only; the tokens have no value.
         </p>
       )}
@@ -128,9 +133,9 @@ async function getTestTokens(
   }
   if (!registered) {
     const bounds = await src.view<StorageBounds>(CONTRACT_ID, "storage_balance_bounds");
-    step("Registering with Multiverse…");
+    step(`Registering with ${BRAND.name}…`);
     hash = await submit(registerTx(bounds));
-    finished("Registered with Multiverse");
+    finished(`Registered with ${BRAND.name}`);
   }
   if (!hash) throw new Error("Nothing to do: your wallet already holds test tokens and is registered.");
   return hash;

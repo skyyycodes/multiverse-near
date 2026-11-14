@@ -109,7 +109,7 @@ nothing for an event that asks another question). `test:live` adds one query aga
 Vitest: number formatting, units, the order book and sale planner, settlement, lending maths, spot maths,
 transaction encoding, reading a refunded `ft_transfer_call` as a failure, the RPC fallbacks, the testnet faucet
 (which mints it sends, within the cap, and when the home screen offers it), when the home screen shows an "In
-Multiverse" balance, and the design fixtures' golden numbers. `decode.live.test.ts` decodes view answers captured
+IfVerse" balance, and the design fixtures' golden numbers. `decode.live.test.ts` decodes view answers captured
 from a freshly seeded sandbox node, so a renamed field fails here instead of as a blank screen.
 
 Playwright (`web/e2e`) covers the browser: the acceptance flow on a phone and a desktop against design fixtures, the

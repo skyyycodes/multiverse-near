@@ -2,6 +2,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
+import { BRAND } from "../brand";
 import { CONTRACT_ID, readSource } from "../data/client";
 import type { AppConfig } from "../domain";
 import { assertSuccess, type TxOutcome } from "../near/outcome";
@@ -62,7 +63,7 @@ export function useEnsureRegistered(config: AppConfig | undefined) {
         const bal = await src.view<StorageBalance | null>(CONTRACT_ID, "storage_balance_of", { account_id: account });
         if (!bal) {
           const bounds = await src.view<StorageBounds>(CONTRACT_ID, "storage_balance_bounds");
-          step("Registering with Multiverse…");
+          step(`Registering with ${BRAND.name}…`);
           await submit(registerTx(bounds));
         }
       }

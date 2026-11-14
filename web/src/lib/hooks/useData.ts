@@ -13,7 +13,7 @@ import {
   decodeResolve,
   decodeTrade,
 } from "../decode";
-import type { AppConfig, TokenCfg } from "../domain";
+import type { AppConfig, Tier, TokenCfg } from "../domain";
 import type {
   AdminViewJson,
   AppConfigView,
@@ -26,10 +26,11 @@ import type {
   StorageBounds,
   TradeViewJson,
 } from "../types";
+import { withTier } from "../near/tx";
 import { cellQuotes, type CellQuote } from "../orders";
 import { toInternal } from "../units";
 import { useNowSeconds } from "./useClock";
-import { useScenarioChoice } from "./useScenario";
+import { useGuardedMarketId, useMarketRef } from "./useMarket";
 
 /** Snapshots every 4 s, quotes every 6 s. */
 export const POLL_MS = 4_000;
@@ -39,13 +40,17 @@ const view = async <T>(method: string, args: Record<string, unknown> = {}, contr
   (await readSource()).view<T>(contractId, method, args);
 
 /**
- * Keep the previous snapshot on screen while a new one loads only when it belongs to the same scenario: switching
- * scenarios shows the loading state, never another scenario's numbers. Keys hold strings only (no bigint).
+ * Keep the previous snapshot on screen while a new one loads only when it belongs to the same market (key index 2)
+ * and, for tiered views, the same tier (key index 4): switching market or tier shows the loading state, never another
+ * market's numbers (WI-1). Keys hold strings only (no bigint).
  */
-function keepWithin(sid: number | undefined) {
-  return <T>(prev: T | undefined, prevQuery: Query<T, Error, T, readonly unknown[]> | undefined) =>
-    prevQuery && prevQuery.queryKey[2] === String(sid) ? prev : undefined;
+export function keepWithin(sid: number | undefined, tier?: Tier) {
+  return <T>(prev: T | undefined, prevQuery: Pick<Query<T, Error, T, readonly unknown[]>, "queryKey"> | undefined) =>
+    prevQuery && prevQuery.queryKey[2] === String(sid) && (tier === undefined || prevQuery.queryKey[4] === tier) ? prev : undefined;
 }
+
+/** View args for a tiered view: `tier` only when it is not Normal (an omitted tier is Normal). */
+const tierArgs = (sid: number | undefined, account: string | null, tier: Tier | undefined) => withTier({ scenario_id: sid, account_id: account }, tier);
 
 /** The contract names its tokens; a build made for another deployment must not quietly read balances elsewhere. */
 export function checkTokens(c: AppConfig): AppConfig {
@@ -70,11 +75,14 @@ export function useAppConfig() {
   });
 }
 
-/** The scenario id the screens show, from the on-chain demo record. */
+/**
+ * The market a screen shows: the one its MarketGuard checked, else the URL's id or its fallback (useMarket.ts). Screens
+ * still on this hook read the guard's id; new code takes the id from MarketGuard directly.
+ */
 export function useScenarioId(config: AppConfig | undefined): number | undefined {
-  const { which } = useScenarioChoice();
-  const id = which === "2x2" ? config?.demo?.scenario2x2 : config?.demo?.scenarioBinary;
-  return id ?? undefined;
+  const guarded = useGuardedMarketId();
+  const ref = useMarketRef(config);
+  return guarded ?? ref.sid;
 }
 
 export function useTrade(sid: number | undefined, account: string | null) {
@@ -87,38 +95,40 @@ export function useTrade(sid: number | undefined, account: string | null) {
   });
 }
 
-export function useBorrow(sid: number | undefined, account: string | null) {
+/** `borrow_view` for one tier of the market (Normal when none is named). */
+export function useBorrow(sid: number | undefined, account: string | null, tier: Tier = "normal") {
   return useQuery({
-    queryKey: ["borrow", CONTRACT_ID, String(sid), account ?? ""],
+    queryKey: ["borrow", CONTRACT_ID, String(sid), account ?? "", tier],
     enabled: sid !== undefined,
-    queryFn: async () => decodeBorrow(await view<BorrowViewJson>("borrow_view", { scenario_id: sid, account_id: account })),
+    queryFn: async () => decodeBorrow(await view<BorrowViewJson>("borrow_view", tierArgs(sid, account, tier))),
     refetchInterval: POLL_MS,
-    placeholderData: keepWithin(sid),
+    placeholderData: keepWithin(sid, tier),
   });
 }
 
-export function useLend(sid: number | undefined, account: string | null) {
+/** `lend_view` for one tier of the market (Normal when none is named). */
+export function useLend(sid: number | undefined, account: string | null, tier: Tier = "normal") {
   return useQuery({
-    queryKey: ["lend", CONTRACT_ID, String(sid), account ?? ""],
+    queryKey: ["lend", CONTRACT_ID, String(sid), account ?? "", tier],
     enabled: sid !== undefined,
-    queryFn: async () => decodeLend(await view<LendViewJson>("lend_view", { scenario_id: sid, account_id: account })),
+    queryFn: async () => decodeLend(await view<LendViewJson>("lend_view", tierArgs(sid, account, tier))),
     refetchInterval: POLL_MS,
-    placeholderData: keepWithin(sid),
+    placeholderData: keepWithin(sid, tier),
   });
 }
 
 /** Resolve and admin poll every 2 s while a proposal is open, so the countdown and Finalize track the chain. */
-export function useResolve(sid: number | undefined, account: string | null) {
+export function useResolve(sid: number | undefined, account: string | null, tier: Tier = "normal") {
   return useQuery({
-    queryKey: ["resolve", CONTRACT_ID, String(sid), account ?? ""],
+    queryKey: ["resolve", CONTRACT_ID, String(sid), account ?? "", tier],
     enabled: sid !== undefined,
-    queryFn: async () => decodeResolve(await view<ResolveViewJson>("resolve_view", { scenario_id: sid, account_id: account })),
+    queryFn: async () => decodeResolve(await view<ResolveViewJson>("resolve_view", tierArgs(sid, account, tier))),
     refetchInterval: (q) => {
       const d = q.state.data;
       const open = d && [...d.events, ...(d.pastFedEvent ? [d.pastFedEvent] : [])].some((e) => e.proposalOpen);
       return open ? 2_000 : POLL_MS;
     },
-    placeholderData: keepWithin(sid),
+    placeholderData: keepWithin(sid, tier),
   });
 }
 

@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { BranchLines } from "@/components/brand/BranchLines";
 import { IconChevronLeft } from "@/components/brand/Icons";
 import { useIsDesktop } from "@/lib/hooks/useMedia";
+import { Banners } from "./Banners";
 import { MobileTopBar } from "./TopBar";
 
 /**
@@ -48,6 +49,7 @@ export function Screen({
         <BranchLines opacity={0.12} />
         <div className="relative flex flex-col gap-5">
           <MobileTopBar />
+          <Banners compact />
           {back && <BackLink {...back} dark />}
           {hero}
         </div>

@@ -100,3 +100,57 @@ export function hfTone(hf: bigint | null): Tone {
 
 /** The input text for a "max" style button: the value with `digits` decimals and no grouping commas. */
 export const inputText = (x: bigint, digits: number) => fmt(x, digits).replaceAll(",", "");
+
+/** `x` (18 decimals) as a percentage of one (WAD), half up: fmtPct(0.4e18, 1) = "40.0%". */
+export const fmtPct = (x: bigint, digits = 1): string => pct(x, ONE, digits);
+
+/** Basis points as a percentage, at most two decimals, no trailing zeros: 6700 → "67%", 6931 → "69.31%", 12100 → "121%". */
+export function fmtBps(bps: number): string {
+  const sign = bps < 0 ? "-" : "";
+  const v = Math.abs(Math.trunc(bps));
+  const whole = Math.floor(v / 100);
+  const frac = String(v % 100).padStart(2, "0").replace(/0+$/, "");
+  return `${sign}${whole}${frac ? `.${frac}` : ""}%`;
+}
+
+/**
+ * Dollars in a card's tight space, truncated toward zero like `fmt`: "$950", "$999.99", "$1.0k", "$42.1k", "$999.9k",
+ * "$1.00M", "$1.25M", "$2.50B".
+ */
+export function fmtCompactUsd(x: bigint): string {
+  const neg = x < 0n;
+  const v = neg ? -x : x;
+  const sign = neg && v >= ONE / 100n ? "-" : "";
+  let body: string;
+  if (v < 1_000n * ONE) body = fmt(v, 2).replace(/\.00$/, "");
+  else if (v < 1_000_000n * ONE) body = `${fmt(v / 1_000n, 1)}k`;
+  else if (v < 1_000_000_000n * ONE) body = `${fmt(v / 1_000_000n, 2)}M`;
+  else body = `${fmt(v / 1_000_000_000n, 2)}B`;
+  return `${sign}$${body}`;
+}
+
+/** Seconds from now as words: "in 5 d", "in 3 h", "in 12 min", "in 40 s", "now", "2 min ago" (truncated). */
+export function relTime(deltaSec: number | bigint): string {
+  const d = Number(deltaSec);
+  if (d === 0) return "now";
+  const a = Math.abs(d);
+  const span = a < 60 ? `${Math.floor(a)} s` : a < 3_600 ? `${Math.floor(a / 60)} min` : a < 86_400 ? `${Math.floor(a / 3_600)} h` : `${Math.floor(a / 86_400)} d`;
+  return d > 0 ? `in ${span}` : `${span} ago`;
+}
+
+/** UTF-8 length of a text, as the contract counts its limits (question 280 B, rule 1024 B…). */
+export const utf8Bytes = (s: string): number => new TextEncoder().encode(s).length;
+
+/** Unix seconds as a `datetime-local` value read as UTC ("2027-06-30T23:59"). */
+export function utcInputValue(sec: number | bigint): string {
+  return new Date(Number(sec) * 1000).toISOString().slice(0, 16);
+}
+
+/** A `datetime-local` value read as UTC, in unix seconds; undefined unless it is a full date and time. */
+export function parseUtcInput(v: string): number | undefined {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(v);
+  if (!m) return undefined;
+  const ms = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]), Number(m[6] ?? "0"));
+  if (Number.isNaN(ms) || new Date(ms).toISOString().slice(0, 16) !== `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}`) return undefined;
+  return Math.floor(ms / 1000);
+}

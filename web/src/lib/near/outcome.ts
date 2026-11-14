@@ -1,3 +1,7 @@
+import { fmt, fmtNear, fmtUsd, pct } from "../format";
+
+const WAD = 10n ** 18n;
+
 // Reading a transaction's result. On NEAR a failed ft_on_transfer does not fail the transaction: the token contract
 // refunds and the transaction still ends in SuccessValue("0"). So "did it work" means: no receipt failed, and an
 // ft_transfer_call that should use everything it sent used all of it.
@@ -168,3 +172,100 @@ export function assertSuccess(o: TxOutcome, opts: { expectUsed?: bigint | "nonze
 
 /** Payouts the contract could not deliver (receiver not registered on the token): credited to the internal balance. */
 export const payoutFailures = (o: TxOutcome) => eventsOf(o, "multiverse").filter((e) => e.event === "payout_failed");
+
+// ---- v2 outcome readers (web design 5.3) ----
+
+/** The `multiverse` event versions this build reads: v1 contracts log 1.0.0, v2 contracts 2.0.0 (SPEC.md 3.4). */
+export const MULTIVERSE_VERSIONS: readonly string[] = ["1.0.0", "2.0.0"];
+
+/** Every data item of every `multiverse` line named `event`, across receipts and lines (one line may carry many). */
+export function eventItems(o: TxOutcome, event: string): Record<string, unknown>[] {
+  return eventsOf(o, "multiverse")
+    .filter((e) => e.event === event && (e.version === undefined || MULTIVERSE_VERSIONS.includes(e.version)))
+    .flatMap((e) => e.data);
+}
+
+const amountOf = (v: unknown): bigint => (typeof v === "string" && /^\d+$/.test(v) ? BigInt(v) : typeof v === "number" && Number.isSafeInteger(v) ? BigInt(v) : 0n);
+const idOf = (v: unknown): number | undefined => (typeof v === "number" && Number.isSafeInteger(v) ? v : typeof v === "string" && /^\d+$/.test(v) ? Number(v) : undefined);
+const sum = (items: Record<string, unknown>[], key: string) => items.reduce((s, d) => s + amountOf(d[key]), 0n);
+
+/** T27, T28: the new proposal's id (`proposal_created`). */
+export const createdProposalId = (o: TxOutcome): number | undefined => idOf(eventItems(o, "proposal_created")[0]?.proposal_id);
+
+/** T29: a pledge counts only with its `pledged` event; `open_scheduled` means a detached opening follows. */
+export function pledgeResult(o: TxOutcome): { pledged: boolean; openScheduled: boolean; openDeferred: string | undefined } {
+  const deferred = eventItems(o, "open_deferred")[0]?.blocker;
+  return {
+    pledged: eventItems(o, "pledged").length > 0,
+    openScheduled: eventItems(o, "open_scheduled").length > 0,
+    openDeferred: typeof deferred === "string" ? deferred : undefined,
+  };
+}
+
+/** T29 (auto-open), T33: the market an opening created (`market_opened`). */
+export const openedMarketId = (o: TxOutcome): number | undefined => idOf(eventItems(o, "market_opened")[0]?.scenario_id);
+
+export type LiquidationResult = {
+  repaid: bigint;
+  pieces: string[];
+  seized: bigint[];
+  seizeAll: boolean;
+  writtenOff: bigint;
+  cash: { cash: bigint; leftUsdc: bigint[]; minOut: bigint } | null;
+  badDebt: { debt: bigint; covered: bigint; socialized: bigint } | null;
+};
+
+/** T38: what a liquidation did (`liquidate`, optional `cash_out` and `bad_debt`); undefined without a `liquidate` line. */
+export function liquidationResult(o: TxOutcome): LiquidationResult | undefined {
+  const l = eventItems(o, "liquidate")[0];
+  if (!l) return undefined;
+  const c = eventItems(o, "cash_out")[0];
+  const b = eventItems(o, "bad_debt")[0];
+  return {
+    repaid: amountOf(l.repaid),
+    pieces: Array.isArray(l.pieces) ? l.pieces.map(String) : [],
+    seized: Array.isArray(l.seized) ? l.seized.map(amountOf) : [],
+    seizeAll: l.seize_all === true,
+    writtenOff: amountOf(l.written_off),
+    cash: c ? { cash: amountOf(c.cash), leftUsdc: Array.isArray(c.left_usdc) ? c.left_usdc.map(amountOf) : [], minOut: amountOf(c.min_out) } : null,
+    badDebt: b ? { debt: amountOf(b.debt), covered: amountOf(b.covered), socialized: amountOf(b.socialized) } : null,
+  };
+}
+
+/** T38's result line; `seizedFraction` (WAD, from the quote) words a partial tokens-mode seizure. */
+export function liquidationLine(r: LiquidationResult, seizedFraction?: bigint): string {
+  const repaid = `Repaid ${fmtUsd(r.repaid)}`;
+  const got = r.cash
+    ? `received ${fmtUsd(r.cash.cash)} in cash`
+    : r.seizeAll
+      ? "seized every piece"
+      : seizedFraction !== undefined
+        ? `seized ${pct(seizedFraction, WAD, 2)} of every piece`
+        : `seized ${r.seized.filter((s) => s > 0n).length} pieces`;
+  const bad = r.badDebt ? `; wrote off ${fmtUsd(r.badDebt.debt)} (insurance covered ${fmtUsd(r.badDebt.covered)})` : "";
+  return `${repaid}; ${got}${bad}`;
+}
+
+/** T39: "Wrote off $x: insurance $y, lenders $z"; undefined without a `bad_debt` line. */
+export function badDebtLine(o: TxOutcome): string | undefined {
+  const b = eventItems(o, "bad_debt")[0];
+  if (!b) return undefined;
+  return `Wrote off ${fmtUsd(amountOf(b.debt))}: insurance ${fmtUsd(amountOf(b.covered))}, lenders ${fmtUsd(amountOf(b.socialized))}`;
+}
+
+/** T30, T31: "Returned 100.00 USDC + 3.00 wNEAR" (`pledge_returned`, every item summed). */
+export function pledgeReturnedLine(o: TxOutcome): string | undefined {
+  const items = eventItems(o, "pledge_returned");
+  if (items.length === 0) return undefined;
+  const usdc = sum(items, "usdc");
+  const wnear = sum(items, "wnear");
+  const parts = [usdc > 0n ? `${fmt(usdc)} USDC` : undefined, wnear > 0n ? `${fmtNear(wnear)} wNEAR` : undefined].filter(Boolean);
+  return parts.length ? `Returned ${parts.join(" + ")}` : "Nothing was left to return";
+}
+
+/** T32: "Received $… and … wNEAR; leftover world tokens are in your holdings" (`seed_withdrawn`). */
+export function seedWithdrawnLine(o: TxOutcome): string | undefined {
+  const items = eventItems(o, "seed_withdrawn");
+  if (items.length === 0) return undefined;
+  return `Received ${fmtUsd(sum(items, "usdc_out"))} and ${fmtNear(sum(items, "wnear_out"))} wNEAR; leftover world tokens are in your holdings`;
+}
