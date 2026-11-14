@@ -190,7 +190,8 @@ export function useAllMarkets(listedOnly = true) {
 export function useEvents(ids: readonly number[]) {
   const key = [...new Set(ids)].sort((a, b) => a - b);
   return useQuery({
-    queryKey: ["events", CONTRACT_ID, key.join(",")],
+    // Not "events": useEventTexts (useMarkets.ts) caches the same ids under that key as a Map, this one is a list.
+    queryKey: ["eventList", CONTRACT_ID, key.join(",")],
     enabled: key.length > 0,
     queryFn: async (): Promise<EventState[]> => {
       const out: EventState[] = [];
