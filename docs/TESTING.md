@@ -16,7 +16,7 @@ pass/fail result should not.
 | OutLayer guest | `cd oracle/fred-guest && cargo test --locked` | 12 passed |
 | Scripts | `pnpm -C scripts test` | 464 tests: 463 passed, 1 skipped (live FRED) |
 | Scripts with live FRED | `pnpm -C scripts test:live` | 18 passed, including the live query |
-| App unit tests | `pnpm -C ui test` | 386 passed in 37 files |
+| App unit tests | `pnpm -C ui test` | 397 passed in 38 files |
 | App typecheck and lint | `pnpm -C ui typecheck` and `pnpm -C ui lint` | clean (lint prints warnings only) |
 | Earlier interface, not deployed | `pnpm -C web test` | 304 passed in 37 files |
 | End-to-end on a sandbox node | see "Sandbox end to end" below | all 13 steps ok (first version, 2026-11-12) |
