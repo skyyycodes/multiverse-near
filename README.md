@@ -3,7 +3,7 @@
 **What if your what-ifs became worlds?** A multiverse for the real world: hold NEAR in the futures you like
 and dollars in the ones you fear.
 
-IfVerse was first called Multiverse Lending; the testnet account ids and the web address still use that name.
+IfVerse was first called Multiverse Lending; the web address, the repository and the first version's testnet accounts still use that name.
 
 Demo video: (link)
 
@@ -19,7 +19,9 @@ Everything runs in one NEAR contract on NEAR testnet with mock tokens. Version 2
 `app.ifverse-staging.testnet` and the web app is hosted at https://multiverse-lending.vercel.app. The first
 version's contract, `app.multiverse-near.testnet`, is still on chain and unchanged.
 
-New to this? [docs/LEARN.md](docs/LEARN.md) explains the project from zero.
+- How it works: https://multiverse-lending.vercel.app/docs/
+- Whitepaper: https://multiverse-lending.vercel.app/ifverse-whitepaper.pdf
+- New to this? [docs/LEARN.md](docs/LEARN.md) explains the project from zero.
 
 ## The problem
 
@@ -50,27 +52,33 @@ covers the debt in whichever world comes true.
 
 Explorer: `https://testnet.nearblocks.io/address/<account>`. The same ids are in `deployments/staging.json`. The
 contract's code hash is `9K62NFX7gQiGajRuLTFcPy7F9n5nADSrFgESttUSFcRR`; both tokens run
-`8afCVgFKDom2fYt5BZatMXPLXMiJ1vWHBiUTpN6AyggY`. Both are what `scripts/build-wasm.sh` builds.
+`8afCVgFKDom2fYt5BZatMXPLXMiJ1vWHBiUTpN6AyggY`. "The wasm build" below shows how to rebuild them and where a build
+can differ.
 
 ### What is live
 
-- **Eight markets on five real events**, each with a written rule and a public source: SPICE on NEAR mainnet by
-  Mar 31 2027, a Fed cut at the December 2026 meeting, the October 2026 Fed decision, NEAR's close on Nov 1 2026, and
-  NEAR above $3.25 on Dec 31 2026. Markets have two, four or eight worlds (market 8 combines three events).
+- **Ten markets on six real events**, each with a written rule and a public source: SPICE on NEAR mainnet by
+  Mar 31 2027, a Fed cut at the December 2026 meeting, the October 2026 Fed decision, NEAR's close above $4.00 on
+  Nov 1 2026, NEAR above $3.25 on Dec 31 2026, and more than 30 million NEAR mainnet transactions in December 2026.
+  Markets have two, four or eight worlds (market 8 combines three events).
+- **Two events already resolved:** the October Fed decision (HOLDS, from FRED through OutLayer) and NEAR's Nov 1
+  close (YES, Coinbase closed at 4.284), each after a 10-minute dispute window. Their markets, 2 and 3, are settled;
+  see "Real-data resolution".
 - **Lending in three tiers** on market 1 (SPICE × Fed December): Safe, Normal and Bold borrow up to 50, 60 and 70%
-  of the worst world's value and liquidate at 60, 70 and 80%. Bold has an insurance fund. The other markets are
+  of the worst world's value and liquidate at 60, 70 and 80%. Each tier keeps 10% of the interest it earns as an
+  insurance reserve, which is never lent and absorbs bad debt before lenders do. The other markets are
   trading-only.
 - **Proposals and pledges:** anyone can propose a combination of up to three open events, which opens by itself
   when pledges reach its goal, or a brand-new event with a bond, which the owner approves or rejects. Markets 4 to
-  8 were opened this way.
+  10 were opened this way. Proposals #18 (SPICE × December transactions) and #20 (NEAR on Dec 31 × December
+  transactions) are collecting pledges now.
 - **An outside NEAR/USD check:** the reporter posts the median of Coinbase, Kraken, Gemini and CoinGecko. Borrowing
   and opening a market need a reference under an hour old, and borrowing stops if a market's implied price drifts
   more than 10% from it.
 - **A hosted keeper** (`/api/keeper/` on the same Vercel project) posts that reference, keeps the lendable market
-  within 4% of it and liquidates unhealthy loans. It runs when anyone has the site open (at most once a minute)
-  and on a daily cron, so nothing depends on a laptop.
-- The October Fed decision and NEAR's Nov 1 close were left open at launch so the demo video resolves them on
-  camera from their public sources (10-minute dispute window).
+  within 4% of it and liquidates unhealthy loans. It runs on a daily Vercel cron, every 30 minutes from an outside
+  scheduler, and whenever someone has the site open (each browser pings it at most once a minute), so nothing
+  depends on a laptop.
 
 The testnet demo is shared: what you see is the state that trades, loans and proposals so far have left.
 
@@ -89,9 +97,10 @@ near account create-account sponsor-by-faucet-service <you>.testnet \
   autogenerate-new-keypair save-to-keychain network-config testnet create
 ```
 
-- Test wNEAR and USDC: once your wallet is connected, click "Get test tokens" on the market list (or in the
-  account sheet). It mints 2,000 wNEAR and 5,000 USDC to your own account and pays the 0.1 NEAR IfVerse storage
-  deposit if you have none. The mock tokens have an open `mint`; without the app, NEAR CLI does the same:
+- Test wNEAR and USDC: once your wallet is connected, click your account name (top right), then "Get test
+  tokens" (Portfolio has the same button under Wallet). It mints 2,000 wNEAR and 5,000 USDC to your own account and
+  pays the 0.1 NEAR IfVerse storage deposit if you have none, in up to three wallet approvals. The mock tokens have
+  an open `mint`; without the app, NEAR CLI does the same:
 
 ```bash
 near contract call-function as-transaction wnear.ifverse-staging.testnet mint \
@@ -109,34 +118,42 @@ near contract call-function as-transaction usdc.ifverse-staging.testnet mint \
 
 ### Open the app
 
-The hosted app is https://multiverse-lending.vercel.app: a static Next.js export plus the keeper function, reading
-`app.ifverse-staging.testnet`. Its paths end in a slash. To run the same app locally:
+The hosted app is https://multiverse-lending.vercel.app: a static Next.js export of `ui/` plus the keeper function,
+reading `app.ifverse-staging.testnet`. Its paths end in a slash. To run the same app locally:
 
 ```bash
-pnpm -C web install
-pnpm -C web dev:staging   # http://localhost:3040, reads app.ifverse-staging.testnet
+pnpm -C ui install
+pnpm -C ui dev:staging   # http://localhost:5173, reads app.ifverse-staging.testnet
 ```
+
+`web/` is the earlier interface; it stays in the repository but is not deployed.
 
 ### Do X - see Y
 
-1. Open the site. See the market list: search, filter and sort; each card shows its worlds and prices. Open a
-   market (`/market/?id=1`) to see its worlds, prices, actions and related markets; `/market/?id=8` shows eight
-   worlds.
-2. Click "Connect NEAR wallet", then "Get test tokens".
-3. Split (`/split/`): one wNEAR becomes one NEAR-if-world in every world of the market. Sell (`/sell/`): pick the
-   worlds you fear and sell NEAR there for USDC-if-world.
-4. Lend (`/lend/?id=1`): supply USDC in Safe, Normal or Bold and withdraw it. Borrow (`/borrow/?id=1`): post
+1. Open the site. It starts on a landing page. Click Markets in the top bar: search (also Ctrl/⌘+K), category
+   chips and Sort (Money in pools, Ending soon, Newest). Click a card: `/market/?id=1` shows one row per world, the
+   rules and resolution, the ticket (Fund, Hedge, Borrow, Lend, Liquidity) and related markets; `/market/?id=8`
+   has eight worlds.
+2. Click "Connect wallet" ("Connect" on a phone) and pick a wallet, then click your account name and "Get test
+   tokens".
+3. Fund tab: split wNEAR or USDC into every world still possible (the split page, `/split/?id=1`, also merges a
+   full set back). Hedge tab, or Hedge on a world's row: pick the worlds you fear and sell NEAR there for
+   USDC-if-world in one transaction.
+4. Lend and Borrow (top bar, or the tabs on market 1): supply USDC in Safe, Normal or Bold and withdraw it; post
    collateral in a tier, borrow USDC, and see the health factor in your worst world; repay and take the collateral
    back.
-5. Order book (More, then Order book): post a bid or an ask in a world, or take a resting one.
-6. At-risk loans (`/liquidate/`): every borrower with a health factor; a loan below 1 can be liquidated for tokens
-   or for cash.
-7. Propose a market (`/propose/`): a combination of open events, or a new event with its rule and source. Pledge
-   on its page (`/proposal/?p=N`); a combination opens by itself at its goal, and pledges are refunded if it does
-   not.
-8. Resolve (`/resolve/`): each event's question, rule and source, the proposed outcome and its dispute window.
-   Once final, the worlds that did not happen die and the surviving world redeems 1:1 for real tokens.
-9. Admin (`/admin/`) is the owner's screen: approve or reject new events, pause flags, contract version.
+5. Order book (top bar, `/orders/`): post a bid or an ask in a world, or take a resting one.
+6. Portfolio (top bar): the futures you hold, your loans and supply by tier, positions and open orders.
+7. At-risk loans (footer, `/liquidate/`): every borrower with a health factor; a loan below 1 can be liquidated
+   for tokens or for cash.
+8. Propose (top bar, `/propose/`): a combination of open events, or a new event with its rule and source.
+   Proposals (footer, `/proposals/`) lists them; pledge on a proposal's page, for example `/proposal/?p=18`. A
+   combination opens by itself at its goal; a pledge can be taken back until then, and all of it if the proposal
+   ends without opening.
+9. Resolve (top bar, `/resolve/`): each event's question, rule and source, the proposed outcome and its 10-minute
+   dispute window. Events 3 and 4 are final: in markets 2 and 3 the worlds that did not happen are dead and the
+   surviving world redeems 1:1 for real tokens.
+10. Admin (footer, `/admin/`) is the owner's screen: approve or reject new events, pause flags, contract version.
 
 ## Verify it yourself
 
@@ -148,14 +165,14 @@ All commands run from the repository root. Rust 1.86.0 is pinned by `rust-toolch
 cargo test --workspace
 ```
 
-Measured on 2026-11-12 on `main`: 551 tests pass, 0 fail, 0 ignored.
+Measured on 2026-11-14 on `main` (`d46de5e`): 856 tests pass, 0 fail, 0 ignored.
 
 | Test binary | Passed |
 |---|---|
-| `multiverse-contract` unit tests | 413 |
-| `multiverse-math` unit tests | 64 |
-| `multiverse-math` `tests/pools.rs` | 23 |
-| `multiverse-math` `tests/properties.rs` | 14 |
+| `multiverse-contract` unit tests | 675 |
+| `multiverse-math` unit tests | 103 |
+| `multiverse-math` `tests/pools.rs` | 26 |
+| `multiverse-math` `tests/properties.rs` | 15 |
 | `multiverse-math` `tests/libraries.rs` | 10 |
 | `multiverse-math` `tests/reference_vectors.rs` (4,188 reference vector lines generated from the prototype's maths) | 2 |
 | `mock-ft` unit tests | 25 |
@@ -163,11 +180,23 @@ Measured on 2026-11-12 on `main`: 551 tests pass, 0 fail, 0 ignored.
 `cargo fmt --all --check` and `cargo clippy --workspace --all-targets -- -D warnings` pass. `docs/TESTING.md`
 describes every layer and the six invariants.
 
-### The whole flow on a local sandbox node
+### Script and app tests
 
-Needs `cargo-near` 0.17.0 (`cargo install cargo-near --version 0.17.0 --locked`) and the nearcore 2.6.5 sandbox
-binary, the version these scripts were run with (the download below was checked on macOS arm64). The node listens
-on 127.0.0.1:3030; to use another port, set `SANDBOX_RPC_PORT` for `sandbox` and
+```bash
+pnpm -C scripts test       # 464 tests: 463 pass, 1 skipped (the live FRED query)
+pnpm -C scripts test:live  # the 18 FRED tests, including the live query
+pnpm -C ui install && pnpm -C ui test   # vitest: 386 tests in 37 files
+```
+
+`pnpm -C ui typecheck` and `pnpm -C ui lint` pass (lint prints warnings only). The browser flows (Playwright,
+`ui/e2e`) run against the staging deployment with the team's test keys; `ui/INTEGRATION.md` has the commands.
+
+### The whole flow on a local sandbox node (first version)
+
+These scripts drive the first version's acceptance flow on a local nearcore 2.6.5 sandbox node. The run below is
+from 2026-11-12 and has not been repeated on v2. It needs `cargo-near` 0.17.0
+(`cargo install cargo-near --version 0.17.0 --locked`) and the sandbox binary (the download below was checked on
+macOS arm64). The node listens on 127.0.0.1:3030; to use another port, set `SANDBOX_RPC_PORT` for `sandbox` and
 `NEAR_RPC_URL=http://127.0.0.1:<port>` for the other scripts.
 
 ```bash
@@ -183,61 +212,12 @@ NEAR_NETWORK=sandbox pnpm -C scripts e2e          # seeds a fresh demo and runs 
 pnpm -C scripts sandbox stop
 ```
 
-Expected lines (from a run on 2026-11-12 from `main`; the TWAP prices, and the SHIPS·CUTS and SHIPS
-collateral values priced from them, depend on how many blocks the sandbox skips and can differ slightly between
-runs; the proceeds, health factors and max borrows do not):
-
-```
-seed:
-2,000 NEAR sale, pool alone: 4748.29 USDC, average 2.3741
-2,000 NEAR sale, Ravi's bid then the pool: 4881.88 USDC, average 2.4409
-
-demo-sale:
-world 0 SHIPS·CUTS: wNEAR-if-w 2000.00, USDC-if-w 0.00 | collateral value 7399.27 | TWAP price 3.6996
-world 1 DELAYED·CUTS: wNEAR-if-w 0.00, USDC-if-w 5865.05 | collateral value 5865.05 | TWAP price 2.9973
-world 2 SHIPS·HOLDS: wNEAR-if-w 0.00, USDC-if-w 6451.55 | collateral value 6451.55 | TWAP price 3.2970
-world 3 DELAYED·HOLDS: wNEAR-if-w 0.00, USDC-if-w 4881.88 | collateral value 4881.88 | TWAP price 2.4971
-worst world: DELAYED·HOLDS | HF 1.22 | max borrow at HF 1: 3661.41
-worst world: DELAYED | HF 1.36 | max borrow at HF 1: 4105.53
-
-e2e (last lines):
-== summary
-  ok      1. grid, disconnected
-  ok      2. register and connect Alice
-  ok      3-4. sell in DELAYED·CUTS, SHIPS·HOLDS and DELAYED·HOLDS
-  ok      5. borrow 3000
-  ok      6. lend (Leo supplies and withdraws all)
-  ok      7. order book in SHIPS·CUTS (Ravi asks 3.75, bids 3.60 for 1,000 NEAR each; Sam takes the ask)
-  ok      8. Root LP (Uma deposits 5,000 NEAR + 20,000 USDC, withdraws all)
-  ok      9. admin pushes DELAYED·HOLDS down with 3,000 NEAR; Carl's unhedged loan
-  ok      9b. Leo liquidates Carl (repay max, half the debt at most)
-  ok      10. resolution: the reporter proposes Fed HOLDS, SPICE resolves DELAYED
-  ok      11a. Alice closes her loan and redeems
-  ok      11b. Ravi redeems his DELAYED·HOLDS position
-  ok      12. failure paths
-```
-
-In the binary scenario Alice's DELAYED proceeds are 5474.04 USDC-if-w. The sandbox skips blocks instead of waiting
-for the TWAP window. After every step that moves tokens `e2e` checks the contract's views and that every world of both scenarios is
-still fully backed; Leo's liquidation took Carl from HF 0.86 to 0.93. Transaction hashes differ on every run.
-
-The same flow runs on testnet with `NEAR_NETWORK=testnet pnpm -C scripts e2e` (it needs the owner and persona keys
-in `.keys/testnet/`, so only the team can run it). It prints every transaction with its nearblocks link and waits in
-real time where the sandbox skips blocks, including the 30-minute TWAP window. Against the deployed code
-`G6GtUs6A...` it ran on 2026-11-12 from 12:08 to 12:47 UTC and printed the same 13 `ok` lines, with 88 transactions
-and real waits (56 s for the new pools, 30 minutes for the TWAP to take the pushed-down DELAYED·HOLDS price, 12 s of
-dispute window). Alice's DELAYED·HOLDS proceeds were 4881.88 and her HF 1.22, as on the sandbox; Leo's liquidation
-took Carl from HF 0.86 to 0.95. The testnet demo was seeded again afterwards, at 12:56 UTC (scenarios 5 and 6).
-
-### Script and web tests
-
-```bash
-pnpm -C scripts test       # 105 tests: 104 pass, 1 skipped (the live FRED query)
-pnpm -C scripts test:live  # the 18 FRED tests, including the live query
-pnpm -C web install && pnpm -C web test   # vitest: 107 tests in 17 files
-```
-
-The browser acceptance flow (Playwright, against fixtures, testnet and the sandbox) is described in `web/README.md`.
+On that run `demo-sale` printed the numbers in "Demo numbers" below (worst world DELAYED·HOLDS, HF 1.22, max borrow
+at HF 1: 3661.41; the TWAP prices depend on how many blocks the sandbox skips), and `e2e` ended with 13 `ok` steps,
+which `docs/TESTING.md` lists. After every step that moves tokens `e2e` checks the contract's views and that every
+world is still fully backed. The same flow ran on testnet against the first version's contract (code `G6GtUs6A...`)
+on 2026-11-12 from 12:08 to 12:47 UTC: 88 transactions, the same 13 `ok` lines, with real waits for the 30-minute
+TWAP window.
 
 ### The wasm build
 
@@ -246,41 +226,49 @@ pnpm -C scripts build:wasm
 ```
 
 It builds both contracts with `cargo near build non-reproducible-wasm --locked`, rewrites local paths out of the
-binaries, checks that none is left and prints the sha256 of each. Three builds at different paths (two clean clones
-of commit `04a3d42` and the main checkout) printed the same contract hash:
+binaries, checks that none is left and prints the sha256 of each. On 2026-11-14 a build of `main` (`d46de5e`)
+printed:
 
 ```
-e0392c0eb7fe7a1af0d1f733f0dcc05aa94a33d320dd4d2ff576a83265da6311  multiverse_contract.wasm
+7b7fa1502e66cb6467ce9a0823d5277bd248fda2c61e073a5241d26286a9eb54  multiverse_contract.wasm
+70a12a7f3432df1f59f176cb756ff4431c59f382ed7f10923bcd831542b3c0a1  mock_ft.wasm
 ```
 
-The mock token's sha256 is `70a12a7f3432df1f59f176cb756ff4431c59f382ed7f10923bcd831542b3c0a1`.
-
-In base58 these are the code hashes on testnet: `G6GtUs6AqHfxRb8YCdBx5dv1bgiQ3c1gDhPE9ygQTkEt` on
-`app.multiverse-near.testnet` (deployed on 2026-11-12 at 12:08 UTC by `pnpm -C scripts deploy:contract`, deploy and
-init transaction [`F5X2U1CS...`](https://testnet.nearblocks.io/txns/F5X2U1CSpptsNUEUeeeixcw79ERvfGLFEpREwpnMvWc3)) and
+In base58 these are the code hashes on testnet: `9K62NFX7gQiGajRuLTFcPy7F9n5nADSrFgESttUSFcRR` on
+`app.ifverse-staging.testnet` (deployed with `new()` in one transaction on 2026-11-14 at 04:22 UTC,
+[`C3KthRtF...`](https://testnet.nearblocks.io/txns/C3KthRtFPyJa68XRXNqBjvE6LpTqZfPgKsAo2U73bcpU)) and
 `8afCVgFKDom2fYt5BZatMXPLXMiJ1vWHBiUTpN6AyggY` on both token accounts. To read one:
 
 ```bash
 curl -s https://test.rpc.fastnear.com -H 'Content-Type: application/json' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"query","params":{"request_type":"view_account","finality":"final","account_id":"app.multiverse-near.testnet"}}' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"query","params":{"request_type":"view_account","finality":"final","account_id":"app.ifverse-staging.testnet"}}' \
   | grep -o '"code_hash":"[^"]*"'
 ```
 
-Before `1ad9891`, two view types were both named `RootLpHolding` and the near-sdk ABI embedded in the wasm
-described whichever one the build picked, so clean builds could differ. `1ad9891` renames the lend view's copy to
-`RootLpHoldingView` (the JSON is unchanged).
+The contract build is not yet reproducible everywhere. Two view types are both named `ReferenceView`
+(`contracts/multiverse/src/reference.rs` and `contracts/multiverse/src/catalog/mod.rs`; the JSON each view returns
+is not affected), and the ABI that near-sdk embeds in the wasm describes whichever one the build picks. A second
+build of the same commit, from a clean clone at another path, printed
+`7ce7b6bcc24d1cf6ef308e6b0ade40ae71b0ebc3af958d8343ea0c1846d0fb27` (base58 `9QaV39eE...`). Its embedded ABI differs
+from the deployed one only in that definition (all 199 functions are the same) and is 28 bytes shorter. We believe
+the other differing bytes come from the same cause: the ABI sits in the wasm's data, so a shorter one moves the data
+after it, and the 1,043 constants that differ in the code each differ by 27 to 32. Renaming one of the two types
+fixes this, as `1ad9891` did for `RootLpHolding` in the first version, but it changes the wasm and needs a redeploy.
+
+The first version, `app.multiverse-near.testnet`, runs code `G6GtUs6AqHfxRb8YCdBx5dv1bgiQ3c1gDhPE9ygQTkEt`, built
+from commit `04a3d42` (sha256 `e0392c0e...`) and deployed on 2026-11-12 at 12:08 UTC
+([`F5X2U1CS...`](https://testnet.nearblocks.io/txns/F5X2U1CSpptsNUEUeeeixcw79ERvfGLFEpREwpnMvWc3)).
 
 ## Real-data resolution
 
-The demo has a third event that has already happened, resolved from real data:
+Two v2 events have already happened and were resolved from real data on 2026-11-14:
 
-- Question: "Did the Fed cut at its October 27-28, 2026 meeting?" (outcomes CUTS, HOLDS).
-- Rule, stored on-chain with the event: "CUTS if and only if both limits of the federal funds target range (FRED
-  DFEDTARU and DFEDTARL) are lower on 2026-10-29 than on 2026-10-27; HOLDS if neither is; if they disagree, nothing
-  is reported."
-- Data: FRED shows DFEDTARU 4.00 and DFEDTARL 3.75 on both dates, so the answer is HOLDS.
+| Event | Rule (stored on-chain with the event) | Data | Transactions |
+|---|---|---|---|
+| 3: "Did the Fed cut at its October 27-28, 2026 meeting?" | CUTS if both limits of the federal funds target range (FRED DFEDTARU and DFEDTARL) are lower on 2026-10-29 than on 2026-10-27; HOLDS if neither is lower | DFEDTARU 4.00 and DFEDTARL 3.75 on both dates: HOLDS | `request_resolution(3)` [`GH1fftYY...`](https://testnet.nearblocks.io/txns/GH1fftYYX8RU56GsgyAadCM1yfHHFdmzcvhDdUQrijqy), `finalize(3)` [`5C1dsLUL...`](https://testnet.nearblocks.io/txns/5C1dsLULtK2cnLCneEHwCWtUM86AsBKiWSHdvBLkjYfW) |
+| 4: "Did NEAR close above $4.00 on Nov 1, 2026?" | YES if the Coinbase Exchange NEAR-USD daily candle for 2026-11-01 (UTC) closes strictly above 4.00 USD | Coinbase close 4.284, Kraken 4.2827: YES | `report_outcome(4)` [`4JUNNwUA...`](https://testnet.nearblocks.io/txns/4JUNNwUAZzHArvY6TwBtiZftuztFAxiqsQs59rmpyK9R), `finalize(4)` [`C6et7nkC...`](https://testnet.nearblocks.io/txns/C6et7nkCPb6tdLyqZZqw7dnDGHHZfwXpDVvtmZn6vvYw) |
 
-It resolves through OutLayer with `scripts/outlayer.ts`:
+Event 3 went through OutLayer, which `scripts/outlayer.ts` drives:
 
 ```bash
 NEAR_NETWORK=testnet pnpm -C scripts outlayer configure --url <https url> --sha256 <hex>   # owner
@@ -288,26 +276,20 @@ NEAR_NETWORK=testnet pnpm -C scripts outlayer request [--event <id>] [--as <acco
 ```
 
 `configure` pins the guest wasm URL and its sha256 on the contract and gives the event its two FRED dates.
-`request` pays OutLayer's deposit; OutLayer runs `oracle/fred-guest` in a TEE worker and resumes the call, the
-contract proposes the answer with source `outlayer` under the 30 s dispute window, and anyone then finalizes. The
-pinned guest is https://multiverse-lending.vercel.app/outlayer/fred-guest.wasm (408,875 bytes, sha256
-`8c809e11f5b4b37627baa5c0a65a8587ef5f3e4918d1e0bb42cb2f87a5ae1660`), the exact output of
-`oracle/fred-guest/build.sh`.
+`request` pays OutLayer's deposit (0.005 NEAR); OutLayer runs `oracle/fred-guest` in a TEE worker and resumes the
+call, the contract proposes the answer with source `outlayer` under the 10-minute dispute window, and anyone then
+finalizes. The pinned guest is https://multiverse-lending.vercel.app/outlayer/fred-guest.wasm (408,875 bytes,
+sha256 `8c809e11f5b4b37627baa5c0a65a8587ef5f3e4918d1e0bb42cb2f87a5ae1660`), the exact output of
+`oracle/fred-guest/build.sh`. For event 3 OutLayer reported a 1,572 ms run and charged 0.0011572 NEAR, refunding the
+rest. Event 4 was proposed by the reporter's function-call key with the evidence
+`Coinbase NEAR-USD 2026-11-01 close 4.284; Kraken 4.2827; threshold 4.00: YES`.
 
-On the current deployment the event is event 9, resolved on 2026-11-12 by these transactions:
+To repeat the FRED read without signing anything: `pnpm -C scripts test:live` queries FRED and checks the HOLDS
+answer. On the first version the same Fed event was event 9, resolved through OutLayer on 2026-11-12
+([`5DKPy7JX...`](https://testnet.nearblocks.io/txns/5DKPy7JXgjs4UMP8Bpt2AEyepa4QVswQcBRtwu6p4rgk)).
 
-- `set_outlayer_config` (owner): https://testnet.nearblocks.io/txns/FUZHqurtQEqXxGjLwDuWzjNZ8pYR8wdYJVX2kHsUNaJM
-- `set_outlayer_dates(9, 2026-10-27, 2026-10-29)` (owner): https://testnet.nearblocks.io/txns/5XjagKSwJB2S9G3uyYtHJvLVSiyJtVRHowoeaNr7URHC
-- `request_resolution(9)` (Leo, 0.005 NEAR and 300 Tgas): https://testnet.nearblocks.io/txns/5DKPy7JXgjs4UMP8Bpt2AEyepa4QVswQcBRtwu6p4rgk. The
-  contract's callback ran 15 s later; OutLayer reported a 1,655 ms run and charged 0.0011655 NEAR, refunding the rest.
-- `finalize(9)` (Leo, after the 30 s dispute window): https://testnet.nearblocks.io/txns/Aygmi1WCCzuEhxMADrQ3eTes1KAeFyyrRg3y7G4epgGE
-
-Evidence logged with the proposal: `FRED DFEDTARU 2026-10-27=4.00 2026-10-29=4.00, DFEDTARL 2026-10-27=3.75 2026-10-29=3.75: HOLDS`.
-
-To repeat the read without signing anything: `pnpm -C scripts test:live` queries FRED and checks the HOLDS answer.
-The two grid events (SPICE, December Fed) have not happened yet. In the demo they resolve from
-`deployments/demo-outcomes.json`, a file the team controls, and the app says so; `scripts/resolver.ts` proposes them
-with the reporter's function-call key.
+The other four events have not happened yet. They resolve the same way: an outcome proposed from the event's
+stated source with its evidence, a 10-minute dispute window, then `finalize`.
 
 ## Architecture
 
@@ -326,30 +308,34 @@ NEP-245 `mt_transfer_call`, NEAR refunds, and the OutLayer request.
      v                                          |
   wnear / usdc (NEP-141 mock tokens)            |
      |  ft_on_transfer          refund of unused v
-     +------------------> app.multiverse-near.testnet ------------------------------+
+     +------------------> app.ifverse-staging.testnet ------------------------------+
                           |  receiver -> router (sell, buy, sell-and-borrow, close) |
                           |  core: split / merge / redeem      oracle: events,      |
-                          |  ledger: NEP-245 verse tokens      proposals, disputes  |
+                          |  ledger: NEP-245 verse tokens      disputes, reference  |
                           |  amm: world, odds and spot pools   orders: order book   |
-                          |  lending: worst-world loans        rootlp: vault        |
-                          |  storage: NEP-145                  views: one per screen|
+                          |  lending: tiers, worst-world loans catalog: proposals,  |
+                          |  rootlp: vault   storage: NEP-145    pledges, markets   |
                           +---------------------------------------------------------+
                                |  ft_transfer + on_payout          ^         ^
                                v                                   |         |
                           your wallet               report_outcome |         | request_resolution
                                                     finalize       |         | (runs oracle/fred-guest)
-                          resolver.multiverse-near.testnet --------+    outlayer.testnet
-                          (function-call key; scripts/resolver.ts)
+                                                  report_reference |    outlayer.testnet
+                          resolver.ifverse-staging.testnet --------+
+                          (function-call keys; scripts/resolver.ts and the hosted keeper)
+                          keeper. / maker.ifverse-staging.testnet: liquidations, market upkeep
 ```
 
 | Path | What |
 |---|---|
-| `contracts/multiverse` | The protocol contract: `receiver`, `router`, `core`, `masks`, `ledger`, `nep245`, `oracle`, `outlayer`, `amm`, `orders`, `lending`, `rootlp`, `storage`, `payout`, `views`, `admin`, `events` |
+| `contracts/multiverse` | The protocol contract: `receiver`, `router`, `core`, `masks`, `ledger`, `nep245`, `oracle`, `outlayer`, `reference`, `amm`, `orders`, `lending`, `catalog`, `rootlp`, `storage`, `payout`, `views`, `admin`, `ops`, `migrate`, `events` |
 | `crates/multiverse-math` | Integer maths with no NEAR dependency: fixed point and `mul_div`, tick maths, constant-product pools, dynamic fee, TWAP, odds, shares, order maths, worst-world risk |
 | `contracts/mock-ft` | The NEP-141 test token with an open mint capped per call |
 | `oracle/fred-guest` | The program OutLayer runs to read FRED (WASI, built on its own) |
-| `scripts` | Accounts, deploy, sandbox, seed, demo sale, reset, resolver, OutLayer, end-to-end flow (TypeScript, near-api-js) |
-| `web` | The Next.js app (static export, no server) |
+| `scripts` | Accounts, deploy, sandbox, seed, demo sale, reset, resolver, OutLayer, keeper (`scripts/api/keeper.ts` is the hosted function), end-to-end flow (TypeScript, near-api-js) |
+| `ui` | The live app (Next.js static export, no server) |
+| `deploy` | The Vercel project settings for the app and the keeper function |
+| `web` | The earlier interface, kept in the repository, not deployed |
 
 `docs/DESIGN.md` explains how each part works.
 
@@ -369,23 +355,24 @@ NEP-245 `mt_transfer_call`, NEAR refunds, and the OutLayer request.
 - **NEP-145 storage management.** `storage_deposit`, `storage_withdraw`, `storage_unregister`,
   `storage_balance_of`, `storage_balance_bounds` (minimum 0.1 NEAR). Every state-changing call charges the bytes it
   adds to the payer's deposit (the caller, or the sender of an `ft_transfer_call`) and credits the bytes it frees.
-- **A function-call key for the reporter.** `resolver.multiverse-near.testnet` holds a key that can call only
-  `report_outcome` and `finalize` on the contract, with a 0.5 NEAR allowance. The resolver signs with it.
+- **Function-call keys for the reporter.** `resolver.ifverse-staging.testnet` holds one key that can call only
+  `report_outcome` and `finalize` on the contract and another that can call only `report_reference`, each with its
+  own NEAR allowance for gas.
 - **OutLayer.** `request_resolution` calls `request_execution` on `outlayer.testnet` with a pinned wasm URL and
   sha256; OutLayer runs `oracle/fred-guest` in a TEE (Intel TDX) worker and resumes the call (NEP-519 yield) with
-  the result, which `on_outlayer_result` turns into an ordinary proposal under the same dispute window. It has 16
-  contract unit tests and 12 guest tests. On testnet it resolved the past Fed event (event 9) HOLDS on 2026-11-12 (see "Real-data resolution").
-- **Named accounts.** The contract, tokens, reporter and personas are sub-accounts of `multiverse-near.testnet`.
+  the result, which `on_outlayer_result` turns into an ordinary proposal under the same dispute window. On testnet
+  it resolved the October Fed event (event 3) HOLDS on 2026-11-14 (see "Real-data resolution").
+- **Named accounts.** The contract, tokens, reporter, keeper, maker and personas are sub-accounts of
+  `ifverse-staging.testnet`.
 - **NEP-297 events** under the standard `multiverse` for every protocol action.
 
 ## Demo numbers
 
-The demo seeds four world pools at 3.70 (SHIPS·CUTS), 3.00 (DELAYED·CUTS), 3.30 (SHIPS·HOLDS) and 2.50
-(DELAYED·HOLDS) USDC per NEAR, and the binary SPICE market at 3.40 (SHIPS) and 2.80 (DELAYED). With SHIPS at 66.67%
-and the Fed's CUTS at a 1% fallback (the Polymarket API was unreachable from the seeding machine; the app labels the
-odds source), the implied spot is 3.0376. DELAYED·HOLDS is the thin pool, with Ravi's standing bid there of 2.4500
-USDC per NEAR for 1,000 NEAR. Alice sells 2,000 NEAR in DELAYED·CUTS, SHIPS·HOLDS and DELAYED·HOLDS, keeps it in
-SHIPS·CUTS, and borrows 3,000 USDC:
+These are the prototype's golden numbers, which the first version's seed reproduced; live prices on testnet have
+moved since. The seed set four world pools at 3.70 (SHIPS·CUTS), 3.00 (DELAYED·CUTS), 3.30 (SHIPS·HOLDS) and 2.50
+(DELAYED·HOLDS) USDC per NEAR, and the binary SPICE market at 3.40 (SHIPS) and 2.80 (DELAYED). DELAYED·HOLDS is the
+thin pool, with Ravi's standing bid there of 2.4500 USDC per NEAR for 1,000 NEAR. Alice sells 2,000 NEAR in
+DELAYED·CUTS, SHIPS·HOLDS and DELAYED·HOLDS, keeps it in SHIPS·CUTS, and borrows 3,000 USDC:
 
 | | |
 |---|---|
@@ -395,44 +382,44 @@ SHIPS·CUTS, and borrows 3,000 USDC:
 | Health factor after borrowing 3,000 (worst world DELAYED·HOLDS) | 1.22 (4,881.88 × 0.75 / 3,000) |
 | Binary market: 2,000 NEAR-if-DELAYED sold, 3,000 borrowed | HF 1.36 |
 
-These are the prototype's demo numbers in USD; the NEAR version runs them at NEAR prices. The contract test
-`golden_demo_sale` (`contracts/multiverse/src/tests/router.rs`) checks the per-world proceeds against the
-prototype's raw values (within 1e-12 USDC) and the health factor against the prototype's (within 1e-15). The
-sandbox run above prints the same numbers.
+The contract test `golden_demo_sale` (`contracts/multiverse/src/tests/router.rs`) checks the per-world proceeds
+against the prototype's raw values (within 1e-12 USDC) and the health factor against the prototype's (within
+1e-15).
 
 ## Security
 
-`docs/SECURITY.md` is an internal review by the people who built it, not an audit. It lists ten findings (two high,
-four medium, four low), each reproduced by a failing test first and kept as a regression test, and the six
-invariants checked as property tests.
+`docs/SECURITY.md` is an internal review of the first version's contract by the people who built it, not an audit.
+It lists ten findings (two high, four medium, four low), each reproduced by a failing test first and kept as a
+regression test, and the six invariants checked as property tests. The v2 additions (tiers, proposals and pledges,
+the NEAR/USD reference, the keeper, the migration code) have their own tests but are not in that review.
 
 Trust assumptions:
 
 - The owner is trusted. `admin_resolve` resolves an event at once; `dispute` cancels an open proposal within its
   window. There is no timelock and no multisig.
-- One reporter key proposes outcomes. If the owner does not dispute a wrong proposal within its 30 s window,
-  anyone can finalize it.
-- The grid events resolve from a file the team controls; only the past FOMC event resolves from FRED.
-- All liquidity, Bob's supply and Ravi's order come from the seed script.
+- One reporter key proposes outcomes, and OutLayer proposes the FRED event it is configured for. If the owner does
+  not dispute a wrong proposal within its 10-minute window, anyone can finalize it.
+- Most liquidity came from the team: the seed script and, for markets 4 to 10, the pledges that opened them. The
+  maker keeps the lendable market near the reference.
 - wNEAR and USDC are mock tokens that anyone can mint, up to 1,000,000 wNEAR or 10,000,000 USDC per call. They have
   no value.
 - Testnet only. Nothing has been deployed or tested on mainnet.
 
-Accepted residual risks (ECON-1 and ECON-2 in `docs/SECURITY.md`): lending prices come only from the protocol's own
-pools, through a 30-minute TWAP with a spot band. Someone who holds a pool at a false price for the whole window
-still moves it, and on testnet nobody arbitrages it back. The spot band can pause borrowing and liquidation in a
-world while a pool sits far from its TWAP.
+Accepted residual risks (ECON-1 and ECON-2 in `docs/SECURITY.md`): lending prices come from the protocol's own
+pools, through a 30-minute TWAP with a spot band; v2 adds the outside NEAR/USD reference, which stops borrowing when
+a market drifts more than 10% from it. Someone who holds a pool at a false price for the whole window still moves
+the TWAP. The spot band can pause borrowing and liquidation in a world while a pool sits far from its TWAP.
 
 ## Limitations
 
-- Two binary events per scenario at most (four worlds).
-- Lending has one fixed borrow rate and prices only from in-protocol pools.
+- Three events and eight worlds per market at most.
+- Only market 1 lends; each tier's borrow rate follows a fixed kinked curve of utilization.
 - Lending reads a 30-minute TWAP, so on testnet a price move reaches borrowing limits and liquidations gradually,
   over up to 30 minutes.
 - Testnet only; nothing has been deployed or tested on mainnet.
-- The contract has no state migration; a change to its layout needs a fresh deployment.
-- The grid events (SPICE, December Fed) resolve from a file the team controls.
-- The testnet demo is shared: its state is whatever the last seeding, sale or test run left.
+- The contract has a v1 to v2 state migration (`contracts/multiverse/src/migrate`), but the staging deployment was
+  made fresh with `new()`, so the migration has not run on testnet.
+- The testnet demo is shared: its state is whatever the trades, loans, proposals and tests so far have left.
 
 ## History and disclosure
 
@@ -451,11 +438,16 @@ May 2025).
   `borsh`, `serde`; tests with `proptest`.
 - Tick maths: a Rust port of Uniswap v4's TickMath (MIT).
 - OutLayer guest: `wasi-http-client`, `serde_json`.
-- Scripts: `near-api-js` 7.4.0, `tsx`, TypeScript.
-- Web: Next.js, React, Tailwind CSS, framer-motion, TanStack Query, `@hot-labs/near-connect` 0.12.0,
-  `near-api-js` 7.4.0; tests with Vitest and Playwright.
+- Scripts and keeper: `near-api-js` 7.4.0, `tsx`, TypeScript.
+- App (`ui/`): Next.js 16, React 19, three.js 0.187 with `@react-three/fiber`, `lightweight-charts` 5.2.1,
+  TanStack Query, `@hot-labs/near-connect` 0.12.0, `near-api-js` 7.4.0; tests with Vitest and Playwright, lint
+  with oxlint.
+- Earlier interface (`web/`): Next.js, React, Tailwind CSS, framer-motion, TanStack Query,
+  `@hot-labs/near-connect` 0.12.0, `near-api-js` 7.4.0.
+- Hosting: Vercel (static site, keeper function and cron).
 - Build: `cargo-near` 0.17.0.
-- Data: FRED (Federal Reserve Bank of St. Louis), series DFEDTARU and DFEDTARL.
+- Data: FRED (Federal Reserve Bank of St. Louis), series DFEDTARU and DFEDTARL; Coinbase, Kraken, Gemini and
+  CoinGecko for NEAR/USD.
 
 ## License
 
