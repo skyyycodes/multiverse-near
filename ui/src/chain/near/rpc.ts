@@ -67,9 +67,34 @@ async function rpc<T>(url: string, method: string, params: unknown): Promise<T> 
 
 const toBase64 = (s: string): string => btoa(String.fromCharCode(...new TextEncoder().encode(s)));
 
+/**
+ * Reads in flight at once. A page's first render, and the refresh of every query after a transaction, start dozens of
+ * reads together; a public RPC answers a burst like that with 429s (without CORS headers, so the browser logs each one
+ * as an error). Queued reads wait their turn instead.
+ */
+export const MAX_IN_FLIGHT = 6;
+
+/** Runs at most `max` of the given jobs at a time, in the order they came; a finished job hands its slot on. */
+export function limiter(max: number): <T>(job: () => Promise<T>) => Promise<T> {
+  let active = 0;
+  const waiting: (() => void)[] = [];
+  return async (job) => {
+    if (active < max) active++;
+    else await new Promise<void>((go) => waiting.push(go));
+    try {
+      return await job();
+    } finally {
+      const next = waiting.shift();
+      if (next) next();
+      else active--;
+    }
+  };
+}
+
 /** View calls at optimistic finality (what a wallet just changed shows up on the next poll), across several RPCs. */
-export function createRpcSource(urls: string[]): ReadSource {
+export function createRpcSource(urls: string[], maxInFlight = MAX_IN_FLIGHT): ReadSource {
   let preferred = 0;
+  const limit = limiter(maxInFlight);
 
   async function each<T>(run: (url: string) => Promise<T>): Promise<T> {
     let last: unknown;
@@ -89,7 +114,7 @@ export function createRpcSource(urls: string[]): ReadSource {
 
   return {
     async view<T>(contractId: string, method: string, args: Record<string, unknown> = {}): Promise<T> {
-      const r = await each((url) =>
+      const r = await limit(() => each((url) =>
         rpc<{ result?: number[]; error?: string }>(url, "query", {
           request_type: "call_function",
           finality: "optimistic",
@@ -97,7 +122,7 @@ export function createRpcSource(urls: string[]): ReadSource {
           method_name: method,
           args_base64: toBase64(JSON.stringify(args)),
         }),
-      );
+      ));
       // Older nodes put a contract's panic inside the result instead of the error.
       if (typeof r.error === "string") throw new ChainError(cleanError(r.error));
       const bytes = r.result ?? [];
@@ -108,9 +133,9 @@ export function createRpcSource(urls: string[]): ReadSource {
       return each((url) => rpc<TxOutcome>(url, "tx", { tx_hash: hash, sender_account_id: accountId, wait_until: "FINAL" }));
     },
     async account(accountId: string): Promise<AccountInfo> {
-      const r = await each((url) =>
+      const r = await limit(() => each((url) =>
         rpc<{ amount?: string; code_hash?: string; storage_usage?: number }>(url, "query", { request_type: "view_account", finality: "final", account_id: accountId }),
-      );
+      ));
       if (typeof r.amount !== "string" || typeof r.code_hash !== "string" || typeof r.storage_usage !== "number") {
         throw new ChainError(`view_account ${accountId}: unexpected answer`);
       }

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanError } from "./outcome";
-import { ChainError, createRpcSource, TransportError } from "./rpc";
+import { ChainError, createRpcSource, limiter, MAX_IN_FLIGHT, TransportError } from "./rpc";
 
 const A = "https://a.example";
 const B = "https://b.example";
@@ -90,5 +90,44 @@ describe("the account read (About dialog, gas float)", () => {
   it("says when the account does not exist", async () => {
     serve({ [A]: () => json({ jsonrpc: "2.0", error: { name: "HANDLER_ERROR", cause: { name: "UNKNOWN_ACCOUNT", info: { requested_account_id: "nobody.testnet" } } } }) });
     await expect(createRpcSource([A]).account("nobody.testnet")).rejects.toThrow("Account nobody.testnet does not exist");
+  });
+});
+
+describe("reads in flight", () => {
+  it("runs at most the limit at once, in order, and hands each slot on", async () => {
+    const run = limiter(2);
+    let now = 0;
+    let most = 0;
+    const order: number[] = [];
+    const job = (i: number) => run(async () => {
+      most = Math.max(most, ++now);
+      order.push(i);
+      await new Promise((r) => setTimeout(r, 5));
+      now--;
+      return i;
+    });
+    await expect(Promise.all([1, 2, 3, 4, 5].map(job))).resolves.toEqual([1, 2, 3, 4, 5]);
+    expect(most).toBe(2);
+    expect(order).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it("frees the slot when a job fails", async () => {
+    const run = limiter(1);
+    await expect(run(() => Promise.reject(new Error("no")))).rejects.toThrow("no");
+    await expect(run(async () => 1)).resolves.toBe(1);
+  });
+
+  it("keeps a page's burst of view calls under the limit", async () => {
+    let now = 0;
+    let most = 0;
+    vi.stubGlobal("fetch", async () => {
+      most = Math.max(most, ++now);
+      await new Promise((r) => setTimeout(r, 2));
+      now--;
+      return json({ result: { result: bytes(1) } });
+    });
+    const src = createRpcSource([A]);
+    await Promise.all(Array.from({ length: 20 }, () => src.view("app.test.near", "get_market")));
+    expect(most).toBe(MAX_IN_FLIGHT);
   });
 });
