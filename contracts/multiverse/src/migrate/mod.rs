@@ -10,24 +10,26 @@
 
 pub mod v1;
 
-use std::collections::BTreeSet;
-
+use near_sdk::borsh::BorshDeserialize;
 use near_sdk::json_types::U128;
 use near_sdk::serde::Serialize;
 use near_sdk::store::{LookupMap, LookupSet};
-use near_sdk::{env, near, AccountId, IntoStorageKey};
+use near_sdk::{assert_one_yocto, env, near, AccountId, IntoStorageKey};
 
+use crate::amm::Pool;
 use crate::books::Books;
 use crate::catalog::{Catalog, MarketParams};
 use crate::errors::fail;
 use crate::events::MultiverseEvent;
 use crate::lending::tiers::LendingParams;
 use crate::ops::{PauseFlag, PauseState};
+use crate::orders::Order;
 use crate::outlayer::OutLayerState;
 use crate::prices::{MarketPriceCfg, PriceState};
+use crate::types::{EventData, Scenario};
 use crate::version::{
-    stored_state_version, write_version_record, CODE_VERSION, STATE_VERSION, V1_CODE_VERSION,
-    V1_STATE_VERSION,
+    stored_state_version, version_record, write_version_record, CODE_VERSION, STATE_VERSION,
+    V1_CODE_VERSION, V1_STATE_VERSION,
 };
 use crate::{now_sec, Contract, ContractExt, StorageKey};
 
@@ -104,6 +106,20 @@ impl MultiverseEvent for ContractUpgraded<'_> {
     const NAME: &'static str = "contract_upgraded";
 }
 
+/// `upgrade_accounts`: how many accounts it folded now.
+#[derive(Serialize, Debug)]
+#[serde(crate = "near_sdk::serde")]
+pub struct AccountsUpgraded {
+    pub count: u32,
+}
+
+impl MultiverseEvent for AccountsUpgraded {
+    const NAME: &'static str = "accounts_upgraded";
+}
+
+/// The most account ids one `upgrade_accounts` call takes.
+pub const MAX_UPGRADE_ACCOUNTS: usize = 100;
+
 #[near]
 impl Contract {
     /// v1 -> v2, in the deploy transaction. Only the contract account may
@@ -172,6 +188,69 @@ impl Contract {
         .emit();
         // 15: the init wrapper writes STATE; dropping flushes the maps
         c
+    }
+
+    /// Same-layout upgrades, in `[DeployContract, FunctionCall("post_upgrade")]`
+    /// signed by the contract account. The new code has already decoded STATE
+    /// (a failure reverts the deploy); this checks the stored state version
+    /// against the caller's expectation and the code's, rewrites the
+    /// VersionRecord and logs `contract_upgraded`. It changes only STATE and
+    /// the record, and pauses nothing.
+    pub fn post_upgrade(&mut self, expected_state_version: u32) {
+        if env::predecessor_account_id() != env::current_account_id() {
+            fail("InitNotSelf");
+        }
+        let found = stored_state_version();
+        if found != expected_state_version {
+            fail!("WrongStateVersion({found}, {expected_state_version})");
+        }
+        if found != STATE_VERSION {
+            fail!("WrongStateVersion({found}, {STATE_VERSION})");
+        }
+        let previous = version_record().unwrap_or_else(|| fail("CorruptVersionRecord"));
+        write_version_record(&previous.code_version);
+        ContractUpgraded {
+            from_state_version: found,
+            to_state_version: STATE_VERSION,
+            from_code_version: &previous.code_version,
+            code_version: CODE_VERSION,
+            accounts_upgraded: 0,
+            scenarios: self.scenario_count,
+            pools: self.pool_count,
+            orders: self.order_count,
+            paused: self.pause.paused(),
+            legacy_scenario_count: self.legacy_scenario_count,
+            lending: None,
+            catalog: None,
+        }
+        .emit();
+    }
+
+    /// Folds up to 100 accounts' v1 data now (stragglers that gained v1 data
+    /// after the pre-upgrade dump); already-upgraded ids are skipped. Anyone
+    /// may call it; the caller pays the markers (~80 bytes each). Returns how
+    /// many were upgraded by this call.
+    #[payable]
+    pub fn upgrade_accounts(&mut self, account_ids: Vec<AccountId>) -> u32 {
+        assert_one_yocto();
+        let caller = env::predecessor_account_id();
+        self.assert_registered(&caller);
+        if account_ids.len() > MAX_UPGRADE_ACCOUNTS {
+            fail!(
+                "TooManyAccounts({}, {MAX_UPGRADE_ACCOUNTS})",
+                account_ids.len()
+            );
+        }
+        let before = env::storage_usage();
+        let mut count = 0u32;
+        for a in &account_ids {
+            if self.fold_account(a) {
+                count += 1;
+            }
+        }
+        AccountsUpgraded { count }.emit();
+        self.charge_storage(&caller, before);
+        count
     }
 }
 
@@ -247,33 +326,73 @@ impl Contract {
         }
     }
 
-    /// Step 10: `upgrade_account` for every distinct account of the dump.
-    /// Returns how many were upgraded now.
+    /// Step 10: `upgrade_account` for every account of the dump (a repeated
+    /// id finds its marker and is skipped). Returns how many were upgraded
+    /// now.
     fn upgrade_dump_accounts(&mut self, accounts: &[AccountId]) -> u32 {
-        let mut seen = BTreeSet::new();
         let mut upgraded = 0u32;
         for a in accounts {
-            if !seen.insert(a.clone()) {
-                continue;
-            }
-            if self.account_version.get(a).copied().unwrap_or(0) < STATE_VERSION {
+            if self.fold_account(a) {
                 upgraded += 1;
             }
-            self.upgrade_account(a);
         }
         upgraded
     }
 
-    /// Step 6: every event, scenario, pool and order decodes with the v2
-    /// types (`MigrateMissingRecord(kind, id)` otherwise).
-    pub(crate) fn migrate_check_records(&self) {}
+    /// Step 6: every event, scenario, pool and order id the v1 counters
+    /// name exists and decodes, whole, with the v2 type:
+    /// `MigrateMissingRecord(kind, id)` when absent, `MigrateLayoutMismatch(<map>)`
+    /// when it does not decode. v1 never deletes any of them.
+    pub(crate) fn migrate_check_records(&self) {
+        check_records::<EventData>(StorageKey::Events, "event", "events", self.event_count);
+        check_records::<Scenario>(
+            StorageKey::Scenarios,
+            "scenario",
+            "scenarios",
+            self.scenario_count,
+        );
+        check_records::<Pool>(StorageKey::Pools, "pool", "pools", self.pool_count);
+        check_records::<Order>(StorageKey::Orders, "order", "orders", self.order_count);
+    }
 
     /// Folds `a`'s v1 data into the v2 structures (the books totals and the
     /// borrower index of legacy markets). Called first in every funnel that
     /// reads or writes per-account v1 data; the `account_version` marker
     /// makes it run once per account and state version.
     pub(crate) fn upgrade_account(&mut self, a: &AccountId) {
+        self.fold_account(a);
+    }
+
+    /// `upgrade_account`, saying whether it folded `a` now (false: already
+    /// upgraded). Never panics, so callbacks may run it. The marker goes in
+    /// first, so a funnel the fold itself reaches returns at once.
+    pub(crate) fn fold_account(&mut self, a: &AccountId) -> bool {
+        if self
+            .account_version
+            .get(a)
+            .is_some_and(|v| *v >= STATE_VERSION)
+        {
+            return false;
+        }
+        self.account_version.insert(a.clone(), STATE_VERSION);
         self.books_upgrade_account(a);
         self.lending_upgrade_account(a);
+        true
+    }
+}
+
+/// `migrate_check_records` for one map: ids `1..=count` under `prefix`.
+fn check_records<T: BorshDeserialize>(prefix: StorageKey, kind: &str, map: &str, count: u64) {
+    let mut key = prefix.into_storage_key();
+    let prefix_len = key.len();
+    for id in 1..=count {
+        key.truncate(prefix_len);
+        key.extend_from_slice(&id.to_le_bytes());
+        let Some(bytes) = env::storage_read(&key) else {
+            fail!("MigrateMissingRecord({kind}, {id})");
+        };
+        if T::try_from_slice(&bytes).is_err() {
+            fail!("MigrateLayoutMismatch({map})");
+        }
     }
 }

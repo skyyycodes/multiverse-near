@@ -277,8 +277,17 @@ fn snapshot_decodes_as_the_v1_root() {
     }
 }
 
+/// The prefix bytes `migrate` may add keys under (SPEC-C 6.3, the
+/// manifest's `migrate.new_prefixes`).
+pub const MIGRATE_NEW_PREFIXES: [u8; 14] = [
+    0x1b, 0x1c, 0x1d, 0x25, 0x26, 0x27, 0x29, 0x2a, 0x2b, 0x2e, 0x31, 0x32, 0x33, 0x34,
+];
+
+/// R1 (OPS part): every v1 key but STATE is byte-equal, none is deleted,
+/// every added key is under a new prefix; OPS adds the VersionRecord and one
+/// upgrade marker (value 2) per account of the dump.
 #[test]
-fn migrate_rewrites_state_and_adds_the_version_record_only() {
+fn migrate_changes_only_state_and_adds_keys_under_new_prefixes() {
     let before = prod_snapshot();
     let p = migrated_prod();
     for (key, value) in &before {
@@ -292,8 +301,22 @@ fn migrate_rewrites_state_and_adds_the_version_record_only() {
         .keys()
         .filter(|k| !before.contains_key(*k))
         .collect();
-    let record_key = StorageKey::VersionRecord.into_storage_key();
-    assert_eq!(added, vec![&record_key], "only the VersionRecord is new");
+    for key in &added {
+        assert!(MIGRATE_NEW_PREFIXES.contains(&key[0]), "{key:?}");
+    }
+    let under = |prefix: u8| added.iter().filter(|k| k[0] == prefix).count();
+    assert_eq!(under(0x1b), 1);
+    assert_eq!(under(0x1c), prod_accounts().len());
+    let marker_prefix = StorageKey::AccountVersion.into_storage_key();
+    for a in prod_accounts() {
+        let mut key = marker_prefix.clone();
+        key.extend(borsh::to_vec(&a).unwrap());
+        assert_eq!(
+            p.raw(&key),
+            Some(&STATE_VERSION.to_le_bytes().to_vec()),
+            "{a}"
+        );
+    }
     assert_eq!(
         p.raw(b"STATE").unwrap().len(),
         PROD_STATE_BYTES + V2_STATE_GROWTH
