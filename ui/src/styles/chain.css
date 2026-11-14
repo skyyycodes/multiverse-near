@@ -19,9 +19,11 @@
 .wm__note code { color: var(--u-soft); overflow-wrap: anywhere; }
 
 /* phones: the bar keeps the name, the testnet badge, the wallet and the menu on one line. The board has its own
-   search, and the world grid is one tap away in the anchor market. */
+   search, and the world grid is one tap away in the anchor market. The name stacks in two lines beside the logo, so a
+   connected wallet still leaves room for the menu. */
 @media (max-width: 480px) {
   .topbar { gap: 10px; }
+  .topbar__name { width: min-content; white-space: normal; font-size: 15px; line-height: 1; }
   .topbar__worlds, .topbar__search { display: none; }
   .topbar > .wm, .topbar > .topbar__wallet { margin-left: auto; }
   .wm__name { max-width: 10ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

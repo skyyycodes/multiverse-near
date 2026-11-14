@@ -34,7 +34,7 @@ export function Header() {
       <Link href="/" className="topbar__mark">
         {/* on the landing, the butterfly flies into this spot at the end of the story */}
         <img className="topbar__logo" src="/logo-white.svg" alt="" width={24} height={24} />
-        {site.name}
+        <span className="topbar__name">{site.name}</span>
       </Link>
       <span className="topbar__net" title="Running on NEAR testnet with test tokens">Testnet</span>
 
