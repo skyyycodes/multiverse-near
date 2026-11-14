@@ -1308,3 +1308,49 @@ proptest! {
         }
     }
 }
+
+#[test]
+fn screens_show_every_tier() {
+    let mut w = tier_world();
+    let s = w.s2x2;
+    w.lend_in(SAFE, BOB, s, 5_000 * E18).unwrap();
+    w.lend_in(BOLD, BOB, s, 7_000 * E18).unwrap();
+    w.split_ft(ALICE, s, Wnear, &[SHIPS, DELAYED], 30 * E18)
+        .unwrap();
+    let ships = token_id(s, Wnear, SHIPS);
+    w.post_in(SAFE, ALICE, s, &ships, 10 * E18).unwrap();
+    w.post_in(BOLD, ALICE, s, &ships, 20 * E18).unwrap();
+    // The trade screen sums posted collateral over the three tiers.
+    let scenario = w.view(|c| c.trade_view(s, Some(acc(ALICE)))).scenario;
+    for world in [0, 2] {
+        assert_eq!(scenario.worlds[world].collateral_wnear, U128(30 * E18));
+    }
+    assert_eq!(scenario.worlds[1].collateral_wnear, U128(0));
+    // lending_tiers: Safe, Normal, Bold, one snapshot, each with its terms.
+    let tiers = w.view(|c| c.lending_tiers(s, Some(acc(ALICE))));
+    let names: Vec<Tier> = tiers.iter().map(|t| t.tier).collect();
+    assert_eq!(names, Tier::ALL.to_vec());
+    assert_eq!(tiers[0].market.total_supply, U128(5_000 * E18));
+    assert_eq!(tiers[1].market.total_supply, U128(0));
+    assert_eq!(tiers[2].market.total_supply, U128(7_000 * E18));
+    for t in &tiers {
+        let a = t.account.as_ref().unwrap();
+        assert_eq!(a.tier, t.tier);
+        assert_eq!(a.lltv, t.market.config.lltv);
+        assert_eq!(a.world_status, vec![WorldStatus::Trusted; 4]);
+        assert_eq!(a.borrow_block, None);
+        assert_eq!(a.liquidation_factor, U128(WAD));
+        assert_eq!(a.min_loan, U128(100 * E18));
+    }
+    let safe = tiers[0].account.as_ref().unwrap();
+    assert_eq!(safe.collateral.len(), 1);
+    assert_eq!(safe.collateral[0].amount, U128(10 * E18));
+    // Without an account, no positions.
+    let markets_only = w.view(|c| c.lending_tiers(s, None));
+    assert!(markets_only.iter().all(|t| t.account.is_none()));
+    // The screens take the tier.
+    let lend = w.view(|c| c.lend_view(s, Some(acc(BOB)), Some(BOLD)));
+    assert_eq!(lend.account.supplied, U128(7_000 * E18));
+    let resolve = w.view(|c| c.resolve_view(s, Some(acc(ALICE)), Some(BOLD)));
+    assert_eq!(resolve.account.collateral[0].amount, U128(20 * E18));
+}
