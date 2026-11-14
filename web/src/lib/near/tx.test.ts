@@ -43,6 +43,7 @@ import {
   topUpProposal,
   unpauseTx,
   withdrawPledge,
+  storageWithdraw,
   withdrawCollateral,
   withdrawSupply,
   withTier,
@@ -175,6 +176,10 @@ describe("lending transactions", () => {
       deposit: "1",
     });
     expect(one(withdrawCollateral(APP, { scenarioId: 1, piece: "1:usdc:2", amount: 5n })).args).toEqual({ scenario_id: 1, piece: "1:usdc:2", amount: "5" });
+  });
+
+  it("withdraws the free storage deposit with one yocto", () => {
+    expect(one(storageWithdraw(APP))).toMatchObject({ method: "storage_withdraw", args: {}, gas: GAS_LIGHT, deposit: "1" });
   });
 
   it("T15 and T16: close per tier", () => {
