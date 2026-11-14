@@ -82,6 +82,7 @@ describe("contract errors", () => {
     expect(blockerText("OpenStorageShort(150000000000000000000000, 100000000000000000000000)")).toBe("The reserve is 0.050 NEAR short for the new market's storage");
     expect(blockerText("OpenStorageShort(100000000000000000000001, 0)")).toBe("The reserve is 0.101 NEAR short for the new market's storage");
     expect(blockerText("ReferenceUnavailable(5, ImpliedSpotUnknown(5))")).toBe("Market #5 cannot price the opening yet (ImpliedSpotUnknown(5))");
+    expect(blockerText("ReferenceUnavailable(9, thin_odds)")).toBe("Market #9 cannot price the opening yet: the pools that set its chances are too thin");
     expect(blockerText("SomethingElse")).toBeUndefined();
     // an action error that is a wait-class blocker reads the same
     expect(humanError("NotApproved(2)")).toBe("Waiting for the admin's check");

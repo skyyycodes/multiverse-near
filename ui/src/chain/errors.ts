@@ -10,6 +10,18 @@ import type { Asset } from "./types";
 
 const WAD = 10n ** 18n;
 
+/** Why a listed market cannot serve as a combination's price reference (the contract's reference_prices). */
+const REFERENCE_REASON: Record<string, string> = {
+  halted: "trading is paused while a result is in its dispute window",
+  resolved: "it has resolved",
+  no_pool: "a world has no pool",
+  young: "its prices are not 30 minutes old yet",
+  shallow: "its pools are too shallow",
+  out_of_band: "its price moved too far from its average",
+  odds_unknown: "its chances are not known yet",
+  thin_odds: "the pools that set its chances are too thin",
+};
+
 /** "BelowMinLoan(99, 100)" → { name: "BelowMinLoan", args: ["99", "100"] }; args split at the top level only. */
 export function parseContractError(raw: string): { name: string; args: string[] } | undefined {
   const m = /^(\w+)(?:\((.*)\))?$/s.exec(raw.trim());
@@ -99,7 +111,7 @@ export function blockerText(raw: string, ctx: ErrorContext = {}): string | undef
     case "NoReferenceMarket":
       return `Event #${a} has no reference market`;
     case "ReferenceUnavailable":
-      return `Market #${a} cannot price the opening yet (${b})`;
+      return `Market #${a} cannot price the opening yet${REFERENCE_REASON[b ?? ''] ? `: ${REFERENCE_REASON[b ?? '']}` : ` (${b})`}`;
     case "ReferenceDiverges":
       return `Market #${a}'s prices are too far from the anchors`;
     case "PriceOutOfRange":
