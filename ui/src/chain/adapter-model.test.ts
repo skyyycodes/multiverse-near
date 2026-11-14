@@ -241,7 +241,7 @@ describe("a position from borrow_view", () => {
 
   it("carries the loan: debt, health, worst world, limits and the yearly rate", () => {
     const p = positionOf(snap, "normal");
-    expect(p).toMatchObject({ sid: 1, tier: "normal", holdsAnything: true, debt: 100, health: 1.46, borrowHealth: 1.3, worstWorld: 1, maxBorrow: 20, minLoan: 10, utilization: 0.5 });
+    expect(p).toMatchObject({ sid: 1, tier: "normal", holdsAnything: true, debt: 100, health: 1.46, borrowHealth: 1.3, worstWorld: 1, maxBorrow: 19.9, minLoan: 10, utilization: 0.5 });
     expect(p.borrowApr).toBeCloseTo(0.05, 4);
   });
 

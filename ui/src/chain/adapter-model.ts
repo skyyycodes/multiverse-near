@@ -4,7 +4,7 @@
 // Numbers named like `chance`, `nearPrice`, `usdc` are JS numbers for display and charts only; every amount that
 // moves money stays a bigint (the `…Wad` fields), and actions take bigints.
 import type { Account, BorrowSnapshot, Collateral, EventMeta, EventState, LiquidationState, MarketCard, MarketOrigin, MarketStatus, ProposalSource, Scenario, Tier } from "./domain";
-import { annualRate } from "./lending";
+import { annualRate, borrowRoom } from "./lending";
 import { marketHref } from "./links";
 import { categoryName, digit, isPossible, kindLabel, shortDate, STATUS_LABEL, survivor, utcMinute } from "./market";
 import { TIERS } from "./tiers";
@@ -296,7 +296,7 @@ export type Position = {
   /** Health factor against the borrow-side values; null without debt. */
   borrowHealth: number | null;
   worstWorld: number | null;
-  /** What you can borrow in this tier now, USDC. */
+  /** What you can borrow in this tier now, USDC: the Borrow page's room (`borrowRoom`), not the contract's whole `max_borrow`. */
   maxBorrow: number;
   maxBorrowWad: bigint;
   borrowLimit: number;
@@ -360,8 +360,8 @@ export function positionOf(snap: BorrowSnapshot, tier: Tier): Position {
     health: hf(a.healthFactor),
     borrowHealth: hf(a.borrowHealthFactor),
     worstWorld: a.worstWorld,
-    maxBorrow: toNum(a.maxBorrow),
-    maxBorrowWad: a.maxBorrow,
+    maxBorrow: toNum(borrowRoom(a)),
+    maxBorrowWad: borrowRoom(a),
     borrowLimit: toNum(a.borrowLimit),
     minLoan: toNum(a.minLoan),
     liquidation: a.liquidation,

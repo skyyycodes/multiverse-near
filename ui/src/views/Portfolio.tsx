@@ -16,7 +16,7 @@ import { useMarketsOf } from '../chain/hooks/useMarkets'
 import { errorLine } from '../chain/errors'
 import { fmt, fmtHf, fmtNear, fmtPrice, fmtUsd, hfTone, pct } from '../chain/format'
 import { useHoldings } from '../chain/hooks/useLiquidation'
-import { WAD } from '../chain/lending'
+import { borrowRoom, WAD } from '../chain/lending'
 import { holdsAnything, marketHoldings, useOpenOrders, useTiersOf, type MarketHoldings } from '../chain/lending-screens'
 import { hedgeShape, oddsWeighted, tierPositions, worldWorth } from '../chain/lending-view'
 import { borrowHref, lendHref, marketHref, marketsHref, ordersHref, resolveHref } from '../chain/links'
@@ -121,7 +121,7 @@ function Mine({ account }: { account: string }) {
   const best = held.reduce((s, h) => s + (h.best !== undefined ? h.values[h.best] : 0n), 0n) + supplied + walletValue
   const hfs = held.map((h) => h.lowestHealth).filter((x): x is bigint => x !== null)
   const lowest = hfs.length ? hfs.reduce((a, b) => (b < a ? b : a)) : null
-  const borrowable = held.flatMap((h) => h.tiers).reduce((s, t) => s + (t.account?.maxBorrow ?? 0n), 0n)
+  const borrowable = held.flatMap((h) => h.tiers).reduce((s, t) => s + (t.account ? borrowRoom(t.account) : 0n), 0n)
   const openOrders = orders.orders ?? []
   // where the money is, on average: NEAR and dollars held in worlds (weighted by each world's chance), lent, wallet
   const nearExposure = held.reduce((s, h) => s + oddsWeighted(h.held.near.map((x, w) => (x * (h.market.worlds[w]?.price ?? 0n)) / WAD), h.market.worlds.map((w) => w.odds), h.market.possible), 0n)
