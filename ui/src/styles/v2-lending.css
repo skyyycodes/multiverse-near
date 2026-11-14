@@ -84,3 +84,10 @@
 .pfp__tr .desk__mk b { font-size: 13px; font-weight: 500; color: var(--u-ink); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .pfp__tr .desk__mk small { font-size: 11px; color: var(--u-muted); }
 .pf__walletacts .mk__btn { white-space: nowrap; padding: 10px 14px; }
+.uw { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 8px; margin-top: 10px; align-items: start; }
+.uw .lend__card .tr__link { align-self: flex-start; margin-left: 0; }
+.rootlp { display: flex; flex-direction: column; gap: 8px; }
+.rootlp__form { display: flex; flex-direction: column; gap: 8px; }
+.rootlp .tk__pcts { grid-template-columns: repeat(2, 1fr); }
+.rootlp .btn { width: 100%; }
+@media (max-width: 760px) { .uw { grid-template-columns: 1fr; } }

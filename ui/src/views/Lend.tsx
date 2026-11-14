@@ -27,6 +27,7 @@ import { MarketArt, WorldIcon } from '../components/Grand'
 import { PageLoading } from '../components/layout/PageLoading'
 import { MarketStrip } from '../components/lending/MarketStrip'
 import { RateCurve } from '../components/lending/RateCurve'
+import { RootLp } from '../components/lending/RootLp'
 import { TierPick } from '../components/lending/TierPick'
 import { Button } from '../components/ui'
 import { ActionButton } from '../components/ui/ActionButton'
@@ -124,7 +125,7 @@ function LendMarket({ sid, strip, stripTiers, onPick }: { sid: number; strip: Ch
 
             <LentTo sid={sid} tier={tier} lm={lm} me={accountId} />
 
-            <Underwrite markets={strip} />
+            <Underwrite m={m} />
           </div>
 
           <aside className="mk__side">
@@ -191,9 +192,9 @@ function LentTo({ sid, tier, lm, me }: { sid: number; tier: Tier; lm: LendingMar
   )
 }
 
-/** Root liquidity: every market's real pools, to underwrite from the market's ticket. */
-function Underwrite({ markets }: { markets: ChainMarket[] }) {
-  if (markets.length === 0) return null
+/** Root liquidity for this market: its real pools, and adding or withdrawing liquidity in every world at once. */
+function Underwrite({ m }: { m: ChainMarket | undefined }) {
+  if (!m) return null
   return (
     <section className="tr__panel">
       <div className="desk__head">
@@ -201,21 +202,20 @@ function Underwrite({ markets }: { markets: ChainMarket[] }) {
         <span className="pc__note">Root liquidity: earn the swap fees</span>
       </div>
       <p className="tr__means">One deposit is split into every world of a market and added to each world’s pool at its own price. You take the other side of every conditional sale and earn the pools’ fees. When one world is left, its share comes back as real tokens.</p>
-      <div className="lend__markets">
-        {markets.map((m) => (
-          <Link key={m.sid} href={marketHref(m.sid)} className="lend__card">
-            <div className="lend__top"><MarketArt m={m} size={44} /><b>{m.question}</b></div>
-            <div className="lend__worlds">
-              {m.worlds.filter((w) => w.possible).map((w) => <span key={w.index}><WorldIcon m={m} w={w.index} size={18} />{w.outcome}<b className="num">{m.oddsKnown ? pct(w.odds, WAD, w.odds < WAD / 10n ? 1 : 0) : '–'}</b></span>)}
-            </div>
-            <dl>
-              <div><dt>Pools</dt><dd className="num">{fmtCompactUsd(m.liquidityWad)}</dd></div>
-              <div><dt>Thinnest world</dt><dd className="num">{fmtCompactUsd(m.card.minWorldDepth)}</dd></div>
-              <div><dt>Worlds</dt><dd className="num">{m.worlds.filter((w) => w.possible).length}</dd></div>
-            </dl>
-            <span className="mk__btn mk__btn--buy">Add liquidity</span>
-          </Link>
-        ))}
+      <div className="uw">
+        <div className="lend__card">
+          <div className="lend__top"><MarketArt m={m} size={44} /><b>{m.question}</b></div>
+          <div className="lend__worlds">
+            {m.worlds.filter((w) => w.possible).map((w) => <span key={w.index}><WorldIcon m={m} w={w.index} size={18} />{w.outcome}<b className="num">{m.oddsKnown ? pct(w.odds, WAD, w.odds < WAD / 10n ? 1 : 0) : '–'}</b></span>)}
+          </div>
+          <dl>
+            <div><dt>Pools</dt><dd className="num">{fmtCompactUsd(m.liquidityWad)}</dd></div>
+            <div><dt>Thinnest world</dt><dd className="num">{fmtCompactUsd(m.card.minWorldDepth)}</dd></div>
+            <div><dt>Worlds</dt><dd className="num">{m.worlds.filter((w) => w.possible).length}</dd></div>
+          </dl>
+          <Link className="tr__link" href={marketHref(m.sid)}>Open the market</Link>
+        </div>
+        <RootLp market={m} />
       </div>
     </section>
   )
