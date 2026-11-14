@@ -1,4 +1,4 @@
-# How IfVerse works
+# How Origami Verse works
 
 This is the design of the contract in `contracts/multiverse` and the maths in `crates/multiverse-math`. What is
 specific to NEAR is called out where it matters.

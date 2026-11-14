@@ -1,6 +1,6 @@
-# IfVerse, from zero
+# Origami Verse, from zero
 
-**What if your what-ifs became worlds?** IfVerse is a multiverse for the real world: hold NEAR in the futures you like
+**What if your what-ifs became worlds?** Origami Verse is a multiverse for the real world: hold NEAR in the futures you like
 and dollars in the ones you fear.
 
 A step-by-step guide for someone new to crypto. One idea per lesson, each building on the one before, with the
@@ -261,7 +261,7 @@ The swap protects you if the delay hurts **more** than expected. The cost is tha
 |---|---|---|
 | Sell everything today | $300 | $300 |
 | Do nothing | ~$340 | unknown (could be $200) |
-| **IfVerse swap** | **~$340** | **$280, locked** |
+| **Origami Verse swap** | **~$340** | **$280, locked** |
 
 > **Remember:** split your NEAR, keep "NEAR if good future", swap "NEAR if bad future" for "USDC if bad future".
 
@@ -334,7 +334,7 @@ Each event has 2 answers, and 2 x 2 = 4 combinations. The project calls each one
                    └────────────────┴────────────────┘
 ```
 
-Only one world will really happen. That's the multiverse in IfVerse: every what-if gets its own world.
+Only one world will really happen. That's the multiverse in Origami Verse: every what-if gets its own world.
 
 ### Four vouchers
 
@@ -495,7 +495,7 @@ The lender is covered in every future:
 ### Why normal lending apps can't do this
 
 Apps like Aave or Burrow ask, "what is this token's price today?" "USDC if DELAYED" doesn't have a normal price:
-it's worth $1 in one future and $0 in another. A normal app would value it at nothing and lend you $0. IfVerse
+it's worth $1 in one future and $0 in another. A normal app would value it at nothing and lend you $0. Origami Verse
 understands worlds, so it can say, "in your worst world you still have $280; here's $210."
 
 ### Who gives you the money?

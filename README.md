@@ -1,13 +1,13 @@
-# IfVerse
+# Origami Verse
 
 **What if your what-ifs became worlds?** A multiverse for the real world: hold NEAR in the futures you like
 and dollars in the ones you fear.
 
-IfVerse was first called Multiverse Lending; the web address, the repository and the first version's testnet accounts still use that name.
+Origami Verse was formerly IfVerse / Multiverse Lending. The testnet accounts (`*.ifverse-staging.testnet`), the web address and the repository keep earlier working names.
 
 Demo video: (link)
 
-IfVerse lets you sell NEAR only in the futures you fear. Take two real-world events with two outcomes
+Origami Verse lets you sell NEAR only in the futures you fear. Take two real-world events with two outcomes
 each, for example "Will SPICE ship on NEAR mainnet by Mar 31, 2027?" and "Will the Fed cut at its December
 meeting?". Each combination of outcomes is a world, so there are four: SHIPS·CUTS, DELAYED·CUTS, SHIPS·HOLDS and
 DELAYED·HOLDS. One NEAR splits into one NEAR-if-world per world, each paying out only if that world comes true. You
@@ -20,7 +20,7 @@ Everything runs in one NEAR contract on NEAR testnet with mock tokens. Version 2
 version's contract, `app.multiverse-near.testnet`, is still on chain and unchanged.
 
 - How it works: https://multiverse-lending.vercel.app/docs/
-- Whitepaper: https://multiverse-lending.vercel.app/ifverse-whitepaper.pdf
+- Whitepaper: https://multiverse-lending.vercel.app/origami-verse-whitepaper.pdf
 - New to this? [docs/LEARN.md](docs/LEARN.md) explains the project from zero.
 
 ## The problem
@@ -31,7 +31,7 @@ well. A prediction market prices an event, but it does not let you keep NEAR in 
 USDC in others, and a lending market does not take a position like "NEAR if the upgrade ships, USDC if it does
 not" as collateral.
 
-IfVerse splits an asset by world, so protection is bought only where it is wanted, and a loan against
+Origami Verse splits an asset by world, so protection is bought only where it is wanted, and a loan against
 such a position is sized by the borrower's worst still-possible world: at the prices lending reads, the collateral
 covers the debt in whichever world comes true.
 
@@ -99,7 +99,7 @@ near account create-account sponsor-by-faucet-service <you>.testnet \
 
 - Test wNEAR and USDC: once your wallet is connected, click your account name (top right), then "Get test
   tokens" (Portfolio has the same button under Wallet). It mints 2,000 wNEAR and 5,000 USDC to your own account and
-  pays the 0.1 NEAR IfVerse storage deposit if you have none, in up to three wallet approvals. The mock tokens have
+  pays the 0.1 NEAR Origami Verse storage deposit if you have none, in up to three wallet approvals. The mock tokens have
   an open `mint`; without the app, NEAR CLI does the same:
 
 ```bash
@@ -426,7 +426,7 @@ the TWAP. The spot band can pause borrowing and liquidation in a world while a p
 
 ## History and disclosure
 
-The market design of IfVerse (then called Multiverse Lending) first existed as a hackathon prototype on an EVM chain
+The market design of Origami Verse (then called Multiverse Lending) first existed as a hackathon prototype on an EVM chain
 (6-7 Nov 2026); that repository is private. This repository is the NEAR implementation, written from scratch during NEAR HACKATHON: the
 Rust contract, the NEAR integration, a new web app and the scripts. The market design and the demo story come from
 the prototype.
