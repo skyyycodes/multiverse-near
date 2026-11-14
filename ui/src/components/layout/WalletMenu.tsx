@@ -43,7 +43,7 @@ export function WalletMenu() {
   return (
     <div className="wm" ref={box}>
       <button className="topbar__wallet" type="button" aria-expanded={open} aria-haspopup="menu" onClick={() => setOpen((v) => !v)}>
-        <i className={`wm__dot${risky ? ' is-risk' : ''}`} aria-hidden />{short(accountId)}
+        <i className={`wm__dot${risky ? ' is-risk' : ''}`} aria-hidden /><span className="wm__name">{short(accountId)}</span>
       </button>
       {open && <Panel account={accountId} close={() => setOpen(false)} />}
     </div>
