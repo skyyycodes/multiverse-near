@@ -1023,8 +1023,14 @@ impl Contract {
         if assets > liquid {
             fail!("InsufficientLiquidity({assets}, {liquid})");
         }
-        let shares =
-            to_shares_up(assets, m.total_supply_assets, m.total_supply_shares).min(user_shares);
+        // Withdrawing everything burns every share: what the round trip
+        // leaves is worth less than one unit and would keep the principal
+        // entry (and `storage_unregister`) blocked for good.
+        let shares = if amount.is_none() {
+            user_shares
+        } else {
+            to_shares_up(assets, m.total_supply_assets, m.total_supply_shares).min(user_shares)
+        };
         m.total_supply_shares = sub(m.total_supply_shares, shares);
         m.total_supply_assets = sub(m.total_supply_assets, assets);
         self.store_market(id, m, &st);

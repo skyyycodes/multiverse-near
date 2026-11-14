@@ -463,6 +463,7 @@ impl Contract {
     /// The config new markets of `tier` snapshot on their first touch.
     /// Markets already touched keep theirs.
     #[payable]
+    #[deny_unknown_arguments]
     pub fn set_default_tier_config(&mut self, tier: Tier, config: TierConfigInput) {
         assert_one_yocto();
         self.assert_owner();
@@ -487,6 +488,7 @@ impl Contract {
     /// first; the liquidation LTV cannot fall while the market has debt.
     /// Frozen, insurance and the bad-debt counters are kept.
     #[payable]
+    #[deny_unknown_arguments]
     pub fn set_tier_config(&mut self, scenario_id: u64, tier: Tier, config: TierConfigInput) {
         assert_one_yocto();
         self.assert_owner();
@@ -514,6 +516,7 @@ impl Contract {
     /// A frozen market takes no new supply and no new borrowing; everything
     /// else (repay, withdraw, collateral, liquidation) goes on.
     #[payable]
+    #[deny_unknown_arguments]
     pub fn set_market_frozen(&mut self, scenario_id: u64, tier: Tier, frozen: bool) {
         assert_one_yocto();
         self.assert_owner();
@@ -556,6 +559,7 @@ impl Contract {
 
     /// A market's config, frozen flag and whether it is its own record or
     /// still its tier's default.
+    #[deny_unknown_arguments]
     pub fn tier_config(&self, scenario_id: u64, tier: Tier) -> TierConfigResult {
         let id = MarketId::new(scenario_id, Some(tier));
         let stored = self.tier_states.get(&id.key());

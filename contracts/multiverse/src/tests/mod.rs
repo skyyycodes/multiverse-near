@@ -14,9 +14,11 @@ mod profile;
 
 mod amm;
 mod amm_lens;
+mod bad_debt;
 mod core;
 mod eight;
 mod events;
+mod insurance;
 mod invariants;
 mod layout;
 mod lending;
@@ -40,4 +42,5 @@ mod rootlp;
 mod router;
 mod scaffold;
 mod security;
+mod tiers;
 mod views;
