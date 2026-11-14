@@ -69,7 +69,16 @@ describe("contract errors", () => {
     expect(humanError("LackBalanceForState { account_id: a.testnet, amount: 1 }")).toBe("Not enough NEAR in your wallet to keep its storage after this transaction");
     expect(humanError('{"jsonrpc": "2.0", "error": {"code": -429, "message": "Rate limits exceeded. For higher rate limits get a subscription"}, "id": "1"}')).toBe(
       "The NEAR RPC is busy right now and sent nothing: try again in a few seconds",
+    );    // the toast keeps the node's JSON out of its text
+    expect(errorLine('{"jsonrpc": "2.0", "error": {"code": -429, "message": "THIS ENDPOINT IS DEPRECATED"}, "id": "1"}')).toBe(
+      "The NEAR RPC is busy right now and sent nothing: try again in a few seconds",
     );
+  });
+
+  it("words a borrow the health check refuses without printing its health", () => {
+    const line = humanError("Unhealthy(999999999999999999, 0)");
+    expect(line).toBe("That would put your loan over its borrow limit at today's prices: borrow a little less, take back less collateral, or add collateral first");
+    expect(line).not.toMatch(/1\.00|9{6}/);
   });
 
   it("words the opening blockers, K3's stale reference included", () => {
