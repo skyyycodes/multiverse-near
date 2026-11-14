@@ -22,6 +22,14 @@ export function fmt(x: bigint, digits = 2): string {
   return (neg && (whole > 0n || frac > 0n) ? "-" : "") + groupThousands(whole) + fracStr;
 }
 
+/**
+ * A float price (a chart library hands numbers back) truncated like `fmt`, so a chart's label matches the quote's:
+ * rounded to 8 decimals first to drop float noise, then cut, never rounded up.
+ */
+export function fmtFloat(n: number, digits = 2): string {
+  return Number.isFinite(n) ? fmt(BigInt(Math.round(n * 1e8)) * 10n ** 10n, digits) : "–";
+}
+
 function signedUsd(x: bigint, digits: number): string {
   const abs = x < 0n ? -x : x;
   const body = fmt(abs, digits);

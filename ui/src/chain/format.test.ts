@@ -4,6 +4,7 @@ import {
   accountLabel,
   countdown,
   fmt,
+  fmtFloat,
   fmtBps,
   fmtCompactUsd,
   fmtPct,
@@ -32,6 +33,10 @@ describe("fmt", () => {
     expect(fmt(1_999_999_999_999_999_999n)).toBe("1.99");
     expect(fmt(1_234_567n * E18)).toBe("1,234,567.00");
     expect(fmt(wad("4881.885259897065638949"))).toBe("4,881.88");
+    // the chart's label and the pool quote agree: both cut, neither rounds up
+    expect(fmt(4_180_897_820_415_224_974n, 4)).toBe("4.1808");
+    expect(fmtFloat(Number(4_180_897_820_415_224_974n) / 1e18, 4)).toBe("4.1808");
+    expect(fmtFloat(0.1 + 0.2, 4)).toBe("0.3000");
     expect(fmt(0n)).toBe("0.00");
   });
 

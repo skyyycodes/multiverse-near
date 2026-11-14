@@ -48,11 +48,11 @@ const GROUPS = [
 type View = 'both' | 'bids' | 'asks'
 const p4 = (x: bigint) => fmt(x, 4)
 const n2 = (x: bigint) => fmt(x, 2)
-/** A swap's time: the clock today, the date before that. */
+/** A swap's time in UTC (as the chart and the open orders show it): the clock today, the date before that. */
 const stamp = (sec: number, now: number) =>
   now - sec < 86_400
-    ? new Date(sec * 1000).toLocaleTimeString('en-GB', { hour12: false })
-    : new Date(sec * 1000).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
+    ? new Date(sec * 1000).toLocaleTimeString('en-GB', { hour12: false, timeZone: 'UTC' })
+    : new Date(sec * 1000).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' })
 const worldOf = (s: Scenario, mask: number) => s.worlds.find((x) => x.mask === mask)
 /** A pool move in percent, two decimals; a move too small to show at that reads "<0.01%". */
 function move(prev: bigint, price: bigint): string {
@@ -427,7 +427,7 @@ export default function Orders() {
           <section className="tr__panel tr__trades" aria-label="Pool trades">
             <div className="desk__head"><h2 className="obx__boxtitle">Pool trades</h2><span className="pc__note">{moves.length > 0 ? `last ${moves.length}` : ''}</span></div>
             <div className="tr__list">
-              <div className="tr__li tr__li--head tr__li--trade"><span>Price (USDC)</span><span>Move</span><span>Time</span></div>
+              <div className="tr__li tr__li--head tr__li--trade"><span>Price (USDC)</span><span>Move</span><span>Time (UTC)</span></div>
               {moves.map((x) => (
                 <div key={x.at} className="tr__li tr__li--trade">
                   <span className={`num ${x.up ? 'is-up' : 'is-down'}`}>{p4(x.price)}</span>
