@@ -240,7 +240,7 @@ function CardGrid({ desktop, children }: { desktop: boolean; children: ReactNode
 function SortControl({ value, onChange, desktop }: { value: ListSort; onChange: (s: ListSort) => void; desktop: boolean }) {
   if (desktop) {
     return (
-      <div className="shrink-0">
+      <div className="shrink-0 [&_button]:whitespace-nowrap">
         <Segmented size="sm" value={value} onChange={onChange} demo="market-sort" options={SORTS.map((s) => ({ value: s, label: SORT_LABEL[s] }))} />
       </div>
     );
