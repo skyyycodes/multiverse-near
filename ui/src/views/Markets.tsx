@@ -151,7 +151,7 @@ function Card({ m, now, starred }: { m: ChainMarket; now: number; starred: boole
         </span>
         {soon(last) ? <span className="mk-card__ends">Resolves in {days(last!)}</span> : soon(next) ? <span className="mk-card__ends">Next answer in {days(next!)}</span> : null}
         {m.settled && winner ? (
-          <span className="mk-card__result"><span className="rs__state rs__state--final">Settled</span> {winner.outcome} <small>happened. The other world{m.worldCount > 2 ? 's' : ''} closed at zero.</small></span>
+          <span className="mk-card__result"><span className="rs__state rs__state--final">Settled</span> {winner.outcome} happened. <small>The other world{m.worldCount > 2 ? 's' : ''} closed at zero.</small></span>
         ) : !m.oddsKnown ? (
           <span className="mk-card__worlds"><span className="pc__note">Odds not known yet</span></span>
         ) : (

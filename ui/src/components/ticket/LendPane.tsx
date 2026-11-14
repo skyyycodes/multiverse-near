@@ -26,7 +26,7 @@ export function LendPane({ market }: PaneProps) {
     <>
       <p className="ticket__help">Lend USDC to borrowers in this market, in the tier that suits you. Every loan is covered in every world.</p>
       {(tiers.data ?? []).map((t) => (
-        <p key={t.tier} className="tk__line"><span>{TIER_LABEL[t.tier]} · {pct(t.market.utilization, WAD, 0)} lent out</span><b className="num">{pct(annualRate(t.market.supplyRatePerSec), WAD, 2)} · {fmtCompactUsd(t.market.totalSupply)}</b></p>
+        <p key={t.tier} className="tk__line"><span>{TIER_LABEL[t.tier]} · {pct(t.market.utilization, WAD, 0)} lent out</span><b className="num">{pct(annualRate(t.market.supplyRatePerSec), WAD, 2)} a year · {fmtCompactUsd(t.market.totalSupply)} supplied</b></p>
       ))}
       {!tiers.data && <p className="pc__note">Reading the tiers…</p>}
       {supplied.map((t) => (
