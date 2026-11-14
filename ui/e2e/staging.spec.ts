@@ -123,7 +123,10 @@ test('staging: a fresh account connects and gets test tokens', async ({ browser 
     const panel = v.page.locator('.wm__panel')
     const get = panel.getByRole('button', { name: /Get test tokens|Test tokens in wallet/ })
     await expect(get).toBeVisible({ timeout: 60_000 })
-    if ((await get.textContent())?.includes('Get test tokens')) {
+    // the button reads "Get test tokens" (enabled) from when the balances load until the registration does; an account
+    // that already holds everything settles on "Test tokens in wallet", so only an account that stays on "Get" mints
+    const settled = await expect(panel.getByRole('button', { name: 'Test tokens in wallet' })).toBeVisible({ timeout: 30_000 }).then(() => true, () => false)
+    if (!settled && (await get.textContent())?.includes('Get test tokens')) {
       await expect(get).toBeEnabled({ timeout: 60_000 })
       await tx(v, 'get test tokens (mint wNEAR, USDC, register)', () => get.click(), /Test tokens are in your wallet/)
     }
@@ -289,7 +292,7 @@ test('staging: propose a combination, pledge and withdraw (as far as the chain a
         const ticket = v.page.locator('.mk__ticket', { hasText: 'Pledge' }).first()
         await ticket.getByLabel('USDC to pledge').fill('10')
         await tx(v, `pledge 10 USDC to #${p}`, () => ticket.getByRole('button', { name: 'Pledge 10 USDC' }).click(), /Pledged/)
-        const mine = v.page.locator('.mk__ticket', { hasText: 'Your pledge' })
+        const mine = v.page.locator('.mk__ticket', { has: v.page.getByRole('heading', { name: 'Your pledge', exact: true }) })
         await tx(v, `withdraw the pledge to #${p}`, () => mine.getByRole('button', { name: 'Withdraw everything' }).click(), /Pledge withdrawn/)
       } finally {
         const yours = v.page.locator('.mk__ticket', { hasText: 'Your proposal' })

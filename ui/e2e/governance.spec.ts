@@ -96,7 +96,8 @@ test('governance: a new event, a pledge while in review, the owner rejects it', 
     const ticket = judge.page.locator('.mk__ticket', { hasText: 'Pledge' }).first()
     await ticket.getByLabel('USDC to pledge').fill('10')
     await tx(judge.page, judge.signed, JUDGE, `pledge 10 USDC to #${a}`, () => ticket.getByRole('button', { name: 'Pledge 10 USDC' }).click(), /Pledged/)
-    const mine = judge.page.locator('.mk__ticket', { hasText: 'Your pledge' })
+    // by its heading: hasText is case-insensitive, and the Pledge ticket's note says "seed shares worth your pledge"
+    const mine = judge.page.locator('.mk__ticket', { has: judge.page.getByRole('heading', { name: 'Your pledge', exact: true }) })
     await expect(mine).toContainText('10.00 USDC', { timeout: 30_000 })
     await tx(judge.page, judge.signed, JUDGE, `withdraw pledge #${a}`, () => mine.getByRole('button', { name: 'Withdraw everything' }).click(), /Pledge withdrawn/)
 
