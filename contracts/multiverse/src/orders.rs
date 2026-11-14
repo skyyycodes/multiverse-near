@@ -22,6 +22,7 @@ use near_sdk::{assert_one_yocto, env, near, AccountId};
 
 use crate::errors::{fail, sub};
 use crate::events::MultiverseEvent;
+use crate::ledger::LogScope;
 use crate::masks;
 use crate::ops::PauseFlag;
 use crate::types::{Asset, VerseKey};
@@ -512,15 +513,26 @@ impl Contract {
             self.unindex(order_id, &o);
         }
         self.orders.insert(order_id, o);
-        OrderFilled {
-            order_id: U64(order_id),
-            scenario_id,
-            taker,
-            amount: U128(amount),
-            usdc_amount: U128(usdc_amount),
-            remaining: U128(remaining),
+        if LogScope::is_open() {
+            // inside a trade: one item per (scenario, taker) in `orders_filled`
+            let fill = (
+                U64(order_id),
+                U128(amount),
+                U128(usdc_amount),
+                U128(remaining),
+            );
+            LogScope::add_fill(scenario_id, taker, fill);
+        } else {
+            OrderFilled {
+                order_id: U64(order_id),
+                scenario_id,
+                taker,
+                amount: U128(amount),
+                usdc_amount: U128(usdc_amount),
+                remaining: U128(remaining),
+            }
+            .emit();
         }
-        .emit();
         match side {
             Side::Bid => {
                 self.transfer_verse(taker, &maker, &[(wnear, amount)], None);

@@ -25,6 +25,7 @@ pub mod tiers;
 
 use crate::errors::{add, fail, mul, not_implemented, sub};
 use crate::events::MultiverseEvent;
+use crate::ledger::LogScope;
 use crate::ops::PauseFlag;
 use crate::receiver::{FundInsuranceMsg, LiquidateMsg, Receive, RepayMsg, ScenarioMsg};
 use crate::types::{Asset, VerseKey, WAD};
@@ -946,6 +947,8 @@ impl Contract {
         repay: Option<u128>,
         budget: u128,
     ) -> Liquidation {
+        // one group of lines however many pieces it cuts (ledger.rs)
+        let _scope = LogScope::open();
         let (lltv, bonus) = (self.params.lltv, self.params.liquidation_bonus);
         check_liquidation_bonus(lltv, bonus);
         if repay == Some(0) {

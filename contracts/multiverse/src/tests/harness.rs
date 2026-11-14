@@ -217,12 +217,13 @@ impl Outcome {
             .collect()
     }
 
-    /// The `data[0]` of every event with this name, in order.
+    /// Every item of every event with this name, in order: a line written by
+    /// a `LogScope` groups all the items of its name.
     pub fn data_of(&self, event: &str) -> Vec<Value> {
         self.events()
             .into_iter()
             .filter(|e| e["event"] == event)
-            .map(|e| e["data"][0].clone())
+            .flat_map(|e| e["data"].as_array().cloned().unwrap_or_default())
             .collect()
     }
 

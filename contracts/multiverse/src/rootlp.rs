@@ -28,6 +28,7 @@ use near_sdk::{assert_one_yocto, env, near, AccountId};
 use crate::amm::Position;
 use crate::errors::{add, fail, sub};
 use crate::events::MultiverseEvent;
+use crate::ledger::LogScope;
 use crate::masks;
 use crate::ops::PauseFlag;
 use crate::receiver::LpDepositMsg;
@@ -432,6 +433,8 @@ impl Contract {
         if wnear_amount == 0 || usdc_amount == 0 {
             fail("ZeroAmount");
         }
+        // 8 worlds log 16-26 lines one by one; grouped, a handful
+        let _scope = LogScope::open();
         let worlds = self.live_worlds(scenario_id);
         let plan = self.plan_deposit(scenario_id, &worlds, wnear_amount, usdc_amount);
         if plan.shares < min_shares {
@@ -525,6 +528,7 @@ impl Contract {
         if shares == 0 {
             fail("ZeroAmount");
         }
+        let _scope = LogScope::open();
         let mut vault = self
             .vaults
             .get(&scenario_id)

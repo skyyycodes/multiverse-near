@@ -1,25 +1,41 @@
 //! The verse ledger (per-account balances, supply, the created set) and the
 //! internal real wNEAR/USDC balances.
 //!
-//! Every change to a user's verse balance logs the matching NEP-245 event,
-//! one log line per call however many tokens it moves. Tokens a module holds
-//! (pool reserves, order escrow, collateral, the Root LP vault) leave
-//! `balances` but stay in `supply`; the custody helpers log those moves as
-//! transfers to and from the contract's own account, so indexers balance.
-//! Zero balances are removed so they stop costing storage.
+//! Every change to a user's verse balance logs the matching NEP-245 event.
+//! Tokens a module holds (pool reserves, order escrow, collateral, the Root
+//! LP vault) leave `balances` but stay in `supply`; the custody helpers log
+//! those moves as transfers to and from the contract's own account, so
+//! indexers balance. Zero balances are removed so they stop costing storage.
 //!
-//! A router trade can move tokens dozens of times (every order fill, swap and
-//! deposit), and a receipt may log at most 100 lines and 16 KiB, so it opens
-//! a `TransferBatch`: its transfers are summed per (from, to, token) and
-//! logged as one `mt_transfer` line when the batch finishes.
+//! A multi-step call can move tokens dozens of times (every order fill, swap
+//! and deposit of a trade), and a receipt may log at most 100 lines and
+//! 16 KiB, so such calls open a `LogScope`. While it is open, the NEP-245
+//! items are summed (mints and burns per owner and token, transfers netted
+//! per account and token against the contract's custody) and the
+//! `multiverse` events are held by name; the scope that opened first writes
+//! them out when it ends, in a fixed order:
+//!
+//! 1. one `mt_mint` line, one entry per owner;
+//! 2. one `mt_transfer` line: every `account -> contract` entry, then every
+//!    `contract -> account` entry, one per account and direction;
+//! 3. one `mt_burn` line, one entry per owner;
+//! 4. one `multiverse` line per event name in first-emission order, every
+//!    item in its `data`; order fills become one `orders_filled` line with
+//!    one item per (scenario, taker).
+//!
+//! Replaying the lines in that order reproduces every balance and supply
+//! change of the call and never takes a balance below zero. Items with a memo
+//! (`mt_resolve_transfer`'s refunds) are never absorbed.
 
 use std::cell::RefCell;
 
-use near_sdk::json_types::U128;
-use near_sdk::{env, AccountId};
+use near_sdk::json_types::{U128, U64};
+use near_sdk::{env, serde_json, AccountId};
 
 use crate::errors::{add, sub};
-use crate::events::{MtBurnLog, MtEvent, MtMintLog, MtTransferLog};
+use crate::events::{
+    self, MtBurnLog, MtEvent, MtMintLog, MtTransferLog, MultiverseEvent, OrdersFilled,
+};
 use crate::types::{Asset, VerseKey};
 use crate::Contract;
 
@@ -225,7 +241,7 @@ fn ids_and_amounts(items: &[(VerseKey, u128)]) -> (Vec<String>, Vec<U128>) {
 }
 
 fn log_mint(owner: &AccountId, items: &[(VerseKey, u128)], memo: Option<&str>) {
-    if items.is_empty() {
+    if items.is_empty() || (memo.is_none() && absorb(|p| p.mint(owner, items))) {
         return;
     }
     let (token_ids, amounts) = ids_and_amounts(items);
@@ -239,7 +255,7 @@ fn log_mint(owner: &AccountId, items: &[(VerseKey, u128)], memo: Option<&str>) {
 }
 
 fn log_burn(owner: &AccountId, items: &[(VerseKey, u128)], memo: Option<&str>) {
-    if items.is_empty() {
+    if items.is_empty() || (memo.is_none() && absorb(|p| p.burn(owner, items))) {
         return;
     }
     let (token_ids, amounts) = ids_and_amounts(items);
@@ -254,7 +270,7 @@ fn log_burn(owner: &AccountId, items: &[(VerseKey, u128)], memo: Option<&str>) {
 }
 
 fn log_transfer(from: &AccountId, to: &AccountId, items: &[(VerseKey, u128)], memo: Option<&str>) {
-    if items.is_empty() || (memo.is_none() && TransferBatch::absorb(from, to, items)) {
+    if items.is_empty() || (memo.is_none() && absorb(|p| p.transfer(from, to, items))) {
         return;
     }
     let (token_ids, amounts) = ids_and_amounts(items);
@@ -269,74 +285,294 @@ fn log_transfer(from: &AccountId, to: &AccountId, items: &[(VerseKey, u128)], me
     .emit();
 }
 
-type PendingTransfer = (AccountId, AccountId, Vec<(VerseKey, u128)>);
+/// One order fill inside a scope: `(order_id, amount, usdc_amount,
+/// remaining)`, as v1's `order_filled` fields.
+pub(crate) type Fill = (U64, U128, U128, U128);
+
+/// Per owner, per token, summed; owners and tokens in first-touch order.
+type Sums = Vec<(AccountId, Vec<(VerseKey, u128)>)>;
+
+/// An account's net change in one token: at most one side is non-zero.
+#[derive(Default)]
+struct Net {
+    credited: u128,
+    debited: u128,
+}
+
+impl Net {
+    fn credit(&mut self, amount: u128) {
+        if self.debited >= amount {
+            self.debited -= amount;
+        } else {
+            self.credited = add(self.credited, amount - self.debited);
+            self.debited = 0;
+        }
+    }
+
+    fn debit(&mut self, amount: u128) {
+        if self.credited >= amount {
+            self.credited -= amount;
+        } else {
+            self.debited = add(self.debited, amount - self.credited);
+            self.credited = 0;
+        }
+    }
+}
+
+/// What an open scope has absorbed so far.
+#[derive(Default)]
+struct Pending {
+    mints: Sums,
+    burns: Sums,
+    /// Per account, per token: the net move against the contract's custody.
+    net: Vec<(AccountId, Vec<(VerseKey, Net)>)>,
+    /// `multiverse` items by event name, names in first-emission order.
+    held: Vec<(&'static str, Vec<String>)>,
+    /// Fills per (scenario, taker), in first-fill order.
+    fills: Vec<(u64, AccountId, Vec<Fill>)>,
+}
+
+fn sum_into(sums: &mut Sums, owner: &AccountId, items: &[(VerseKey, u128)]) {
+    let i = match sums.iter().position(|(o, _)| o == owner) {
+        Some(i) => i,
+        None => {
+            sums.push((owner.clone(), Vec::new()));
+            sums.len() - 1
+        }
+    };
+    let tokens = &mut sums[i].1;
+    for (key, amount) in items {
+        match tokens.iter_mut().find(|(k, _)| k == key) {
+            Some((_, total)) => *total = add(*total, *amount),
+            None => tokens.push((*key, *amount)),
+        }
+    }
+}
+
+impl Pending {
+    fn mint(&mut self, owner: &AccountId, items: &[(VerseKey, u128)]) {
+        sum_into(&mut self.mints, owner, items);
+    }
+
+    fn burn(&mut self, owner: &AccountId, items: &[(VerseKey, u128)]) {
+        sum_into(&mut self.burns, owner, items);
+    }
+
+    /// `from -> to` becomes a debit of `from` and a credit of `to`; the
+    /// contract's own side is its custody, which the entries imply.
+    fn transfer(&mut self, from: &AccountId, to: &AccountId, items: &[(VerseKey, u128)]) {
+        let contract = env::current_account_id();
+        for (key, amount) in items {
+            if *from != contract {
+                self.net_of(from, key).debit(*amount);
+            }
+            if *to != contract {
+                self.net_of(to, key).credit(*amount);
+            }
+        }
+    }
+
+    fn net_of(&mut self, account: &AccountId, key: &VerseKey) -> &mut Net {
+        let i = match self.net.iter().position(|(a, _)| a == account) {
+            Some(i) => i,
+            None => {
+                self.net.push((account.clone(), Vec::new()));
+                self.net.len() - 1
+            }
+        };
+        let tokens = &mut self.net[i].1;
+        let j = match tokens.iter().position(|(k, _)| k == key) {
+            Some(j) => j,
+            None => {
+                tokens.push((*key, Net::default()));
+                tokens.len() - 1
+            }
+        };
+        &mut tokens[j].1
+    }
+
+    fn hold(&mut self, name: &'static str, item: String) {
+        match self.held.iter_mut().find(|(n, _)| *n == name) {
+            Some((_, items)) => items.push(item),
+            None => self.held.push((name, vec![item])),
+        }
+    }
+
+    fn add_fill(&mut self, scenario_id: u64, taker: &AccountId, fill: Fill) {
+        if !self.held.iter().any(|(n, _)| *n == OrdersFilled::NAME) {
+            // keeps the line's place among the held names
+            self.held.push((OrdersFilled::NAME, Vec::new()));
+        }
+        match self
+            .fills
+            .iter_mut()
+            .find(|(s, t, _)| *s == scenario_id && t == taker)
+        {
+            Some((_, _, fills)) => fills.push(fill),
+            None => self.fills.push((scenario_id, taker.clone(), vec![fill])),
+        }
+    }
+
+    /// Writes the lines out, in the module doc's order.
+    fn flush(self) {
+        let contract = env::current_account_id();
+        if !self.mints.is_empty() {
+            let ids: Vec<_> = self.mints.iter().map(|(_, t)| ids_and_amounts(t)).collect();
+            let logs: Vec<MtMintLog> = self
+                .mints
+                .iter()
+                .zip(&ids)
+                .map(|((owner, _), (token_ids, amounts))| MtMintLog {
+                    owner_id: owner,
+                    token_ids,
+                    amounts,
+                    memo: None,
+                })
+                .collect();
+            MtEvent::MtMint(&logs).emit();
+        }
+
+        let side = |out: bool| -> Vec<(&AccountId, Vec<(VerseKey, u128)>)> {
+            self.net
+                .iter()
+                .map(|(account, tokens)| {
+                    let moved = tokens
+                        .iter()
+                        .map(|(k, n)| (*k, if out { n.debited } else { n.credited }))
+                        .filter(|(_, a)| *a > 0)
+                        .collect::<Vec<_>>();
+                    (account, moved)
+                })
+                .filter(|(_, moved)| !moved.is_empty())
+                .collect()
+        };
+        let (outs, ins) = (side(true), side(false));
+        if !outs.is_empty() || !ins.is_empty() {
+            // (from, to, token ids and amounts): every out, then every in
+            type Entry<'e> = (&'e AccountId, &'e AccountId, (Vec<String>, Vec<U128>));
+            let entries: Vec<Entry> = outs
+                .iter()
+                .map(|(a, t)| (*a, &contract, ids_and_amounts(t)))
+                .chain(ins.iter().map(|(a, t)| (&contract, *a, ids_and_amounts(t))))
+                .collect();
+            let logs: Vec<MtTransferLog> = entries
+                .iter()
+                .map(|(from, to, (token_ids, amounts))| MtTransferLog {
+                    authorized_id: None,
+                    old_owner_id: from,
+                    new_owner_id: to,
+                    token_ids,
+                    amounts,
+                    memo: None,
+                })
+                .collect();
+            MtEvent::MtTransfer(&logs).emit();
+        }
+
+        if !self.burns.is_empty() {
+            let ids: Vec<_> = self.burns.iter().map(|(_, t)| ids_and_amounts(t)).collect();
+            let logs: Vec<MtBurnLog> = self
+                .burns
+                .iter()
+                .zip(&ids)
+                .map(|((owner, _), (token_ids, amounts))| MtBurnLog {
+                    owner_id: owner,
+                    authorized_id: None,
+                    token_ids,
+                    amounts,
+                    memo: None,
+                })
+                .collect();
+            MtEvent::MtBurn(&logs).emit();
+        }
+
+        for (name, items) in &self.held {
+            if *name == OrdersFilled::NAME {
+                let items: Vec<String> = self
+                    .fills
+                    .iter()
+                    .map(|(scenario_id, taker, fills)| {
+                        let item = OrdersFilled {
+                            scenario_id: *scenario_id,
+                            taker,
+                            fills,
+                        };
+                        serde_json::to_string(&item).unwrap_or_else(|_| env::abort())
+                    })
+                    .collect();
+                env::log_str(&events::line(name, &items));
+            } else {
+                env::log_str(&events::line(name, items));
+            }
+        }
+    }
+}
 
 thread_local! {
-    static BATCH: RefCell<Option<Vec<PendingTransfer>>> = const { RefCell::new(None) };
+    static SCOPE: RefCell<Option<Pending>> = const { RefCell::new(None) };
 }
 
-/// Collects the NEP-245 transfers logged while it lives. `finish` logs them
-/// as one line; dropping it unfinished (a failed call) discards them.
-pub(crate) struct TransferBatch(());
-
-impl TransferBatch {
-    pub(crate) fn start() -> Self {
-        BATCH.with(|b| *b.borrow_mut() = Some(Vec::new()));
-        TransferBatch(())
-    }
-
-    pub(crate) fn finish(self) {
-        let entries = BATCH.with(|b| b.borrow_mut().take()).unwrap_or_default();
-        if entries.is_empty() {
-            return;
-        }
-        let ids: Vec<(Vec<String>, Vec<U128>)> = entries
-            .iter()
-            .map(|(_, _, items)| ids_and_amounts(items))
-            .collect();
-        let logs: Vec<MtTransferLog> = entries
-            .iter()
-            .zip(&ids)
-            .map(|((from, to, _), (token_ids, amounts))| MtTransferLog {
-                authorized_id: None,
-                old_owner_id: from,
-                new_owner_id: to,
-                token_ids,
-                amounts,
-                memo: None,
-            })
-            .collect();
-        MtEvent::MtTransfer(&logs).emit();
-    }
-
-    /// Adds the transfer to an open batch; false when there is none.
-    fn absorb(from: &AccountId, to: &AccountId, items: &[(VerseKey, u128)]) -> bool {
-        BATCH.with(|b| {
-            let mut batch = b.borrow_mut();
-            let Some(entries) = batch.as_mut() else {
-                return false;
-            };
-            let i = match entries.iter().position(|(f, t, _)| f == from && t == to) {
-                Some(i) => i,
-                None => {
-                    entries.push((from.clone(), to.clone(), Vec::new()));
-                    entries.len() - 1
-                }
-            };
-            let moved = &mut entries[i].2;
-            for (key, amount) in items {
-                match moved.iter_mut().find(|(k, _)| k == key) {
-                    Some((_, total)) => *total = add(*total, *amount),
-                    None => moved.push((*key, *amount)),
-                }
-            }
+/// Runs `f` on the open scope; false when there is none.
+fn absorb(f: impl FnOnce(&mut Pending)) -> bool {
+    SCOPE.with(|s| match s.borrow_mut().as_mut() {
+        Some(p) => {
+            f(p);
             true
+        }
+        None => false,
+    })
+}
+
+/// Groups the logs of one call (see the module doc). `open` starts a scope,
+/// or joins the one already open; only the scope that started it writes the
+/// lines, when it is dropped, so an early return never loses them. On a
+/// failed call nothing is written: in the contract a panic aborts and the
+/// receipt's logs are discarded anyway, and natively (tests) the pending
+/// lines are dropped while unwinding.
+pub(crate) struct LogScope {
+    owner: bool,
+}
+
+impl LogScope {
+    pub(crate) fn open() -> LogScope {
+        SCOPE.with(|s| {
+            let mut s = s.borrow_mut();
+            if s.is_some() {
+                LogScope { owner: false }
+            } else {
+                *s = Some(Pending::default());
+                LogScope { owner: true }
+            }
         })
     }
+
+    pub(crate) fn is_open() -> bool {
+        SCOPE.with(|s| s.borrow().is_some())
+    }
+
+    /// Holds a serialized `multiverse` item for the `name` line. Without an
+    /// open scope it does nothing; `MultiverseEvent::emit` checks first.
+    pub(crate) fn hold(name: &'static str, item: String) {
+        absorb(|p| p.hold(name, item));
+    }
+
+    /// Adds an order fill to the `orders_filled` line. Without an open scope
+    /// it does nothing; `fill_order_for` checks first.
+    pub(crate) fn add_fill(scenario_id: u64, taker: &AccountId, fill: Fill) {
+        absorb(|p| p.add_fill(scenario_id, taker, fill));
+    }
 }
 
-impl Drop for TransferBatch {
+impl Drop for LogScope {
     fn drop(&mut self) {
-        BATCH.with(|b| *b.borrow_mut() = None);
+        if !self.owner {
+            return;
+        }
+        let pending = SCOPE.with(|s| s.borrow_mut().take());
+        if let Some(p) = pending {
+            if !std::thread::panicking() {
+                p.flush();
+            }
+        }
     }
 }

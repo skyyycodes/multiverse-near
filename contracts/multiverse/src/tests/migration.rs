@@ -272,14 +272,15 @@ impl Prod {
         self.storage.get(key)
     }
 
-    /// The `data[0]` of every `multiverse` event of the last call with this name.
+    /// Every item of every `multiverse` event of the last call with this
+    /// name: a line written by a `LogScope` groups all the items of its name.
     pub fn data_of(&self, event: &str) -> Vec<Value> {
         self.logs
             .iter()
             .filter_map(|l| l.strip_prefix("EVENT_JSON:"))
             .map(|j| serde_json::from_str::<Value>(j).unwrap())
             .filter(|e| e["event"] == event)
-            .map(|e| e["data"][0].clone())
+            .flat_map(|e| e["data"].as_array().cloned().unwrap_or_default())
             .collect()
     }
 }

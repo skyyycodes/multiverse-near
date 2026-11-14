@@ -4,12 +4,15 @@
 //! `mt_burn` or `mt_transfer`, so indexers and wallets can follow positions.
 //!
 //! A receipt may log at most 100 lines and 16 KiB in total, so events carry
-//! ids and amounts, not names or labels the views can derive.
+//! ids and amounts, not names or labels the views can derive. Inside a
+//! `LogScope` (`ledger.rs`) items are held and written as one line per event
+//! name, with every item in `data`.
 
 use near_sdk::json_types::U128;
 use near_sdk::serde::Serialize;
 use near_sdk::{env, near, serde_json, AccountId};
 
+use crate::ledger::{Fill, LogScope};
 use crate::types::{Asset, Source};
 
 pub const STANDARD: &str = "multiverse";
@@ -17,13 +20,13 @@ pub const STANDARD: &str = "multiverse";
 /// group items. The NEP-245 lines stay at 1.0.0.
 pub const VERSION: &str = "2.0.0";
 
-#[derive(Serialize)]
-#[serde(crate = "near_sdk::serde")]
-struct Envelope<'a, T> {
-    standard: &'static str,
-    version: &'static str,
-    event: &'static str,
-    data: [&'a T; 1],
+/// One NEP-297 line: `EVENT_JSON:{"standard":"multiverse","version":"2.0.0",
+/// "event":<name>,"data":[<items>]}`, each item already serialized.
+pub(crate) fn line(name: &str, items: &[String]) -> String {
+    format!(
+        "EVENT_JSON:{{\"standard\":\"{STANDARD}\",\"version\":\"{VERSION}\",\"event\":\"{name}\",\"data\":[{}]}}",
+        items.join(",")
+    )
 }
 
 /// A NEP-297 event of the "multiverse" standard. Any module can add one: a
@@ -33,15 +36,15 @@ pub trait MultiverseEvent: Serialize + Sized {
     /// The snake_case `event` field.
     const NAME: &'static str;
 
+    /// One line with this item, or, inside a `LogScope`, the item held for
+    /// the scope's line of this name.
     fn emit(&self) {
-        let envelope = Envelope {
-            standard: STANDARD,
-            version: VERSION,
-            event: Self::NAME,
-            data: [self],
-        };
-        let json = serde_json::to_string(&envelope).unwrap_or_else(|_| env::abort());
-        env::log_str(&format!("EVENT_JSON:{json}"));
+        let item = serde_json::to_string(self).unwrap_or_else(|_| env::abort());
+        if LogScope::is_open() {
+            LogScope::hold(Self::NAME, item);
+        } else {
+            env::log_str(&line(Self::NAME, &[item]));
+        }
     }
 }
 
@@ -202,6 +205,18 @@ pub struct PayoutFailed<'a> {
     pub credited: U128,
 }
 named!(PayoutFailed<'_>, "payout_failed");
+
+/// The order fills of one taker in one scenario inside a `LogScope`, each
+/// `[order_id, amount, usdc_amount, remaining]` with `order_filled`'s
+/// meanings. A direct `fill_order` still logs `order_filled`.
+#[derive(Serialize, Debug)]
+#[serde(crate = "near_sdk::serde")]
+pub struct OrdersFilled<'a> {
+    pub scenario_id: u64,
+    pub taker: &'a AccountId,
+    pub fills: &'a [Fill],
+}
+named!(OrdersFilled<'_>, "orders_filled");
 
 /// Sub-unit dust left in a leaving account's internal balance. It cannot be
 /// paid out, so `storage_unregister` moves it to the contract's own balance.

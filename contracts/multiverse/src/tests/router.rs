@@ -1571,17 +1571,25 @@ fn worst_case_trade_fits_the_log_limits() {
         assert!(out[wi] > 5 * proceeds(K - 1, price));
     }
     let logs = &w.last.logs;
-    assert_eq!(w.last.data_of("order_filled").len(), 20);
-    // every fill's tokens are in the one batched transfer line
-    let transfers = w.last.data_of("mt_transfer");
-    assert_eq!(transfers.len(), 1);
-    let batched = &w
+    // the 20 fills are one `orders_filled` item (one taker, one scenario)
+    let filled = w.last.data_of("orders_filled");
+    assert_eq!(filled.len(), 1);
+    assert_eq!(filled[0]["fills"].as_array().unwrap().len(), 20);
+    assert!(w.last.data_of("order_filled").is_empty());
+    // every fill's tokens are in the one grouped transfer line
+    let lines = w
         .last
         .events()
         .into_iter()
-        .find(|e| e["event"] == "mt_transfer")
-        .unwrap()["data"];
-    assert!(batched.as_array().unwrap().len() >= 10);
+        .filter(|e| e["event"] == "mt_transfer")
+        .count();
+    assert_eq!(lines, 1);
+    // one entry per account and direction: Alice's tokens out, then the
+    // four makers' fills and dust in
+    let batched = w.last.data_of("mt_transfer");
+    assert_eq!(batched.len(), 5);
+    assert_eq!(batched[0]["old_owner_id"], ALICE);
+    assert!(batched[1..].iter().all(|e| e["old_owner_id"] == CONTRACT));
     assert!(logs.len() <= 100, "{} log lines", logs.len());
     // with testnet's longer account ids
     let testnet: usize = logs
