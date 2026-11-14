@@ -8,6 +8,7 @@ use near_sdk::json_types::U128;
 use near_sdk::{near, AccountId};
 
 use super::{Pool, PoolKind, PoolToken};
+use crate::prices::WorldStatus;
 use crate::{Contract, ContractExt};
 
 #[near(serializers = [json])]
@@ -48,6 +49,10 @@ pub struct PoolView {
     /// For a within-world pool: whether lending can price the world (TWAP and
     /// the depth gate). For a between-world pool: whether there is a TWAP.
     pub twap_ok: bool,
+    /// For a within-world pool, its lending status under the market's price
+    /// config: "no_pool", "young", "shallow", "out_of_band" or "trusted".
+    /// Null for other pools.
+    pub price_status: Option<String>,
 }
 
 #[near(serializers = [json])]
@@ -247,8 +252,15 @@ impl Contract {
         } else {
             self.pool_mean_tick(pool).and_then(price::from_tick)
         };
+        let price_status = match pool.kind {
+            PoolKind::Within { world } => {
+                let cfg = self.price_cfg(pool.scenario_id);
+                Some(self.world_quote(pool.scenario_id, world, &cfg).status)
+            }
+            _ => None,
+        };
         let twap_ok = match pool.kind {
-            PoolKind::Within { world } => self.world_price(pool.scenario_id, world).1,
+            PoolKind::Within { .. } => price_status == Some(WorldStatus::Trusted),
             PoolKind::Between { .. } => twap_price.is_some(),
             PoolKind::Spot => false,
         };
@@ -273,6 +285,7 @@ impl Contract {
             price: U128(pool.amm.price_wad().unwrap_or(0)),
             twap_price: twap_price.map(U128),
             twap_ok,
+            price_status: price_status.map(|s| s.name().to_string()),
         }
     }
 }

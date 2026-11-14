@@ -169,9 +169,11 @@ impl ImpactRing {
 }
 
 impl Contract {
-    /// wNEAR price in `world` of `scenario_id` for lending, as v1 reads it:
-    /// the world pool's TWAP price when the world is trusted, else
-    /// `(0, false)`.
+    /// wNEAR price in `world` of `scenario_id` as v1 read it: the world
+    /// pool's TWAP price when the world is trusted under the market's price
+    /// config, else `(0, false)`. `world_price_ok`, `PoolView.twap_ok` and
+    /// the v1 suites keep this meaning; lending's two sides read the price
+    /// snapshot.
     pub(crate) fn world_price(&self, scenario_id: u64, world: u8) -> (u128, bool) {
         let cfg = self.price_cfg(scenario_id);
         let q = self.world_quote(scenario_id, world, &cfg);
@@ -180,6 +182,16 @@ impl Contract {
         } else {
             (0, false)
         }
+    }
+
+    /// Seconds since the oldest TWAP observation kept: the pool's true age
+    /// while its ring has not wrapped, at least two windows once it has; 0
+    /// without any observation.
+    pub(crate) fn pool_age(&self, pool: &Pool) -> u64 {
+        pool.twap
+            .observations()
+            .next()
+            .map_or(0, |o| now_sec().saturating_sub(o.timestamp))
     }
 
     /// Mean tick over the TWAP window, or over the pool's whole history while
