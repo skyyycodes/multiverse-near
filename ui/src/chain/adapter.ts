@@ -156,7 +156,7 @@ export type PositionResult = {
   error: Error | null;
 };
 
-/** What the connected account holds in a market, for one lending tier (Normal by default); every 4 s. */
+/** What the connected account holds in a market, for one lending tier (Normal by default); every 8 s. */
 export function usePosition(id: number | string | null | undefined, tier: Tier = "normal"): PositionResult {
   const sid = marketId(id);
   const { accountId } = useWallet();
@@ -183,7 +183,7 @@ export type WalletBalances = {
   innerUsdcWad: bigint;
 };
 
-/** The connected wallet's wNEAR and USDC (undefined while loading or disconnected); every 4 s. */
+/** The connected wallet's wNEAR and USDC (undefined while loading or disconnected); every 8 s. */
 export function useWalletBalances(): WalletBalances | undefined {
   const { accountId } = useWallet();
   const cfg = useAppConfig().data;

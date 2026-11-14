@@ -28,8 +28,8 @@ in another order; don't carry its helpers (`gridOf`, `outcomeIn`, `bitsOf` over 
 |---|---|---|
 | `useMarkets()` | `{ markets?: ChainMarket[], isLoading, error }`, every listed market | `list_markets`, `get_events`, `event_meta`; 20 s |
 | `useMarket(id)` | `{ market?, isLoading, notFound, error }`, listed or not | `get_market` + events; 15 s |
-| `usePosition(id, tier = 'normal')` | `{ position?: Position, isLoading, error }` (zeros without a wallet) | `borrow_view`; 4 s |
-| `useWalletBalances()` | wNEAR / USDC in the wallet (numbers and wads), inner balances | `ft_balance_of`, `real_balance_of`; 4 s |
+| `usePosition(id, tier = 'normal')` | `{ position?: Position, isLoading, error }` (zeros without a wallet) | `borrow_view`; 8 s |
+| `useWalletBalances()` | wNEAR / USDC in the wallet (numbers and wads), inner balances | `ft_balance_of`, `real_balance_of`; 8 s |
 | `useMyMarkets()` | market ids the account holds anything in | `markets_of`; 30 s |
 | `useLoanSummary()` | markets, open loans, total debt, lowest health, supplied | `lending_tiers` per market; 30 s |
 | `useIsOwner()` | the connected account owns the contract | `get_app_config` |

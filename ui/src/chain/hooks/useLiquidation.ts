@@ -51,7 +51,8 @@ export function useAtRisk(onlySid: number | undefined, maxHf: string | undefined
       const pages = await Promise.all(jobs.map((j) => borrowersOf(j.sid, j.tier, maxHf)));
       return { rows: sortAtRisk(pages.flat()), markets: sids.length, tiersWithLoans: jobs.length, unreadable: unreadable.sort((a, b) => a - b) };
     },
-    refetchInterval: 10_000,
+    // every market's tiers, then each tier's borrowers: one round is a dozen reads or more, so not too often
+    refetchInterval: 20_000,
     placeholderData: keepPreviousData,
   });
 }

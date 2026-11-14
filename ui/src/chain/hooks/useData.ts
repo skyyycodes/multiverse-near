@@ -32,8 +32,9 @@ import { toInternal } from "../units";
 import { useNowSeconds } from "./useClock";
 import { useGuardedMarketId, useMarketRef } from "./useMarket";
 
-/** Snapshots every 4 s, quotes every 6 s. */
-export const POLL_MS = 4_000;
+/** Snapshots every 8 s, quotes every 6 s. A transaction of yours refreshes everything at once (useSubmit), so the poll
+ *  only has to catch what others do; faster, a connected page outruns the public RPC's rate limit. */
+export const POLL_MS = 8_000;
 export const QUOTE_MS = 6_000;
 
 const view = async <T>(method: string, args: Record<string, unknown> = {}, contractId = CONTRACT_ID): Promise<T> =>
