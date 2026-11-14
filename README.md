@@ -77,7 +77,18 @@ The testnet demo is shared: what you see is the state that trades, loans and pro
 ### What you need
 
 - A NEAR testnet account in a wallet that NEAR Connect lists on testnet: Meteor, Intear or Nightly work.
-- Some testnet NEAR for gas and the 0.1 NEAR storage registration (https://near-faucet.io).
+- Some testnet NEAR: about 0.27 NEAR covers the 0.1 NEAR storage registration and the everyday actions. Testnet
+  buys a transaction's gas up front and refunds what it does not burn, so an everyday action needs about 0.16 NEAR
+  free while signing (a pledge or a liquidation 0.31) but costs about 0.001. Need testnet NEAR?
+  https://near-faucet.io tops up a top-level `.testnet` account that already holds about 0.03 NEAR (a request is a
+  transaction you sign). With no NEAR at all, NEAR CLI creates a new account holding 10 NEAR from the faucet service
+  (`print-to-terminal` in place of `save-to-keychain` shows the key to import into your wallet):
+
+```bash
+near account create-account sponsor-by-faucet-service <you>.testnet \
+  autogenerate-new-keypair save-to-keychain network-config testnet create
+```
+
 - Test wNEAR and USDC: once your wallet is connected, click "Get test tokens" on the market list (or in the
   account sheet). It mints 2,000 wNEAR and 5,000 USDC to your own account and pays the 0.1 NEAR IfVerse storage
   deposit if you have none. The mock tokens have an open `mint`; without the app, NEAR CLI does the same:

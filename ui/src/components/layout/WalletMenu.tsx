@@ -9,10 +9,14 @@ import { useActions, useIsOwner, useLoanSummary, useWalletBalances } from '../..
 import { accountUrl, ENV } from '../../chain/env'
 import { dropLabel, faucetMints } from '../../chain/faucet'
 import { useAppConfig, useRegistration } from '../../chain/hooks/useData'
+import { useAccountInfo } from '../../chain/hooks/useOps'
+import { gasFloat, GAS_FT_ROUTINE, ONE_YOCTO } from '../../chain/near/tx'
 import { useWallet } from '../../chain/near/wallet'
 import { short } from '../../lib/format'
 
 const whole = (n: number) => Math.floor(n).toLocaleString('en-US')
+/** The first storage deposit on the contract (useTx registerTx), paid by "Get test tokens" when there is none. */
+const REGISTRATION = 10n ** 23n
 
 export function WalletMenu() {
   const { accountId, connect, ready, connecting } = useWallet()
@@ -58,6 +62,7 @@ function Panel({ account, close }: { account: string; close: () => void }) {
   const actions = useActions()
   const cfg = useAppConfig().data
   const reg = useRegistration(account, cfg?.wnear, cfg?.usdc).data
+  const info = useAccountInfo(account).data
   const [copied, setCopied] = useState(false)
   const explorer = accountUrl(account)
 
@@ -67,6 +72,8 @@ function Panel({ account, close }: { account: string; close: () => void }) {
   const faucetOn = ENV.chain === 'testnet'
   const nothingToDo = mints !== undefined && registered !== undefined && mints.length === 0 && registered
   const faucetLabel = actions.busy ?? (nothingToDo ? 'Test tokens in wallet' : 'Get test tokens')
+  // too little NEAR for the next step: a routine action's gas, plus the 0.1 NEAR registration while there is none
+  const lowNear = info !== undefined && registered !== undefined && gasFloat(info, GAS_FT_ROUTINE, registered ? ONE_YOCTO : REGISTRATION).short
 
   return (
     <div className="wm__panel" role="menu">
@@ -88,7 +95,8 @@ function Panel({ account, close }: { account: string; close: () => void }) {
           </button>
         )}
       </div>
-      {faucetOn && !nothingToDo && <p className="wm__note">Test tokens have no value. Minting is free; registering keeps 0.1 NEAR as storage.</p>}
+      {faucetOn && !nothingToDo && <p className="wm__note">Test tokens have no value. Each mint costs a tiny fee but needs about 0.03 NEAR free to sign; registering keeps 0.1 NEAR as storage.</p>}
+      {faucetOn && lowNear && <p className="wm__note">Need testnet NEAR? near-faucet.io tops up a top-level .testnet account that already holds about 0.03 NEAR; with none, NEAR CLI&apos;s <code>near account create-account sponsor-by-faucet-service &lt;name&gt;.testnet</code> creates a new account holding 10 NEAR.</p>}
       <nav className="wm__links">
         <Link href="/portfolio/">Portfolio <small>{loans ? `${loans.markets} market${loans.markets === 1 ? '' : 's'}` : '…'}</small></Link>
         <Link href="/borrow/">Loans <small>{!loans ? '…' : loans.lowest === null ? 'none' : `lowest health ${loans.lowest.toFixed(2)}`}</small></Link>

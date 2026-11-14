@@ -16,6 +16,7 @@
 .wm__row button:disabled { opacity: 0.45; cursor: not-allowed; }
 .wm__row button:disabled:hover { color: var(--u-soft); border-color: var(--u-line-2); }
 .wm__note { font-size: 11px; line-height: 1.5; color: var(--u-muted); }
+.wm__note code { color: var(--u-soft); overflow-wrap: anywhere; }
 
 /* phones: the bar keeps the name, the testnet badge, the wallet and the menu on one line. The board has its own
    search, and the world grid is one tap away in the anchor market. */
