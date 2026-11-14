@@ -8,6 +8,7 @@
 #
 # KEEPER_KEY    keeper.<root>: liquidations and faucet mints (a full-access key: it calls the token and the contract)
 # REPORTER_KEY  the reporter (resolver.<root>): `report_reference`; its "reference" key when one exists
+# MAKER_KEY     maker.<root>: the maker's swaps, splits and faucet mints (full access: it calls both tokens and the contract)
 # CRON_SECRET   random; Vercel Cron sends it as `Authorization: Bearer <CRON_SECRET>`
 set -euo pipefail
 
@@ -31,10 +32,9 @@ done
 
 ids="$(node -e '
   const d = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
-  process.stdout.write(`${(d.ops && d.ops.keeper) || "keeper." + d.root} ${d.reporter}`);
+  process.stdout.write(`${(d.ops && d.ops.keeper) || "keeper." + d.root} ${d.reporter} ${(d.ops && d.ops.maker) || "maker." + d.root}`);
 ' "$DEPLOYMENTS")"
-KEEPER="${ids% *}"
-REPORTER="${ids#* }"
+read -r KEEPER REPORTER MAKER <<<"$ids"
 
 # The public key of a key file (never the private one), and whether the chain knows it.
 public_key() { node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).public_key || "")' "$1"; }
@@ -66,6 +66,7 @@ echo "# Secrets of the keeper function (Vercel project $PROJECT, production). No
 echo
 emit KEEPER_KEY "$KEEPER" "$KEYS_DIR/$KEEPER.json"
 emit REPORTER_KEY "$REPORTER" "$KEYS_DIR/$REPORTER.reference.json" "$KEYS_DIR/$REPORTER.json"
+emit MAKER_KEY "$MAKER" "$KEYS_DIR/$MAKER.json"
 echo "# CRON_SECRET: random, never written to disk"
 echo "node -e 'process.stdout.write(require(\"crypto\").randomBytes(32).toString(\"hex\"))' | vercel env add CRON_SECRET --environment production --sensitive --force --project $PROJECT --scope $SCOPE"
 echo

@@ -62,7 +62,7 @@ fi
 # The account ids the keeper works on, from the deployment record (public ids only).
 TARGETS="$(node -e '
   const d = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
-  const t = { contractId: d.contractId, usdcId: d.usdc, keeperId: (d.ops && d.ops.keeper) || `keeper.${d.root}`, reporterId: d.reporter };
+  const t = { contractId: d.contractId, usdcId: d.usdc, wnearId: d.wnear, keeperId: (d.ops && d.ops.keeper) || `keeper.${d.root}`, reporterId: d.reporter, makerId: (d.ops && d.ops.maker) || `maker.${d.root}` };
   for (const [k, v] of Object.entries(t)) if (typeof v !== "string" || !/^[a-z0-9._-]+$/.test(v)) { console.error(`bad ${k}: ${v}`); process.exit(1); }
   process.stdout.write(JSON.stringify(t));
 ' "$DEPLOYMENTS")"

@@ -159,15 +159,15 @@ export interface SpotMovePlan {
 
 /**
  * What the owner must pay in for `move_spot_to(target)` on a pool holding `wnearReserve` and
- * `usdcReserve`: constant product, fee on the input. Null when the price is already there. Used
- * only to deposit enough beforehand; the contract computes the exact swap itself.
+ * `usdcReserve`: constant product, fee on the input (`feePips`: the spot pool's static fee, or a
+ * world pool's `fee_pips`, the fee its next swap pays). Null when the price is already there.
  */
-export function planSpotMove(wnearReserve: bigint, usdcReserve: bigint, target: bigint): SpotMovePlan | null {
+export function planSpotMove(wnearReserve: bigint, usdcReserve: bigint, target: bigint, feePips: bigint = SPOT_FEE_PIPS): SpotMovePlan | null {
   if (wnearReserve === 0n || usdcReserve === 0n || target === 0n) throw new Error("empty pool or zero price");
   const k = wnearReserve * usdcReserve;
   const current = (usdcReserve * WAD) / wnearReserve;
   if (current === target) return null;
-  const grossUp = (net: bigint): bigint => (net * PIPS + (PIPS - SPOT_FEE_PIPS) - 1n) / (PIPS - SPOT_FEE_PIPS);
+  const grossUp = (net: bigint): bigint => (net * PIPS + (PIPS - feePips) - 1n) / (PIPS - feePips);
   if (target < current) {
     const wnearAfter = isqrt((k * WAD) / target);
     return wnearAfter <= wnearReserve ? null : { wnearIn: true, amountIn: grossUp(wnearAfter - wnearReserve) };

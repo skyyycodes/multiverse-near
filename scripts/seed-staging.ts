@@ -25,8 +25,9 @@ import { join } from "node:path";
 import { parseArgs } from "node:util";
 
 import { chainHeight, chainNowSec } from "./lib/chain.ts";
-import { orderCost, oddsPairs, planSpotMove, seedReserves, singles, sumOver, wmul } from "./lib/demo.ts";
+import { orderCost, oddsPairs, seedReserves, singles, sumOver, wmul } from "./lib/demo.ts";
 import { DEPLOYMENTS_DIR, requireDeployments, writeDeployments, type Deployments } from "./lib/deployments.ts";
+import { makerPools, planMaker, splitNeed } from "./lib/maker.ts";
 import { actions, DEFAULT_RPC_URL, NETWORK, nearBalance, REPO_ROOT, sendTransaction, spendable } from "./lib/near.ts";
 import { fedCutsOdds } from "./lib/polymarket.ts";
 import { Protocol } from "./lib/protocol.ts";
@@ -626,8 +627,9 @@ async function deepenStep(): Promise<string> {
 /**
  * The team's market maker, once: moves every world pool of the anchor by the same factor so its
  * implied spot meets the outside reference again (trades since seeding move it), with real swaps
- * from the owner's verse balances. Keeps the anchor inside the 10% borrowing band (SPEC.md M23:
- * listed markets within 1.5% of the reference). Re-run any time with `--only maker`.
+ * from the owner's verse balances (lib/maker.ts plans it; the keeper repeats it every round as the
+ * maker account). Keeps the anchor inside the 10% borrowing band (SPEC.md M23: listed markets
+ * within 1.5% of the reference). Re-run any time with `--phase maker`.
  */
 async function makerStep(): Promise<string> {
   const lines: string[] = [];
@@ -637,29 +639,18 @@ async function makerStep(): Promise<string> {
     const sNow = stored && stored.age_sec < 900 ? u128(stored.price) : (await readPrice()).priceWad;
     const implied = u128((await P.market(sid))?.implied_spot);
     if (implied === 0n) throw new Error(`${key}: implied spot unknown`);
-    const f = (sNow * WAD) / implied;
-    const offBps = Number(((f > WAD ? f - WAD : WAD - f) * 10_000n) / WAD);
-    if (offBps < 50) {
-      lines.push(`${key}: implied ${wadText(implied, 4)} within ${offBps} bps of ${wadText(sNow, 4)}`);
+    const pools = makerPools([...(await P.worldPools(sid)).values()]);
+    const plan = planMaker(sNow, implied, pools, { thresholdBps: 50, maxBps: 10_000, slippageBps: 100 });
+    if (plan.kind !== "move") {
+      lines.push(`${key}: implied ${wadText(implied, 4)} within ${plan.offBps} bps of ${wadText(sNow, 4)}`);
       continue;
     }
-    const pools = await P.worldPools(sid);
-    const n = pools.size;
-    const moves: { id: number; wnearIn: boolean; amountIn: bigint }[] = [];
-    for (let w = 0; w < n; w++) {
-      const pool = pools.get(w);
-      if (!pool) continue;
-      const target = (u128(pool.price) * f) / WAD;
-      const plan = planSpotMove(u128(pool.wnear_reserve), u128(pool.usdc_reserve), target);
-      if (plan) moves.push({ id: pool.id, ...plan });
-    }
-    const needU = moves.filter((m) => !m.wnearIn).reduce((a, m) => (m.amountIn > a ? m.amountIn : a), 0n);
-    const needW = moves.filter((m) => m.wnearIn).reduce((a, m) => (m.amountIn > a ? m.amountIn : a), 0n);
-    if (needU > 0n) await mintSplit(owner(), "usdc", sid, singles(n), (needU * 102n) / 100n);
-    if (needW > 0n) await mintSplit(owner(), "wnear", sid, singles(n), (needW * 102n) / 100n);
-    for (const m of moves) await P.swap(owner(), m.id, m.wnearIn, m.amountIn, 0n);
+    const need = splitNeed(plan.moves);
+    if (need.usdc > 0n) await mintSplit(owner(), "usdc", sid, singles(pools.length), need.usdc);
+    if (need.wnear > 0n) await mintSplit(owner(), "wnear", sid, singles(pools.length), need.wnear);
+    for (const m of plan.moves) await P.swap(owner(), m.poolId, m.wnearIn, m.amountIn, m.minOut);
     const after = u128((await P.market(sid))?.implied_spot);
-    lines.push(`${key}: implied ${wadText(implied, 4)} -> ${wadText(after, 4)} (reference ${wadText(sNow, 4)}), ${moves.length} swaps`);
+    lines.push(`${key}: implied ${wadText(implied, 4)} -> ${wadText(after, 4)} (reference ${wadText(sNow, 4)}), ${plan.moves.length} swaps`);
   }
   for (const l of lines) console.log(`  ${l}`);
   return lines.join("; ");

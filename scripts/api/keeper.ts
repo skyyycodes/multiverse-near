@@ -10,7 +10,7 @@
 //   read). Sends are gated by the window either way, so however often the URL is hit, the keys
 //   sign at most one round's transactions per window (about a minute).
 // A wrong Authorization header is refused. Keys come only from the environment: KEEPER_KEY,
-// REPORTER_KEY (and CRON_SECRET); nothing here prints them.
+// REPORTER_KEY, MAKER_KEY (and CRON_SECRET); nothing here prints them.
 
 import { timingSafeEqual } from "node:crypto";
 
@@ -21,7 +21,14 @@ declare const KEEPER_TARGETS: KeeperTargets | undefined;
 /** The staging deployment unless the bundle was built with other targets. */
 export const TARGETS: KeeperTargets =
   typeof KEEPER_TARGETS === "undefined"
-    ? { contractId: "app.ifverse-staging.testnet", usdcId: "usdc.ifverse-staging.testnet", keeperId: "keeper.ifverse-staging.testnet", reporterId: "resolver.ifverse-staging.testnet" }
+    ? {
+        contractId: "app.ifverse-staging.testnet",
+        usdcId: "usdc.ifverse-staging.testnet",
+        wnearId: "wnear.ifverse-staging.testnet",
+        keeperId: "keeper.ifverse-staging.testnet",
+        reporterId: "resolver.ifverse-staging.testnet",
+        makerId: "maker.ifverse-staging.testnet",
+      }
     : KEEPER_TARGETS;
 
 export const PING_EVERY_MS = 55_000;
@@ -64,6 +71,9 @@ function brief(s: RoundSummary): unknown {
     ms: s.ms,
     window: s.window,
     reference: s.reference ? { action: s.reference.action, reason: s.reference.reason, price: s.reference.price, tx: s.reference.tx } : null,
+    maker: s.maker
+      ? { skipped: s.maker.skipped, markets: s.maker.markets.map((m) => ({ scenarioId: m.scenarioId, offBps: m.offBps, action: m.action, tx: m.tx })) }
+      : null,
     liquidations: s.liquidations
       ? { skipped: s.liquidations.skipped, candidates: s.liquidations.candidates, sent: s.liquidations.actions.filter((a) => a.status === "sent").map((a) => a.tx) }
       : null,
@@ -87,6 +97,7 @@ function withHardStop(p: Promise<RoundSummary>, ms: number, startedAt: number): 
             reporter: null,
             keeper: null,
             reference: null,
+            maker: null,
             liquidations: null,
             errors: [`the round did not finish within ${ms / 1000} s; the next one picks up from the chain`],
           }),
@@ -105,7 +116,7 @@ export async function handle(request: Request, deps: HandlerDeps): Promise<Respo
   } catch (err) {
     return json(500, { error: err instanceof Error ? err.message : "bad configuration" });
   }
-  if (!cfg.keeper && !cfg.reporter) return json(503, { error: "neither KEEPER_KEY nor REPORTER_KEY is set" });
+  if (!cfg.keeper && !cfg.reporter && !cfg.maker) return json(503, { error: "none of KEEPER_KEY, REPORTER_KEY, MAKER_KEY is set" });
   const st = deps.state;
   const now = deps.now();
   if (st.running) return json(200, { caller, skipped: "a round is already running in this instance" });
