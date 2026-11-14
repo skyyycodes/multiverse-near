@@ -220,9 +220,12 @@ impl Contract {
         );
     }
 
-    /// True while `account_id` has liquidity or uncollected fees in any pool;
-    /// it blocks `storage_unregister`. Empty positions are deleted, so a
-    /// stored position always holds something.
+    /// True while `account_id` has liquidity or uncollected fees in any pool.
+    /// Empty positions are deleted, so a stored position always holds
+    /// something. v1's scan over every pool; `storage_unregister` reads the
+    /// account's scenario index instead (`holds_anything`), and the tests keep
+    /// this as the reference.
+    #[cfg(test)]
     pub(crate) fn has_pool_positions(&self, account_id: &AccountId) -> bool {
         (1..=self.pool_count).any(|id| self.positions.contains_key(&(id, account_id.clone())))
     }

@@ -231,6 +231,36 @@ impl Contract {
             .unwrap_or_default()
     }
 
+    /// The only writer of `positions`: stores the account's position in the
+    /// pool, or deletes it (`None` or an empty position), which frees its
+    /// storage. The account's scenario index follows; a spot-pool position
+    /// belongs to no scenario.
+    pub(crate) fn put_position(
+        &mut self,
+        pool_id: u64,
+        account: &AccountId,
+        position: Option<cpmm::Position>,
+    ) {
+        let key = (pool_id, account.clone());
+        let had = self.positions.contains_key(&key);
+        let position = position.filter(|p| !p.is_empty());
+        let has = position.is_some();
+        match position {
+            Some(p) => {
+                self.positions.insert(key, p);
+            }
+            None => {
+                self.positions.remove(&key);
+            }
+        }
+        if had != has {
+            let sid = self.pool(pool_id).scenario_id;
+            self.note(account, sid, |r| {
+                r.pool_positions = crate::index::step(r.pool_positions, has)
+            });
+        }
+    }
+
     /// Writes the pool and the position back (an empty position is deleted,
     /// which frees its storage) and logs the change.
     fn store_position(
@@ -243,12 +273,7 @@ impl Contract {
         result: &LiquidityResult,
     ) {
         self.pools.insert(pool_id, pool);
-        let key = (pool_id, account.clone());
-        if position.is_empty() {
-            self.positions.remove(&key);
-        } else {
-            self.positions.insert(key, position);
-        }
+        self.put_position(pool_id, account, Some(position));
         Liquidity {
             pool_id,
             account_id: account,

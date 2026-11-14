@@ -7,6 +7,13 @@
 //! those moves as transfers to and from the contract's own account, so
 //! indexers balance. Zero balances are removed so they stop costing storage.
 //!
+//! Two counters follow the ledger so that no read has to scan every mask:
+//! `world_supply[(scenario, asset)][w]` is the supply of every token paying
+//! in world `w` (`add_supply` / `sub_supply` are its only writers), and
+//! `created_masks[scenario]` the set of tokens ever created (`mark_created`).
+//! Each 0 <-> non-zero balance change is noted in the account's scenario
+//! index (`index.rs`).
+//!
 //! A multi-step call can move tokens dozens of times (every order fill, swap
 //! and deposit of a trade), and a receipt may log at most 100 lines and
 //! 16 KiB, so such calls open a `LogScope`. While it is open, the NEP-245
@@ -36,6 +43,7 @@ use crate::errors::{add, sub};
 use crate::events::{
     self, MtBurnLog, MtEvent, MtMintLog, MtTransferLog, MultiverseEvent, OrdersFilled,
 };
+use crate::masks;
 use crate::types::{Asset, VerseKey};
 use crate::Contract;
 
@@ -62,24 +70,46 @@ impl Contract {
             .unwrap_or(0)
     }
 
+    /// The only writer of `created`: a new key also goes into its scenario's
+    /// `created_masks`.
     pub(crate) fn mark_created(&mut self, key: &VerseKey) {
         if !self.created.contains(key) {
             self.created.insert(*key);
+            let mut set = self
+                .created_masks
+                .get(&key.scenario)
+                .copied()
+                .unwrap_or_default();
+            set.set(key.asset, key.mask, true);
+            self.created_masks.insert(key.scenario, set);
         }
     }
 
-    fn set_verse_balance(&mut self, account_id: &AccountId, key: &VerseKey, value: u128) {
+    /// The only writer of `balances`; `old` is the balance it replaces.
+    fn set_verse_balance(
+        &mut self,
+        account_id: &AccountId,
+        key: &VerseKey,
+        old: u128,
+        value: u128,
+    ) {
         let k = (account_id.clone(), *key);
         if value == 0 {
             self.balances.remove(&k);
         } else {
             self.balances.insert(k, value);
         }
+        if (old == 0) != (value == 0) {
+            self.note(account_id, key.scenario, |r| {
+                r.verse.set(key.asset, key.mask, value > 0)
+            });
+        }
     }
 
     fn add_supply(&mut self, key: &VerseKey, amount: u128) {
         let supply = add(self.verse_supply(key), amount);
         self.supply.insert(*key, supply);
+        self.bump_world_supply(key, amount, true);
     }
 
     fn sub_supply(&mut self, key: &VerseKey, amount: u128) {
@@ -89,6 +119,54 @@ impl Contract {
         } else {
             self.supply.insert(*key, supply);
         }
+        self.bump_world_supply(key, amount, false);
+    }
+
+    /// Moves `amount` up or down on every world of `key.mask` in the
+    /// scenario's per-world supply. An all-zero vector is removed. In a
+    /// possible world the counter equals the reserves (invariant 1), so it
+    /// always fits; a dead world's counter may sum more than any one token,
+    /// so the counters wrap and stay exact modulo 2^128 instead of failing a
+    /// valid action.
+    fn bump_world_supply(&mut self, key: &VerseKey, amount: u128, up: bool) {
+        if amount == 0 {
+            return;
+        }
+        let world_count = self.scenario(key.scenario).world_count;
+        let k = (key.scenario, key.asset);
+        let mut counts = self
+            .world_supply
+            .get(&k)
+            .cloned()
+            .unwrap_or_else(|| vec![0; usize::from(world_count)]);
+        for (w, count) in (0u8..).zip(counts.iter_mut()) {
+            if masks::contains(key.mask, w) {
+                *count = if up {
+                    count.wrapping_add(amount)
+                } else {
+                    count.wrapping_sub(amount)
+                };
+            }
+        }
+        if counts.iter().all(|c| *c == 0) {
+            self.world_supply.remove(&k);
+        } else {
+            self.world_supply.insert(k, counts);
+        }
+    }
+
+    /// The supply of every token paying in each world of the scenario (one
+    /// entry per world, zeros before the first mint).
+    pub(crate) fn world_supply_of(
+        &self,
+        scenario_id: u64,
+        asset: Asset,
+        world_count: u8,
+    ) -> Vec<u128> {
+        self.world_supply
+            .get(&(scenario_id, asset))
+            .cloned()
+            .unwrap_or_else(|| vec![0; usize::from(world_count)])
     }
 
     /// A short balance fails `InsufficientBalance(owner, balance, amount)`.
@@ -97,12 +175,12 @@ impl Contract {
         if balance < amount {
             fail!("InsufficientBalance({owner}, {balance}, {amount})");
         }
-        self.set_verse_balance(owner, key, balance - amount);
+        self.set_verse_balance(owner, key, balance, balance - amount);
     }
 
     fn credit_verse(&mut self, owner: &AccountId, key: &VerseKey, amount: u128) {
-        let balance = add(self.verse_balance(owner, key), amount);
-        self.set_verse_balance(owner, key, balance);
+        let old = self.verse_balance(owner, key);
+        self.set_verse_balance(owner, key, old, add(old, amount));
     }
 
     /// Mints every `(key, amount)` to `owner`, with one `mt_mint` log.

@@ -601,8 +601,10 @@ impl Contract {
         (wnear_out, usdc_out)
     }
 
-    /// Must be true while `account_id` holds Root LP shares; it blocks
-    /// `storage_unregister`.
+    /// v1's scan for Root LP shares over every scenario. `storage_unregister`
+    /// reads the account's scenario index instead (`holds_anything`); the
+    /// tests keep this as the reference.
+    #[cfg(test)]
     pub(crate) fn has_lp_shares(&self, account_id: &AccountId) -> bool {
         (1..=self.scenario_count).any(|sid| self.lp_shares.contains_key(&(sid, account_id.clone())))
     }
@@ -663,12 +665,17 @@ impl Contract {
             .unwrap_or(0)
     }
 
+    /// The only writer of `lp_shares`; the account's scenario index follows.
     fn set_shares(&mut self, scenario_id: u64, account: &AccountId, value: u128) {
         let key = (scenario_id, account.clone());
+        let had = self.lp_shares.contains_key(&key);
         if value == 0 {
             self.lp_shares.remove(&key);
         } else {
             self.lp_shares.insert(key, value);
+        }
+        if had != (value > 0) {
+            self.note(account, scenario_id, |r| r.lp_shares = value > 0);
         }
     }
 

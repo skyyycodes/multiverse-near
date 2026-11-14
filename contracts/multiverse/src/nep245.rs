@@ -271,26 +271,31 @@ impl Contract {
             .collect()
     }
 
-    /// Enumeration: every token that exists, in (scenario, asset, mask) order.
+    /// Enumeration: every token that exists, in (scenario, asset, mask) order
+    /// (one read per scenario).
     pub fn mt_tokens(&self, from_index: Option<U128>, limit: Option<u32>) -> Vec<Token> {
-        let keys = self.verse_keys().filter(|k| self.is_created(k));
-        page(keys, from_index, limit)
+        page(self.created_keys(), from_index, limit)
             .map(|k| token_of(&k))
             .collect()
     }
 
     /// Enumeration: the tokens `account_id` holds a non-zero balance of, in
-    /// (scenario, asset, mask) order.
+    /// (scenario, asset, mask) order: the legacy scenarios' keys, then the
+    /// account's scenario index.
     pub fn mt_tokens_for_owner(
         &self,
         account_id: AccountId,
         from_index: Option<U128>,
         limit: Option<u32>,
     ) -> Vec<Token> {
-        let keys = self
-            .verse_keys()
+        let legacy = self
+            .verse_keys_in(1..=self.legacy_scenario_count)
             .filter(|k| self.verse_balance(&account_id, k) > 0);
-        page(keys, from_index, limit)
+        let indexed = self
+            .indexed_scenarios(&account_id)
+            .into_iter()
+            .flat_map(|sid| self.indexed_verse_keys(&account_id, sid));
+        page(legacy.chain(indexed), from_index, limit)
             .map(|k| token_of(&k))
             .collect()
     }
@@ -302,8 +307,7 @@ impl Contract {
         from_index: Option<U128>,
         limit: Option<u32>,
     ) -> Vec<MtBaseTokenMetadata> {
-        let keys = self.verse_keys().filter(|k| self.is_created(k));
-        page(keys, from_index, limit)
+        page(self.created_keys(), from_index, limit)
             .map(|k| self.base_metadata(&k))
             .collect()
     }

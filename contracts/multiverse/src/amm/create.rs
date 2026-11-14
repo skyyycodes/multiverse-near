@@ -233,7 +233,7 @@ impl Contract {
         let (mask0, mask1) = pool.masks();
         let price = pool.amm.price_wad().unwrap_or(0);
         self.pools.insert(id, pool);
-        self.positions.insert((id, owner.clone()), position);
+        self.put_position(id, &owner, Some(position));
         PoolCreated {
             pool_id: id,
             kind: kind.name(),
