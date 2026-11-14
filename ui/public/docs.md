@@ -1,12 +1,12 @@
-# IfVerse: how it works
+# Origami Verse: how it works
 
-The complete guide to IfVerse: what it is, how every part works, what each number means and how to use each screen. If you read only this page, you should understand all of it.
+The complete guide to Origami Verse: what it is, how every part works, what each number means and how to use each screen. If you read only this page, you should understand all of it.
 
-This is the plain-text copy of https://multiverse-lending.vercel.app/docs/. Whitepaper: https://multiverse-lending.vercel.app/ifverse-whitepaper.pdf. Code and setup: https://github.com/skyyycodes/multiverse-near/blob/main/README.md.
+This is the plain-text copy of https://multiverse-lending.vercel.app/docs/. Whitepaper: https://multiverse-lending.vercel.app/origami-verse-whitepaper.pdf. Code and setup: https://github.com/skyyycodes/multiverse-near/blob/main/README.md.
 
 ## Contents
 
-1. [What IfVerse is](#start)
+1. [What Origami Verse is](#start)
 2. [A worked example](#example)
 3. [Events, outcomes and worlds](#worlds)
 4. [Verse tokens: split, merge, redeem](#verses)
@@ -34,13 +34,15 @@ This is the plain-text copy of https://multiverse-lending.vercel.app/docs/. Whit
 
 <a id="start"></a>
 
-## What IfVerse is
+## What Origami Verse is
 
-IfVerse lets you hold NEAR in the futures you like and dollars in the futures you fear, and borrow real USDC against all of it at once. You pick one to three real events, like “Will the Fed cut in December?”. Every way those events can turn out is a **world**. Your money is split into one copy per world, and you decide, world by world, what to hold. A lender then looks only at your **worst world** and lends you real USDC against it.
+Origami Verse lets you hold NEAR in the futures you like and dollars in the futures you fear, and borrow real USDC against all of it at once. You pick one to three real events, like “Will the Fed cut in December?”. Every way those events can turn out is a **world**. Your money is split into one copy per world, and you decide, world by world, what to hold. A lender then looks only at your **worst world** and lends you real USDC against it.
 
 Why this matters: in normal DeFi you can only say “sell if NEAR hits $5”. You cannot say “sell if SPICE is delayed”. A prediction market lets you bet on one event, but the money is stuck until the answer comes, and a bet that pays nothing in some future gets no credit from lenders. Here, a position that is safe in every world is worth something today, so you can borrow against it.
 
-IfVerse runs on NEAR testnet as one smart contract (`app.ifverse-staging.testnet`) with test tokens. Nothing on it is real money.
+Origami Verse runs on NEAR testnet as one smart contract (`app.ifverse-staging.testnet`) with test tokens. Nothing on it is real money.
+
+The testnet accounts (`*.ifverse-staging.testnet`) and the web address keep earlier working names.
 
 ### The idea in five lines
 

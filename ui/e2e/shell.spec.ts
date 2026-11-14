@@ -11,8 +11,8 @@ test('shell: landing, wallet menu, your worlds and search on staging', async ({ 
   await demoWallet(context, alice)
 
   await page.goto('/')
-  await expect(page).toHaveTitle('IfVerse')
-  await expect(page.locator('.topbar__mark')).toHaveText('IfVerse')
+  await expect(page).toHaveTitle('Origami Verse')
+  await expect(page.locator('.topbar__mark')).toHaveText('Origami Verse')
 
   // the wallet connects through the bridge; the button shows the account
   const wallet = page.locator('.topbar__wallet')

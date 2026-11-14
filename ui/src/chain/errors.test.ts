@@ -111,9 +111,9 @@ describe("contract errors", () => {
     expect(humanError("TooManyOpenOrders(64)")).toBe("You have 64 open orders, the most allowed; cancel one first");
     expect(humanError(`TooLittleReceived(${99n * E18}, ${100n * E18})`)).toBe("The pool would pay 99.0000, under your minimum of 100.0000: the price moved, so nothing happened");
     expect(humanError("InsufficientOutput(2, 5, 6)", { worldLabel: (w) => ["A", "B", "C"][w] })).toBe("World C would pay less than the 0.5% the quote allows: the price moved, so nothing happened");
-    expect(humanError("InsufficientStorage(3000000000000000000000, 1000000000000000000000)")).toBe("Your storage deposit with IfVerse is 0.002 NEAR short for this; the next try adds to it first");
+    expect(humanError("InsufficientStorage(3000000000000000000000, 1000000000000000000000)")).toBe("Your storage deposit with Origami Verse is 0.002 NEAR short for this; the next try adds to it first");
     // a gap the automatic top-up does not cover (attached deposit, or a free part above the floor)
-    expect(humanError(`InsufficientStorage(${3n * 10n ** 23n}, ${5n * 10n ** 22n})`)).toBe("Your storage deposit with IfVerse is 0.250 NEAR short for this: add a little NEAR to it and try again");
+    expect(humanError(`InsufficientStorage(${3n * 10n ** 23n}, ${5n * 10n ** 22n})`)).toBe("Your storage deposit with Origami Verse is 0.250 NEAR short for this: add a little NEAR to it and try again");
     expect(humanError("InsufficientBalance(uma.testnet, 1, 2)")).toBe("You hold less than that in this world now; refresh and try a smaller amount");
     expect(humanError("ScenarioHalted(1)")).toBe("Trading in this market pauses while a result is in its dispute window");
   });

@@ -19,7 +19,7 @@ export const links = {
   paper: BRAND.credit.url,
   /** The whitepaper, opened in a new tab from the header's How it works menu and the footer. One constant: a hosted
    *  copy (a Drive link) can replace the file in public/ here. */
-  whitepaper: '/ifverse-whitepaper.pdf',
+  whitepaper: '/origami-verse-whitepaper.pdf',
   near: 'https://near.org',
   nearDocs: 'https://docs.near.org',
 }

@@ -10,5 +10,5 @@ export function readSource(): Promise<ReadSource> {
   return source;
 }
 
-/** The IfVerse contract the app talks to. */
+/** The Origami Verse contract the app talks to. */
 export const CONTRACT_ID = ENV.contractId;

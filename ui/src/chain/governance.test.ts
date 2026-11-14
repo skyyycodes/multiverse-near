@@ -182,7 +182,7 @@ describe("the storage balance", () => {
   it("says a storage refusal in plain words", async () => {
     const { humanError } = await import("./errors");
     expect(humanError("InsufficientStorage(9190000000000000000000, 0)")).toBe(
-      "Your storage deposit with IfVerse is 0.010 NEAR short for this; the next try adds to it first",
+      "Your storage deposit with Origami Verse is 0.010 NEAR short for this; the next try adds to it first",
     );
   });
 });

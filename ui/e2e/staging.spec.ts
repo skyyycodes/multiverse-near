@@ -87,8 +87,8 @@ test('staging: the landing, Markets in the navbar, market pages for 4, 2 and 8 w
   try {
     const list = (await view<{ markets: { scenario_id: number; status: string; world_count: number }[] }>('list_markets', { from_id: null, limit: 50, listed_only: true })).markets
     await v.page.goto('/')
-    await expect(v.page).toHaveTitle('IfVerse')
-    await expect(v.page.locator('.topbar__mark')).toHaveText('IfVerse')
+    await expect(v.page).toHaveTitle('Origami Verse')
+    await expect(v.page.locator('.topbar__mark')).toHaveText('Origami Verse')
     await expect(v.page.locator('.mtable__row:not(.mtable__row--head)')).toHaveCount(list.filter((m) => m.status !== 'resolved').length, { timeout: 60_000 })
     await v.page.locator('.topbar__nav a', { hasText: 'Markets' }).click()
     await expect(v.page).toHaveURL(/\/markets\/$/)

@@ -62,6 +62,7 @@ export function docsSections(ids: DocIds): DocSection[] {
         p(`${N} lets you hold NEAR in the futures you like and dollars in the futures you fear, and borrow real USDC against all of it at once. You pick one to three real events, like “Will the Fed cut in December?”. Every way those events can turn out is a **world**. Your money is split into one copy per world, and you decide, world by world, what to hold. A lender then looks only at your **worst world** and lends you real USDC against it.`),
         p('Why this matters: in normal DeFi you can only say “sell if NEAR hits $5”. You cannot say “sell if SPICE is delayed”. A prediction market lets you bet on one event, but the money is stuck until the answer comes, and a bet that pays nothing in some future gets no credit from lenders. Here, a position that is safe in every world is worth something today, so you can borrow against it.'),
         p(`${N} runs on NEAR testnet as one smart contract (\`${a.contract}\`) with test tokens. Nothing on it is real money.`),
+        p(`The testnet accounts (\`*.${a.owner}\`) and the web address keep earlier working names.`),
         h3('The idea in five lines'),
         ol(
           '**Split**: 1 wNEAR becomes one “wNEAR-if-world” token in every world. Together they are always worth exactly 1 wNEAR.',

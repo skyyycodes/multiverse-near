@@ -1,9 +1,11 @@
-// The site's name is IfVerse (DECISIONS 2026-11-14 12:10): every brand string lives in BRAND, and no source shows the
-// redesign's working name or the old product name. Scans ui/src, comments left out (only code is ever on screen).
+// The site's name is Origami Verse: every brand string lives in BRAND, and no source shows an earlier name (IfVerse,
+// Multiverse Lending). Code names stay: account ids (`*.ifverse-staging.testnet`), rule tags (`[ifverse:…]`) and storage
+// keys are lower case and are not brand. Scans ui/src, comments left out (only code is ever on screen).
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { FORMERLY } from "../../scripts/check-release.mjs";
 import { BRAND } from "./brand";
 
 const SRC = fileURLToPath(new URL("..", import.meta.url));
@@ -30,14 +32,16 @@ function code(path: string): string {
     .replace(/(^|\s)\/\/.*$/gm, "$1");
 }
 
-/** The redesign's working name and the old product name; "Multiverse Finance" (the paper) stays allowed. */
-const OLD = /Origami|Multiverse Lending|In Multiverse|Multiverse contract|with Multiverse/;
+/** The earlier product names (case-sensitive); "Multiverse Finance" (the paper) and the code names stay allowed. */
+const OLD = /IfVerse|Multiverse Lending|In Multiverse|Multiverse contract|with Multiverse/;
 
 describe("the brand", () => {
-  it("is IfVerse", () => {
-    expect(BRAND.name).toBe("IfVerse");
-    expect(BRAND.slug).toBe("ifverse");
+  it("is Origami Verse", () => {
+    expect(BRAND.name).toBe("Origami Verse");
+    expect(BRAND.innerBalance).toBe("In Origami Verse");
     expect(BRAND.short).toBe("Every what-if gets its own world.");
+    // the one place the earlier names may show, and the release check allows exactly this string
+    expect(BRAND.formerly).toBe(FORMERLY);
   });
 
   it("finds the sources it scans", () => {
@@ -56,8 +60,12 @@ describe("the brand", () => {
   });
 
   it("catches what it is meant to catch", () => {
-    expect(OLD.test("<span>Origami Verse</span>")).toBe(true);
-    expect(OLD.test('aria-label="How Origami works"')).toBe(true);
+    expect(OLD.test("<span>IfVerse</span>")).toBe(true);
+    expect(OLD.test('aria-label="How IfVerse works"')).toBe(true);
+    expect(OLD.test("<span>Origami Verse</span>")).toBe(false);
     expect(OLD.test("Paradigm's Multiverse Finance paper")).toBe(false);
+    expect(OLD.test('"app.ifverse-staging.testnet"')).toBe(false);
+    expect(OLD.test("CUTS if both limits are lower. [ifverse:fomc:2026-12-08:2026-12-10]")).toBe(false);
+    expect(OLD.test("ifverse.tier:app.ifverse-staging.testnet:1")).toBe(false);
   });
 });

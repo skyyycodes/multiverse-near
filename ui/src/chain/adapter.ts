@@ -10,6 +10,7 @@
 // plus small reads the shell needs (balances, owner, the account's markets). INTEGRATION.md lists the whole API.
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
+import { BRAND } from "./brand";
 import { CONTRACT_ID, readSource } from "./data/client";
 import { decodeBorrow, decodeEventMeta, decodeMarketCardOrNull } from "./decode";
 import type { AppConfig, EventMeta, EventState, Tier } from "./domain";
@@ -173,7 +174,7 @@ export function usePosition(id: number | string | null | undefined, tier: Tier =
 }
 
 export type WalletBalances = {
-  /** wNEAR and USDC in the wallet (outside IfVerse). */
+  /** wNEAR and USDC in the wallet (outside Origami Verse). */
   near: number;
   usdc: number;
   nearWad: bigint;
@@ -359,7 +360,7 @@ export function useActions() {
           }
           if (!registered) {
             const bounds = await src.view<StorageBounds>(CONTRACT_ID, "storage_balance_bounds");
-            step("Registering with IfVerse…");
+            step(`Registering with ${BRAND.name}…`);
             hash = await submit(registerTx(bounds));
           }
           if (!hash) throw new Error("Nothing to do: your wallet already holds test tokens and is registered.");
