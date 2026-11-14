@@ -29,7 +29,8 @@ const LIQ: &str = CAROL;
 const EVERYONE: [&str; 5] = [OWNER, ALICE, BOB, CAROL, DAVE];
 
 /// Real pools on both demo scenarios under the production defaults, Bob
-/// lending 100,000 in the 2x2's Normal market, a minute of history, and the
+/// lending 100,000 in the 2x2's Normal market, a full TWAP window of history
+/// (the production `min_age_sec`, so every world pool is trusted), and the
 /// test table at the pools' prices.
 fn cash_world() -> World {
     clear_prices();
@@ -42,7 +43,7 @@ fn cash_world() -> World {
     seed_worlds(&mut w, s, &DEMO_2X2, &[DEPTH; 4]);
     seed_worlds(&mut w, b, &DEMO_BIN, &[DEPTH; 2]);
     w.lend_in(Tier::Normal, BOB, s, 100_000 * E18).unwrap();
-    w.warp(61);
+    w.warp(1_801);
     price_2x2(s);
     price_bin(b);
     w

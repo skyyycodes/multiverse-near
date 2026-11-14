@@ -492,7 +492,8 @@ fn close_after_resolution_closes_one_tier() {
 }
 
 /// The 2x2 on real demo pools under the production defaults, Bob lending
-/// in Safe and Bold, a minute of history.
+/// in Safe and Bold, a full TWAP window of history (the production
+/// `min_age_sec`, so every world pool is trusted).
 fn pool_tier_world() -> World {
     clear_prices();
     let mut w = World::new_v2();
@@ -503,7 +504,7 @@ fn pool_tier_world() -> World {
     for tier in [SAFE, BOLD] {
         w.lend_in(tier, BOB, s, 100_000 * E18).unwrap();
     }
-    w.warp(61);
+    w.warp(1_801);
     w
 }
 
