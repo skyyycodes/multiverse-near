@@ -166,6 +166,8 @@ describe("the new-event form", () => {
 
   it("counts bytes, not characters", () => {
     expect(eventFormErrors({ ...good, question: "é".repeat(141) }, now, params).question).toBe("At most 280 bytes");
+    // the limit counts what is sent: the trimmed text
+    expect(eventFormErrors({ ...good, question: `  ${"é".repeat(140)}  ` }, now, params).question).toBeUndefined();
   });
 });
 

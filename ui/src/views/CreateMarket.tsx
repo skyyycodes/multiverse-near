@@ -123,7 +123,7 @@ export default function CreateMarket() {
   const earliest = p ? nowSec + p.params.minPledgeWindowSec + p.params.minMarketLifeSec : undefined
   const checkArgs = useDebounced(
     kind === 'event' && !errors.question && !errors.deadline && !errors.terms && f.deadlineSec !== undefined
-      ? { question: f.question, terms: { odds0Bps: f.odds0Bps, multBps: f.multBps }, deadlineSec: f.deadlineSec }
+      ? { question: f.question.trim(), terms: { odds0Bps: f.odds0Bps, multBps: f.multBps }, deadlineSec: f.deadlineSec }
       : undefined,
     400,
   )
@@ -164,7 +164,7 @@ export default function CreateMarket() {
   const submit = () =>
     actions.send(
       kind === 'event'
-        ? proposeEvent(CONTRACT_ID, { question: f.question, outcomeNames: [f.outcomes[0], f.outcomes[1]], rule: f.rule, source: f.source, deadlineSec: f.deadlineSec!, category: f.category, terms: { odds0Bps: f.odds0Bps, multBps: f.multBps } }, deposit!)
+        ? proposeEvent(CONTRACT_ID, { question: f.question.trim(), outcomeNames: [f.outcomes[0].trim(), f.outcomes[1].trim()], rule: f.rule.trim(), source: f.source.trim(), deadlineSec: f.deadlineSec!, category: f.category, terms: { odds0Bps: f.odds0Bps, multBps: f.multBps } }, deposit!)
         : proposeMarket(CONTRACT_ID, picked, deposit!),
       proposalAnnounce('Proposal', 'Proposing…', 'Proposed: pledges can start'),
       {

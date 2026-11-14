@@ -226,7 +226,8 @@ export type FormErrors = Partial<Record<"question" | "outcome0" | "outcome1" | "
 /** Each field's problem, mirroring the contract's text, deadline and terms checks; empty when the form can be sent. */
 export function eventFormErrors(f: EventForm, nowSec: number, params: Pick<MarketParams, "minPledgeWindowSec" | "minMarketLifeSec" | "oddsClampBps" | "multABps">): FormErrors {
   const e: FormErrors = {};
-  const text = (v: string, max: number, name: string) => (v.trim() === "" ? `Write the ${name}` : utf8Bytes(v) > max ? `At most ${max} bytes` : undefined);
+  // the form sends each text trimmed, so the limits count the trimmed text
+  const text = (v: string, max: number, name: string) => (v.trim() === "" ? `Write the ${name}` : utf8Bytes(v.trim()) > max ? `At most ${max} bytes` : undefined);
   e.question = text(f.question, LIMITS.question, "question");
   e.rule = text(f.rule, LIMITS.rule, "rule");
   e.source = text(f.source, LIMITS.source, "data source");
