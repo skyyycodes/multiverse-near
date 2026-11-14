@@ -16,6 +16,7 @@ import { accountLabel, fmtAsset, fmtHf, fmtUsd, hfTone } from "@/lib/format";
 import { useNowSeconds } from "@/lib/hooks/useClock";
 import { parseMarketParam } from "@/lib/hooks/useMarket";
 import { useAtRisk, useHoldings, useVerseLabel } from "@/lib/hooks/useLiquidation";
+import { useMarketTitles } from "@/lib/hooks/useMarkets";
 import { usePauseState } from "@/lib/hooks/useOps";
 import { useSubmit } from "@/lib/hooks/useTx";
 import { HF_FILTERS, maxHfArg, parseHfFilter, statusLabel, type AtRiskRow, type HfFilter } from "@/lib/liquidation";
@@ -47,6 +48,7 @@ function AtRisk({ config }: { config: AppConfig }) {
   const [open, setOpen] = useState<AtRiskRow | undefined>(undefined);
   const grace = graceLeft(pause.data, now);
   const rows = data.data?.rows;
+  const title = useMarketTitles(rows?.map((r) => r.scenarioId) ?? []);
   const liquidatable = rows?.filter((r) => r.liquidation === "liquidatable").length;
 
   const setFilter = (f: HfFilter) => router.replace(q("/liquidate/", { id: sid, hf: f === "1.1" ? undefined : f }), { scroll: false });
@@ -99,7 +101,7 @@ function AtRisk({ config }: { config: AppConfig }) {
         ) : (
           <ul className="flex flex-col gap-2">
             {rows.map((r) => (
-              <Row key={`${r.scenarioId}:${r.tier}:${r.accountId}`} row={r} grace={grace} onLiquidate={() => setOpen(r)} />
+              <Row key={`${r.scenarioId}:${r.tier}:${r.accountId}`} row={r} market={title(r.scenarioId)} grace={grace} onLiquidate={() => setOpen(r)} />
             ))}
           </ul>
         )}
@@ -113,7 +115,7 @@ function AtRisk({ config }: { config: AppConfig }) {
   );
 }
 
-function Row({ row, grace, onLiquidate }: { row: AtRiskRow; grace: bigint; onLiquidate: () => void }) {
+function Row({ row, market, grace, onLiquidate }: { row: AtRiskRow; market: string; grace: bigint; onLiquidate: () => void }) {
   const submit = useSubmit();
   const worst = useVerseLabel(row.scenarioId, row.worstWorld === null ? 0 : 1 << row.worstWorld, row.worstWorld !== null);
   const status = statusLabel(row, grace);
@@ -134,8 +136,8 @@ function Row({ row, grace, onLiquidate }: { row: AtRiskRow; grace: bigint; onLiq
           <Chip tone={can ? "neg" : status === "Healthy" ? "neutral" : "warn"}>{status}</Chip>
         </div>
         <div className="num flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] text-mute">
-          <Link href={marketHref(row.scenarioId)} className="text-cobalt-ink hover:underline">
-            Market #{row.scenarioId}
+          <Link href={marketHref(row.scenarioId)} title={market} className="max-w-full truncate font-sans text-cobalt-ink hover:underline">
+            {market}
           </Link>
           <Link href={borrowHref(row.scenarioId, row.tier)} className="hover:underline">
             {TIER_LABEL[row.tier]} tier
@@ -171,6 +173,7 @@ function Row({ row, grace, onLiquidate }: { row: AtRiskRow; grace: bigint; onLiq
 /** The verse tokens the account holds: what liquidations in tokens mode (and sales) left with it. */
 function Holdings({ account }: { account: string }) {
   const holdings = useHoldings(account);
+  const title = useMarketTitles(holdings.data?.map((h) => h.scenarioId) ?? []);
   return (
     <Block title="Your seized pieces" demo="holdings">
       {!holdings.data ? (
@@ -180,7 +183,7 @@ function Holdings({ account }: { account: string }) {
       ) : (
         <ul className="flex flex-col">
           {holdings.data.map((h) => (
-            <HoldingRow key={h.tokenId} sid={h.scenarioId} asset={h.asset} mask={h.mask} amount={h.amount} />
+            <HoldingRow key={h.tokenId} sid={h.scenarioId} market={title(h.scenarioId)} asset={h.asset} mask={h.mask} amount={h.amount} />
           ))}
         </ul>
       )}
@@ -191,14 +194,14 @@ function Holdings({ account }: { account: string }) {
   );
 }
 
-function HoldingRow({ sid, asset, mask, amount }: { sid: number; asset: "wnear" | "usdc"; mask: number; amount: bigint }) {
+function HoldingRow({ sid, market, asset, mask, amount }: { sid: number; market: string; asset: "wnear" | "usdc"; mask: number; amount: bigint }) {
   const label = useVerseLabel(sid, mask);
   return (
     <li className="flex items-baseline justify-between gap-3 border-b border-line py-2 text-[13px] last:border-b-0" data-demo="holding-row">
       <span className="min-w-0 truncate text-ink">
         {asset === "wnear" ? "wNEAR" : "USDC"}-if-{label.data ?? "…"}{" "}
-        <Link href={marketHref(sid)} className="text-[12px] text-cobalt-ink hover:underline">
-          market #{sid}
+        <Link href={marketHref(sid)} title={market} className="text-[12px] text-cobalt-ink hover:underline">
+          {market}
         </Link>
       </span>
       <span className="num shrink-0 text-ink">{fmtAsset(asset, amount)}</span>

@@ -14,6 +14,7 @@ import {
   gridBlocks,
   isWebSource,
   kindLabel,
+  marketTitle,
   nextDeadline,
   oddsPair,
   parseFilter,
@@ -272,6 +273,14 @@ describe("helpers", () => {
     expect(eventIdsOf([{ eventIds: [2, 1] }, { eventIds: [1, 3] }])).toEqual([2, 1, 3]);
     expect(eventsOf([1, 2], texts)?.map((e) => e.outcomeNames[0])).toEqual(["SHIPS", "CUTS"]);
     expect(eventsOf([1, 9], texts)).toBeUndefined();
+  });
+
+  it("names a market by its questions, by number until they load", () => {
+    expect(marketTitle(4, [1], texts)).toBe("Will SPICE ship by March?");
+    expect(marketTitle(5, [1, 2], texts)).toBe("Will SPICE ship by March? × Will the Fed cut in December?");
+    expect(marketTitle(6, [1, 9], texts)).toBe("Market #6");
+    expect(marketTitle(7, undefined, texts)).toBe("Market #7");
+    expect(marketTitle(8, [], texts)).toBe("Market #8");
   });
 
   it("splits ids into the views' chunk sizes", () => {

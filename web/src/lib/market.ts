@@ -87,6 +87,15 @@ export function eventsOf(ids: readonly number[], texts: EventTexts): Texts[] | u
   return out.every((e) => e !== undefined) ? (out as Texts[]) : undefined;
 }
 
+/**
+ * A market named by its questions, event A first ("Will SPICE ship? × Will the Fed cut?"), for lists that name markets
+ * other than the one on screen; "Market #N" until its card and every question have loaded.
+ */
+export function marketTitle(sid: number, eventIds: readonly number[] | undefined, texts: EventTexts): string {
+  const events = eventIds && eventIds.length > 0 ? eventsOf(eventIds, texts) : undefined;
+  return events ? events.map((e) => e.question).join(" × ") : `Market #${sid}`;
+}
+
 function hit(hay: readonly string[], q: string): boolean {
   return hay.some((h) => fold(h).includes(q));
 }

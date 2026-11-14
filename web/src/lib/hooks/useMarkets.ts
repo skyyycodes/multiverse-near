@@ -17,7 +17,7 @@ import {
   decodeRelated,
 } from "../decode";
 import type { EventMeta, EventState, MarketCard, Pledge, PriceCheck, ProposalSummary, Reference, RelatedMarkets } from "../domain";
-import { chunks } from "../market";
+import { chunks, marketTitle } from "../market";
 import type {
   EventMetaJson,
   EventViewJson,
@@ -90,6 +90,15 @@ export function useEventTexts(ids: readonly number[]) {
     refetchInterval: 30_000,
     placeholderData: (prev) => prev,
   });
+}
+
+/** Names of the given markets by their questions (`marketTitle`), for rows across markets; "Market #N" until loaded. */
+export function useMarketTitles(sids: readonly number[]): (sid: number) => string {
+  const ids = [...new Set(sids)].sort((a, b) => a - b);
+  const cards = useMarketCards(ids);
+  const eventIds = new Map((cards.data ?? []).map((c) => [c.scenarioId, c.eventIds]));
+  const texts = useEventTexts([...eventIds.values()].flat()).data;
+  return (sid) => marketTitle(sid, eventIds.get(sid), texts ?? new Map());
 }
 
 /** `event_meta`: source and category of an event (null for one without), texts that never change. */
