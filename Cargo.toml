@@ -1,7 +1,7 @@
 [workspace]
 members = ["crates/*", "contracts/*"]
-# Built on its own for wasm32-wasip2 (see oracle/fred-guest/README.md).
-exclude = ["oracle/fred-guest"]
+# Built on their own for wasm32-wasip2 (see oracle/fred-guest/README.md, oracle/nearusd-guest/README.md).
+exclude = ["oracle/fred-guest", "oracle/nearusd-guest"]
 resolver = "2"
 
 [workspace.package]
