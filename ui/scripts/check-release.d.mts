@@ -1,4 +1,5 @@
 export const FIXTURE_SENTINEL: string;
+export const FORMERLY: string;
 export function onChainFredSha(deployment: { rpcUrl: string; contractId: string }): Promise<string | null>;
 export function checkRelease(
   outDir: string,

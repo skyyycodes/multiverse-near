@@ -6,8 +6,9 @@
 //   1. the bundle inlines deployments/<network>.json's contractId (and no other network's), and version.json names the
 //      same network and contract;
 //   2. no file holds the fixture sentinel or the fixture persona list (WI-6: no design data in a real bundle);
-//   3. no HTML or JS says "In Multiverse" or the redesign's working name "Origami", and "Multiverse Lending" appears only
-//      inside "formerly Multiverse Lending";
+//   3. no HTML, JS or text file says "In Multiverse", and the earlier names "IfVerse" (case-sensitive, so the account
+//      ids *.ifverse-staging.testnet and the rule tags [ifverse:…] pass) and "Multiverse Lending" appear only inside
+//      "formerly IfVerse / Multiverse Lending";
 //   4. the demo-wallet bridge (`__nearDemo`) is present for staging, rehearsal and sandbox, and absent for testnet;
 //   5. testnet serves outlayer/fred-guest.wasm with the sha256 pinned on chain by OutLayerConfig; staging serves
 //      outlayer/nearusd-guest.wasm (the bytes committed in oracle/nearusd-guest/dist when that file exists);
@@ -20,9 +21,12 @@ import { DEPLOYMENTS, NETWORKS, readDeployment } from "./network.mjs";
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 export const FIXTURE_SENTINEL = "__IFVERSE_FIXTURES__";
+/** The one string the earlier names may appear in (BRAND.formerly). */
+export const FORMERLY = "formerly IfVerse / Multiverse Lending";
+const EARLIER = ["IfVerse", "Multiverse Lending"];
 /** The fixture personas as a literal list, however the bundler quotes it. */
 const PERSONA_LIST = /["'`]alice["'`],\s*["'`]bob["'`],\s*["'`]ravi["'`]/;
-const TEXT = new Set([".html", ".js", ".mjs", ".txt", ".json", ".css", ".rsc"]);
+const TEXT = new Set([".html", ".js", ".mjs", ".txt", ".md", ".json", ".css", ".rsc"]);
 const PRELAUNCH_MARK = 'data-demo="prelaunch"';
 
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
@@ -107,10 +111,11 @@ export async function checkRelease(outDir, network, { prelaunch = false, deploym
   // 3. brand
   for (const f of pages) {
     if (f.body.includes("In Multiverse")) failures.push(`${f.path} says "In Multiverse"`);
-    if (f.ext !== ".css" && f.body.includes("Origami")) failures.push(`${f.path} says "Origami"`);
-    const old = count(f.body, "Multiverse Lending");
-    const allowed = count(f.body, "formerly Multiverse Lending");
-    if (old > allowed) failures.push(`${f.path} says "Multiverse Lending" outside "formerly Multiverse Lending" (${old - allowed}x)`);
+    const rest = f.body.split(FORMERLY).join("");
+    for (const name of EARLIER) {
+      const n = count(rest, name);
+      if (n > 0) failures.push(`${f.path} says "${name}" outside "${FORMERLY}" (${n}x)`);
+    }
   }
 
   // 4. demo-wallet bridge

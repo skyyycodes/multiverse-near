@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { checkRelease } from "../../scripts/check-release.mjs";
+import { FORMERLY, checkRelease } from "../../scripts/check-release.mjs";
 
 const PROD = { rpcUrl: "https://rpc", contractId: "app.multiverse-near.testnet", wnear: "w", usdc: "u" };
 const STAGING = { rpcUrl: "https://rpc", contractId: "app.ifverse-staging.testnet", wnear: "w", usdc: "u" };
@@ -42,8 +42,8 @@ const version = (network: string, contract: string, prelaunch = false) =>
 
 function production(extra: Out = {}): Out {
   return {
-    "index.html": "<html><title>IfVerse</title></html>",
-    "_next/static/chunks/app.js": `const e={contractId:"${PROD.contractId}"};const b="formerly Multiverse Lending";`,
+    "index.html": "<html><title>Origami Verse</title></html>",
+    "_next/static/chunks/app.js": `const e={contractId:"${PROD.contractId}"};const b="${FORMERLY}";`,
     "outlayer/fred-guest.wasm": FRED,
     "version.json": version("testnet", PROD.contractId),
     ...extra,
@@ -52,8 +52,9 @@ function production(extra: Out = {}): Out {
 
 function staging(extra: Out = {}): Out {
   return {
-    "index.html": "<html><title>IfVerse</title></html>",
-    "_next/static/chunks/app.js": `const e={contractId:"${STAGING.contractId}"};window.__nearDemo;`,
+    "index.html": "<html><title>Origami Verse</title></html>",
+    "_next/static/chunks/app.js": `const e={contractId:"${STAGING.contractId}"};window.__nearDemo;const b="${FORMERLY}";`,
+    "docs.md": "# Origami Verse\n\nThe testnet accounts (`*.ifverse-staging.testnet`) keep earlier working names. [ifverse:fomc:2026-12-08:2026-12-10]\n",
     "outlayer/nearusd-guest.wasm": NEARUSD,
     "version.json": version("staging", STAGING.contractId),
     ...extra,
@@ -86,13 +87,22 @@ describe("the release check", () => {
     expect(personas).toContain("_next/static/chunks/fx.js holds the fixture persona list");
   });
 
-  it("allows the old name only inside 'formerly Multiverse Lending'", async () => {
+  it("allows the earlier names only inside the 'formerly' line", async () => {
     const old = await check(output(production({ "index.html": "<title>Multiverse Lending</title>" })), "testnet");
-    expect(old).toContain('index.html says "Multiverse Lending" outside "formerly Multiverse Lending" (1x)');
+    expect(old).toContain(`index.html says "Multiverse Lending" outside "${FORMERLY}" (1x)`);
     const chip = await check(output(production({ "_next/static/chunks/b.js": 'label:"In Multiverse"' })), "testnet");
     expect(chip).toContain('_next/static/chunks/b.js says "In Multiverse"');
-    const working = await check(output(staging({ "_next/static/chunks/c.js": 'title:"Origami Verse"' })), "staging");
-    expect(working).toContain('_next/static/chunks/c.js says "Origami"');
+    const stray = await check(output(staging({ "_next/static/chunks/c.js": 'title:"IfVerse"' })), "staging");
+    expect(stray).toContain(`_next/static/chunks/c.js says "IfVerse" outside "${FORMERLY}" (1x)`);
+    const doc = await check(output(staging({ "docs.md": "# IfVerse: how it works\n" })), "staging");
+    expect(doc).toContain(`docs.md says "IfVerse" outside "${FORMERLY}" (1x)`);
+  });
+
+  it("lets the account ids and rule tags keep their earlier working names", async () => {
+    const codeNames = staging({
+      "_next/static/chunks/e.js": `const k="ifverse.tier:${STAGING.contractId}:1";const r="CUTS if lower. [ifverse:fomc:2026-12-08:2026-12-10]";const s="maker.ifverse-staging.testnet";`,
+    });
+    expect(await check(output(codeNames), "staging")).toEqual([]);
   });
 
   it("wants the demo-wallet bridge off testnet and only there", async () => {
@@ -116,7 +126,7 @@ describe("the release check", () => {
   });
 
   it("tells the pre-launch build apart in both directions", async () => {
-    const pre = output(staging({ "version.json": version("staging", STAGING.contractId, true), "index.html": '<main data-demo="prelaunch">IfVerse opens soon</main>' }));
+    const pre = output(staging({ "version.json": version("staging", STAGING.contractId, true), "index.html": '<main data-demo="prelaunch">Origami Verse opens soon</main>' }));
     expect(await check(pre, "staging", true)).toEqual([]);
     expect(await check(pre, "staging")).toContain("this is the pre-launch build; check it with --prelaunch, or build the full app");
     const full = await check(output(staging()), "staging", true);
