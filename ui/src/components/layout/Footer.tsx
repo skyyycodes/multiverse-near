@@ -1,5 +1,6 @@
 import Link from 'next/link'
-import { links, site } from '../../config'
+import { BRAND } from '../../chain/brand'
+import { footerLinks, links, site } from '../../config'
 
 export function Footer() {
   return (
@@ -7,14 +8,10 @@ export function Footer() {
       <div className="footer__brand">
         <img src="/logo-white.svg" alt="" width={22} height={22} />
         <span>{site.name}</span>
-        <span className="muted">Built for the NEAR hackathon, 2026</span>
+        <span className="muted">{BRAND.testnetNote}</span>
       </div>
       <nav className="footer__links">
-        <Link href="/markets">Markets</Link>
-        <Link href="/portfolio">Portfolio</Link>
-        <Link href="/docs">How it works</Link>
-        <Link href="/proposals">Proposals</Link>
-        <Link href="/admin">Admin</Link>
+        {footerLinks.map((l) => <Link key={l.to} href={l.to}>{l.label}</Link>)}
         <a href={links.github} target="_blank" rel="noreferrer">GitHub</a>
         <a href={links.learn} target="_blank" rel="noreferrer">Guide from zero</a>
         <a href={links.paper} target="_blank" rel="noreferrer">The paper</a>

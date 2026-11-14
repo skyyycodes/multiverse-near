@@ -1,18 +1,19 @@
+'use client'
 // The header: an editorial top bar. Full width, no capsule, no blur. A plain wordmark, plain text
-// links with a hairline that draws under the one you point at, a live 2x2 of your four worlds
-// (white: holding NEAR, blue: holding USDC, faded: closed) and a square outline wallet button.
-// A thin rule runs along its bottom; it gets a dark backing once the page scrolls.
+// links with a hairline that draws under the one you point at, a live 2x2 of your four worlds in the anchor market
+// (white: you hold NEAR there, rose: only dollars, outline: nothing yet, faded: that world can no longer happen) and
+// a square outline wallet button. A thin rule runs along its bottom; it gets a dark backing once the page scrolls.
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { nav, site } from '../../config'
-import { has, useScenario } from '../../lib/scenario'
+import { useMarket, usePosition } from '../../chain/adapter'
+import { useWallet } from '../../chain/near/wallet'
+import { chain, isCurrent, nav, site } from '../../config'
 import { Flutes } from '../Flutes'
 import { Search } from './Search'
 import { WalletMenu } from './WalletMenu'
 
 export function Header() {
-  const s = useScenario('ships-fed')
   const pathname = usePathname()
   const [scrolled, setScrolled] = useState(false)
   const [menu, setMenu] = useState(false)
@@ -26,8 +27,6 @@ export function Header() {
     return () => window.removeEventListener('scroll', on)
   }, [])
 
-  const worldsLeft = [0, 1, 2, 3].filter((b) => has(s.possible, b)).length
-
   return (
     <header className={`topbar${scrolled ? ' is-scrolled' : ''}${pathname === '/' ? ' is-landing' : ''}`}>
       {/* the page's shard background, drawn into the bar: it reads as one surface, but nothing scrolls under it */}
@@ -37,31 +36,17 @@ export function Header() {
         <img className="topbar__logo" src="/logo-white.svg" alt="" width={24} height={24} />
         {site.name}
       </Link>
-      <span className="topbar__net" title="Running on NEAR testnet with mock tokens">Testnet</span>
+      <span className="topbar__net" title="Running on NEAR testnet with test tokens">Testnet</span>
 
       <nav className={`topbar__nav${menu ? ' is-open' : ''}`} id="site-nav">
         {nav.map((n) => (
-          <Link key={n.to} href={n.to} className={pathname === n.to || pathname.startsWith(`${n.to}/`) ? 'is-active' : ''}>
+          <Link key={n.to} href={n.to} className={isCurrent(pathname, n) ? 'is-active' : ''}>
             {n.label}
           </Link>
         ))}
       </nav>
 
-      <Link
-        href="/markets/ships-fed"
-        className="topbar__worlds"
-        title={`Your four worlds: ${worldsLeft} still possible`}
-        aria-label={`Your four worlds, ${worldsLeft} still possible. Open the world grid`}
-      >
-        <span className="topbar__grid">
-          {[0, 1, 2, 3].map((b) => {
-            const dead = !has(s.possible, b)
-            return <i key={b} className={dead ? 'is-dead' : s.near[b] > 0 ? '' : 'is-usdc'} />
-          })}
-        </span>
-        <span className="topbar__count">{worldsLeft}/4</span>
-      </Link>
-
+      <YourWorlds />
       <Search />
       <WalletMenu />
 
@@ -69,5 +54,37 @@ export function Header() {
         {menu ? 'Close' : 'Menu'}
       </button>
     </header>
+  )
+}
+
+// The connected account's worlds in the anchor market, laid out as its grid (rows: the first event, columns: the
+// second). Hidden without a wallet, and until the market and the position have loaded.
+function YourWorlds() {
+  const { accountId } = useWallet()
+  const id = accountId ? chain.anchorMarket : undefined
+  const { market } = useMarket(id)
+  const { position } = usePosition(id)
+  if (!accountId || !market || !position) return null
+  const cells = market.grid.rows.flatMap((r) => r.worlds)
+  const left = market.worlds.filter((w) => w.possible).length
+  const held = position.worlds.filter((w) => w.possible && (w.nearWad > 0n || w.usdcWad > 0n)).length
+  const state = (w: number) => {
+    const h = position.worlds[w]
+    if (!h?.possible) return 'is-dead'
+    if (h.nearWad > 0n) return ''
+    return h.usdcWad > 0n ? 'is-usdc' : 'is-empty'
+  }
+  return (
+    <Link
+      href={market.href}
+      className="topbar__worlds"
+      title={`Your worlds in ${market.question}: you hold something in ${held} of ${left} still possible`}
+      aria-label={`Your worlds in the anchor market: ${held} of ${left} still possible. Open the market`}
+    >
+      <span className="topbar__grid" style={{ gridTemplateColumns: `repeat(${market.grid.rows[0]?.worlds.length ?? 2}, 7px)` }}>
+        {cells.map((w) => <i key={w} className={state(w)} />)}
+      </span>
+      <span className="topbar__count">{left}/{market.worldCount}</span>
+    </Link>
   )
 }

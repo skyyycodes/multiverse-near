@@ -5,12 +5,13 @@ import { AreaSeries, ColorType, LineSeries, createChart, type IChartApi, type IS
 import { oddsHistory } from '../lib/history'
 import { gridOf, has } from '../lib/scenario'
 import type { Market } from '../lib/types'
+import type { ChainMarket } from '../chain/adapter-model'
 
 /** One colour per world, in bit order, used by charts, legends and icons. */
 export const WORLD_COLORS = ['#e9b8bb', '#7dc9a5', '#9b8cf0', '#f0c05a', '#6fb7e8', '#d77bd0', '#c9c9c9', '#ef8f5a']
 
 /** A market's picture: its event's artwork, or two overlapping for a combined market. */
-export function MarketArt({ m, size = 48 }: { m: Market; size?: number }) {
+export function MarketArt({ m, size = 48 }: { m: Pick<Market | ChainMarket, 'question'> & { events: { image?: string }[] }; size?: number }) {
   const imgs = m.events.map((e) => e.image).filter(Boolean) as string[]
   if (imgs.length === 0) return <span className="art art--blank" style={{ width: size, height: size }} aria-hidden>{m.question.slice(0, 1)}</span>
   if (imgs.length === 1) return <img className="art" src={imgs[0]} alt="" width={size} height={size} />
@@ -22,12 +23,13 @@ export function MarketArt({ m, size = 48 }: { m: Market; size?: number }) {
   )
 }
 
-/** A world's icon: the market's grid of worlds with this one lit, in its colour. */
-export function WorldIcon({ m, w, size = 36, possible }: { m: Market; w: number; size?: number; possible?: number }) {
-  const grid = gridOf(m)
+/** A world's icon: the market's grid of worlds with this one lit, in its colour. A chain market (adapter) lays its
+ *  worlds out in contract order, the in-browser model in its own. */
+export function WorldIcon({ m, w, size = 36, possible }: { m: Market | ChainMarket; w: number; size?: number; possible?: number }) {
+  const rows = 'grid' in m ? m.grid.rows.map((r) => r.worlds) : gridOf(m).rows.map((r) => r.bits)
   return (
-    <span className="wicon" style={{ width: size, height: size, gridTemplateColumns: `repeat(${grid.cols.length}, 1fr)` }} aria-hidden>
-      {grid.rows.flatMap((row) => row.bits.map((b) => (
+    <span className="wicon" style={{ width: size, height: size, gridTemplateColumns: `repeat(${rows[0]?.length ?? 2}, 1fr)` }} aria-hidden>
+      {rows.flatMap((row) => row.map((b) => (
         <i key={b} className={`${b === w ? 'is-on' : ''}${possible !== undefined && !has(possible, b) ? ' is-dead' : ''}`} style={b === w ? { background: WORLD_COLORS[w % WORLD_COLORS.length] } : undefined} />
       )))}
     </span>

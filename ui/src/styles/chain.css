@@ -1,0 +1,18 @@
+/* What the chain added to the shell, in the same language: toasts that wait for a transaction, an outlined world in
+   the header grid for a world you hold nothing in, and the wallet menu's test-token note. Loaded last. */
+
+/* a transaction on its way: a thin ring turns where the icon sits; a failure gets the sell colour */
+.toast__spin { width: 14px; height: 14px; border: 1.5px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: toast-spin 800ms linear infinite; }
+@keyframes toast-spin { to { transform: rotate(360deg); } }
+.toast.is-failed .toast__icon { background: var(--sell-bg); color: var(--sell); }
+.toast.is-failed { border-color: rgba(207, 107, 120, 0.35); }
+@media (prefers-reduced-motion: reduce) { .toast__spin { animation: none; border-right-color: currentColor; opacity: 0.6; } }
+
+/* the header grid: a world you hold nothing in yet */
+.topbar__grid i.is-empty { background: transparent; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.45); }
+
+/* wallet button and menu */
+.topbar__wallet:disabled { opacity: 0.5; cursor: wait; }
+.wm__row button:disabled { opacity: 0.45; cursor: not-allowed; }
+.wm__row button:disabled:hover { color: var(--u-soft); border-color: var(--u-line-2); }
+.wm__note { font-size: 11px; line-height: 1.5; color: var(--u-muted); }

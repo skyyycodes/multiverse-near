@@ -1,15 +1,15 @@
 'use client'
 // A first-visit intro, as Polymarket shows one: three short steps on what a world is, hedging and borrowing, with
-// the demo wallet one click away. Shown once per browser on any page but the landing (which tells the story itself).
+// the wallet one click away. Shown once per browser on any page but the landing (which tells the story itself).
 import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
-import { useWallet } from '../../lib/wallet'
+import { useWallet } from '../../chain/near/wallet'
 
 const KEY = 'ov-intro-seen'
 const STEPS = [
   { t: 'One market, several worlds', p: 'Two yes-or-no events make four worlds, one for each way things can turn out. Only one becomes real. Your NEAR is split into a piece for each.', art: 'grid' },
   { t: 'Sell NEAR only where you fear', p: 'Swap your NEAR for dollars in the worlds you’re worried about, and keep it in the rest. One click, one signature.', art: 'split' },
-  { t: 'Borrow against the worst world', p: 'Lenders count only your weakest world, so you can borrow real USDC at 75% of it. Hedged worlds don’t fall with NEAR.', art: 'floor' },
+  { t: 'Borrow against the worst world', p: 'Lenders count only your weakest world, and you borrow real USDC against it. Hedged worlds don’t fall with NEAR.', art: 'floor' },
 ] as const
 
 function Art({ kind }: { kind: (typeof STEPS)[number]['art'] }) {
@@ -33,12 +33,12 @@ function Art({ kind }: { kind: (typeof STEPS)[number]['art'] }) {
 
 export function Onboarding() {
   const pathname = usePathname()
-  const { account, connectDemo } = useWallet()
+  const { accountId, connect } = useWallet()
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState(0)
   useEffect(() => {
-    // the landing tells the story itself, and a ?demo=1 link means the visitor was sent straight in
-    if (pathname === '/' || new URLSearchParams(window.location.search).get('demo') === '1') return
+    // the landing tells the story itself
+    if (pathname === '/') return
     try { if (!localStorage.getItem(KEY)) setOpen(true) } catch { /* storage blocked: skip the intro */ }
   }, [pathname])
   const close = () => { setOpen(false); try { localStorage.setItem(KEY, '1') } catch { /* fine */ } }
@@ -57,9 +57,9 @@ export function Onboarding() {
           {step > 0 && <button type="button" className="mk__btn" onClick={() => setStep(step - 1)}>Back</button>}
           {step < STEPS.length - 1
             ? <button type="button" className="mk__btn mk__btn--buy" onClick={() => setStep(step + 1)}>Next</button>
-            : <button type="button" className="mk__btn mk__btn--buy" onClick={() => { if (!account) connectDemo(); close() }}>{account ? 'Start' : 'Try it with the demo wallet'}</button>}
+            : <button type="button" className="mk__btn mk__btn--buy" onClick={() => { close(); if (!accountId) void connect() }}>{accountId ? 'Start' : 'Connect a wallet'}</button>}
         </div>
-        <p className="pc__note">NEAR testnet with mock tokens. Nothing here is real money.</p>
+        <p className="pc__note">NEAR testnet with test tokens: once connected, “Get test tokens” in the wallet menu fills your wallet. Nothing here is real money.</p>
       </div>
     </div>
   )
