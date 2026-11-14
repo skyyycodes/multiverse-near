@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bestPlan, cellBook, cellQuotes, closedReason, cost, isOpen, MAX_PLAN_ORDERS, minOutOf, proceeds, saleCandidates, via, type Order } from "./orders";
+import { bestPlan, cellBook, cellQuotes, closedReason, cost, isOpen, MAX_PLAN_ORDERS, minOutOf, planBudget, proceeds, saleCandidates, via, type Order } from "./orders";
 import { parseAmount } from "./format";
 
 const E18 = 10n ** 18n;
@@ -105,6 +105,25 @@ describe("sale planner", () => {
     expect(saleCandidates(many, wad("1000"))).toHaveLength(MAX_PLAN_ORDERS + 1);
     const dust = [order({ id: 1, remaining: 1n, price: 10n ** 17n })]; // one base unit at 0.1 pays 0
     expect(saleCandidates(dust, wad("1000"))).toHaveLength(1);
+  });
+
+  it("keeps a trade within the contract's fill cap (web 7.9)", () => {
+    const caps = { maxTradeFills: 20, maxTradeFills8w: 16 };
+    // up to 4 worlds: 5 per world, 20 at most
+    expect([1, 2, 3, 4].map((t) => planBudget(4, t, caps))).toEqual([5, 5, 5, 5]);
+    // 8 worlds: min(5, floor(16 / t))
+    expect([1, 3, 4, 6, 8].map((t) => planBudget(8, t, caps))).toEqual([5, 5, 4, 2, 2]);
+    for (let t = 1; t <= 8; t++) expect(planBudget(8, t, caps) * t).toBeLessThanOrEqual(16);
+    expect(planBudget(8, 0, caps)).toBe(MAX_PLAN_ORDERS);
+    // the config's caps win over the defaults
+    expect(planBudget(8, 4, { maxTradeFills: 20, maxTradeFills8w: 8 })).toBe(2);
+  });
+
+  it("stops at the budget", () => {
+    const many = Array.from({ length: 8 }, (_, i) => order({ id: i + 1, remaining: 1n, price: wad("2.45") }));
+    expect(saleCandidates(many, wad("1000"), 2)).toHaveLength(3);
+    expect(saleCandidates(many, wad("1000"), 0)).toHaveLength(1);
+    expect(saleCandidates(many, wad("1000"), 9)).toHaveLength(MAX_PLAN_ORDERS + 1);
   });
 
   it("reproduces the demo: Ravi's bid then the pool beats the pool alone", () => {

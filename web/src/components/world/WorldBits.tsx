@@ -26,7 +26,7 @@ export function WorldGlyph({ world, size = 40 }: { world: Pick<World, "index" | 
 }
 
 /** A small aurora card in the phone's futures strip; opens the world's detail. */
-export function WorldThumb({ world, oddsKnown }: { world: World; oddsKnown: boolean }) {
+export function WorldThumb({ world, oddsKnown, href }: { world: World; oddsKnown: boolean; href: string }) {
   const reduce = useReducedMotion();
   const dead = !world.possible;
   return (
@@ -36,7 +36,7 @@ export function WorldThumb({ world, oddsKnown }: { world: World; oddsKnown: bool
       transition={{ duration: reduce ? 0 : 0.9, ease: "easeOut" }}
     >
       <Link
-        href={`/world/?w=${world.index}`}
+        href={href}
         data-demo="world-thumb"
         data-world={world.label}
         aria-label={`${world.label}: ${world.poolInitialized ? fmtUsd(world.wnearPrice) : "no pool"}`}

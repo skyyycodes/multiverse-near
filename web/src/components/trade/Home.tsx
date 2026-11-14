@@ -12,13 +12,15 @@ import { hueOf, spaced } from "@/components/world/hues";
 import type { Scenario, World } from "@/lib/domain";
 import { fmt, fmtNear, fmtPrice, fmtUsd, pct } from "@/lib/format";
 import { BRAND } from "@/lib/brand";
+import { borrowHref, lendHref, ordersHref, sellHref, worldHref } from "@/lib/links";
+import { gridBlocks } from "@/lib/market";
 import type { Balances } from "@/lib/hooks/useData";
 import { useWallet } from "@/lib/near/wallet";
 
 const ONE = 10n ** 18n;
 /** Below this, actual and implied spot agree at the four decimals they are shown with. */
 const TICK = 10n ** 14n;
-const COUNT = ["", "one", "two", "three", "four"];
+const COUNT = ["", "one", "two", "three", "four", "five", "six", "seven", "eight"];
 
 /** "implied by the four futures: $3.0378 ✓", or the difference, or why it is unknown. */
 export function impliedLine(s: Scenario): ReactNode {
@@ -123,9 +125,9 @@ export function SpotHero({ scenario }: { scenario: Scenario | undefined }) {
 /** The phone's futures strip: every world as a small aurora card. */
 export function FuturesStrip({ scenario }: { scenario: Scenario }) {
   return (
-    <div className={`grid gap-2 ${scenario.worlds.length === 4 ? "grid-cols-4" : "grid-cols-2"}`} data-demo="futures-strip">
+    <div className={`grid gap-2 ${scenario.worlds.length >= 4 ? "grid-cols-4" : "grid-cols-2"}`} data-demo="futures-strip">
       {scenario.worlds.map((w) => (
-        <WorldThumb key={w.mask} world={w} oddsKnown={scenario.oddsKnown} />
+        <WorldThumb key={w.mask} world={w} oddsKnown={scenario.oddsKnown} href={worldHref(scenario.scenarioId, w.index)} />
       ))}
     </div>
   );
@@ -133,18 +135,19 @@ export function FuturesStrip({ scenario }: { scenario: Scenario }) {
 
 /** Protect, Back, Borrow, Lend. Each tile shows a hint of what it does. */
 export function ActionTiles({ scenario, sellMask }: { scenario: Scenario; sellMask: number }) {
+  const sid = scenario.scenarioId;
   return (
     <div className="grid grid-cols-4 gap-2" data-demo="action-tiles">
-      <Tile href="/sell/" label="Protect" icon={<IconProtect size={20} />} demo="tile-protect">
+      <Tile href={sellHref(sid)} label="Protect" icon={<IconProtect size={20} />} demo="tile-protect">
         <Dots scenario={scenario} mode="feared" mask={sellMask} />
       </Tile>
-      <Tile href="/orders/?buy=1" label="Back" icon={<IconBack size={20} />} demo="tile-back">
+      <Tile href={ordersHref(sid, { buy: true })} label="Back" icon={<IconBack size={20} />} demo="tile-back">
         <Dots scenario={scenario} mode="one" />
       </Tile>
-      <Tile href="/borrow/" label="Borrow" icon={<IconBorrow size={20} />} demo="tile-borrow">
+      <Tile href={borrowHref(sid)} label="Borrow" icon={<IconBorrow size={20} />} demo="tile-borrow">
         <Bars scenario={scenario} />
       </Tile>
-      <Tile href="/lend/" label="Lend" icon={<IconLend size={20} />} demo="tile-lend">
+      <Tile href={lendHref(sid)} label="Lend" icon={<IconLend size={20} />} demo="tile-lend">
         <Dots scenario={scenario} mode="all" />
       </Tile>
     </div>
@@ -168,13 +171,23 @@ function Tile({ href, label, icon, children, demo }: { href: string; label: stri
 }
 
 /**
- * Four dots in grid order. "feared": the worlds picked for a sale are hollow rings (what Protect sells away); "one":
- * a single future lit (what Back buys); "all": every world, softly (what Lend covers).
+ * The worlds as dots in grid order (eight worlds: two 2×2 blocks). "feared": the worlds picked for a sale are hollow
+ * rings (what Protect sells away); "one": a single future lit (what Back buys); "all": every world, softly (what Lend
+ * covers).
  */
 function Dots({ scenario, mode, mask = 0 }: { scenario: Scenario; mode: "feared" | "one" | "all"; mask?: number }) {
-  const order = scenario.worlds.length === 4 ? [0, 2, 1, 3] : [0, 1];
   return (
-    <span aria-hidden="true" className="grid grid-cols-2 gap-[3px]">
+    <span aria-hidden="true" className="flex gap-[5px]">
+      {gridBlocks(scenario.worlds.length).map((block, b) => (
+        <DotBlock key={b} scenario={scenario} order={block} mode={mode} mask={mask} />
+      ))}
+    </span>
+  );
+}
+
+function DotBlock({ scenario, order, mode, mask }: { scenario: Scenario; order: number[]; mode: "feared" | "one" | "all"; mask: number }) {
+  return (
+    <span className="grid grid-cols-2 gap-[3px]">
       {order.map((i) => {
         const w = scenario.worlds[i];
         if (!w) return null;
@@ -198,11 +211,11 @@ function Dots({ scenario, mode, mask = 0 }: { scenario: Scenario; mode: "feared"
 }
 
 function Bars({ scenario }: { scenario: Scenario }) {
-  const heights = [10, 7, 9, 5];
+  const heights = [10, 7, 9, 5, 8, 6, 10, 4];
   return (
     <span aria-hidden="true" className="flex items-end gap-[2px]">
       {scenario.worlds.map((w, i) => (
-        <span key={w.mask} className="w-[4px] rounded-[1px]" style={{ height: heights[i] ?? 6, background: hueOf(i, w.possible) }} />
+        <span key={w.mask} className={`${scenario.worlds.length > 4 ? "w-[3px]" : "w-[4px]"} rounded-[1px]`} style={{ height: heights[i] ?? 6, background: hueOf(i, w.possible) }} />
       ))}
     </span>
   );
@@ -216,14 +229,14 @@ export function FuturesList({ scenario, quotes, demo = "futures-list" }: { scena
     <section className="flex flex-col gap-2" data-demo={demo}>
       <div className="flex items-baseline justify-between">
         <h2 className="font-display text-[20px] font-medium text-ink">Possible futures</h2>
-        <Link href={`/world/?w=${live[0]?.index ?? 0}`} className="focus-ring rounded-full px-2 py-1 text-[13px] text-mute hover:text-ink">
+        <Link href={worldHref(scenario.scenarioId, live[0]?.index ?? 0)} className="focus-ring rounded-full px-2 py-1 text-[13px] text-mute hover:text-ink">
           View all
         </Link>
       </div>
       <SectionLabel>Possible</SectionLabel>
       <ul className="flex flex-col">
         {live.map((w) => (
-          <FutureRow key={w.mask} world={w} oddsKnown={scenario.oddsKnown} quote={quotes?.[w.index]} />
+          <FutureRow key={w.mask} sid={scenario.scenarioId} world={w} oddsKnown={scenario.oddsKnown} quote={quotes?.[w.index]} />
         ))}
       </ul>
       {dead.length > 0 && (
@@ -231,7 +244,7 @@ export function FuturesList({ scenario, quotes, demo = "futures-list" }: { scena
           <SectionLabel className="mt-2">Resolved away</SectionLabel>
           <ul className="flex flex-col">
             {dead.map((w) => (
-              <FutureRow key={w.mask} world={w} oddsKnown={scenario.oddsKnown} quote={quotes?.[w.index]} />
+              <FutureRow key={w.mask} sid={scenario.scenarioId} world={w} oddsKnown={scenario.oddsKnown} quote={quotes?.[w.index]} />
             ))}
           </ul>
         </>
@@ -240,7 +253,7 @@ export function FuturesList({ scenario, quotes, demo = "futures-list" }: { scena
   );
 }
 
-function FutureRow({ world, oddsKnown, quote }: { world: World; oddsKnown: boolean; quote?: CellQuote }) {
+function FutureRow({ sid, world, oddsKnown, quote }: { sid: number; world: World; oddsKnown: boolean; quote?: CellQuote }) {
   const held = world.userUsdc + world.collateralUsdc;
   const heldWnear = world.userWnear + world.collateralWnear;
   const right =
@@ -256,7 +269,7 @@ function FutureRow({ world, oddsKnown, quote }: { world: World; oddsKnown: boole
   return (
     <li>
       <Link
-        href={`/world/?w=${world.index}`}
+        href={worldHref(sid, world.index)}
         data-demo="future-row"
         data-world={world.label}
         className="focus-ring -mx-2 flex min-h-[64px] items-center gap-3 rounded-[16px] px-2 py-2.5 hover:bg-tile"

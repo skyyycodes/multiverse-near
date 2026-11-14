@@ -77,20 +77,34 @@ export const nowSeconds = () => BigInt(Math.floor(Date.now() / 1000));
 /** How many resting orders the planner looks at per world (the order panel shows the same top 5). */
 export const MAX_PLAN_ORDERS = 5;
 
+/** The contract's fill caps per trade (`get_app_config` `max_trade_fills`, `max_trade_fills_8w`). */
+export type FillCaps = { maxTradeFills: number; maxTradeFills8w: number };
+export const DEFAULT_FILL_CAPS: FillCaps = { maxTradeFills: 20, maxTradeFills8w: 16 };
+
+/**
+ * Orders the planner may fill per traded world, so the whole trade stays within the contract's cap (web 7.9):
+ * min(5, floor(B / traded)), B = the cap for the market's size (20 up to 4 worlds, 16 at 8).
+ */
+export function planBudget(worldCount: number, tradedWorlds: number, caps: FillCaps = DEFAULT_FILL_CAPS): number {
+  if (tradedWorlds <= 0) return MAX_PLAN_ORDERS;
+  const b = worldCount <= 4 ? caps.maxTradeFills : caps.maxTradeFills8w;
+  return Math.max(0, Math.min(MAX_PLAN_ORDERS, Math.floor(b / tradedWorlds)));
+}
+
 export type Fill = { order: Order; amount: bigint; out: bigint };
 export type Candidate = { fills: Fill[]; poolAmount: bigint };
 export type WorldPlan = Candidate & { poolOut: bigint; total: bigint };
 
 /**
  * Candidate k fills the best k bids in turn (the last one only in part if the sale runs out) and sends the rest to the
- * pool. Candidate 0 is the pool alone. A bid that would pay nothing for its part ends the list: the book rejects such
- * fills.
+ * pool, using at most `maxOrders` bids (the trade's budget per world, `planBudget`). Candidate 0 is the pool alone. A
+ * bid that would pay nothing for its part ends the list: the book rejects such fills.
  */
-export function saleCandidates(bids: readonly Order[], amount: bigint): Candidate[] {
+export function saleCandidates(bids: readonly Order[], amount: bigint, maxOrders: number = MAX_PLAN_ORDERS): Candidate[] {
   const out: Candidate[] = [{ fills: [], poolAmount: amount }];
   const fills: Fill[] = [];
   let left = amount;
-  for (const order of bids.slice(0, MAX_PLAN_ORDERS)) {
+  for (const order of bids.slice(0, Math.max(0, Math.min(maxOrders, MAX_PLAN_ORDERS)))) {
     if (left === 0n) break;
     const take = order.remaining < left ? order.remaining : left;
     const got = proceeds(take, order.price);

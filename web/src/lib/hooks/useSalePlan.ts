@@ -1,8 +1,8 @@
 "use client";
 
 import type { Scenario } from "../domain";
-import { bestPlan, cellBook, saleCandidates, type Order, type WorldPlan } from "../orders";
-import { usePartQuotes, type Part } from "./useData";
+import { bestPlan, cellBook, DEFAULT_FILL_CAPS, planBudget, saleCandidates, type Order, type WorldPlan } from "../orders";
+import { useAppConfig, usePartQuotes, type Part } from "./useData";
 
 export type SalePlan = {
   /** Per world index: the plan for a sold world (orders first, then the pool); undefined for worlds not sold, and for
@@ -16,7 +16,7 @@ export type SalePlan = {
  * The router's plan for a conditional sale of `amount` in every world of `sellMask`: resting bids first, best price
  * first, while each beats what the pool pays for the slice it takes; the rest goes to the pool. `poolQuote` is
  * `quote_sell` for the whole amount (the pool alone, candidate 0); every other candidate's pool part comes from one
- * `quote_sell_parts` call. The account's own orders are skipped.
+ * `quote_sell_parts` call. The account's own orders are skipped, and each world fills at most `planBudget` orders.
  */
 export function useSalePlan(
   scenario: Scenario,
@@ -29,10 +29,14 @@ export function useSalePlan(
 ): SalePlan {
   const state = { scenarioId: scenario.scenarioId, possible: scenario.possible, resolutionCount: scenario.resolutionCount };
   const mine = me?.toLowerCase();
+  // The fill budget per sold world keeps the whole sale within the contract's cap (20 fills, 16 at eight worlds).
+  const config = useAppConfig().data;
+  const traded = scenario.worlds.filter((w) => w.possible && (sellMask & w.mask) !== 0).length;
+  const budget = planBudget(scenario.worldCount, traded, config ?? DEFAULT_FILL_CAPS);
   const candidates = scenario.worlds.map((w) => {
     if (!amount || (sellMask & w.mask) === 0 || !w.possible) return undefined;
     const bids = cellBook(orders, state, w.mask, nowSec).bids.filter((o) => o.maker.toLowerCase() !== mine);
-    return saleCandidates(bids, amount);
+    return saleCandidates(bids, amount, budget);
   });
   const needed: Part[] = candidates.flatMap((cs, w) =>
     (cs ?? []).slice(1).flatMap((c) => (c.poolAmount > 0n ? [{ world: w, amount: c.poolAmount }] : [])),
