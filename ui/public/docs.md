@@ -2,7 +2,7 @@
 
 The complete guide to Origami Verse: what it is, how every part works, what each number means and how to use each screen. If you read only this page, you should understand all of it.
 
-This is the plain-text copy of https://multiverse-lending.vercel.app/docs/. Whitepaper: https://multiverse-lending.vercel.app/ifverse-whitepaper.pdf. Code and setup: https://github.com/skyyycodes/multiverse-near/blob/main/README.md.
+This is the plain-text copy of https://multiverse-lending.vercel.app/docs/. Whitepaper: https://multiverse-lending.vercel.app/origami-verse-whitepaper.pdf. Code and setup: https://github.com/skyyycodes/multiverse-near/blob/main/README.md.
 
 ## Contents
 
@@ -91,6 +91,13 @@ Worlds are numbered from 0 by a simple rule: world = (outcome of event A) + 2 ×
 | Delayed & holds | DELAYED (1) | HOLDS (1) | 3 |
 
 A **mask** is a set of worlds written as bits: bit w is on when world w is in the set. Mask 1 (binary 0001) is world 0 alone. Mask 14 (binary 1110) is every world except world 0. Mask 15 (1111) is all four worlds, which is the same thing as the real asset.
+
+| | Fed cuts | Fed holds |
+|---|---|---|
+| Ships | Ships & cuts (world 0) | **Ships & holds (world 2)** |
+| Delayed | **Delayed & cuts (world 1)** | **Delayed & holds (world 3)** |
+
+The bold L-shape, every world but Ships & cuts, is mask 14 (0b1110); all four together are the root, mask 15, which is the real asset itself.
 
 Exactly one world will come true. When an event is answered, every world that disagrees with the answer becomes **dead** (impossible). Events can be answered in any order.
 

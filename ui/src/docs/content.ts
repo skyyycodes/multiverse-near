@@ -15,6 +15,8 @@ export type Block =
   | { type: 'h3'; text: string }
   /** A part of the page read from the chain when it opens. The Markdown copy prints `md` in its place. */
   | { type: 'live'; widget: LiveWidget; md: string }
+  /** A drawn figure on the web page; the Markdown copy prints `md` in its place. */
+  | { type: 'figure'; figure: 'worlds'; md: string }
 
 export type LiveWidget = 'loans' | 'tiers' | 'config' | 'txs' | 'accounts'
 export type DocSection = { id: string; title: string; toc: string; blocks: Block[] }
@@ -102,6 +104,7 @@ export function docsSections(ids: DocIds): DocSection[] {
         p('Worlds are numbered from 0 by a simple rule: world = (outcome of event A) + 2 × (outcome of event B) + 4 × (outcome of event C), where the first outcome counts as 0 and the second as 1. In the SPICE × Fed market:'),
         table(['World', 'SPICE', 'Fed', 'Number'], ['Ships & cuts', 'SHIPS (0)', 'CUTS (0)', '0'], ['Delayed & cuts', 'DELAYED (1)', 'CUTS (0)', '1'], ['Ships & holds', 'SHIPS (0)', 'HOLDS (1)', '2'], ['Delayed & holds', 'DELAYED (1)', 'HOLDS (1)', '3']),
         p('A **mask** is a set of worlds written as bits: bit w is on when world w is in the set. Mask 1 (binary 0001) is world 0 alone. Mask 14 (binary 1110) is every world except world 0. Mask 15 (1111) is all four worlds, which is the same thing as the real asset.'),
+        { type: 'figure', figure: 'worlds', md: '| | Fed cuts | Fed holds |\n|---|---|---|\n| Ships | Ships & cuts (world 0) | **Ships & holds (world 2)** |\n| Delayed | **Delayed & cuts (world 1)** | **Delayed & holds (world 3)** |\n\nThe bold L-shape, every world but Ships & cuts, is mask 14 (0b1110); all four together are the root, mask 15, which is the real asset itself.' },
         p('Exactly one world will come true. When an event is answered, every world that disagrees with the answer becomes **dead** (impossible). Events can be answered in any order.'),
       ],
     },

@@ -198,6 +198,27 @@ function LiveBlock({ widget, live }: { widget: LiveWidget; live: Live }) {
   )
 }
 
+/** The four worlds of the SPICE × Fed market as the contract numbers them, with mask 14 (every world but Ships & cuts)
+ *  drawn as the crimson L-shape. */
+function WorldsFigure() {
+  return (
+    <figure>
+      <div className="docs__grid" role="table" aria-label="The four worlds and their numbers">
+        <span />
+        <span className="docs__axis">Fed cuts</span>
+        <span className="docs__axis">Fed holds</span>
+        <span className="docs__axis">Ships</span>
+        <span className="docs__cell">Ships &amp; cuts<b>world 0</b></span>
+        <span className="docs__cell is-l">Ships &amp; holds<b>world 2</b></span>
+        <span className="docs__axis">Delayed</span>
+        <span className="docs__cell is-l">Delayed &amp; cuts<b>world 1</b></span>
+        <span className="docs__cell is-l">Delayed &amp; holds<b>world 3</b></span>
+      </div>
+      <figcaption className="docs__caption">The highlighted L-shape, every world but Ships &amp; cuts, is mask 14 (0b1110); all four together are the root, mask 15, which is the real asset itself.</figcaption>
+    </figure>
+  )
+}
+
 function DocBlock({ b, live }: { b: Block; live: Live }) {
   switch (b.type) {
     case 'p': return <p><Inline text={b.text} /></p>
@@ -219,6 +240,7 @@ function DocBlock({ b, live }: { b: Block; live: Live }) {
     case 'code': return <pre className="docs__code"><code>{b.text}</code></pre>
     case 'terms': return <dl className="docs__terms">{b.items.map(([t, d]) => <div key={t}><dt>{t}</dt><dd><Inline text={d} /></dd></div>)}</dl>
     case 'live': return <LiveBlock widget={b.widget} live={live} />
+    case 'figure': return <WorldsFigure />
   }
 }
 

@@ -17,6 +17,7 @@ function block(b: Block): string {
     case 'code': return ['```', b.text, '```'].join('\n')
     case 'terms': return b.items.map(([t, d]) => `- **${t}**: ${absolute(d)}`).join('\n')
     case 'live': return absolute(b.md)
+    case 'figure': return b.md
   }
 }
 
