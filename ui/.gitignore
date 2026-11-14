@@ -29,3 +29,11 @@ next-env.d.ts
 *.tsbuildinfo
 .next-share
 .next-build
+
+# static exports and their build inputs
+out/
+out-*/
+.out-kept-*/
+public/outlayer/
+test-results/
+playwright-report/

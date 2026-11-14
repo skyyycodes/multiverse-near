@@ -1,22 +1,31 @@
 {
   "name": "multiverse-ui",
   "private": true,
-  "version": "0.0.0",
+  "version": "2.1.0",
   "type": "module",
   "scripts": {
     "dev": "next dev --port 5173",
+    "dev:staging": "NEXT_PUBLIC_NETWORK=staging next dev --port 5173",
     "build": "next build",
+    "build:staging": "node scripts/build-to.mjs out-staging staging --guests NEXT_PUBLIC_DEMO_WALLET=1",
+    "check-release": "node scripts/check-release.mjs",
+    "serve:staging": "node scripts/serve.mjs out-staging 3045",
+    "network": "node scripts/network.mjs",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "lint": "oxlint"
+    "lint": "oxlint",
+    "test": "vitest run",
+    "e2e:staging": "STAGING=1 playwright test"
   },
   "packageManager": "pnpm@10.28.0",
   "dependencies": {
-    "@hot-labs/near-connect": "^0.12.0",
+    "@hot-labs/near-connect": "0.12.0",
     "@react-three/drei": "^10.7.9",
     "@react-three/fiber": "^9.8.2",
     "@react-three/postprocessing": "^3.2.2",
+    "@tanstack/react-query": "^5.107.1",
     "lightweight-charts": "5.2.1",
+    "near-api-js": "7.4.0",
     "next": "^16.4.6",
     "postprocessing": "^6.39.6",
     "react": "^19.3.1",
@@ -24,11 +33,14 @@
     "three": "^0.187.0"
   },
   "devDependencies": {
+    "@playwright/test": "1.64.1",
     "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@types/three": "^0.187.0",
     "oxlint": "^1.90.0",
-    "typescript": "~7.0.2"
-  }
+    "typescript": "~7.0.2",
+    "vitest": "^4.1.12"
+  },
+  "description": "IfVerse: every what-if gets its own world."
 }
