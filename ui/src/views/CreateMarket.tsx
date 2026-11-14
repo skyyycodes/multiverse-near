@@ -35,7 +35,7 @@ function ProposalCard({ p }: { p: PledgeProposal }) {
   const openMarket = () => {
     const mk = actions.createMarket(p.question, p.events, p.deadline)
     pledges.opened(p.id, mk.id)
-    router.push(`/markets/${mk.id}`)
+    router.push(`/market/?id=${mk.id}`)
   }
   return (
     <article className={`tr__panel pp${p.status !== 'pledging' ? ` is-${p.status}` : ''}`}>
@@ -67,7 +67,7 @@ function ProposalCard({ p }: { p: PledgeProposal }) {
         {p.status === 'pledging' && <button type="button" className="mk__btn mk__btn--buy" onClick={() => setOpen(!open)}>{open ? 'Close' : 'Pledge'}</button>}
         {p.status === 'review' && <button type="button" className="mk__btn mk__btn--buy" onClick={() => pledges.approve(p.id)}>Approve (owner, demo)</button>}
         {p.status === 'open' && (p.marketId
-          ? <Link href={`/markets/${p.marketId}`} className="mk__btn mk__btn--buy">Open the market</Link>
+          ? <Link href={`/market/?id=${p.marketId}`} className="mk__btn mk__btn--buy">Open the market</Link>
           : <button type="button" className="mk__btn mk__btn--buy" onClick={openMarket}>Open it with the pledged money</button>)}
       </div>
 

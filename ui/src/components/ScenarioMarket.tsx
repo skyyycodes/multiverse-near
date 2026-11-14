@@ -445,7 +445,7 @@ export function ScenarioMarket({ market: m }: { market: Market }) {
                 const xs = sc[x.id], xo = liveOdds(x, xs)
                 const lead = x.worlds.map((_, b) => b).filter((b) => has(xs.possible, b)).sort((p, q) => xo[q] - xo[p])[0]
                 return (
-                  <Link key={x.id} href={`/markets/${x.id}`} className="mk__rel">
+                  <Link key={x.id} href={`/market/?id=${x.id}`} className="mk__rel">
                     <MarketArt m={x} size={36} />
                     <span><b>{x.question}</b><small>{related.includes(x) ? `Shares ${x.events.filter((e) => m.events.some((f) => f.name === e.name)).map((e) => e.name).join(', ')}` : x.category}</small></span>
                     <span className="mk__relp"><b className="num">{pct(xo[lead])}</b><small>{x.worlds[lead].outcome}</small></span>

@@ -55,7 +55,7 @@ export default function Markets() {
           <div><dt>World pools</dt><dd className="num">{compact(pools)}</dd></div>
           <div><dt>Settled</dt><dd className="num">{markets.length - open.length}</dd></div>
         </dl>
-        <Link href="/markets/new" className="mk__btn mk__btn--buy">Propose a market</Link>
+        <Link href="/propose/" className="mk__btn mk__btn--buy">Propose a market</Link>
       </header>
 
       {/* ---------- featured: the most traded open market ---------- */}
@@ -65,12 +65,12 @@ export default function Markets() {
             <p className="mk__crumb"><span className="mk__tag">Featured</span>{featured.category}{featured.tags?.map((t) => <span key={t} className="mk__tag">{t}</span>)}</p>
             <div className="feat__title">
               <MarketArt m={featured} size={56} />
-              <Link href={`/markets/${featured.id}`} className="feat__q">{featured.question}</Link>
+              <Link href={`/market/?id=${featured.id}`} className="feat__q">{featured.question}</Link>
             </div>
             {featured.description && <p className="tr__means">{featured.description}</p>}
             <div className="feat__worlds">
               {bitsOf(fs.possible, featured.worlds.length).sort((a, b) => fodds[b] - fodds[a]).map((b) => (
-                <Link key={b} href={`/markets/${featured.id}`} className="feat__world">
+                <Link key={b} href={`/market/?id=${featured.id}`} className="feat__world">
                   <WorldIcon m={featured} w={b} size={24} />
                   <span>{featured.worlds[b].outcome}</span>
                   <b className="num" style={{ color: WORLD_COLORS[b % WORLD_COLORS.length] }}>{pct(fodds[b])}</b>
@@ -78,7 +78,7 @@ export default function Markets() {
               ))}
             </div>
             <p className="pc__note">Volume {compact(featured.volume ?? 0)} · pools {compact(depth(featured.id))} · NEAR ${spotPrice(featured, fs).toFixed(2)} · resolves {featured.resolves}</p>
-            <Link href={`/markets/${featured.id}`} className="mk__btn mk__btn--buy feat__cta">Open the market</Link>
+            <Link href={`/market/?id=${featured.id}`} className="mk__btn mk__btn--buy feat__cta">Open the market</Link>
           </div>
           <div className="feat__chart"><OddsChart m={featured} odds={fodds} possible={fs.possible} /></div>
         </section>
@@ -110,7 +110,7 @@ export default function Markets() {
           return (
             <div key={m.id} className="mk-cardwrap">
             <button type="button" className={`star${starred ? ' is-on' : ''}`} aria-pressed={starred} aria-label={starred ? `Remove ${m.question} from watchlist` : `Add ${m.question} to watchlist`} onClick={() => toggleWatch(m.id)}>{starred ? '★' : '☆'}</button>
-            <Link href={`/markets/${m.id}`} className={`mk-card desk__mcard${settled ? ' is-settled' : ''}`}>
+            <Link href={`/market/?id=${m.id}`} className={`mk-card desk__mcard${settled ? ' is-settled' : ''}`}>
               <span className="mk-card__head">
                 <MarketArt m={m} size={44} />
                 <span className="mk-card__q">{m.question}</span>
@@ -142,7 +142,7 @@ export default function Markets() {
         {shown.length === 0 && (
           <div className="tr__panel desk__empty mk-empty">
             <p><b>No markets match.</b> Try another word or category, or propose the market you’re looking for.</p>
-            <Link href="/markets/new" className="mk__btn mk__btn--buy">Propose a market</Link>
+            <Link href="/propose/" className="mk__btn mk__btn--buy">Propose a market</Link>
           </div>
         )}
       </div>

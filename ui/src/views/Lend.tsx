@@ -96,7 +96,7 @@ export default function Lend() {
                 const live = bitsOf(s.possible, m.worlds.length)
                 const depth = live.reduce((t, w) => t + s.poolUsdc[w], 0)
                 return (
-                  <Link key={m.id} href={`/markets/${m.id}`} className="lend__card">
+                  <Link key={m.id} href={`/market/?id=${m.id}`} className="lend__card">
                     <div className="lend__top"><MarketArt m={m} size={44} /><b>{m.question}</b></div>
                     <div className="lend__worlds">
                       {live.map((w) => <span key={w}><WorldIcon m={m} w={w} size={18} />{m.worlds[w].outcome}<b className="num">{pct(o[w])}</b></span>)}

@@ -106,7 +106,7 @@ function Futures({ m, s }: { m: Market; s: Scenario }) {
     <section className="tr__panel fut">
       <div className="desk__head">
         <div className="fut__title"><MarketArt m={m} size={32} /><div><h2 className="obx__boxtitle">What you end with in each future</h2><p className="pc__note">{m.question}</p></div></div>
-        <Link href={`/markets/${m.id}`} className="tr__link">Change it</Link>
+        <Link href={`/market/?id=${m.id}`} className="tr__link">Change it</Link>
       </div>
 
       <div className="fgrid" style={{ gridTemplateColumns: `${grid.rows.length > 1 ? 'auto ' : ''}repeat(${grid.cols.length}, minmax(0, 1fr))` }}>
@@ -127,7 +127,7 @@ function Futures({ m, s }: { m: Market; s: Scenario }) {
       </div>
       <p className="orng__note">
         {hedged === 0
-          ? <>Every world holds NEAR, so every card moves with it. <Link href={`/markets/${m.id}`} className="tr__link">Sell NEAR in the worlds you fear</Link> to fix those in dollars.</>
+          ? <>Every world holds NEAR, so every card moves with it. <Link href={`/market/?id=${m.id}`} className="tr__link">Sell NEAR in the worlds you fear</Link> to fix those in dollars.</>
           : hedged === live.length ? 'Every world holds dollars, so nothing here moves with NEAR.'
           : `${hedged === 1 ? 'The world' : `The ${hedged} worlds`} holding USDC ${hedged === 1 ? 'stays' : 'stay'} fixed; only ${live.length - hedged === 1 ? 'the one holding NEAR moves' : `the ${live.length - hedged} holding NEAR move`}.`}
         {' '}On average, by chance: <b className="num">{usd(avgV)}</b>.
@@ -317,7 +317,7 @@ export default function Portfolio() {
                           <span className="pos__acts">
                             {settled && !s.claimed
                               ? <button type="button" className="mk__btn mk__btn--buy" onClick={() => client.claimAll(m.id)}>Redeem</button>
-                              : <Link href={`/markets/${m.id}`} className="mk__btn mk__btn--buy">Manage</Link>}
+                              : <Link href={`/market/?id=${m.id}`} className="mk__btn mk__btn--buy">Manage</Link>}
                             <button type="button" className={`mk__chev${open === m.id ? ' is-open' : ''}`} aria-expanded={open === m.id} aria-label="Details" onClick={() => setOpen(open === m.id ? null : m.id)}>▾</button>
                           </span>
                         </div>
@@ -374,7 +374,7 @@ export default function Portfolio() {
               <ol className="feed">
                 {history.map((h, i) => {
                   const m = h.scenario ? markets.find((x) => x.id === h.scenario) : null
-                  return <li key={i} className={`feed__item feed__item--${h.kind}`}><time className="num">{time(h.at)}</time><span>{h.text}{m && <> <Link href={`/markets/${m.id}`} className="tr__link">{m.question}</Link></>}</span></li>
+                  return <li key={i} className={`feed__item feed__item--${h.kind}`}><time className="num">{time(h.at)}</time><span>{h.text}{m && <> <Link href={`/market/?id=${m.id}`} className="tr__link">{m.question}</Link></>}</span></li>
                 })}
               </ol>
             )}

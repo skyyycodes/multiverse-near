@@ -134,12 +134,12 @@ export default function Borrow() {
         <div className="mk__main">
           {/* ---------- loan position ---------- */}
           <section className="tr__panel">
-            <div className="desk__head"><h2 className="obx__boxtitle">Your loan position</h2><Link href={`/markets/${m.id}`} className="tr__link">Open the market</Link></div>
+            <div className="desk__head"><h2 className="obx__boxtitle">Your loan position</h2><Link href={`/market/?id=${m.id}`} className="tr__link">Open the market</Link></div>
             {!funded ? (
               <div className="desk__empty">
                 <MarketArt m={m} size={56} />
                 <p><b>Nothing posted in this market yet.</b> Fund it, then sell NEAR in the worlds you fear. What you hold becomes the collateral.</p>
-                <Link className="mk__btn mk__btn--buy" href={`/markets/${m.id}`}>Go to the market</Link>
+                <Link className="mk__btn mk__btn--buy" href={`/market/?id=${m.id}`}>Go to the market</Link>
               </div>
             ) : (
               <>

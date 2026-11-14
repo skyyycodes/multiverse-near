@@ -290,7 +290,7 @@ export default function Orders() {
                 <span>You hold in <b>{m.worlds[w].outcome}</b></span>
                 <b className="num">{fmt(s.near[w])} NEAR</b>
                 <b className="num">{fmt(s.usdc[w])} USDC</b>
-                <Link href={`/markets/${m.id}`}>Add funds</Link>
+                <Link href={`/market/?id=${m.id}`}>Add funds</Link>
               </p>
             ) : (
               <p className="tr__bal tr__bal--gate">

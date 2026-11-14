@@ -134,7 +134,7 @@ export default function Landing() {
           <h2>Hedge the worlds you fear. Borrow against all four.</h2>
           <p>You hold 1,000 NEAR. SPICE either ships on NEAR mainnet by March or slips, and the Fed either cuts or holds in December. That makes four worlds, and NEAR is worth something different in each.</p>
           <p>A lender counts only your weakest world. Tap a world to swap your NEAR there for dollars (a 0.30% fee, more when trading is one-sided). Dollars don’t fall with NEAR, so if NEAR drops, the worlds you hedged hold their value and your loan stays safe.</p>
-          <Button to={`/markets/${market.id}`}>Try it with the demo wallet</Button>
+          <Button to={`/market/?id=${market.id}`}>Try it with the demo wallet</Button>
         </div>
         <Floor />
       </section>
@@ -160,7 +160,7 @@ export default function Landing() {
           {open.map((m) => {
             const lead = [...m.worlds].sort((a, b) => b.chance - a.chance)
             return (
-              <Link key={m.id} href={`/markets/${m.id}`} className="mtable__row" role="row">
+              <Link key={m.id} href={`/market/?id=${m.id}`} className="mtable__row" role="row">
                 <span className="mtable__q" role="cell"><small>{m.category}, {m.worlds.length} worlds</small>{m.question}</span>
                 <span role="cell">{lead[0].outcome}</span>
                 <span className="mtable__odds" role="cell">

@@ -224,7 +224,7 @@ export default function Docs() {
       <section className="docs__section docs__end">
         <p>Based on Paradigm’s <a href={links.paper} target="_blank" rel="noreferrer">Multiverse Finance</a> paper (Dave White, May 2025).</p>
         <div className="docs__actions">
-          <Button to="/markets/ships-fed">Try the demo scenario <span aria-hidden>&#8599;</span></Button>
+          <Button to="/market/?id=ships-fed">Try the demo scenario <span aria-hidden>&#8599;</span></Button>
           <Link href="/markets" className="docs__link">See all markets</Link>
         </div>
       </section>

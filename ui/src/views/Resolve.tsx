@@ -61,7 +61,7 @@ export default function Resolve() {
                 <div className="rs__head">
                   <MarketArt m={m} size={44} />
                   <div>
-                    <Link href={`/markets/${m.id}`} className="rs__q">{m.question}</Link>
+                    <Link href={`/market/?id=${m.id}`} className="rs__q">{m.question}</Link>
                     <p className="pc__note">{done ? `Settled: ${m.worlds[left[0]].outcome}` : `${left.length} of ${m.worlds.length} worlds still possible`}</p>
                   </div>
                   {done && holdsAnything(s) && !s.claimed && <div className="tk tk--buy rs__redeem"><Button onClick={() => client.claimAll(m.id)}>Close and redeem</Button></div>}
