@@ -5,7 +5,7 @@
 ## Docs
 
 - [The complete guide](https://multiverse-lending.vercel.app/docs.md): every concept, number, screen, view and call, in plain Markdown
-- [Whitepaper](https://multiverse-lending.vercel.app/origami-verse-whitepaper.pdf): the design in depth (PDF)
+- [Whitepaper](https://multiverse-lending.vercel.app/ifverse-whitepaper.pdf): the design in depth (PDF)
 - [README](https://github.com/skyyycodes/multiverse-near/blob/main/README.md): accounts, setup, tests and deployment
 
 ## App

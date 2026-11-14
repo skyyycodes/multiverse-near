@@ -18,8 +18,9 @@ export const links = {
   roadmap: 'https://github.com/skyyycodes/multiverse-near/blob/main/docs/ROADMAP.md',
   paper: BRAND.credit.url,
   /** The whitepaper, opened in a new tab from the header's How it works menu and the footer. One constant: a hosted
-   *  copy (a Drive link) can replace the file in public/ here. */
-  whitepaper: '/origami-verse-whitepaper.pdf',
+   *  copy (a Drive link) can replace the file in public/ here. The file keeps its earlier working name, like the web
+   *  address, so links already shared still open it. */
+  whitepaper: '/ifverse-whitepaper.pdf',
   near: 'https://near.org',
   nearDocs: 'https://docs.near.org',
 }

@@ -4,6 +4,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { networkEnv } from '../../scripts/network.mjs'
+import { links } from '../config'
 import { WHITEPAPER_URL, docsSections, type Block } from './content'
 import { docsMarkdown, llmsTxt } from './markdown'
 
@@ -44,5 +45,10 @@ describe('the agent-readable docs', () => {
     expect(t).toContain('/docs.md')
     expect(t).toContain(WHITEPAPER_URL)
     expect(t).toContain('README.md')
+  })
+
+  it('links a whitepaper that public/ serves', () => {
+    // a local path must name a file in public/, or every Whitepaper link on the site is a 404
+    if (links.whitepaper.startsWith('/')) expect(existsSync(`${PUBLIC}${links.whitepaper.slice(1)}`), links.whitepaper).toBe(true)
   })
 })

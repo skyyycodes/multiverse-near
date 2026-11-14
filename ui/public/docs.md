@@ -2,7 +2,7 @@
 
 The complete guide to Origami Verse: what it is, how every part works, what each number means and how to use each screen. If you read only this page, you should understand all of it.
 
-This is the plain-text copy of https://multiverse-lending.vercel.app/docs/. Whitepaper: https://multiverse-lending.vercel.app/origami-verse-whitepaper.pdf. Code and setup: https://github.com/skyyycodes/multiverse-near/blob/main/README.md.
+This is the plain-text copy of https://multiverse-lending.vercel.app/docs/. Whitepaper: https://multiverse-lending.vercel.app/ifverse-whitepaper.pdf. Code and setup: https://github.com/skyyycodes/multiverse-near/blob/main/README.md.
 
 ## Contents
 
