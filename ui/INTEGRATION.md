@@ -1,7 +1,7 @@
 # Integrating the redesign with v2
 
-The partners' redesign (this folder) is the public IfVerse site. Its design stays; its in-browser model goes. Every
-screen moves from `src/lib/scenario.ts` (the model) to `src/chain/adapter.ts` (the contract on testnet), one screen at
+The partners' redesign (this folder) is the public IfVerse site. Its design stays; its in-browser model is gone (UI-MERGE
+removed `lib/scenario.ts` and the rest of it). Every screen reads `src/chain/adapter.ts` (the contract on testnet). It moved one screen at
 a time. This file is the contract between the tracks doing that.
 
 Rules that hold everywhere (DECISIONS 2026-11-14 12:10):
@@ -22,7 +22,7 @@ Rules that hold everywhere (DECISIONS 2026-11-14 12:10):
 
 Import from here (it re-exports `adapter-model.ts`). Worlds are always in the contract's bit order:
 `world = a + 2b + 4c`, event A the lowest bit (`ChainWorld.digits` gives each event's outcome). The model listed them
-in another order; don't carry its helpers (`gridOf`, `outcomeIn`, `bitsOf` over the model) into chain code.
+in another order; its helpers are gone with it.
 
 | Hook | Returns | Reads |
 |---|---|---|
@@ -93,8 +93,12 @@ example `src/chain/orders-book.ts`); `adapter.ts` stays the foundation's.
 - `components/ui/ActionButton.tsx`: the button every transaction goes through (`label`, `blocker`, `action`, `gas`,
   `deposit`, `run={() => actions.borrow(…)}`, `onDone`). It shows "Connect NEAR wallet", the blocker, or the step.
 - `components/ticket/`: the market ticket's panes (`FundPane`, `HedgePane`, `BorrowPane`, `LendPane`,
-  `LiquidityPane`, props `{ market, mask }`). Placeholders linking to the full screens until their tracks fill them.
-- `components/Grand.tsx`: `MarketArt` and `WorldIcon` draw a `ChainMarket` (contract grid) as well as a model market.
+  `LiquidityPane`, props `{ market, mask }`). Fund and Hedge are UI-C's, Borrow, Lend and Liquidity UI-B's.
+- `components/SplitTicket.tsx`: split and merge, shared by the Split page and the Fund pane.
+- `components/ui/ActionButton.tsx` also recovers from an `InsufficientStorage` refusal: the button turns into "Add N NEAR
+  to storage" (`storageShortfall` in `chain/storage-floor.ts`), then back to the action. Before that, an action that
+  writes to the contract already adds 0.1 NEAR when the free deposit is under 0.02 NEAR (`hooks/useTx.ts`).
+- `components/Grand.tsx`: `MarketArt` and `WorldIcon` draw a `ChainMarket` (contract grid); `WorldTable` is its map.
 - `components/layout/RoutePage.tsx`: every route that reads its query string renders its view through it (Suspense,
   needed by the static export). `PageLoading` is its fallback.
 - `config.ts`: `site`, `nav`, `isCurrent`, `footerLinks`, `links`, `chain` (contract and token ids of this build, the
@@ -114,7 +118,8 @@ example `src/chain/orders-book.ts`); `adapter.ts` stays the foundation's.
 | `/split/?id=N` | split and merge (from the market ticket) | UI-C |
 | `/propose/?kind=event\|market&events=1,2` | propose an event or a market | UI-D |
 | `/proposal/?p=N` | one proposal and its pledges | UI-D |
-| `/proposals/` | decision markets, as a roadmap page with no numbers | UI-D |
+| `/proposals/` | the proposals board: pledge, withdraw, refund, claim | UI-D |
+| `/decision-markets/` | decision markets, as a roadmap page with no numbers | UI-D |
 | `/resolve/?id=N`, `/admin/?id=N` | resolution; the owner console (wallet menu for the owner, footer) | UI-D |
 | `/docs/` | how it works | UI-A |
 
@@ -133,7 +138,7 @@ Edit only your files. Need a change in someone else's? Leave it in your notes fo
 | UI-B lending, liquidate, portfolio | `views/Borrow.tsx`, `views/Lend.tsx`, `views/Liquidate.tsx`, `views/Portfolio.tsx`, `components/ticket/{Borrow,Lend,Liquidity}Pane.tsx`, `styles/v2-lending.css` |
 | UI-C orders, split, sell | `views/Orders.tsx`, `views/Split.tsx`, `components/PriceChart.tsx`, `components/ticket/{Fund,Hedge}Pane.tsx`, `styles/v2-trade.css` |
 | UI-D propose, proposals, resolve, admin | `views/CreateMarket.tsx` (`/propose/`), `views/Proposal.tsx`, `views/Proposals.tsx`, `views/Resolve.tsx`, `views/Admin.tsx`, `styles/v2-governance.css` |
-| UI-MERGE | removes the model: `lib/scenario.ts`, `lib/client.ts`, `lib/wallet.tsx`, `lib/history.ts`, `lib/futarchy.ts`, `lib/pledges.ts`, `lib/intents.ts`, `data/demo.ts`, `components/WalletBar.tsx`; writes `e2e/staging.spec.ts` |
+| UI-MERGE | removed the model (`lib/scenario.ts`, `client.ts`, `wallet.tsx`, `history.ts`, `futarchy.ts`, `pledges.ts`, `intents.ts`, `market.ts`, `types.ts`, `data/demo.ts`, `WalletBar.tsx`, `WorldMap.tsx`); `e2e/staging.spec.ts` |
 
 The shared stylesheets (`tokens.css`, `system.css`, `unify.css`, `ui.css`, `landing.css`, `desk.css`, `global-ui.css`,
 `layout.css`, `topbar.css`) are not edited: a new rule goes in your track's `styles/v2-*.css`, which loads after them.
@@ -158,6 +163,20 @@ the one accent `--u-orange` / `--accent` (#bf888b) and `--accent-strong`; tradin
 `--sell-bg`, `--watch`; radius `--u-r` (6px) for panels, `--radius` (4px) for controls. Type: General Sans
 (`--font-sans`) for words, DM Mono (`--font-mono`, class `num`) for figures, Anton for the landing's display numbers
 only. World colours: `WORLD_COLORS[index]` from `components/Grand.tsx`, by contract index.
+
+## Trading on the order book
+
+`/orders/` trades what you hold in the world (the partners' principle): `chain/book.ts` `worldTradeTx` batches up to
+five `fill_order` calls and then a `swap` on the world's pool (exact in, `min_out` = quote less 0.5%) or a
+`post_order` for a limit's rest, in one transaction. Pool quotes are computed from `get_pool` with the contract's
+rounding (`book.test.ts` pins them to `quote_sell`). The chart is the pool price after each of the market's last 64
+swaps; there are no candles, no 24 h figures and no tape of others' fills, because the chain keeps none.
+
+## Reads
+
+The browser reads testnet from dRPC first and FastNEAR after it (`chain/env.ts`): FastNEAR's edge now and then answers a
+page's preflighted reads without CORS headers, which the browser logs as errors. At most six reads are in flight
+(`MAX_IN_FLIGHT`, `near/rpc.ts`). Snapshots poll every 8 s (`POLL_MS`); your own transaction refreshes everything at once.
 
 ## Gates
 
@@ -192,3 +211,9 @@ NEAR_KEYS_DIR=… STAGING=1 BASE_URL=https://multiverse-lending.vercel.app pnpm 
 
 `e2e/shell.spec.ts` is read-only. A spec that sends transactions uses the staging family's accounts only, never
 reports or finalizes an event, and unpauses in a `finally` whatever it paused.
+
+`e2e/staging.spec.ts` (`-g staging`) is the whole site as a new visitor: `judge-ui1.<root>` (made with 0.3 NEAR on the first
+run, plus 0.2 NEAR once, because every 300 Tgas call reserves 0.3 NEAR of gas), connect through the wallet picker, test
+tokens, split, hedge, an order placed and cancelled, supply and withdraw, borrow, portfolio, at-risk, repay, a
+combination checked, resolve, the owner pausing one flag, and a phone pass at 390×844. Any console error fails it. The
+harness reads from `STAGING_RPC` (default rpc.testnet.near.org), not the site's RPC.
