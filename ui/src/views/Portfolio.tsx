@@ -9,7 +9,7 @@
 //                 "what if NEAR moves" is a labelled what-if over your real holdings
 //   loans         every loan and supply by market and tier, beside health and the wallet
 //   tabs          positions by market, open orders
-import { useState, type ReactNode } from 'react'
+import { useState, type CSSProperties, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useActions, useMarkets, useWalletBalances, type ChainMarket } from '../chain/adapter'
 import { useMarketsOf } from '../chain/hooks/useMarkets'
@@ -289,7 +289,7 @@ function Futures({ h }: { h: MarketHoldings }) {
         <span><i className="orng__k orng__k--usdc" />Ringed: holds USDC</span>
       </div>
 
-      <div className="fgrid" style={{ gridTemplateColumns: `${grid.rows.length > 1 ? 'auto ' : ''}repeat(${grid.cols.length}, minmax(0, 1fr))` }}>
+      <div className={`fgrid${grid.rows.length > 1 ? ' fgrid--rows' : ''}${grid.cols.length > 2 ? ' fgrid--wide' : ''}`} style={{ '--cols': grid.cols.length } as CSSProperties}>
         {grid.rows.length > 1 && <span />}
         {grid.cols.map((c) => <span key={c} className="fgrid__axis">{c}</span>)}
         {grid.rows.map((row) => [

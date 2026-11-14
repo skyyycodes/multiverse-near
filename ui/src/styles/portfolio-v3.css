@@ -8,15 +8,22 @@
 @media (max-width: 1100px) { .pf-row { grid-template-columns: 1fr; } }
 
 /* the world grid of cards */
-.fgrid { display: grid; gap: 8px; margin-top: 12px; }
+.fgrid { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.fgrid--rows { grid-template-columns: auto repeat(var(--cols), minmax(0, 1fr)); }
+/* a phone fits two cards a row: wider grids drop the axes (each card's name spells out its whole world) */
+@media (max-width: 640px) {
+  .fgrid--wide { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fgrid--wide > span { display: none; }
+  .fw { padding: 12px; }
+}
 .fgrid__axis { align-self: end; padding: 0 4px 2px; font-size: 12px; font-weight: 500; color: var(--u-muted); }
 .fgrid__axis--row { align-self: center; padding: 0 8px 0 0; writing-mode: horizontal-tb; }
 .fw { position: relative; display: flex; flex-direction: column; gap: 2px; padding: 14px 16px; border: 1px solid var(--u-line); border-radius: 6px; background: var(--u-raise); min-width: 0; }
 .fw.is-best { border-color: rgba(125, 201, 165, 0.35); }
 .fw.is-worst { border-color: rgba(240, 192, 90, 0.35); }
 .fw.is-dead { opacity: 0.4; justify-content: center; }
-.fw__top { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
-.fw__name { display: inline-flex; align-items: center; gap: 8px; font: 600 14px var(--font-sans); color: var(--u-ink); }
+.fw__top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 2px 8px; margin-bottom: 8px; }
+.fw__name { display: inline-flex; align-items: center; gap: 8px; min-width: 0; overflow-wrap: anywhere; font: 600 14px var(--font-sans); color: var(--u-ink); }
 .fw__name i { width: 8px; height: 8px; border-radius: 50%; }
 .fw__chance { font-size: 12px; color: var(--u-muted); }
 .fw__lead { font-size: 12px; color: var(--u-muted); }

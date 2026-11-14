@@ -60,7 +60,11 @@
 .wiz__nav .mk__btn { min-width: 140px; padding: 10px 16px; }
 .wiz__nav .mk__btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .wiz__preview { margin-top: 8px; }
-@media (max-width: 760px) { .wiz { grid-template-columns: repeat(5, auto); overflow-x: auto; } .wiz__choices { grid-template-columns: 1fr; } }
+@media (max-width: 760px) {
+  .wiz { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+  .wiz button { flex-direction: column; justify-content: center; gap: 4px; padding: 6px 2px; font-size: 10px; line-height: 1.2; text-align: center; }
+  .wiz__choices { grid-template-columns: 1fr; }
+}
 
 /* ---------- decision markets ---------- */
 .dm__meter { margin-top: 18px; }
