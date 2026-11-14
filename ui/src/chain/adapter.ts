@@ -49,6 +49,7 @@ import {
   withdrawSupply as withdrawSupplyTx,
   type Tx,
 } from "./near/tx";
+import type { TxOutcome } from "./near/outcome";
 import { useWallet } from "./near/wallet";
 import type { WorldPlan, Order, Side } from "./orders";
 import { pauseBlocker, type AppAction } from "./pause";
@@ -329,8 +330,12 @@ export function useActions() {
 
     return {
       busy,
-      /** Any transaction, announced as told (admin, proposals, liquidations: anything without a typed wrapper below). */
-      send: (tx: Tx, a: Announce, o: { needs?: Needs; expectUsed?: bigint | "nonzero" } = {}) => run(a, o.needs, () => submit(tx, o.expectUsed)),
+      /**
+       * Any transaction, announced as told (admin, proposals, liquidations: anything without a typed wrapper below).
+       * `onOutcome` reads the landed transaction (a new proposal's id, a pledge's result) before the toast says done.
+       */
+      send: (tx: Tx, a: Announce, o: { needs?: Needs; expectUsed?: bigint | "nonzero"; onOutcome?: (outcome: TxOutcome) => void } = {}) =>
+        run(a, o.needs, () => submit(tx, o.expectUsed, o.onOutcome)),
 
       /** "Get test tokens": mint the drop of each mock token the wallet holds less of, then register with the contract. */
       faucet: () =>
