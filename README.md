@@ -226,7 +226,7 @@ pnpm -C scripts build:wasm
 ```
 
 It builds both contracts with `cargo near build non-reproducible-wasm --locked`, rewrites local paths out of the
-binaries, checks that none is left and prints the sha256 of each. On 2026-11-14 a build of `main` (`d46de5e`)
+binaries, checks that none is left and prints the sha256 of each. On 2026-11-14 most builds of `main` (`d46de5e`)
 printed:
 
 ```
@@ -245,15 +245,16 @@ curl -s https://test.rpc.fastnear.com -H 'Content-Type: application/json' \
   | grep -o '"code_hash":"[^"]*"'
 ```
 
-The contract build is not yet reproducible everywhere. Two view types are both named `ReferenceView`
+The contract build is not yet deterministic. Two view types are both named `ReferenceView`
 (`contracts/multiverse/src/reference.rs` and `contracts/multiverse/src/catalog/mod.rs`; the JSON each view returns
-is not affected), and the ABI that near-sdk embeds in the wasm describes whichever one the build picks. A second
-build of the same commit, from a clean clone at another path, printed
-`7ce7b6bcc24d1cf6ef308e6b0ade40ae71b0ebc3af958d8343ea0c1846d0fb27` (base58 `9QaV39eE...`). Its embedded ABI differs
-from the deployed one only in that definition (all 199 functions are the same) and is 28 bytes shorter. We believe
-the other differing bytes come from the same cause: the ABI sits in the wasm's data, so a shorter one moves the data
-after it, and the 1,043 constants that differ in the code each differ by 27 to 32. Renaming one of the two types
-fixes this, as `1ad9891` did for `RootLpHolding` in the first version, but it changes the wasm and needs a redeploy.
+is not affected), and the ABI that near-sdk embeds in the wasm describes whichever one the build picks, which can
+change from one build to the next. Five builds of `d46de5e` in the same checkout printed the hash above three times
+and `7ce7b6bcc24d1cf6ef308e6b0ade40ae71b0ebc3af958d8343ea0c1846d0fb27` (base58 `9QaV39eE...`) twice, and a build
+from a clean clone printed the second one too. That wasm's embedded ABI differs from the deployed one only in that
+definition (all 199 functions are the same) and is 28 bytes shorter. We believe the other differing bytes come from
+the same cause: the ABI sits in the wasm's data, so a shorter one moves the data after it, and the 1,043 constants
+that differ in the code each differ by 27 to 32. Renaming one of the two types fixes this, as `1ad9891` did for
+`RootLpHolding` in the first version, but it changes the wasm and needs a redeploy.
 
 The first version, `app.multiverse-near.testnet`, runs code `G6GtUs6AqHfxRb8YCdBx5dv1bgiQ3c1gDhPE9ygQTkEt`, built
 from commit `04a3d42` (sha256 `e0392c0e...`) and deployed on 2026-11-12 at 12:08 UTC
