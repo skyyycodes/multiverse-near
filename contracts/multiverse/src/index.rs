@@ -12,6 +12,7 @@
 use near_sdk::{env, near, AccountId};
 
 use crate::lending::tiers::TIER_SHIFT;
+use crate::masks;
 use crate::types::{Asset, VerseKey};
 use crate::Contract;
 
@@ -199,6 +200,47 @@ impl Contract {
 
     /// Migrate step 7: `world_supply` and `created_masks` of every legacy
     /// scenario from `supply` and `created`, then every possible world's
-    /// counter checked against the reserves (`BackingMismatch(sid, asset, w)`).
-    pub(crate) fn migrate_eight_worlds(&mut self) {}
+    /// counter checked against the reserves (`BackingMismatch(sid, asset,
+    /// w)`), so the upgrade (deploy included) reverts on state that already
+    /// breaks invariant 1. All-zero vectors and empty sets are not written,
+    /// as the ledger never keeps them.
+    pub(crate) fn migrate_eight_worlds(&mut self) {
+        for sid in 1..=self.legacy_scenario_count {
+            let Some(s) = self.scenarios.get(&sid) else {
+                continue;
+            };
+            let (world_count, root, possible) = (s.world_count, s.root(), s.possible);
+            let mut created = MaskSet::default();
+            for asset in Asset::ALL {
+                let mut counts = vec![0u128; usize::from(world_count)];
+                for mask in 1..root {
+                    let key = VerseKey::new(sid, asset, mask);
+                    if self.created.contains(&key) {
+                        created.set(asset, mask, true);
+                    }
+                    let supply = self.verse_supply(&key);
+                    if supply == 0 {
+                        continue;
+                    }
+                    for (w, count) in (0u8..).zip(counts.iter_mut()) {
+                        if masks::contains(mask, w) {
+                            *count = count.wrapping_add(supply);
+                        }
+                    }
+                }
+                let reserve = self.reserve(sid, asset);
+                for (w, count) in (0u8..).zip(&counts) {
+                    if masks::contains(possible, w) && *count != reserve {
+                        fail!("BackingMismatch({sid}, {asset}, {w})");
+                    }
+                }
+                if counts.iter().any(|c| *c != 0) {
+                    self.world_supply.insert((sid, asset), counts);
+                }
+            }
+            if !created.is_empty() {
+                self.created_masks.insert(sid, created);
+            }
+        }
+    }
 }

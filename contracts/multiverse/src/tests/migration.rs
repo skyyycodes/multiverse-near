@@ -349,6 +349,10 @@ fn migrate_changes_only_state_and_adds_keys_under_new_prefixes() {
     let under = |prefix: u8| added.iter().filter(|k| k[0] == prefix).count();
     assert_eq!(under(0x1b), 1);
     assert_eq!(under(0x1c), prod_accounts().len());
+    // EW, step 7: one per-world supply vector per (legacy scenario, asset),
+    // one created set per legacy scenario (tests/eight.rs checks the values)
+    assert_eq!(under(0x2a), 12);
+    assert_eq!(under(0x2b), 6);
     let marker_prefix = StorageKey::AccountVersion.into_storage_key();
     for a in prod_accounts() {
         let mut key = marker_prefix.clone();
