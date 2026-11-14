@@ -12,7 +12,7 @@ const TRACK: { status: SwapStatus; label: string; note: string }[] = [
   { status: 'PENDING_DEPOSIT', label: 'Waiting for deposit', note: 'Send the quoted amount to the deposit address.' },
   { status: 'KNOWN_DEPOSIT_TX', label: 'Deposit seen', note: 'Your transfer is on its way to NEAR.' },
   { status: 'PROCESSING', label: 'Swapping', note: 'Solvers are filling the swap.' },
-  { status: 'SUCCESS', label: 'Arrived on NEAR', note: 'It lands in your Origami account, ready to push into every world.' },
+  { status: 'SUCCESS', label: 'Arrived on NEAR', note: 'It lands in your IfVerse account, ready to push into every world.' },
 ]
 const ENDINGS: { status: SwapStatus; label: string; note: string }[] = [
   { status: 'REFUNDED', label: 'Refunded', note: 'The swap couldn’t complete in time, so your deposit went back to your refund address, minus the refund fee.' },

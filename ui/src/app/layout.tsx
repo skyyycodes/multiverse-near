@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
 import { Shell } from '../components/layout/Shell'
+import { BRAND } from '../chain/brand'
 import { site } from '../config'
 // Every stylesheet loads here, in one fixed order: base, then each part of the site, then the
 // design system last so it wins. (Imported from components instead, Next.js would load those later
@@ -23,11 +24,15 @@ import '../styles/refine.css'
 import '../styles/pages-research.css'
 import '../styles/portfolio.css'
 import '../styles/portfolio-v3.css'
+import '../styles/chain.css'
 
 export const metadata: Metadata = {
-  title: 'Origami Verse',
+  title: BRAND.name,
   description: site.tagline,
+  applicationName: BRAND.name,
   icons: { icon: '/favicon.svg' },
+  openGraph: { title: BRAND.name, description: site.tagline, siteName: BRAND.name, type: 'website' },
+  twitter: { card: 'summary', title: BRAND.name, description: site.tagline },
 }
 
 export default function RootLayout({ children }: { children: ReactNode }) {

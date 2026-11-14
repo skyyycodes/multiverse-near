@@ -1,7 +1,9 @@
 // Site-wide settings. Change a value here and it updates everywhere on the site.
+import { BRAND } from './chain/brand'
+import { ENV } from './chain/env'
 
 export const site = {
-  name: 'Origami Verse',
+  name: BRAND.name,
   tagline: 'Keep NEAR in the worlds you like, hold dollars in the worlds you fear, and borrow against everything at once.',
   hero: {
     struck: 'One future.',
@@ -10,32 +12,59 @@ export const site = {
   },
 }
 
-export const nav = [
-  { to: '/markets', label: 'Markets' },
-  { to: '/portfolio', label: 'Portfolio' },
-  { to: '/borrow', label: 'Borrow' },
-  { to: '/lend', label: 'Lend' },
-  { to: '/orders', label: 'Order book' },
-  { to: '/resolve', label: 'Resolve' },
-  { to: '/docs', label: 'How it works' },
+export type NavItem = { to: string; label: string; also?: string[] }
+
+// The header's links, in order. `also`: other screens the link stays underlined on (a market's own pages, a proposal).
+export const nav: NavItem[] = [
+  { to: '/markets/', label: 'Markets', also: ['/market/', '/split/'] },
+  { to: '/portfolio/', label: 'Portfolio' },
+  { to: '/borrow/', label: 'Borrow' },
+  { to: '/lend/', label: 'Lend' },
+  { to: '/orders/', label: 'Order book' },
+  { to: '/propose/', label: 'Propose', also: ['/proposal/'] },
+  { to: '/resolve/', label: 'Resolve' },
+  { to: '/docs/', label: 'How it works' },
+]
+
+const bare = (p: string) => (p.replace(/\/+$/, '') || '/')
+
+/** Whether the header underlines `item` on `path` (with or without the trailing slash). */
+export function isCurrent(path: string | null, item: NavItem): boolean {
+  const p = bare(path ?? '/')
+  return [item.to, ...(item.also ?? [])].some((to) => {
+    const t = bare(to)
+    return p === t || p.startsWith(`${t}/`)
+  })
+}
+
+// Screens reached in context (from a market, a loan, the wallet menu), also listed in the footer.
+export const footerLinks: { to: string; label: string }[] = [
+  { to: '/markets/', label: 'Markets' },
+  { to: '/portfolio/', label: 'Portfolio' },
+  { to: '/liquidate/', label: 'At-risk loans' },
+  { to: '/propose/', label: 'Propose a market' },
+  { to: '/proposals/', label: 'Decision markets' },
+  { to: '/docs/', label: 'How it works' },
+  { to: '/admin/', label: 'Admin' },
 ]
 
 export const links = {
   github: 'https://github.com/skyyycodes/multiverse-near',
   learn: 'https://github.com/skyyycodes/multiverse-near/blob/main/docs/LEARN.md',
   roadmap: 'https://github.com/skyyycodes/multiverse-near/blob/main/docs/ROADMAP.md',
-  paper: 'https://www.paradigm.xyz/2025/05/multiverse-finance',
+  paper: BRAND.credit.url,
   near: 'https://near.org',
   nearDocs: 'https://docs.near.org',
 }
 
-// Where the contracts live. With no core contract set, the site runs on the in-browser model
-// (lib/scenario.ts) through the mock client; set these to switch to testnet.
+// Where the contracts live: the deployment this build was made for (deployments/<network>.json, read by
+// next.config.ts). Read chain ids from here or from ENV, never as literals.
 export const chain = {
-  network: (process.env.NEXT_PUBLIC_NEAR_NETWORK ?? 'testnet') as 'testnet' | 'mainnet',
-  rpc: process.env.NEXT_PUBLIC_NEAR_RPC ?? 'https://rpc.testnet.near.org',
-  core: process.env.NEXT_PUBLIC_CORE_CONTRACT ?? '', // verse, amm, lending, router, futarchy
-  resolver: process.env.NEXT_PUBLIC_RESOLVER_CONTRACT ?? '',
-  usdc: process.env.NEXT_PUBLIC_USDC_CONTRACT ?? '', // vault-mock test USDC (NEP-141)
-  wnear: process.env.NEXT_PUBLIC_WNEAR_CONTRACT ?? '', // vault-mock wNEAR (NEP-141)
+  network: ENV.network,
+  contractId: ENV.contractId,
+  wnear: ENV.wnearId,
+  usdc: ENV.usdcId,
+  explorer: ENV.explorer,
+  /** The anchor market: SPICE × Fed, the one the header's world grid shows. */
+  anchorMarket: 1,
 }

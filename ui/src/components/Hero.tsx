@@ -6,6 +6,7 @@ import { useEffect, useRef, type CSSProperties } from 'react'
 import { demoMarkets } from '../data/demo'
 import { pct } from '../lib/format'
 import { story } from '../lib/story'
+import { site } from '../config'
 import dynamic from 'next/dynamic'
 
 // the rings are WebGL: loaded in the browser only
@@ -469,7 +470,7 @@ export function Hero() {
   const panel = (k: Key) => (el: HTMLDivElement | null) => { panelEls.current[k] = el }
 
   return (
-    <section className="story" ref={root} aria-label="How Origami works">
+    <section className="story" ref={root} aria-label={`How ${site.name} works`}>
       <div className="story__stage" ref={stage}>
         {/* the four wings open into the scenario's four worlds: short, the same layout in each corner */}
         {(['tl', 'tr', 'bl', 'br'] as Key[]).map((k, i) => {
@@ -519,7 +520,7 @@ export function Hero() {
             <span className="hero__line"><span>Lend inside</span></span>
             <span className="hero__line"><em>every future.</em></span>
           </h1>
-          <p className="hero__tag">Multiverse lending on NEAR</p>
+          <p className="hero__tag">{site.name} · lending on NEAR</p>
         </div>
 
       </div>

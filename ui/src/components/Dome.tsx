@@ -1,6 +1,6 @@
 // The dome over the Markets section: two thin glass rings seen as arches, a smaller one and a bigger one
 // a little higher, like the top of a half-sphere. The inner ring carries every open market's odds; the
-// outer one carries the chains and coins Origami speaks and what the protocol does. Both turn slowly,
+// outer one carries the chains and coins IfVerse speaks and what the protocol does. Both turn slowly,
 // in opposite directions. The section heading sits underneath, in the middle of the dome.
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { useEffect, useMemo, useRef, useState } from 'react'
