@@ -1,7 +1,8 @@
-# IfVerse UI
+# Origami Verse UI
 
-The public IfVerse site: the redesigned interface, now the frontend of v2 on NEAR testnet (it replaces `web/`, which
-stays in the repo but is no longer deployed). It covers every screen `web/` has, plus a market list and a few more:
+The public Origami Verse site (formerly IfVerse / Multiverse Lending): the redesigned interface, now the frontend of v2
+on NEAR testnet (it replaces `web/`, which stays in the repo but is no longer deployed). It covers every screen `web/`
+has, plus a market list and a few more:
 
 | Route | Screen |
 |---|---|

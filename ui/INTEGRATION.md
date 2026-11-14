@@ -1,6 +1,6 @@
 # Integrating the redesign with v2
 
-The partners' redesign (this folder) is the public IfVerse site. Its design stays; its in-browser model is gone (UI-MERGE
+The partners' redesign (this folder) is the public Origami Verse site. Its design stays; its in-browser model is gone (UI-MERGE
 removed `lib/scenario.ts` and the rest of it). Every screen reads `src/chain/adapter.ts` (the contract on testnet). It moved one screen at
 a time. This file is the contract between the tracks doing that.
 
@@ -8,7 +8,7 @@ Rules that hold everywhere (DECISIONS 2026-11-14 12:10):
 
 - **Their style.** A page or element v2 needs and they lack is built as if they made it: their classes, their copy
   tone (short, plain, sentence case), their empty, loading and error states. No Tailwind, no UI kit.
-- **IfVerse** is the name. Read it from `site.name` (config) or `BRAND` (`src/chain/brand.ts`), never a literal.
+- **Origami Verse** is the name. Read it from `site.name` (config) or `BRAND` (`src/chain/brand.ts`), never a literal.
 - **Real or hidden.** No seeded number may reach the screen as if it were real: odds and price history charts,
   candles, volume, P&L and cost basis, activity, holders, NEAR Intents quotes, decision markets. Build the real version
   where the chain has the data and it is cheap; else remove the element and keep the layout tidy. Decision markets stay
