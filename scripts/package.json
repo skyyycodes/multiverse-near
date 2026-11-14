@@ -38,7 +38,8 @@
     "measure": "tsx measure.ts",
     "accept": "tsx accept.ts",
     "staging:accounts": "tsx staging-accounts.ts",
-    "seed:staging": "tsx seed-staging.ts"
+    "seed:staging": "tsx seed-staging.ts",
+    "smoke:staging": "tsx smoke-staging.ts"
   },
   "dependencies": {
     "near-api-js": "7.4.0"
