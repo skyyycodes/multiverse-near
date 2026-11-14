@@ -16,11 +16,36 @@ async function exposeDemoWallet(page: Page, calls: string[]) {
   });
 }
 
-test("reads the chain and says where the deployment stands", async ({ page }) => {
-  await page.goto("/borrow/");
-  await expect(
-    page.getByText(/is not deployed on testnet yet|has not been seeded there yet|Health factor \(worst world\)/i).first(),
-  ).toBeVisible({ timeout: 30_000 });
+const CONTRACT = "app.multiverse-near.testnet";
+
+/** The contract's state version as the chain says (read-only RPC): 1 when `contract_version` does not exist (v1). */
+async function stateVersion(): Promise<number> {
+  const res = await fetch("https://test.rpc.fastnear.com", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: "e2e",
+      method: "query",
+      params: { request_type: "call_function", finality: "optimistic", account_id: CONTRACT, method_name: "contract_version", args_base64: "e30=" },
+    }),
+  });
+  const body = (await res.json()) as { result?: { result?: number[]; error?: string }; error?: unknown };
+  const bytes = body.result?.result;
+  if (!bytes || body.error || body.result?.error) return 1;
+  return (JSON.parse(Buffer.from(bytes).toString()) as { state_version: number }).state_version;
+}
+
+// W-0: the version gate on the production contract. Against state 1 (no `contract_version`) no screen renders, so no
+// transaction can be built (WI-2); W-7 adds the v2 branch for when production runs v2.
+test("a v1 contract gets the upgrade notice and no transaction button", async ({ page }) => {
+  test.skip((await stateVersion()) >= 2, "production runs v2: the v2 branch of this project covers it");
+  for (const route of ["/borrow/", "/sell/", "/lend/"]) {
+    await page.goto(route);
+    await expect(page.locator('[data-demo="upgrade-notice"]')).toContainText("IfVerse is being upgraded", { timeout: 30_000 });
+    await expect(page.locator('[data-demo="upgrade-notice"]')).toContainText("still runs version 1.0.0");
+    await expect(page.locator("button[data-tx]")).toHaveCount(0);
+  }
 });
 
 const demoOnly = () => test.skip(test.info().project.name !== "demo", "the demo-wallet build only");

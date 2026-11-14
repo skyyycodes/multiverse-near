@@ -1,10 +1,13 @@
 import { Suspense } from "react";
+import { MarketGuard } from "@/components/markets/MarketGuard";
 import { TradeScreen } from "@/components/trade/TradeScreen";
 
 export default function Page() {
   return (
     <Suspense>
-      <TradeScreen focus="book" />
+      <MarketGuard>
+        <TradeScreen focus="book" />
+      </MarketGuard>
     </Suspense>
   );
 }

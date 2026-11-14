@@ -13,6 +13,7 @@ import { useAppConfig, useBalances, useRegistration } from "@/lib/hooks/useData"
 import { useSubmit } from "@/lib/hooks/useTx";
 import { GAS_CALL, withdrawInner } from "@/lib/near/tx";
 import { useWallet } from "@/lib/near/wallet";
+import { NetworkBadge } from "./NetworkBadge";
 import { FAUCET_ON, GetTestTokens } from "./TestTokens";
 import { fmtYocto, unitOf } from "@/lib/units";
 
@@ -138,6 +139,11 @@ export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => 
           <FixtureControls />
         </Suspense>
       )}
+
+      <div className="flex items-center gap-3 text-[12px] leading-snug text-mute" data-demo="account-footer">
+        <NetworkBadge onLight />
+        <span>{BRAND.testnetNote}</span>
+      </div>
 
       <Pill
         tone="secondary"

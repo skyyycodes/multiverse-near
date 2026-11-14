@@ -15,18 +15,16 @@ test("first visit shows the landing, and looking around opens the home", async (
   await expect(page.locator('[data-demo="hero-spot"]')).toContainText("$3.0378");
 });
 
-test("the home shows every world backed, and the scenario switch changes the grid", async ({ page }) => {
+test("the home shows every world backed, and the market in the URL changes the grid", async ({ page }) => {
   await page.goto("/?fx=seeded&welcome=0");
   const worlds = isPhone(page) ? page.locator('[data-demo="future-row"]') : page.locator('[data-demo="world-card"]');
   await expect(worlds).toHaveCount(4);
   await expect(page.locator('[data-demo="stat-backing"]')).toContainText("✓ all backed");
   await expect(page.locator('[data-demo="stat-actual-spot"]')).toContainText("$3.0378");
   await expect(page.locator('[data-demo="stat-implied-spot"]')).toContainText("equal to actual");
-  await page.locator('[data-demo="scenario-switch"]').click();
-  await page.locator('[data-demo="scenario-binary"]').click();
+  await page.goto("/market/?id=2&welcome=0");
   await expect(worlds).toHaveCount(2);
-  await page.locator('[data-demo="scenario-switch"]').click();
-  await page.locator('[data-demo="scenario-2x2"]').click();
+  await page.goto("/market/?id=1&welcome=0");
   await expect(worlds).toHaveCount(4);
 });
 
@@ -167,10 +165,64 @@ test("the past Fed decision, outside the grid, says nothing about worlds once re
   await expect(past).not.toContainText("gone for good");
 });
 
-test("the desktop top bar links the order book", async ({ page }) => {
-  test.skip(isPhone(page), "the phone keeps it in the More menu");
-  await page.goto("/?fx=seeded&welcome=0");
-  await page.locator('[data-demo="nav-orders"]').click();
-  await expect(page).toHaveURL(/\/orders\//);
-  await expect(page.locator('[data-demo="nav-orders"]')).toHaveAttribute("aria-current", "page");
+test("the desktop top bar links the global screens, the trade sheet the order book", async ({ page }) => {
+  test.skip(isPhone(page), "the phone has its own navigation");
+  await page.goto("/market/?id=1&fx=seeded&welcome=0");
+  await expect(page.locator('[data-demo="nav-markets"]')).toHaveAttribute("aria-current", "page");
+  await page.getByRole("tab", { name: "Order book" }).click();
+  await expect(page.getByRole("tab", { name: "Order book" })).toHaveAttribute("aria-selected", "true");
+  await page.locator('[data-demo="nav-admin"]').click();
+  // the admin link carries no market; the last one opened here comes back into the URL
+  await expect(page).toHaveURL(/\/admin\/\?id=1$/);
+  await expect(page.locator('[data-demo="nav-admin"]')).toHaveAttribute("aria-current", "page");
+  for (const hook of ["nav-liquidate", "nav-propose"]) await expect(page.locator(`[data-demo="${hook}"]`)).toBeVisible();
+});
+
+// W-0: every market screen sits behind the market guard; the v1 screens still render there for market 1.
+test.describe("the market guard", () => {
+  test("renders the v1 screens for id=1", async ({ page }) => {
+    await page.goto("/market/?id=1&fx=seeded&welcome=0");
+    await expect(page.locator('[data-demo="hero-spot"]')).toContainText("$3.0378");
+    await page.goto("/sell/?id=1&fx=seeded&as=alice");
+    await expect(page.locator('[data-demo="sell-wallet"]')).toHaveText("wallet: 2,000.00 wNEAR");
+    await page.goto("/borrow/?id=1&fx=sold&as=alice");
+    await expect(page.locator('[data-demo="hero-hf"]')).toContainText("worst world: DELAYED·HOLDS");
+    await page.goto("/lend/?id=1&fx=seeded&as=bob");
+    await expect(page.locator('[data-demo="lend"]')).toBeVisible();
+    await page.goto("/resolve/?id=1&fx=proposed&as=alice");
+    await expect(page.locator('[data-demo="scenario-status"]')).toContainText("paused: resolution pending");
+    await page.goto("/orders/?id=1&w=0&fx=book&as=sam");
+    await expect(page.locator("main")).toContainText("Order book · SHIPS·CUTS");
+    await page.goto("/world/?id=1&w=3&fx=seeded");
+    await expect(page.locator("main")).toContainText("DELAYED·HOLDS");
+    await page.goto("/admin/?id=1&fx=lp&as=owner");
+    await expect(page.locator('[data-demo="owner-status"]')).toHaveText("✓ Connected as the oracle owner");
+  });
+
+  test("adds the market to an old link and keeps its params", async ({ page }) => {
+    await page.goto("/sell/?sel=14&fx=seeded&as=alice");
+    await expect(page).toHaveURL(/\/sell\/\?sel=14&fx=seeded&as=alice&id=1$/);
+    await expect(page.locator('[data-demo="sell-confirm"]')).toHaveText("Sell in 3 worlds");
+  });
+
+  test("says when the id is not a market", async ({ page }) => {
+    await page.goto("/market/?id=99&fx=seeded&welcome=0");
+    await expect(page.locator("main")).toContainText("No market #99 on this deployment");
+    await page.goto("/borrow/?id=05&fx=seeded");
+    await expect(page.locator("main")).toContainText("Not a market id");
+    await expect(page.locator("button[data-tx]")).toHaveCount(0);
+  });
+
+  test("names the network and the versions", async ({ page }) => {
+    await page.goto("/market/?id=1&fx=seeded&welcome=0");
+    // the screen first, so the badge clicked is the screen's own (not the loading frame's)
+    await expect(page.locator('[data-demo="hero-spot"]')).toContainText("$3.0378");
+    const badge = page.locator('[data-demo="network-badge"]').first();
+    await expect(badge).toContainText(isPhone(page) ? "testnet" : "testnet v2.0.0");
+    await badge.click();
+    await expect(page.locator('[data-demo="about-version"]')).toContainText("2.0.0 · state 2");
+    await expect(page.locator('[data-demo="about-web"]')).toContainText("2.0.0");
+    await expect(page.locator('[data-demo="about-contract"]')).toContainText("app.multiverse-near.testnet");
+    await expect(page.locator('[data-demo="about-code-hash"]')).toContainText("G6GtUs6AqHfxRb8YCdBx5dv1bgiQ3c1gDhPE9ygQTkEt");
+  });
 });

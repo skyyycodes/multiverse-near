@@ -69,7 +69,7 @@ export function UpgradeNotice({ version }: { version: ContractVersion }) {
 }
 
 /** The screen's frame around a guard: a reading state while the config loads, a plain title once the answer is in. */
-function Frame({ children, loading }: { children: ReactNode; loading?: boolean }) {
+export function Frame({ children, loading }: { children: ReactNode; loading?: boolean }) {
   const hero = loading ? (
     <HeroNumber label="NEAR spot" value="—" loading />
   ) : (

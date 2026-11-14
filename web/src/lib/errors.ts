@@ -2,6 +2,7 @@
 // the plain words ("{text} ({raw})"), for support and for the recorder; anything this table does not know passes
 // through unchanged.
 import { fmt, fmtHf, fmtNear, fmtPrice, fmtUsd, pct, utcDate } from "./format";
+import { marketHref, proposalHref } from "./links";
 import { FLAG_LABEL, type PauseFlag } from "./pause";
 import type { Asset } from "./types";
 
@@ -219,7 +220,7 @@ export function errorLine(raw: string, ctx: ErrorContext = {}): string {
 export function errorHref(raw: string): string | undefined {
   const e = parseContractError(raw);
   if (!e) return undefined;
-  if (e.name === "ProposalExists" && /^\d+$/.test(e.args[0] ?? "")) return `/proposal/?p=${e.args[0]}`;
-  if (e.name === "MarketExists" && /^\d+$/.test(e.args[0] ?? "")) return `/market/?id=${e.args[0]}`;
+  if (e.name === "ProposalExists" && /^\d+$/.test(e.args[0] ?? "")) return proposalHref(Number(e.args[0]));
+  if (e.name === "MarketExists" && /^\d+$/.test(e.args[0] ?? "")) return marketHref(Number(e.args[0]));
   return undefined;
 }

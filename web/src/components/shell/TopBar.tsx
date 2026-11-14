@@ -2,18 +2,18 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Wordmark } from "@/components/brand/Mark";
+import { Mark, Wordmark } from "@/components/brand/Mark";
 import { BRAND } from "@/lib/brand";
 import { AccountButton, HelpLink, StatusBell } from "./HeaderActions";
-import { NAV, samePath } from "./nav";
-import { ScenarioSwitch } from "./ScenarioSwitch";
+import { isCurrent, NAV } from "./nav";
+import { NetworkBadge } from "./NetworkBadge";
 
-/** Desktop header on the navy stage: wordmark, the screens, scenario, status, account. */
+/** Desktop header on the navy stage: wordmark, the global screens, then network, help, status and account. */
 export function TopBar() {
   const path = usePathname();
   return (
     <header className="mx-auto flex max-w-[1240px] items-center gap-3 px-6 pt-6 pb-2 xl:gap-6 xl:px-8">
-      <Link href="/" className="focus-ring shrink-0 rounded-full" aria-label={`${BRAND.name}, home`}>
+      <Link href="/" className="focus-ring shrink-0 rounded-full" aria-label={`${BRAND.name}, home`} data-demo="brand-home">
         <Wordmark />
       </Link>
       {/* Tested literally so a real build drops the chip, as it drops the fixtures themselves. */}
@@ -24,8 +24,7 @@ export function TopBar() {
       )}
       <nav className="flex items-center gap-0.5 xl:gap-1" aria-label="Screens">
         {NAV.map((n) => {
-          const sub = n.href === "/" && /^\/(sell|world)/.test(path ?? "");
-          const active = samePath(path, n.href) || sub;
+          const active = isCurrent(path, n);
           return (
             <Link
               key={n.href}
@@ -42,7 +41,7 @@ export function TopBar() {
         })}
       </nav>
       <div className="ml-auto flex items-center gap-2">
-        <ScenarioSwitch />
+        <NetworkBadge />
         <HelpLink />
         <StatusBell />
         <AccountButton />
@@ -51,11 +50,15 @@ export function TopBar() {
   );
 }
 
-/** Phone header row inside each screen's dark gradient. */
+/** Phone header row inside each screen's dark gradient: the mark and the network on the left, actions on the right. */
 export function MobileTopBar() {
   return (
     <div className="flex items-center gap-2">
-      <ScenarioSwitch />
+      <Link href="/" className="focus-ring flex shrink-0 items-center gap-1.5 rounded-full" aria-label={`${BRAND.name}, home`} data-demo="brand-home">
+        <Mark size={26} bright={0} />
+        <span className="font-display text-[17px] font-medium tracking-[-0.01em] text-white">{BRAND.name}</span>
+      </Link>
+      <NetworkBadge compact />
       <div className="ml-auto flex items-center gap-2">
         <HelpLink />
         <StatusBell />
