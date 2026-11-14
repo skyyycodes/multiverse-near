@@ -12,7 +12,7 @@
 //   pool trades   the swaps that moved this world's pool
 //   bottom tabs   your open orders (cancel any time), and what you hold in each world of this market
 // Trading pauses while a result is in dispute; resting a new order does not.
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { PriceChart } from '../components/PriceChart'
@@ -105,7 +105,7 @@ type TicketCtx = {
   expiry: () => number
 }
 
-function Ticket({ side, type, ctx, preset }: { side: 'buy' | 'sell'; type: 'limit' | 'market'; ctx: TicketCtx; preset?: Preset }) {
+function Ticket({ side, type, ctx, preset, focus }: { side: 'buy' | 'sell'; type: 'limit' | 'market'; ctx: TicketCtx; preset?: Preset; focus?: boolean }) {
   const actions = useActions()
   const [price, setPrice] = useState('')
   const [amount, setAmount] = useState('')
@@ -166,7 +166,7 @@ function Ticket({ side, type, ctx, preset }: { side: 'buy' | 'sell'; type: 'limi
         <div className="tk__field tk__field--fixed"><span>Price</span><b>{side === 'buy' ? 'Best asks, then the pool' : 'Best bids, then the pool'}</b><em>USDC</em></div>
       )}
       <label className="tk__field"><span>Amount</span>
-        <input inputMode="decimal" placeholder="0.00" value={amount} onChange={(e) => setAmount(num(e.target.value))} aria-label={`${side} amount`} />
+        <input inputMode="decimal" placeholder="0.00" value={amount} onChange={(e) => setAmount(num(e.target.value))} aria-label={`${side} amount`} autoFocus={focus} />
         <em>NEAR</em>
       </label>
       <div className="tk__pcts" role="group" aria-label="Share of what you hold here">
@@ -233,6 +233,14 @@ export default function Orders() {
   const [preset, setPreset] = useState<{ side: 'buy' | 'sell'; price: bigint; n: number } | null>(null)
   const [bottom, setBottom] = useState<'open' | 'holdings'>('open')
   const [query, setQuery] = useState('')
+  // the strip scrolls to the world on screen (an 8-world market's worlds sit far along it)
+  const strip = useRef<HTMLDivElement>(null)
+  const onScreen = `${sid}-${world?.index}-${markets ? 1 : 0}`
+  useEffect(() => {
+    const box = strip.current
+    const chip = box?.querySelector<HTMLElement>('[aria-pressed="true"]')
+    if (box && chip) box.scrollLeft = Math.max(0, chip.offsetLeft - box.offsetLeft - 24)
+  }, [onScreen])
 
   const choose = (id: number, w?: number) => { setPreset(null); router.replace(ordersHref(id, { w }), { scroll: false }) }
   const book = s && world && trade.data
@@ -336,7 +344,7 @@ export default function Orders() {
       {/* ---------- every world you can trade, as a strip of chips ---------- */}
       <nav className="tr__strip" aria-label="Worlds">
         <input className="tr__find" type="search" placeholder="Find a world" aria-label="Find a world" value={query} onChange={(e) => setQuery(e.target.value)} />
-        <div className="tr__chips">
+        <div className="tr__chips" ref={strip}>
           {chips.map(({ x, y }) => (
             <button key={`${x.sid}-${y.index}`} type="button" aria-pressed={x.sid === sid && y.index === world.index} className="tr__chip" onClick={() => choose(x.sid, y.index)} title={x.question}>
               <b>{y.outcome}</b>
@@ -408,7 +416,7 @@ export default function Orders() {
               </p>
             )}
             <div className="tr__tickets">
-              <Ticket key={`buy-${sid}-${world.index}-${type}`} side="buy" type={type} ctx={ctx} preset={preset?.side === 'buy' ? preset : undefined} />
+              <Ticket key={`buy-${sid}-${world.index}-${type}`} side="buy" type={type} ctx={ctx} preset={preset?.side === 'buy' ? preset : undefined} focus={params.get('buy') === '1'} />
               <Ticket key={`sell-${sid}-${world.index}-${type}`} side="sell" type={type} ctx={ctx} preset={preset?.side === 'sell' ? preset : undefined} />
             </div>
           </section>
