@@ -226,7 +226,7 @@ async function mintTo(account: string, asset: "wnear" | "usdc", amount: bigint):
 // Phase a
 
 async function priceStep(): Promise<void> {
-  const r: SpotReading = await fetchNearUsd();
+  const r: SpotReading = await readPrice();
   const fetchedAt = new Date().toISOString();
   const k = (r.priceWad / (WAD / 4n)) * (WAD / 4n);
   await mkdir(PRICE_LOG_DIR, { recursive: true });
@@ -268,8 +268,26 @@ async function storageStep(): Promise<void> {
   if (D.ops?.keeper) await P.ensureStorage(owner(), D.ops.keeper, parseNear("0.05"));
 }
 
+/** The median now, retried while a source is briefly unreachable (rate limits, timeouts). */
+async function readPrice(): Promise<SpotReading> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fetchNearUsd({ timeoutMs: 8_000 });
+    } catch (err) {
+      if (attempt >= 5) throw err;
+      console.log(`  price read ${attempt} failed (${err instanceof Error ? err.message : String(err)}); again in 10 s`);
+      await new Promise((r) => setTimeout(r, 10_000));
+    }
+  }
+}
+
 async function reportReference(): Promise<void> {
-  const r = await fetchNearUsd();
+  const stored = await P.reference();
+  if (stored && stored.age_sec < 120) {
+    console.log(`  reference ${wadText(u128(stored.price), 5)} is ${stored.age_sec} s old (${stored.source}); not reported again`);
+    return;
+  }
+  const r = await readPrice();
   rec(await P.reportReference(D.reporter, r.priceWad, r.observedAtSec));
   console.log(`  reference ${wadText(r.priceWad, 5)} observed ${new Date(r.observedAtSec * 1000).toISOString()} (${r.used} sources, ${r.spreadBps} bps)`);
 }
