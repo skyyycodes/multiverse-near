@@ -23,6 +23,7 @@ mod catalog_pledge;
 mod catalog_propose;
 mod catalog_seed;
 mod catalog_status;
+mod catalog_views;
 mod core;
 mod eight;
 mod events;
