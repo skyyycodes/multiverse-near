@@ -13,6 +13,7 @@ import {
   depositCollateral,
   ftTransferCall,
   fundInsurance,
+  gasFloat,
   GAS_CALL,
   GAS_FT_CALL,
   GAS_LIGHT,
@@ -290,5 +291,20 @@ describe("resolution, split and operations", () => {
     });
     expect(one(unpauseTx(APP, ["oracle"])).args).toEqual({ flags: ["oracle"], liquidation_grace_sec: null });
     expect(one(setMarketListing(APP, 5, true))).toMatchObject({ method: "set_market_listing", args: { scenario_id: 5, listed: true }, gas: GAS_LIGHT, deposit: "1" });
+  });
+});
+
+describe("the gas float (WI-10)", () => {
+  it("needs the prepaid gas at 1e9 yocto per gas, the deposit and 0.01 NEAR free above the storage stake", () => {
+    // 1 NEAR, 1,000 bytes stored (0.01 NEAR): 0.99 free against 0.3 + 1 yocto + 0.01
+    const ok = gasFloat({ amount: (10n ** 24n).toString(), storageUsage: 1_000 }, GAS_FT_CALL, ONE_YOCTO);
+    expect(ok).toMatchObject({ free: 99n * 10n ** 22n, need: 31n * 10n ** 22n + 1n, short: false, needText: "0.32" });
+    const exact = gasFloat({ amount: (31n * 10n ** 22n).toString(), storageUsage: 0 }, GAS_FT_CALL, "0");
+    expect(exact).toMatchObject({ short: false, needText: "0.31" });
+    const short = gasFloat({ amount: (31n * 10n ** 22n - 1n).toString(), storageUsage: 0 }, GAS_FT_CALL, "0");
+    expect(short.short).toBe(true);
+    // a proposal attaches its bond and reserve on top of the gas
+    expect(gasFloat({ amount: (5n * 10n ** 23n).toString(), storageUsage: 0 }, GAS_FT_CALL, 3n * 10n ** 23n)).toMatchObject({ short: true, needText: "0.61" });
+    expect(gasFloat({ amount: (5n * 10n ** 23n).toString(), storageUsage: 0 }, GAS_LIGHT, "0")).toMatchObject({ short: false, needText: "0.04" });
   });
 });

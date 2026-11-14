@@ -223,6 +223,7 @@ export function SellPanel({ config, scenario, events, orders, nowSec, balances, 
 
       <TxButton
         demo="sell-confirm"
+        action={toLending ? "sell_to_collateral" : "sell"}
         label={`Sell in ${sold.length} world${sold.length === 1 ? "" : "s"}`}
         busyLabel="Selling…"
         connectText="Connect a wallet to sell"

@@ -111,6 +111,20 @@ export interface ScenarioViewJson {
   implied_spot: U128;
 }
 
+/** v1 `get_scenario(scenario_id)` (panics `UnknownScenario(id)` for an id that does not exist). */
+export interface ScenarioInfoJson {
+  scenario_id: number;
+  event_ids: number[];
+  outcome_counts: number[];
+  world_count: number;
+  root: number;
+  possible: number;
+  resolution_count: number;
+  resolved_events: number;
+  halted: boolean;
+  pool_ids: number[];
+}
+
 export interface EventViewJson {
   id: number;
   question: string;

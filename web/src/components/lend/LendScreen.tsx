@@ -102,6 +102,7 @@ function Forms({ config, sid, v, walletUsdc }: { config: AppConfig; sid: number;
         />
         <TxButton
           demo="supply-confirm"
+          action="supply"
           label="Supply"
           busyLabel="Supplying…"
           blocker={!supplyAmount ? "Enter an amount" : supplyAmount > walletUsdc ? "Not enough USDC" : undefined}
@@ -131,6 +132,7 @@ function Forms({ config, sid, v, walletUsdc }: { config: AppConfig; sid: number;
         />
         <TxButton
           demo="withdraw-confirm"
+          action="withdraw_supply"
           tone="secondary"
           label="Withdraw"
           busyLabel="Withdrawing…"

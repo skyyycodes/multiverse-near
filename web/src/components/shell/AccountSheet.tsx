@@ -11,7 +11,7 @@ import { accountUrl } from "@/lib/env";
 import { fmt, fmtNear } from "@/lib/format";
 import { useAppConfig, useBalances, useRegistration } from "@/lib/hooks/useData";
 import { useSubmit } from "@/lib/hooks/useTx";
-import { call } from "@/lib/near/tx";
+import { GAS_CALL, withdrawInner } from "@/lib/near/tx";
 import { useWallet } from "@/lib/near/wallet";
 import { FAUCET_ON, GetTestTokens } from "./TestTokens";
 import { fmtYocto, unitOf } from "@/lib/units";
@@ -104,12 +104,14 @@ export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => 
                 <TxButton
                   size="sm"
                   tone="secondary"
+                  action="withdraw_inner"
+                  gas={GAS_CALL}
                   label="Withdraw"
                   busyLabel="Withdrawing…"
                   blocker={blocker}
                   needs={{ tokens: [asset] }}
                   demo={`withdraw-inner-${asset}`}
-                  run={() => submit(call(CONTRACT_ID, "withdraw", { asset, amount: sendable.toString() }))}
+                  run={() => submit(withdrawInner(CONTRACT_ID, asset, sendable))}
                 />
               </div>
             </div>

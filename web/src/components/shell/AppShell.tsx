@@ -7,6 +7,7 @@ import { ScenarioProvider } from "@/lib/hooks/useScenario";
 import { useLandingVisible } from "@/components/landing/Landing";
 import { useIsDesktop } from "@/lib/hooks/useMedia";
 import { WalletProvider } from "@/lib/near/wallet";
+import { Banners } from "./Banners";
 import { BottomNav } from "./BottomNav";
 import { TopBar } from "./TopBar";
 
@@ -40,6 +41,7 @@ function Chrome({ children }: { children: ReactNode }) {
   return (
     <div className={`relative min-h-dvh ${desktop ? "bg-stage" : "bg-sheet"}`}>
       {desktop && !landing && <TopBar />}
+      {desktop && !landing && <Banners />}
       {children}
       {!desktop && !landing && <BottomNav />}
     </div>

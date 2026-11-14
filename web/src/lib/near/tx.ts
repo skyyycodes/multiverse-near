@@ -397,3 +397,24 @@ export const unpauseTx = (contractId: string, flags: readonly PauseFlag[], liqui
 /** T48: 1 yocto charges the owner's NEP-145 balance for the registry record. */
 export const setMarketListing = (contractId: string, scenarioId: number, listed: boolean): Tx =>
   call(contractId, "set_market_listing", { scenario_id: scenarioId, listed }, ONE_YOCTO, GAS_LIGHT);
+
+// ---- the gas float (WI-10) ----
+
+/** Testnet sells prepaid gas at `min_gas_purchase_price`: 1e9 yoctoNEAR per gas unit, so 300 Tgas costs 0.3 NEAR. */
+export const GAS_PRICE_YOCTO = 1_000_000_000n;
+/** NEAR's storage price: 1e19 yoctoNEAR per byte (10 kB per NEAR). */
+export const STORAGE_PRICE_YOCTO = 10n ** 19n;
+/** Kept free on top, so the account can still pay for its own storage after the transaction. */
+export const GAS_FLOAT_MARGIN_YOCTO = 10n ** 22n;
+
+/**
+ * Whether the signer can buy a transaction's prepaid gas and attach its deposit: free = balance − storage stake,
+ * need = gas × price + deposit + 0.01 NEAR. `needText` is the need in NEAR, rounded up to the cent.
+ */
+export function gasFloat(account: { amount: string; storageUsage: number }, gas: string, deposit: bigint | string): { free: bigint; need: bigint; short: boolean; needText: string } {
+  const free = BigInt(account.amount) - BigInt(account.storageUsage) * STORAGE_PRICE_YOCTO;
+  const need = BigInt(gas) * GAS_PRICE_YOCTO + BigInt(deposit) + GAS_FLOAT_MARGIN_YOCTO;
+  const cent = 10n ** 22n;
+  const cents = (need + cent - 1n) / cent;
+  return { free, need, short: free < need, needText: `${cents / 100n}.${String(cents % 100n).padStart(2, "0")}` };
+}

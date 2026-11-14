@@ -141,6 +141,7 @@ function ResolveControls({ event: e, now, isOwner }: { event: EventState; now?: 
       <div className="grid gap-2 sm:grid-cols-2">
         <TxButton
           demo="resolve-now"
+          action="admin_resolve"
           needs={{ contract: true }}
           size="md"
           label={outcome === undefined ? "Resolve now" : `Resolve now: ${e.outcomeNames[outcome]}`}
@@ -150,6 +151,7 @@ function ResolveControls({ event: e, now, isOwner }: { event: EventState; now?: 
         />
         <TxButton
           demo="dispute"
+          action="dispute"
           needs={{ contract: true }}
           size="md"
           tone="secondary"
@@ -230,6 +232,7 @@ function PricePush({
       />
       <TxButton
         demo="push-confirm"
+        action="price_push"
         label={world ? `Push ${world.label} down` : "Push the price down"}
         busyLabel="Pushing…"
         blocker={blocker}
@@ -262,6 +265,7 @@ function PricePush({
       <div className="flex flex-col gap-2 border-t border-line pt-4">
         <TxButton
           demo="mint-wnear"
+          action="faucet"
           tone="secondary"
           size="md"
           label={amount ? `Mint ${fmtNear(amount)} test wNEAR to my wallet` : "Mint test wNEAR to my wallet"}

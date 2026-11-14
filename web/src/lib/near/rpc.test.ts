@@ -70,3 +70,25 @@ describe("which RPC errors are worth another node", () => {
     expect(cleanError('wasm execution failed with error: HostError(GuestPanic { panic_msg: "PoolNotInitialized(3)" })')).toBe("PoolNotInitialized(3)");
   });
 });
+
+describe("the account read (About dialog, gas float)", () => {
+  it("reads view_account at final, from the next node when one is down", async () => {
+    const bodies: unknown[] = [];
+    vi.stubGlobal("fetch", async (url: string, init: { body: string }) => {
+      bodies.push(JSON.parse(init.body));
+      if (url === A) return json({}, 503);
+      return json({ result: { amount: "2500000000000000000000000", code_hash: "G6GtUs6AqHfxRb8YCdBx5dv1bgiQ3c1gDhPE9ygQTkEt", storage_usage: 934321, block_height: 1 } });
+    });
+    await expect(createRpcSource([A, B]).account("app.multiverse-near.testnet")).resolves.toEqual({
+      codeHash: "G6GtUs6AqHfxRb8YCdBx5dv1bgiQ3c1gDhPE9ygQTkEt",
+      amount: "2500000000000000000000000",
+      storageUsage: 934321,
+    });
+    expect(bodies[1]).toMatchObject({ method: "query", params: { request_type: "view_account", finality: "final", account_id: "app.multiverse-near.testnet" } });
+  });
+
+  it("says when the account does not exist", async () => {
+    serve({ [A]: () => json({ jsonrpc: "2.0", error: { name: "HANDLER_ERROR", cause: { name: "UNKNOWN_ACCOUNT", info: { requested_account_id: "nobody.testnet" } } } }) });
+    await expect(createRpcSource([A]).account("nobody.testnet")).rejects.toThrow("Account nobody.testnet does not exist");
+  });
+});

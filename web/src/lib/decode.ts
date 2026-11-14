@@ -59,6 +59,7 @@ import type {
   ResolveSnapshot,
   RootLp,
   Scenario,
+  ScenarioInfo,
   SeedPreview,
   SeedVault,
   Tier,
@@ -118,6 +119,7 @@ import type {
   RelatedMarketsJson,
   ResolveViewJson,
   RootLpViewJson,
+  ScenarioInfoJson,
   ScenarioViewJson,
   SeedVaultJson,
   SeedWithdrawPreviewJson,
@@ -136,11 +138,16 @@ export const big = (v: string | number | null | undefined): bigint => {
 
 // ---- strict helpers for v2 keys ----
 
-/** The view and this build disagree on a field's shape: the contract is not the one this build was made for. */
+/**
+ * The view and this build disagree on a field's shape: the contract is not the one this build was made for. The message
+ * is what the screen's ChainWait shows; `detail` names the field.
+ */
 export class ViewShapeError extends Error {
-  constructor(message: string) {
-    super(message);
+  readonly detail: string;
+  constructor(detail: string) {
+    super(`This build does not match the contract: reload, or tell the operator. (${detail})`);
     this.name = "ViewShapeError";
+    this.detail = detail;
   }
 }
 
@@ -260,6 +267,19 @@ export function decodeScenario(s: ScenarioViewJson): Scenario {
     impliedSpot: big(s.implied_spot),
   };
 }
+
+export const decodeScenarioInfo = (s: ScenarioInfoJson): ScenarioInfo => ({
+  scenarioId: s.scenario_id,
+  eventIds: s.event_ids,
+  outcomeCounts: s.outcome_counts,
+  worldCount: s.world_count,
+  root: s.root,
+  possible: s.possible,
+  resolutionCount: s.resolution_count,
+  resolvedEvents: s.resolved_events,
+  halted: s.halted,
+  poolIds: s.pool_ids,
+});
 
 export function decodeEvent(e: EventViewJson): EventState {
   return {

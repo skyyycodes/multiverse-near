@@ -41,6 +41,20 @@ export type Scenario = {
   impliedSpot: bigint;
 };
 
+/** `get_scenario`: what a market is made of, without prices (the market guard's existence check). */
+export type ScenarioInfo = {
+  scenarioId: number;
+  eventIds: number[];
+  outcomeCounts: number[];
+  worldCount: number;
+  root: number;
+  possible: number;
+  resolutionCount: number;
+  resolvedEvents: number;
+  halted: boolean;
+  poolIds: number[];
+};
+
 export type ProposalSource = "admin" | "reporter" | "outlayer";
 
 export type EventState = {

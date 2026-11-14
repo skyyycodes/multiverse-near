@@ -305,6 +305,7 @@ function AcceptBox({
       )}
       <TxButton
         demo="accept-confirm"
+        action={sell ? "sell" : "buy"}
         label="Confirm"
         busyLabel="Confirming…"
         blocker={blocker}
@@ -439,6 +440,7 @@ function PostForm({
       )}
       <TxButton
         demo={bid ? "post-bid" : "post-ask"}
+        action="post_order"
         tone="secondary"
         label={bid ? "Post bid" : "Post ask"}
         busyLabel="Posting…"
@@ -477,6 +479,7 @@ function MyOrders({ scenario, orders, wallNow }: { scenario: Scenario; orders: O
               size="md"
               tone="secondary"
               demo="cancel-order"
+              action="cancel_order"
               label={reason ? "Cancel and take the escrow back" : "Cancel"}
               busyLabel="Cancelling…"
               needs={{ contract: true }}

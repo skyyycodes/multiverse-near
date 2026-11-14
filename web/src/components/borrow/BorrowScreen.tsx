@@ -216,6 +216,7 @@ function Actions({ config, v, s, walletUsdc }: { config: AppConfig; v: Account; 
         </div>
         <TxButton
           demo="borrow-confirm"
+          action="borrow"
           label="Borrow"
           busyLabel="Borrowing…"
           blocker={borrowBlocker}
@@ -245,6 +246,7 @@ function Actions({ config, v, s, walletUsdc }: { config: AppConfig; v: Account; 
         />
         <TxButton
           demo="repay-confirm"
+          action="repay"
           tone="secondary"
           label="Repay"
           busyLabel="Repaying…"

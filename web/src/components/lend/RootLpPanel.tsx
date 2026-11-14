@@ -109,6 +109,7 @@ export function RootLpPanel({ config, sid, view, balances }: { config: AppConfig
           )}
           <TxButton
             demo="lp-deposit-confirm"
+            action="lp_deposit"
             label="Underwrite every world"
             busyLabel="Depositing…"
             blocker={blocker}
@@ -156,6 +157,7 @@ export function RootLpPanel({ config, sid, view, balances }: { config: AppConfig
           )}
           <TxButton
             demo="lp-withdraw-all"
+            action="lp_withdraw"
             tone="secondary"
             label="Withdraw all"
             busyLabel="Withdrawing…"

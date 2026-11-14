@@ -9,7 +9,8 @@ import type { AppConfig } from "@/lib/domain";
 import { ENV } from "@/lib/env";
 import { capOf, dropLabel, faucetMints, mintLabel, mintTx, type FaucetConfig } from "@/lib/faucet";
 import { useAppConfig, useBalances, useRegistration, type Balances } from "@/lib/hooks/useData";
-import { registerTx, useSubmit } from "@/lib/hooks/useTx";
+import { registerTx, TOP_UP, useSubmit } from "@/lib/hooks/useTx";
+import { GAS_LIGHT } from "@/lib/near/tx";
 import { useWallet } from "@/lib/near/wallet";
 import type { Asset, StorageBalance, StorageBounds } from "@/lib/types";
 import { toInternal } from "@/lib/units";
@@ -81,6 +82,9 @@ export function GetTestTokens({
     <div className="flex flex-col gap-2">
       <TxButton
         demo={demo}
+        action="faucet"
+        gas={GAS_LIGHT}
+        deposit={TOP_UP}
         tone={tone}
         size={size}
         label="Get test tokens"
