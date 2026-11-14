@@ -17,6 +17,7 @@ use super::{
 use crate::amm::{Pool, PoolKind};
 use crate::errors::fail;
 use crate::events::{DustSwept, MultiverseEvent};
+use crate::ledger::LogScope;
 use crate::masks;
 use crate::ops::PauseFlag;
 use crate::types::{Asset, VerseKey};
@@ -162,6 +163,8 @@ impl Contract {
     ) -> (U128, U128) {
         assert_one_yocto();
         self.assert_live(PauseFlag::Exit);
+        // the exit logs as one group of lines (ledger.rs, LogScope)
+        let _scope = LogScope::open();
         let account = env::predecessor_account_id();
         let (mut p, mut pledge) = self
             .opened_pledge(proposal_id, &account)

@@ -21,6 +21,7 @@ use crate::amm::create::PoolFunding;
 use crate::core::MAX_SCENARIOS_PER_EVENT;
 use crate::errors::fail;
 use crate::events::MultiverseEvent;
+use crate::ledger::LogScope;
 use crate::ops::PauseFlag;
 use crate::types::{Asset, VerseKey};
 use crate::{now_sec, Contract, ContractExt};
@@ -48,6 +49,8 @@ impl Contract {
     /// Anyone, no deposit: opens a ready proposal; panics with the blocker
     /// otherwise. Returns the new scenario id.
     pub fn open_market(&mut self, proposal_id: u64) -> u64 {
+        // the opening logs as one group of lines (ledger.rs, LogScope)
+        let _scope = LogScope::open();
         let plan = self.open_check(proposal_id).unwrap_or_else(|e| fail(&e));
         self.execute_open(proposal_id, plan, &env::predecessor_account_id())
     }
@@ -56,6 +59,7 @@ impl Contract {
     /// on a blocker: it logs `open_deferred` and returns null.
     #[private]
     pub fn auto_open(&mut self, proposal_id: u64) -> Option<u64> {
+        let _scope = LogScope::open();
         match self.open_check(proposal_id) {
             Ok(plan) => Some(self.execute_open(proposal_id, plan, &env::current_account_id())),
             Err(blocker) => {
