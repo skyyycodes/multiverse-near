@@ -400,7 +400,7 @@ fn fund_insurance_acts_and_pledge_is_a_stub() {
     );
     fails(
         w.ft_transfer_call(ALICE, Wnear, 1, r#"{"action":"pledge","proposal_id":1}"#),
-        "NotImplemented(pledge)",
+        "UnknownProposal(1)",
     );
     // fund_insurance is never paused.
     pause(&mut w, &PauseFlag::ALL);
@@ -650,26 +650,21 @@ fn app_config_reports_the_v2_values() {
 // ---- Catalogue stubs ----
 
 #[test]
-fn catalogue_entry_points_are_stubs() {
+fn catalogue_entry_points_answer_on_an_empty_catalogue() {
     let mut w = World::new();
     fails(
         w.call(ALICE, NearToken::from_near(1), |c| {
             c.propose_market(vec![1])
         }),
-        "NotImplemented(propose_market)",
+        "NoReferenceMarket(1)",
     );
     fails(
         w.call(ALICE, NO_DEPOSIT, |c| c.open_market(1)),
-        "NotImplemented(open_market)",
+        "UnknownProposal(1)",
     );
-    fails(
-        w.try_view(|c| c.list_markets(None, None, None)),
-        "NotImplemented(list_markets)",
-    );
-    fails(
-        w.try_view(|c| c.get_events(vec![1])),
-        "NotImplemented(get_events)",
-    );
+    let list = w.view(|c| c.list_markets(None, None, None));
+    assert!(list.markets.is_empty() && list.next_from.is_none());
+    assert_eq!(w.view(|c| c.get_events(vec![1]))[0].id, 1);
     let alice = acc(ALICE);
     assert!(!w.view(|c| c.catalog.account_busy(&alice)));
     assert_eq!(w.view(|c| c.catalog.proposal_count), 0);

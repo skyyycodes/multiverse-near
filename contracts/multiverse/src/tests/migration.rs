@@ -352,6 +352,13 @@ fn migrate_changes_only_state_and_adds_keys_under_new_prefixes() {
     let under = |prefix: u8| added.iter().filter(|k| k[0] == prefix).count();
     assert_eq!(under(0x1b), 1);
     assert_eq!(under(0x1c), prod_accounts().len());
+    // MKT, step 12: the catalogue's params, the registry of the two listed
+    // markets, their listed sets, the reference markets and the event meta.
+    assert_eq!(
+        [0x1d, 0x25, 0x26, 0x27, 0x29].map(under),
+        [1, 2, 2, 2, 4],
+        "the catalogue's new keys"
+    );
     // EW, step 7: one per-world supply vector per (legacy scenario, asset),
     // one created set per legacy scenario (tests/eight.rs checks the values)
     assert_eq!(under(0x2a), 12);

@@ -12,16 +12,25 @@
 // arguments, one more than clippy's limit, also in the generated ext method.
 #![allow(clippy::too_many_arguments)]
 
+pub mod events;
+mod migrate;
+mod open;
+mod params;
+mod pledge;
+mod pricing;
+mod propose;
+mod registry;
+mod seed;
+mod status;
+mod views;
+
 use near_sdk::json_types::U128;
 use near_sdk::store::LookupMap;
 use near_sdk::{env, near, AccountId, IntoStorageKey};
 
 use crate::amm::Position;
-use crate::errors::not_implemented;
-use crate::migrate::{CatalogMigrateArgs, CatalogUpgradeLog};
-use crate::receiver::PledgeMsg;
-use crate::types::{Asset, EventView, WAD};
-use crate::{Contract, ContractExt, StorageKey};
+use crate::types::{Asset, WAD};
+use crate::{Contract, StorageKey};
 
 /// One NEAR in yoctoNEAR.
 const NEAR: u128 = 1_000_000_000_000_000_000_000_000;
@@ -821,9 +830,131 @@ pub struct SeedWithdrawPreview {
     pub per_world: PerWorldAmounts,
 }
 
+/// `Err` carries the error in house format; entry points panic with it,
+/// views report it.
+pub(crate) type Check<T> = Result<T, String>;
+
+/// Basis points per 1.0.
+const BPS_DENOM: u128 = 10_000;
+/// One basis point in WAD.
+const BPS_WAD: u128 = 100_000_000_000_000;
+/// Most texts and ids a view or record carries.
+const MAX_SOURCE_BYTES: usize = 256;
+/// Categories are 0..16.
+const CATEGORIES: u8 = 16;
+
+impl EventSetKey {
+    /// Canonical key of an event set: ids ascending, zero-padded.
+    pub fn of(ids: &[u64]) -> Self {
+        let mut sorted = ids.to_vec();
+        sorted.sort_unstable();
+        let mut key = [0u64; 3];
+        for (slot, id) in key.iter_mut().zip(sorted) {
+            *slot = id;
+        }
+        EventSetKey(key)
+    }
+
+    /// The ids, ascending, without the padding.
+    pub fn ids(&self) -> Vec<u64> {
+        self.0.iter().copied().filter(|id| *id != 0).collect()
+    }
+}
+
+impl ProposalStatus {
+    /// Rejected, cancelled, expired or void: nothing can revive it.
+    pub fn is_terminal(self) -> bool {
+        !matches!(
+            self,
+            ProposalStatus::Review | ProposalStatus::Pledging | ProposalStatus::Opened
+        )
+    }
+
+    /// The JSON name, as error texts print it.
+    pub fn name(self) -> &'static str {
+        match self {
+            ProposalStatus::Review => "review",
+            ProposalStatus::Pledging => "pledging",
+            ProposalStatus::Opened => "opened",
+            ProposalStatus::Rejected => "rejected",
+            ProposalStatus::Cancelled => "cancelled",
+            ProposalStatus::Expired => "expired",
+            ProposalStatus::Void => "void",
+        }
+    }
+}
+
+impl Proposal {
+    /// The events of the market: a combination's canonical ids, a new event's
+    /// id once opened (none before).
+    pub fn event_ids(&self) -> Vec<u64> {
+        self.key.ids()
+    }
+
+    /// Escrow valued in USDC at the price the goal was set at.
+    pub fn pledged_value(&self) -> u128 {
+        self.escrow_usdc.saturating_add(
+            multiverse_math::checked_mul_div(
+                self.escrow_wnear,
+                self.s_hint,
+                WAD,
+                multiverse_math::Rounding::Down,
+            )
+            .unwrap_or(u128::MAX),
+        )
+    }
+
+    /// Under the spam floor: pledged value at `s_hint` below `floor_bps` of
+    /// the goal.
+    pub fn under_floor(&self, floor_bps: u16) -> bool {
+        let floor = multiverse_math::checked_mul_div(
+            self.goal,
+            u128::from(floor_bps),
+            BPS_DENOM,
+            multiverse_math::Rounding::Down,
+        )
+        .unwrap_or(u128::MAX);
+        self.pledged_value() < floor
+    }
+
+    fn unwrap(v: &VProposal) -> &Proposal {
+        match v {
+            VProposal::V1(p) => p,
+        }
+    }
+}
+
+impl SeedVault {
+    fn unwrap(v: &VSeedVault) -> &SeedVault {
+        match v {
+            VSeedVault::V1(s) => s,
+        }
+    }
+}
+
+impl MarketParams {
+    /// NEAR an opening of `world_count` worlds sets aside for its storage.
+    pub fn reserve_for(&self, world_count: u8) -> u128 {
+        self.reserve_base.0.saturating_add(
+            self.reserve_per_world
+                .0
+                .saturating_mul(u128::from(world_count)),
+        )
+    }
+}
+
+/// `sha256(lowercase_ascii(trim(question)))`: one live new-event proposal
+/// per question.
+pub(crate) fn question_hash(question: &str) -> [u8; 32] {
+    let normal = question.trim().to_ascii_lowercase();
+    let digest = env::sha256(normal.as_bytes());
+    let mut out = [0u8; 32];
+    out.copy_from_slice(&digest);
+    out
+}
+
 impl Contract {
     /// The stored params (raw key 0x1d); the testnet column if none.
-    #[allow(dead_code)] // read by every catalogue path
     pub(crate) fn market_params_stored(&self) -> MarketParams {
         env::storage_read(&StorageKey::MarketParams.into_storage_key())
             .and_then(|bytes| near_sdk::borsh::from_slice(&bytes).ok())
@@ -836,236 +967,55 @@ impl Contract {
         env::storage_write(&StorageKey::MarketParams.into_storage_key(), &bytes);
     }
 
-    /// Migrate step 12: the params (`args.params` or the testnet column, with
-    /// `args.anchors`), the listed legacy markets, the reference market of
-    /// each event and the events' sources and categories
-    /// (`MigrateBadArgs(field, id)`).
-    pub(crate) fn migrate_catalog(&mut self, _args: &CatalogMigrateArgs) -> CatalogUpgradeLog {
-        CatalogUpgradeLog::default()
+    pub(crate) fn get_proposal_record(&self, pid: u64) -> Option<Proposal> {
+        self.catalog
+            .proposals
+            .get(&pid)
+            .map(|v| Proposal::unwrap(v).clone())
     }
 
-    /// ft action `{"action":"pledge","proposal_id":N}` (USDC or wNEAR).
-    pub(crate) fn ft_pledge(
-        &mut self,
-        _sender: &AccountId,
-        _asset: Asset,
-        _amount: u128,
-        _msg: PledgeMsg,
-    ) {
-        not_implemented("pledge")
-    }
-}
-
-// Entry points and views; their bodies come with the catalogue.
-#[near]
-#[allow(unused_variables)]
-impl Contract {
-    #[payable]
-    pub fn propose_event(
-        &mut self,
-        question: String,
-        outcome_names: Vec<String>,
-        rule: String,
-        source: String,
-        deadline_sec: u64,
-        category: u8,
-        terms: OpeningTerms,
-    ) -> u64 {
-        not_implemented("propose_event")
+    /// The proposal, or `UnknownProposal(pid)`.
+    pub(crate) fn proposal_or(&self, pid: u64) -> Check<Proposal> {
+        self.get_proposal_record(pid)
+            .ok_or_else(|| format!("UnknownProposal({pid})"))
     }
 
-    #[payable]
-    pub fn propose_market(&mut self, event_ids: Vec<u64>) -> u64 {
-        not_implemented("propose_market")
+    pub(crate) fn proposal_record(&self, pid: u64) -> Proposal {
+        self.proposal_or(pid)
+            .unwrap_or_else(|e| crate::errors::fail(&e))
     }
 
-    /// `None` = all of that asset, `Some(x)` = exactly `x`.
-    #[payable]
-    pub fn withdraw_pledge(
-        &mut self,
-        proposal_id: u64,
-        wnear: Option<U128>,
-        usdc: Option<U128>,
-    ) -> PledgeReturn {
-        not_implemented("withdraw_pledge")
+    pub(crate) fn save_proposal(&mut self, pid: u64, p: Proposal) {
+        self.catalog.proposals.insert(pid, VProposal::V1(p));
     }
 
-    #[payable]
-    pub fn cancel_proposal(&mut self, proposal_id: u64) {
-        not_implemented("cancel_proposal")
+    pub(crate) fn seed_vault_record(&self, sid: u64) -> Option<SeedVault> {
+        self.catalog
+            .seed_vaults
+            .get(&sid)
+            .map(|v| SeedVault::unwrap(v).clone())
     }
 
-    #[payable]
-    pub fn approve_proposal(&mut self, proposal_id: u64, terms: Option<OpeningTerms>) {
-        not_implemented("approve_proposal")
+    pub(crate) fn account_markets(&self, a: &AccountId) -> AccountMarkets {
+        self.catalog.accounts.get(a).cloned().unwrap_or_default()
     }
 
-    #[payable]
-    pub fn reject_proposal(&mut self, proposal_id: u64, forfeit_bond: bool) {
-        not_implemented("reject_proposal")
+    /// Stores `a`'s catalogue entry, removing it once it lists nothing.
+    pub(crate) fn set_account_markets(&mut self, a: &AccountId, m: AccountMarkets) {
+        if m.pledges.is_empty() && m.proposals.is_empty() {
+            self.catalog.accounts.remove(a);
+        } else {
+            self.catalog.accounts.insert(a.clone(), m);
+        }
     }
 
-    pub fn settle_proposal(&mut self, proposal_id: u64) -> ProposalStatus {
-        not_implemented("settle_proposal")
-    }
-
-    #[payable]
-    pub fn top_up_proposal(&mut self, proposal_id: u64) {
-        not_implemented("top_up_proposal")
-    }
-
-    pub fn open_market(&mut self, proposal_id: u64) -> u64 {
-        not_implemented("open_market")
-    }
-
-    /// Detached self-call scheduled by a pledge or an approval; never panics.
-    #[private]
-    pub fn auto_open(&mut self, proposal_id: u64) -> Option<u64> {
-        not_implemented("auto_open")
-    }
-
-    #[payable]
-    pub fn claim_unused(&mut self, proposal_id: u64) -> PledgeReturn {
-        not_implemented("claim_unused")
-    }
-
-    /// `None` = all shares. Returns the real (wNEAR, USDC) paid out.
-    #[payable]
-    pub fn seed_withdraw(
-        &mut self,
-        proposal_id: u64,
-        shares: Option<U128>,
-        min_wnear_out: Vec<U128>,
-        min_usdc_out: Vec<U128>,
-    ) -> (U128, U128) {
-        not_implemented("seed_withdraw")
-    }
-
-    #[payable]
-    pub fn set_market_listing(&mut self, scenario_id: u64, listed: bool) {
-        not_implemented("set_market_listing")
-    }
-
-    #[payable]
-    pub fn set_reference_market(&mut self, event_id: u64, scenario_id: Option<u64>) {
-        not_implemented("set_reference_market")
-    }
-
-    #[payable]
-    pub fn set_event_meta(&mut self, event_id: u64, source: String, category: u8) {
-        not_implemented("set_event_meta")
-    }
-
-    #[payable]
-    pub fn set_market_params(&mut self, params: MarketParams) {
-        not_implemented("set_market_params")
-    }
-
-    pub fn market_params(&self) -> MarketParamsView {
-        not_implemented("market_params")
-    }
-
-    pub fn proposal_count(&self) -> u64 {
-        not_implemented("proposal_count")
-    }
-
-    pub fn get_proposal(&self, proposal_id: u64) -> Option<ProposalView> {
-        not_implemented("get_proposal")
-    }
-
-    /// Newest first; `filter` is `live`, `review`, `pledging`, `opened`,
-    /// `closed` or `all`.
-    pub fn list_proposals(
-        &self,
-        from_id: Option<u64>,
-        limit: Option<u32>,
-        filter: Option<String>,
-    ) -> ProposalList {
-        not_implemented("list_proposals")
-    }
-
-    pub fn proposals_of_event(&self, event_id: u64) -> Vec<ProposalSummary> {
-        not_implemented("proposals_of_event")
-    }
-
-    pub fn pledge_of(&self, proposal_id: u64, account_id: AccountId) -> Option<PledgeView> {
-        not_implemented("pledge_of")
-    }
-
-    pub fn pledges_of(&self, account_id: AccountId) -> Vec<PledgeView> {
-        not_implemented("pledges_of")
-    }
-
-    pub fn pledge_preview(&self, proposal_id: u64, asset: Asset, amount: U128) -> PledgePreview {
-        not_implemented("pledge_preview")
-    }
-
-    pub fn opening_preview(&self, proposal_id: u64) -> OpeningPreview {
-        not_implemented("opening_preview")
-    }
-
-    pub fn market_check(&self, event_ids: Vec<u64>) -> MarketCheck {
-        not_implemented("market_check")
-    }
-
-    pub fn event_check(
-        &self,
-        question: String,
-        terms: OpeningTerms,
-        deadline_sec: u64,
-    ) -> EventCheckView {
-        not_implemented("event_check")
-    }
-
-    /// Ascending; `listed_only` defaults to true.
-    pub fn list_markets(
-        &self,
-        from_id: Option<u64>,
-        limit: Option<u32>,
-        listed_only: Option<bool>,
-    ) -> MarketList {
-        not_implemented("list_markets")
-    }
-
-    pub fn market_cards(&self, scenario_ids: Vec<u64>) -> Vec<MarketCard> {
-        not_implemented("market_cards")
-    }
-
-    pub fn get_market(&self, scenario_id: u64) -> Option<MarketCard> {
-        not_implemented("get_market")
-    }
-
-    pub fn related_markets(&self, scenario_id: u64) -> RelatedMarkets {
-        not_implemented("related_markets")
-    }
-
-    pub fn market_of_events(&self, event_ids: Vec<u64>) -> MarketOfEvents {
-        not_implemented("market_of_events")
-    }
-
-    pub fn reference_market_of(&self, event_id: u64) -> Option<u64> {
-        not_implemented("reference_market_of")
-    }
-
-    pub fn event_meta(&self, event_id: u64) -> Option<EventMetaView> {
-        not_implemented("event_meta")
-    }
-
-    pub fn seed_vault(&self, scenario_id: u64) -> Option<SeedVaultView> {
-        not_implemented("seed_vault")
-    }
-
-    pub fn preview_seed_withdraw(
-        &self,
-        proposal_id: u64,
-        account_id: AccountId,
-        shares: Option<U128>,
-    ) -> SeedWithdrawPreview {
-        not_implemented("preview_seed_withdraw")
-    }
-
-    /// v1 `EventView` per id, in order; at most 24 ids.
-    pub fn get_events(&self, event_ids: Vec<u64>) -> Vec<EventView> {
-        not_implemented("get_events")
+    /// The escrow funnel: `books.pledges` follows every escrow change.
+    pub(crate) fn escrow_books(&mut self, asset: Asset, amount: u128, up: bool) {
+        let slot = &mut self.books.pledges[crate::books::asset_index(asset)];
+        *slot = if up {
+            slot.saturating_add(amount)
+        } else {
+            slot.saturating_sub(amount)
+        };
     }
 }
