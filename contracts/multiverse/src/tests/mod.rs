@@ -21,6 +21,7 @@ mod catalog_fixture;
 mod catalog_open;
 mod catalog_pledge;
 mod catalog_propose;
+mod catalog_status;
 mod core;
 mod eight;
 mod events;
