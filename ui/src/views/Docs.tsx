@@ -230,7 +230,7 @@ export default function Docs() {
         <h2>Proposals and pledges</h2>
         <p>Anyone can propose a market. A <b>new question</b> (its rule, public source, deadline and category) goes to the owner for review. A <b>combination</b> of up to three open questions needs no review. Each proposal has a goal in USDC, and anyone can pledge USDC or wNEAR toward it.</p>
         <p>The pledge that reaches the goal opens the market: the pledges become its pools, and the pledgers own that seed liquidity, locked for a week. If a proposal expires, is rejected or is cancelled, every pledge comes back. The proposer’s bond comes back once the market is accepted.</p>
-        <p className="docs__caption">On this deployment: a new question proposed (<Tx hash={TXS[10].hash}>propose_event</Tx>) and approved (<Tx hash={TXS[11].hash}>approve_proposal</Tx>); the December Fed question proposed as a market (<Tx hash={TXS[12].hash}>propose_market</Tx>) and opened by the pledge that reached its goal (<Tx hash={TXS[13].hash}>pledge</Tx>). <Link href="/propose/">Propose a market</Link>.</p>
+        <p className="docs__caption">On this deployment: a new question proposed (<Tx hash={TXS[10].hash}>propose_event</Tx>) and approved (<Tx hash={TXS[11].hash}>approve_proposal</Tx>); the December Fed question proposed as a market (<Tx hash={TXS[12].hash}>propose_market</Tx>) and opened by the pledge that reached its goal (<Tx hash={TXS[13].hash}>pledge</Tx>). <Link href="/proposals/">See the proposals</Link> or <Link href="/propose/">propose a market</Link>.</p>
       </section>
 
       <section className="docs__section" id="resolution">
@@ -239,7 +239,7 @@ export default function Docs() {
         <p><b>Real data: the October Fed meeting.</b> OutLayer ran the FRED reader for the 27–28 October 2026 meeting: both limits of the target range unchanged, so HOLDS. Nobody typed the answer: <Tx hash={OCT_FED.ask}>request_resolution</Tx>, then <Tx hash={OCT_FED.finalize}>finalize</Tx> after the window.</p>
         <p><b>Real data: NEAR on 1 November.</b> The reporter answered YES with its evidence, Coinbase’s close at 4.284 and Kraken’s at 4.2827 against the $4.00 line: <Tx hash={NOV_NEAR.report}>report_outcome</Tx>, then <Tx hash={NOV_NEAR.finalize}>finalize</Tx>.</p>
         <p>Every position is a NEP-245 token, and lending, pools, the order book and resolution all live in one contract, so a sale, a borrow and a close each happen in a single transaction.</p>
-        <p><b>Decision markets.</b> Not built. <Link href="/proposals/">The roadmap page</Link> explains the idea: a DAO posts a proposal with pass and fail branches, people trade in both, and the higher branch decides.</p>
+        <p><b>Decision markets.</b> Not built. <Link href="/decision-markets/">The roadmap page</Link> explains the idea: a DAO posts a proposal with pass and fail branches, people trade in both, and the higher branch decides.</p>
       </section>
 
       <section className="docs__section" id="testnet">
