@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { Screen } from "@/components/shell/Screen";
 import { EventCard } from "@/components/resolve/EventCard";
+import { EventOracle } from "@/components/resolve/EventOracle";
+import { MarketListing, MarketParamsBox, OpsBlock, ProposalQueue, ReferenceBox } from "./OpsPanel";
 import { ConfigGuard } from "@/components/trade/Guard";
 import { InfoRows } from "@/components/ui/Bits";
 import { pillClass } from "@/components/ui/Button";
@@ -51,6 +53,7 @@ function Admin({ config }: { config: AppConfig }) {
 
   const card = (e: EventState, kicker: string, inGrid = true) => (
     <EventCard key={e.id} event={e} kicker={kicker} now={clock.now} windowSec={config.disputeWindowSec} inGrid={inGrid}>
+      <EventOracle event={e} />
       <ResolveControls event={e} now={clock.now} isOwner={isOwner} />
     </EventCard>
   );
@@ -60,18 +63,23 @@ function Admin({ config }: { config: AppConfig }) {
       demo="admin"
       hero={
         <div className="flex flex-col gap-3">
-          <span className="label text-white/65">Oracle and demo controls</span>
+          <span className="label text-white/65">Operations, proposals and resolution</span>
           <h1 className="font-display text-[34px] leading-none font-medium tracking-[-0.015em]">Admin</h1>
           <OwnerStatus owner={owner} isOwner={isOwner} connected={Boolean(wallet.accountId)} />
         </div>
       }
       aside={
         <>
+          <ProposalQueue />
+          <MarketListing config={config} sid={sid} />
+          <ReferenceBox />
+          <MarketParamsBox />
           {s && <PricePush key={pickKey} config={config} s={s} mask={picked} isOwner={isOwner} onPick={toggle} picker={!desktop} events={d.events} />}
           {ENV.resetCommand && <ResetCommand />}
         </>
       }
     >
+      <OpsBlock config={config} />
       {s && d ? (
         <>
           {desktop && <WorldGrid scenario={s} events={d.events} selected={picked} onToggle={toggle} quotes={quotes} details={false} />}
