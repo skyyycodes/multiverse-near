@@ -1,6 +1,6 @@
 {
   "name": "ifverse-web-deploy",
   "private": true,
-  "description": "The Vercel deploy unit of IfVerse: the static site in public/ and the keeper function in api/ (bundled by scripts/deploy-web.sh, so there is nothing to install).",
+  "description": "The Vercel deploy unit of Origami Verse: the static site in public/ and the keeper function in api/ (bundled by scripts/deploy-web.sh, so there is nothing to install).",
   "type": "module"
 }

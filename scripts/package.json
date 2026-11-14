@@ -2,7 +2,7 @@
   "name": "ifverse-scripts",
   "version": "0.1.0",
   "private": true,
-  "description": "IfVerse on NEAR: accounts, deployment, upgrade and rehearsal, seeding, resolution, bots, soak and end-to-end tooling",
+  "description": "Origami Verse on NEAR: accounts, deployment, upgrade and rehearsal, seeding, resolution, bots, soak and end-to-end tooling",
   "license": "MIT",
   "type": "module",
   "engines": {

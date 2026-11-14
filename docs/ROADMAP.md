@@ -1,4 +1,4 @@
-# IfVerse: roadmap ideas (not built)
+# Origami Verse: roadmap ideas (not built)
 
 Ideas for after the hackathon. None of this is in the contract; today only the owner creates events,
 scenarios and pools (`assert_owner()` in `oracle.rs`, `core.rs`, `amm/create.rs`).
@@ -225,7 +225,7 @@ Home: market list
 
 ```
  ┌──────────────────────────────────────────────────────────┐
- │ IfVerse                         [Search markets…] [Connect]│
+ │ Origami Verse                   [Search markets…] [Connect]│
  │ [All] [Single event] [Combos] [NEAR] [Macro] [Pledging]   │
  │ Sort: Money in pools ▾                                     │
  ├──────────────────────────────────────────────────────────┤
