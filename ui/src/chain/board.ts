@@ -2,7 +2,7 @@
 // numbers here are for display only (the adapter's `chance`, `nearPrice`, `liquidity`); nothing here moves money.
 // Worlds are in the contract's bit order, world = a + 2b + 4c (market.ts `digit`).
 import type { ChainEvent, ChainMarket, ChainWorld } from "./adapter-model";
-import type { ProposalSource } from "./domain";
+import type { Collateral, ProposalSource } from "./domain";
 import { digit, fold, isPossible, shortDate } from "./market";
 
 /** A world's chance as the site prints it: whole percent, "<1%" for a sliver that can still happen, "0%" for none. */
@@ -217,4 +217,40 @@ export function floorExample(x: FloorInput, dollars: readonly boolean[]): Floor 
     afterDrop: cap(floor),
     extra: cap(floor) - cap(nearOnly),
   };
+}
+
+// ---------- a loan, explained (the docs' live example) ----------
+
+/** What a tier's posted pieces hold in each world: a real token counts in every world, a world piece where its mask covers. */
+export function postedByWorld(collateral: readonly Pick<Collateral, "asset" | "mask" | "isReal" | "amount">[], worlds: readonly { mask: number }[]): { near: bigint; usdc: bigint }[] {
+  return worlds.map((w) =>
+    collateral.reduce(
+      (t, c) => {
+        if (!c.isReal && (c.mask & w.mask) === 0) return t;
+        return c.asset === "wnear" ? { ...t, near: t.near + c.amount } : { ...t, usdc: t.usdc + c.amount };
+      },
+      { near: 0n, usdc: 0n },
+    ),
+  );
+}
+
+export type ShockRow = {
+  /** What the world counts for now, USDC. */
+  value: number;
+  /** NEAR held there and its price, for the part of the value that falls with NEAR. */
+  near: number;
+  price: number;
+  possible: boolean;
+};
+
+/**
+ * The health factor after NEAR falls by `drop` everywhere: in each possible world the NEAR part of its value (at most
+ * NEAR × price) falls, dollars stay. Null without debt.
+ */
+export function healthAfterDrop(rows: readonly ShockRow[], debt: number, lltv: number, drop: number): number | null {
+  if (!(debt > 0)) return null;
+  const live = rows.filter((r) => r.possible);
+  if (live.length === 0) return 0;
+  const worst = Math.min(...live.map((r) => r.value - drop * Math.min(r.value, r.near * r.price)));
+  return (Math.max(0, worst) * lltv) / debt;
 }

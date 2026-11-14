@@ -9,12 +9,14 @@ import {
   durationText,
   daysUntil,
   floorExample,
+  healthAfterDrop,
   impliedCheck,
   inFilter,
   leadWorld,
   matches,
   outcomeMask,
   presetsOf,
+  postedByWorld,
   priceText,
   relatedOf,
   resolutionState,
@@ -301,5 +303,48 @@ describe("the landing's worked example", () => {
 
   it("never goes below zero", () => {
     expect(floorExample({ ...x, drop: 1 }, [false, false, false, false]).afterDrop).toBe(0);
+  });
+});
+
+describe("a loan, explained", () => {
+  const worlds = [1, 2, 4, 8].map((mask) => ({ mask }));
+  const E = 10n ** 18n;
+
+  it("counts a real token in every world and a world piece only where its mask covers", () => {
+    const carl = postedByWorld([{ asset: "wnear", mask: 15, isReal: true, amount: 1_000n * E }], worlds);
+    expect(carl.map((w) => w.near)).toEqual([1_000n * E, 1_000n * E, 1_000n * E, 1_000n * E]);
+    const alice = postedByWorld(
+      [
+        { asset: "wnear", mask: 1, isReal: false, amount: 2_000n * E },
+        { asset: "usdc", mask: 2, isReal: false, amount: 6_422n * E },
+        { asset: "usdc", mask: 12, isReal: false, amount: 5n * E },
+      ],
+      worlds,
+    );
+    expect(alice.map((w) => [w.near, w.usdc])).toEqual([
+      [2_000n * E, 0n],
+      [0n, 6_422n * E],
+      [0n, 5n * E],
+      [0n, 5n * E],
+    ]);
+  });
+
+  it("drops only the NEAR part of each world", () => {
+    // Carl: NEAR everywhere, Bold (80%): weakest 2,765 → 1,659 after a 40% fall, health 0.82 on 1,615.6
+    const carl = [4_329, 3_229, 3_567, 2_765].map((value, i) => ({ value, near: 1_000, price: [4.36, 3.25, 3.59, 2.78][i], possible: true }));
+    expect(healthAfterDrop(carl, 1_615.6, 0.8, 0.4)).toBeCloseTo((2_765 * 0.6 * 0.8) / 1_615.6, 6);
+    // Alice: NEAR only in world 0, Normal (70%): 8,658.9 → 5,195.3 becomes the weakest
+    const alice = [
+      { value: 8_658.9, near: 2_000, price: 4.36, possible: true },
+      { value: 6_422.7, near: 0, price: 3.25, possible: true },
+      { value: 7_064.9, near: 0, price: 3.59, possible: true },
+      { value: 5_283.4, near: 0, price: 2.78, possible: true },
+    ];
+    expect(healthAfterDrop(alice, 2_536.1, 0.7, 0.4)).toBeCloseTo((8_658.9 * 0.6 * 0.7) / 2_536.1, 6);
+  });
+
+  it("has no health without a loan, and ignores worlds that can no longer happen", () => {
+    expect(healthAfterDrop([{ value: 10, near: 1, price: 10, possible: true }], 0, 0.7, 0.4)).toBeNull();
+    expect(healthAfterDrop([{ value: 10, near: 1, price: 10, possible: false }, { value: 100, near: 0, price: 3, possible: true }], 50, 0.5, 0.4)).toBe(1);
   });
 });
