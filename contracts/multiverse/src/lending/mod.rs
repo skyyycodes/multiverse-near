@@ -26,7 +26,7 @@ use multiverse_math::risk;
 use multiverse_math::shares::{to_assets_down, to_assets_up, to_shares_down, to_shares_up};
 use multiverse_math::{irm, mul_div_down};
 use near_sdk::json_types::U128;
-use near_sdk::serde::{Deserialize, Serialize};
+use near_sdk::serde::Serialize;
 use near_sdk::{assert_one_yocto, env, near, AccountId};
 
 pub mod bad_debt;
@@ -117,15 +117,17 @@ impl CollateralKey {
 }
 
 /// `"max"` or an amount, for `liquidate`'s `repay_amount`.
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
-#[serde(crate = "near_sdk::serde", untagged)]
+#[near(serializers = [json])]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(untagged)]
 pub enum RepayAmount {
     Max(MaxKeyword),
     Amount(U128),
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
-#[serde(crate = "near_sdk::serde", rename_all = "lowercase")]
+#[near(serializers = [json])]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
 pub enum MaxKeyword {
     Max,
 }
