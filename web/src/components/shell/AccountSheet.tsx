@@ -13,6 +13,7 @@ import { useAppConfig, useBalances, useRegistration } from "@/lib/hooks/useData"
 import { useSubmit } from "@/lib/hooks/useTx";
 import { GAS_CALL, withdrawInner } from "@/lib/near/tx";
 import { useWallet } from "@/lib/near/wallet";
+import { AccountSections } from "./AccountSections";
 import { NetworkBadge } from "./NetworkBadge";
 import { FAUCET_ON, GetTestTokens } from "./TestTokens";
 import { fmtYocto, unitOf } from "@/lib/units";
@@ -75,6 +76,8 @@ export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => 
           <GetTestTokens />
         </div>
       )}
+
+      {id && !wallet.fixtures && <AccountSections account={id} onNavigate={onClose} />}
 
       <div className="flex flex-col gap-2">
         <div className="label text-mute">{BRAND.innerBalance}</div>
