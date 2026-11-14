@@ -4,24 +4,22 @@ import { useState } from "react";
 import { HeroNumber, Screen } from "@/components/shell/Screen";
 import { FuturesList } from "@/components/trade/Home";
 import { ConfigGuard } from "@/components/trade/Guard";
-import { InfoRows } from "@/components/ui/Bits";
 import { ChainWait } from "@/components/ui/Notice";
 import { Block, Sheet, SheetTitle } from "@/components/ui/Surface";
 import { TxButton } from "@/components/ui/TxButton";
 import { WorldGrid } from "@/components/world/WorldGrid";
 import { CONTRACT_ID } from "@/lib/data/client";
-import type { Account, AppConfig, EventState, Scenario } from "@/lib/domain";
-import { countdown, fmt, fmtAsset, fmtNear, fmtUsd } from "@/lib/format";
+import type { AppConfig, EventState, Scenario } from "@/lib/domain";
+import { countdown, fmtAsset } from "@/lib/format";
 import { useChainClock } from "@/lib/hooks/useClock";
 import { useBalances, useCellQuotes, useResolve, useScenarioId } from "@/lib/hooks/useData";
 import { useIsDesktop } from "@/lib/hooks/useMedia";
 import { useSubmit } from "@/lib/hooks/useTx";
-import { eventsOf } from "@/lib/near/outcome";
-import { call, ftTransferCall } from "@/lib/near/tx";
+import { call } from "@/lib/near/tx";
 import { useWallet } from "@/lib/near/wallet";
-import { fateText, planClose, summarizeClose, walletRedeemable, type CloseSummary } from "@/lib/settlement";
+import { walletRedeemable } from "@/lib/settlement";
 import type { Asset } from "@/lib/types";
-import { toTokenCeil } from "@/lib/units";
+import { ClosePanels } from "./ClosePanel";
 import { EventCard } from "./EventCard";
 
 /** Resolve and collapse: where each event stands, dead worlds fading, then one "Close and redeem". */
@@ -81,7 +79,7 @@ function Resolve({ config }: { config: AppConfig }) {
         s && d ? (
           // Keyed by scenario: a result shown for one scenario never carries over to another.
           <div key={`${CONTRACT_ID}:${sid}`} className="flex flex-col gap-5">
-            <ClosePanel config={config} s={s} v={d.account} walletUsdc={balances.data?.usdc ?? 0n} />
+            <ClosePanels config={config} s={s} normal={d.account} walletUsdc={balances.data?.usdc ?? 0n} />
             <WalletRedeem s={s} />
           </div>
         ) : undefined
@@ -182,107 +180,6 @@ function FinalizeButton({ event, now, blockTime }: { event: EventState; now?: bi
       needs={{ contract: true }}
       run={() => submit(call(CONTRACT_ID, "finalize", { event_id: event.id }, "0"))}
     />
-  );
-}
-
-/** Repay, withdraw and redeem in one transaction, with what the account gets shown first. */
-// What a close paid out, per account and scenario, for the rest of the session: the panel is rebuilt when the layout
-// switches between phone and desktop, and the position it describes is gone once the close lands.
-const closes = new Map<string, CloseSummary>();
-
-function ClosePanel({ config, s, v, walletUsdc }: { config: AppConfig; s: Scenario; v: Account; walletUsdc: bigint }) {
-  const wallet = useWallet();
-  const submit = useSubmit();
-  const closeKey = `${CONTRACT_ID}:${s.scenarioId}:${wallet.accountId ?? ""}`;
-  const [closed, setClosedState] = useState<CloseSummary | undefined>(() => closes.get(closeKey));
-  const setClosed = (c: CloseSummary | undefined) => {
-    if (c) closes.set(closeKey, c);
-    setClosedState(c);
-  };
-  const plan = planClose(v.collateral, s.possible);
-  const hasPosition = v.debt > 0n || v.collateral.length > 0;
-
-  let blocker: string | undefined;
-  if (!hasPosition) blocker = "Nothing to close";
-  else if (s.resolutionCount === 0) blocker = "Opens once an event resolves";
-  else if (v.debt > walletUsdc) blocker = `Needs ${fmt(v.debt)} USDC in your wallet to repay`;
-
-  async function run(step: (s: string) => void): Promise<string> {
-    step("Closing…");
-    const record = (o: Parameters<typeof eventsOf>[0]) => {
-      const summary = summarizeClose(eventsOf(o));
-      // Design data has no logs; it reports the plan it showed.
-      setClosed(summary ?? (wallet.fixtures ? { repaid: v.debt, usdc: plan.realUsdc, wnear: plan.realWnear } : undefined));
-    };
-    if (v.debt > 0n) {
-      // The debt grows by a few seconds of interest before this lands: send 0.1% more, bounded by the wallet; the
-      // contract returns what it does not use.
-      const cap = v.debt + v.debt / 1000n;
-      const tokens = toTokenCeil(cap > walletUsdc ? walletUsdc : cap, config.usdc.decimals);
-      return submit(
-        ftTransferCall(config.usdc.tokenId, CONTRACT_ID, tokens, { action: "close_after_resolution", scenario_id: s.scenarioId }),
-        "nonzero",
-        record,
-      );
-    }
-    return submit(call(CONTRACT_ID, "close_after_resolution", { scenario_id: s.scenarioId }), undefined, record);
-  }
-
-  return (
-    <Sheet demo="close-panel">
-      <SheetTitle sub="One transaction: repay the whole loan from your wallet, withdraw every piece of collateral, and redeem each piece that has collapsed (it covers every world still possible) for the real asset 1:1. Live pieces come back as they are; dead pieces too, worth nothing.">
-        Close and redeem
-      </SheetTitle>
-
-      {hasPosition && (
-        <>
-          <div className="flex flex-col" data-demo="close-pieces">
-            <div className="flex items-baseline justify-between border-b border-line pb-2">
-              <span className="label text-mute">Collateral</span>
-              <span className="label text-mute">Amount</span>
-            </div>
-            {plan.pieces.map((p) => (
-              <div key={p.tokenId} className={`flex items-start justify-between gap-3 border-b border-line py-2.5 last:border-b-0 ${p.fate === "dead" ? "opacity-60" : ""}`}>
-                <div className="min-w-0">
-                  <div className={`truncate text-[13px] font-semibold text-ink ${p.fate === "dead" ? "line-through" : ""}`}>{p.label}</div>
-                  <div className={`text-[12px] ${p.fate === "redeems" ? "text-pos" : "text-mute"}`}>{fateText(p)}</div>
-                </div>
-                <span className="num shrink-0 text-[13px] text-ink">{fmtAsset(p.asset, p.amount)}</span>
-              </div>
-            ))}
-          </div>
-          <InfoRows
-            rows={[
-              { label: "You repay (loan plus interest)", value: fmtUsd(v.debt) },
-              {
-                label: "You receive, real",
-                value: `${fmt(plan.realUsdc)} USDC${plan.realWnear > 0n ? ` + ${fmtNear(plan.realWnear)} wNEAR` : ""}`,
-                tone: "text-pos",
-                demo: "close-receive",
-              },
-              { label: "Wallet USDC now → after", value: `${fmtUsd(walletUsdc)} → ${fmtUsd(walletUsdc - v.debt + plan.realUsdc)}` },
-            ]}
-          />
-        </>
-      )}
-      {wallet.accountId && !hasPosition && !closed && <p className="text-[13px] text-mute">This wallet has no loan or collateral in this scenario.</p>}
-
-      <TxButton
-        demo="close-confirm"
-        action="close"
-        label="Close and redeem"
-        busyLabel="Closing…"
-        blocker={blocker}
-        needs={{ contract: true, tokens: ["usdc", "wnear"] }}
-        run={run}
-      />
-      {closed && (
-        <p className="num text-[13px] text-pos" data-demo="close-result">
-          Repaid {fmtUsd(closed.repaid)}; redeemed {fmt(closed.usdc)} real USDC
-          {closed.wnear > 0n ? ` and ${fmtNear(closed.wnear)} real wNEAR` : ""}.
-        </p>
-      )}
-    </Sheet>
   );
 }
 
