@@ -1,5 +1,5 @@
-% IfVerse whitepaper, version 1.0 (November 2026).
-% Build: pdflatex ifverse-whitepaper.tex (twice). No bibtex step: the references are inline.
+% Origami Verse whitepaper, version 1.0 (November 2026).
+% Build: pdflatex origami-verse-whitepaper.tex (twice). No bibtex step: the references are inline.
 \documentclass[11pt,a4paper]{article}
 
 \usepackage[T1]{fontenc}
@@ -20,6 +20,7 @@
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta,positioning,calc,fit,shapes.geometric,decorations.pathreplacing}
 \usepackage[colorlinks=true,linkcolor=NavyBlue,citecolor=NavyBlue,urlcolor=NavyBlue]{hyperref}
+\hypersetup{pdftitle={Origami Verse: Conditional Markets and Worst-World Lending on NEAR},pdfauthor={The Origami Verse team}}
 
 \definecolor{ifv}{HTML}{3B4BA8}
 \definecolor{ifvlight}{HTML}{E8EBF8}
@@ -35,7 +36,7 @@
 
 \pagestyle{fancy}
 \fancyhf{}
-\fancyhead[L]{\small IfVerse whitepaper v1.0}
+\fancyhead[L]{\small Origami Verse whitepaper v1.0}
 \fancyhead[R]{\small November 2026}
 \fancyfoot[C]{\small\thepage}
 \renewcommand{\headrulewidth}{0.3pt}
@@ -49,9 +50,9 @@
 \newcommand{\tx}[2]{\href{https://testnet.nearblocks.io/txns/#1}{\code{#2\ldots}}}
 \newcommand{\inwords}[1]{\par\noindent\colorbox{note}{\parbox{\dimexpr\linewidth-2\fboxsep}{\small\textit{In plain words.} #1}}\par}
 
-\title{\vspace{-1.5em}\textbf{IfVerse: Conditional Markets and Worst-World Lending on NEAR}\\[0.4em]
+\title{\vspace{-1.5em}\textbf{Origami Verse: Conditional Markets and Worst-World Lending on NEAR}\\[0.4em]
 \large Version 1.0}
-\author{The IfVerse team\\[0.3em]
+\author{The Origami Verse team\\[0.3em]
 \small \url{https://multiverse-lending.vercel.app}\\
 \small \url{https://github.com/skyyycodes/multiverse-near}}
 \date{November 2026}
@@ -62,7 +63,7 @@
 
 \begin{abstract}
 \noindent
-IfVerse is a protocol on NEAR that lets people hold, trade and borrow against an asset \emph{one possible future at
+Origami Verse is a protocol on NEAR that lets people hold, trade and borrow against an asset \emph{one possible future at
 a time}. A market is built from one to three real-world yes/no events. Every combination of their outcomes is a
 \emph{world}, so a market has two, four or eight worlds. One real token can be split into one conditional token per
 world; each conditional token pays out only if its world is the one that comes true. Each world has its own pool
@@ -93,7 +94,7 @@ protection everywhere. A prediction market lets you bet on one event, but it doe
 the upgrade ships, turn it into dollars if it does not''. A lending market does not accept such a position as
 collateral at all.
 
-IfVerse fixes this by cutting an asset along the lines of possible futures. You protect yourself only in the futures
+Origami Verse fixes this by cutting an asset along the lines of possible futures. You protect yourself only in the futures
 you fear, you keep your upside in the others, and you can still borrow real dollars against the result.
 
 \subsection{The idea in one picture}
@@ -109,7 +110,7 @@ Exactly one of them will come true. One wNEAR (wrapped NEAR, a normal token) can
 nothing otherwise. Holding all four is the same as holding one wNEAR, because exactly one of them will pay.
 
 The idea of splitting an asset into one version per possible outcome and moving value between those versions comes
-from Paradigm's essay ``Multiverse Finance'' \cite{white2025}. IfVerse is our own design and implementation of
+from Paradigm's essay ``Multiverse Finance'' \cite{white2025}. Origami Verse is our own design and implementation of
 that idea on NEAR, with trading, lending, market creation and resolution built around it.
 
 \subsection{What this paper covers}
@@ -124,7 +125,7 @@ Section~\ref{sec:eval} the live testnet deployment, and Section~\ref{sec:limits}
 
 \paragraph{Where the numbers come from.} Every parameter in this paper was read from the contract source
 (\code{contracts/multiverse/src} and \code{crates/multiverse-math/src}) or from the live contract
-\code{app.ifverse-staging.testnet} on NEAR testnet on 14 November 2026. Prices and balances from the live markets are
+\code{app.ifverse-staging.testnet}\footnote{The testnet accounts (\code{*.ifverse-staging.testnet}), the rule tags and the web address keep earlier working names; the project was formerly IfVerse / Multiverse Lending.} on NEAR testnet on 14 November 2026. Prices and balances from the live markets are
 snapshots: they move as people trade.
 
 %=====================================================================
@@ -166,7 +167,7 @@ loses worlds as events resolve.
 \subsection{Verse tokens}
 
 A \textbf{verse token} is one asset on one mask of one market. ``wNEAR-if-mask-14 in market 1'' pays one real wNEAR
-if the world that comes true is in mask 14. IfVerse supports two assets, wNEAR and USDC, so in every market each
+if the world that comes true is in mask 14. Origami Verse supports two assets, wNEAR and USDC, so in every market each
 non-root mask has a wNEAR verse and a USDC verse. Each verse is a NEP-245 multi-token \cite{nep245} with the id
 \code{\{market\}:\{asset\}:\{mask\}}, for example \code{1:wnear:14}.
 
@@ -231,7 +232,7 @@ existing tokens between people.}
 \label{sec:trading}
 
 Splitting by itself only changes the shape of what you hold. To \emph{hedge}, you need to swap: give up NEAR in the
-worlds you fear and get dollars there instead. IfVerse offers three kinds of pool and an order book. Internally every
+worlds you fear and get dollars there instead. Origami Verse offers three kinds of pool and an order book. Internally every
 amount is an 18-decimal integer; prices are USDC per wNEAR; fees are counted in \emph{pips}
 (1,000,000 pips $=$ 100\%).
 
@@ -357,7 +358,7 @@ markets of up to four worlds and 16 in eight-world markets.
 \label{sec:prices}
 
 A lending protocol is only as safe as the prices it reads. A pool's current price can be pushed by one large trade,
-so lending never reads it alone. IfVerse uses three defences: a time-weighted average, a set of health checks per
+so lending never reads it alone. Origami Verse uses three defences: a time-weighted average, a set of health checks per
 pool, and a comparison with the outside NEAR/USD price (Section~\ref{sec:reference}).
 
 \subsection{Time-weighted average price}
@@ -490,7 +491,7 @@ liquidatable when $C_{\min}$ falls below $1{,}500 / 0.70 \approx 2{,}142.86$, th
 falls below about 2.14 USDC, roughly 19.5\% below its level in the example.
 
 Now suppose the borrower had \emph{hedged}: sold some wNEAR-if-\wDH{} for USDC-if-\wDH{} before posting. In that world
-part of the collateral is now dollars, so a fall in NEAR's price there hurts less. This is the point of IfVerse: the
+part of the collateral is now dollars, so a fall in NEAR's price there hurts less. This is the point of Origami Verse: the
 hedge you buy for the future you fear directly raises how much you can borrow and how safe the loan is.
 
 \begin{figure}[t]
@@ -610,7 +611,7 @@ pool liquidity when the market opens, and it is returned if the proposal ends wi
 
 \subsection{Pricing a new market}
 
-A new market needs starting prices. IfVerse never takes them from a proposer's guess alone:
+A new market needs starting prices. Origami Verse never takes them from a proposer's guess alone:
 \begin{enumerate}
 \item \textbf{Spot reference} $S_{\text{ref}}$. Read from the TWAP of one or more anchor markets (market 1 on the live
 contract). Anchors must agree within 3\%. Because \code{require\_external} is on, $S_{\text{ref}}$ must also be within
@@ -802,8 +803,8 @@ close (4.284 USDC, with Kraken's 4.2827 as supporting evidence) and finalized af
 \section{The outside NEAR/USD reference}
 \label{sec:reference}
 
-Lending prices come from IfVerse's own pools. If those pools drift away from the real world (for example because
-nobody trades them on testnet), loans could be sized on stale prices. IfVerse therefore keeps an outside
+Lending prices come from Origami Verse's own pools. If those pools drift away from the real world (for example because
+nobody trades them on testnet), loans could be sized on stale prices. Origami Verse therefore keeps an outside
 \textbf{reference price} $R$ for NEAR/USD.
 
 \subsection{How the reference is formed}
@@ -859,7 +860,7 @@ is not yet configured on the live contract.
 
 On NEAR, a call to another contract is asynchronous: it runs in a later receipt, and if it fails, the caller is not
 rolled back \cite{neardocs}. A hedge that splits, fills orders, swaps in several pools, posts collateral and borrows
-would need a callback and a compensation path at every step if each part were a separate contract. IfVerse puts
+would need a callback and a compensation path at every step if each part were a separate contract. Origami Verse puts
 pools, order book, lending, proposals and the liquidity vault in \emph{one} contract, so such a hedge is one
 synchronous call that either fully succeeds or fails and changes nothing. The only calls that leave the contract are
 payouts of real tokens (after every state change), the NEP-245 transfer-call receiver, NEAR refunds and OutLayer
@@ -884,7 +885,7 @@ transfer fails (for example when the receiver is not registered with the token).
 
 \subsection{Storage staking}
 
-NEAR charges for on-chain storage by locking NEAR \cite{nep145}. IfVerse implements NEP-145: an account registers with
+NEAR charges for on-chain storage by locking NEAR \cite{nep145}. Origami Verse implements NEP-145: an account registers with
 at least 0.1 NEAR. Every state-changing call measures storage before and after, charges the bytes it adds to the
 payer's deposit (failing if the deposit does not cover them) and credits the bytes it frees. Zero balances are deleted
 so they stop costing storage. A new market's storage is paid from its proposer's opening reserve, then from a
@@ -977,10 +978,10 @@ arbitrage it back. The outside reference limits but does not remove this.
 
 \subsection{Accounts}
 
-IfVerse version 2 runs on NEAR testnet. The contract is \code{app.ifverse-staging.testnet} (code hash
+Origami Verse v2 runs on NEAR testnet. The contract is \code{app.ifverse-staging.testnet} (code hash
 \code{9K62NFX7gQiGajRuLTFcPy7F9n5nADSrFgESttUSFcRR}, deployed in transaction
 \tx{C3KthRtFPyJa68XRXNqBjvE6LpTqZfPgKsAo2U73bcpU}{C3KthRtFPy}). Mock wNEAR (24 decimals) and USDC (6 decimals) live at
-\code{wnear.} and \code{usdc.ifverse-staging.testnet}. The reporter, keeper and maker have their own sub-accounts. The
+\code{wnear.ifverse-staging.testnet} and \code{usdc.ifverse-staging.testnet}. The reporter, keeper and maker have their own sub-accounts. The
 web app is at \url{https://multiverse-lending.vercel.app}. Transaction hashes below are shortened; each is a link
 to its full record on \url{https://testnet.nearblocks.io}.
 
@@ -1059,7 +1060,7 @@ the chain, as designed. In two later recorded rounds the market maker step found
 \item \textbf{Testnet only.} Nothing has been deployed or tested on mainnet. Tokens are mock tokens.
 \item \textbf{Trusted roles.} The owner can resolve and dispute; one reporter proposes outcomes and posts the
 reference. Future work: a timelock, a multisig owner, bonded reporters and open disputes.
-\item \textbf{Liquidity.} Lending reads only IfVerse's own pools. On testnet they are deep only where the team and
+\item \textbf{Liquidity.} Lending reads only Origami Verse's own pools. On testnet they are deep only where the team and
 pledgers put liquidity, and few people arbitrage them. Only market 1 is lendable today.
 \item \textbf{Odds sources.} The SPICE odds are an assumption and the Fed odds a dated reading; a live outside odds
 feed would make implied prices more meaningful.
@@ -1075,7 +1076,7 @@ it is built but not yet configured on the live contract.
 %=====================================================================
 \section{Conclusion}
 
-IfVerse turns ``what if'' into something you can hold. A real asset splits into one token per possible world, each
+Origami Verse turns ``what if'' into something you can hold. A real asset splits into one token per possible world, each
 world gets its own price, and a loan is judged by the worst world that can still happen, so it stays covered whatever
 the news. Around this core sit dynamic-fee pools, an order book, three lending tiers with insurance, markets that
 anyone can propose and fund, resolution from public data with a dispute window and a TEE option, and an outside
