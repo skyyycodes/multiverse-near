@@ -11,12 +11,15 @@ import { accountUrl } from "@/lib/env";
 import { fmt, fmtNear } from "@/lib/format";
 import { useAppConfig, useBalances, useRegistration } from "@/lib/hooks/useData";
 import { useSubmit } from "@/lib/hooks/useTx";
-import { GAS_CALL, withdrawInner } from "@/lib/near/tx";
+import { GAS_CALL, GAS_LIGHT, storageWithdraw, withdrawInner } from "@/lib/near/tx";
 import { useWallet } from "@/lib/near/wallet";
 import { AccountSections } from "./AccountSections";
 import { NetworkBadge } from "./NetworkBadge";
 import { FAUCET_ON, GetTestTokens } from "./TestTokens";
 import { fmtYocto, unitOf } from "@/lib/units";
+
+/** Returned proposal bonds and reserves land in the free storage deposit; below 0.01 NEAR it is not worth the gas. */
+const FREE_STORAGE_FLOOR = 10n ** 22n;
 
 const FixtureControls =
   process.env.NEXT_PUBLIC_FIXTURES === "1" ? lazy(() => import("./FixturePicker").then((m) => ({ default: m.FixtureControls }))) : null;
@@ -134,6 +137,20 @@ export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => 
           </span>
         ) : (
           <span>Not registered yet. Your first action adds a refundable 0.1 NEAR storage deposit.</span>
+        )}
+        {reg.data?.contract && BigInt(reg.data.contract.available) >= FREE_STORAGE_FLOOR && (
+          <div className="mt-2">
+            <TxButton
+              size="sm"
+              tone="secondary"
+              action="storage_withdraw"
+              gas={GAS_LIGHT}
+              label={`Withdraw ${fmtYocto(BigInt(reg.data.contract.available))} free NEAR`}
+              busyLabel="Withdrawing…"
+              demo="storage-withdraw"
+              run={() => submit(storageWithdraw(CONTRACT_ID))}
+            />
+          </div>
         )}
       </div>
 

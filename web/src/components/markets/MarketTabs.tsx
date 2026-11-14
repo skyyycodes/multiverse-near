@@ -12,8 +12,8 @@ import { type MarketTab, tabOf } from "@/lib/market";
 type Tab = { tab: MarketTab; label: string; href: string; desk?: string; phone: string };
 
 /**
- * A market's own screens (web 3.4). Desktop: five links (Sell and Split are tabs of the trade sheet there); phone: all
- * seven as a sideways chip row, the current one scrolled into view.
+ * A market's own screens (web 3.4). Desktop: six links (Sell is a tab of the trade sheet there); phone: all seven as a
+ * sideways chip row, the current one scrolled into view.
  */
 export function MarketTabs({ sid }: { sid: number }) {
   const desktop = useIsDesktop();
@@ -24,7 +24,7 @@ export function MarketTabs({ sid }: { sid: number }) {
     { tab: "trade", label: "Trade", href: marketHref(sid), desk: "nav-trade", phone: "mtab-trade" },
     { tab: "sell", label: "Sell", href: sellHref(sid), phone: "mtab-sell" },
     { tab: "orders", label: "Order book", href: ordersHref(sid), desk: "nav-orders", phone: "mtab-orders" },
-    { tab: "split", label: "Split", href: splitHref(sid), phone: "mtab-split" },
+    { tab: "split", label: "Split", href: splitHref(sid), desk: "nav-split", phone: "mtab-split" },
     { tab: "borrow", label: "Borrow", href: borrowHref(sid, tier), desk: "nav-borrow", phone: "mtab-borrow" },
     { tab: "lend", label: "Lend", href: lendHref(sid, tier), desk: "nav-lend", phone: "mtab-lend" },
     { tab: "resolve", label: "Resolve", href: resolveHref(sid), desk: "nav-resolve", phone: "mtab-resolve" },
@@ -36,7 +36,7 @@ export function MarketTabs({ sid }: { sid: number }) {
 
   if (desktop) {
     // On a desktop /sell/ is the trade screen with its Sell tab open.
-    const on = current === "sell" || current === "split" ? "trade" : current;
+    const on = current === "sell" ? "trade" : current;
     return (
       <nav aria-label="Market" className="flex flex-wrap gap-1 rounded-full bg-white/8 p-1 self-start" data-demo="market-tabs">
         {tabs

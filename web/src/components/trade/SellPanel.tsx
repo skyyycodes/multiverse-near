@@ -43,6 +43,8 @@ type Props = {
   picker: boolean;
   /** Hide the heading when the screen's header already says it. */
   heading?: boolean;
+  /** False on a trading-only market: no borrowing there, so the result always goes to the wallet. */
+  lendable?: boolean;
 };
 
 /**
@@ -50,12 +52,13 @@ type Props = {
  * (ft_transfer_call), so there is no approval step. Resting bids fill first in a world when they pay more than the pool
  * would for that part of the sale.
  */
-export function SellPanel({ config, scenario, events, orders, nowSec, balances, selected, onToggle, onClear, picker, heading = true }: Props) {
+export function SellPanel({ config, scenario, events, orders, nowSec, balances, selected, onToggle, onClear, picker, heading = true, lendable }: Props) {
   const wallet = useWallet();
   const qc = useQueryClient();
   const submit = useSubmit();
   const [input, setInput] = useState("2000");
-  const [toLending, setToLending] = useState(true);
+  const [keepAsCollateral, setToLending] = useState(true);
+  const toLending = lendable !== false && keepAsCollateral;
   const [from, setFrom] = useState<"wallet" | "inner">("wallet");
   const amount = parseAmount(input, config.wnear.decimals);
   const quoteAmount = useDebounced(amount, 350);
@@ -199,19 +202,21 @@ export function SellPanel({ config, scenario, events, orders, nowSec, balances, 
         sale. Each world must pay at least its plan, less 0.5% on the pool part, or nothing happens.
       </p>
 
-      <label className="flex cursor-pointer items-start gap-3 rounded-[16px] bg-tile p-3.5 text-[13px] leading-snug text-ink">
-        <input
-          type="checkbox"
-          checked={toLending}
-          onChange={(e) => setToLending(e.target.checked)}
-          className="mt-0.5 size-4 shrink-0 accent-[var(--color-ink)]"
-          data-demo="sell-to-lending"
-        />
-        <span>
-          Keep the result as loan collateral in the {TIER_LABEL[tier]} tier, so you can borrow real USDC against it next
-          (Borrow screen). Off: the tokens go to your wallet.
-        </span>
-      </label>
+      {lendable !== false && (
+        <label className="flex cursor-pointer items-start gap-3 rounded-[16px] bg-tile p-3.5 text-[13px] leading-snug text-ink">
+          <input
+            type="checkbox"
+            checked={toLending}
+            onChange={(e) => setToLending(e.target.checked)}
+            className="mt-0.5 size-4 shrink-0 accent-[var(--color-ink)]"
+            data-demo="sell-to-lending"
+          />
+          <span>
+            Keep the result as loan collateral in the {TIER_LABEL[tier]} tier, so you can borrow real USDC against it next
+            (Borrow screen). Off: the tokens go to your wallet.
+          </span>
+        </label>
+      )}
       {toLending && <TierSelect tiers={tiers.data} value={tier} onChange={remembered.setTier} />}
 
       <TxButton

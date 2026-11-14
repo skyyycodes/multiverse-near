@@ -27,6 +27,7 @@
     "test": "vitest run",
     "e2e": "playwright test",
     "e2e:live": "LIVE=1 playwright test",
+    "e2e:staging": "STAGING=1 playwright test",
     "shots": "node scripts/shots.mjs http://localhost:3041"
   },
   "dependencies": {

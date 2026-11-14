@@ -19,6 +19,8 @@ export type AppAction =
   | "borrow"
   | "repay"
   | "add_collateral"
+  | "withdraw_collateral"
+  | "withdraw_collateral_debt"
   | "supply"
   | "withdraw_supply"
   | "lp_deposit"
@@ -47,6 +49,7 @@ export type AppAction =
   | "price_push"
   | "register"
   | "storage_top_up"
+  | "storage_withdraw"
   | "faucet"
   | "pause"
   | "unpause";
@@ -66,6 +69,8 @@ export const ACTION_FLAGS: Record<AppAction, readonly PauseFlag[]> = {
   borrow: ["lend"],
   repay: [],
   add_collateral: [],
+  withdraw_collateral: ["exit"],
+  withdraw_collateral_debt: ["lend"],
   supply: ["lend"],
   withdraw_supply: ["exit"],
   lp_deposit: ["mint"],
@@ -94,6 +99,7 @@ export const ACTION_FLAGS: Record<AppAction, readonly PauseFlag[]> = {
   price_push: ["trade"],
   register: [],
   storage_top_up: [],
+  storage_withdraw: ["exit"],
   faucet: [],
   pause: [],
   unpause: [],

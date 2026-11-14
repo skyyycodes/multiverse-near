@@ -80,6 +80,8 @@ export function singleOrderPlan(worldCount: number, index: number, orderId: bigi
   };
 }
 
+/** NEP-145: sends the free part of the storage deposit (returned bonds and reserves land there) back to the wallet. */
+export const storageWithdraw = (contractId: string): Tx => call(contractId, "storage_withdraw", {}, ONE_YOCTO, GAS_LIGHT);
 export const storageDeposit = (contractId: string, deposit: bigint, registrationOnly: boolean, accountId?: string): Tx =>
   call(contractId, "storage_deposit", { account_id: accountId ?? null, registration_only: registrationOnly }, deposit.toString(), GAS_LIGHT);
 
@@ -199,6 +201,10 @@ export const borrow = (contractId: string, p: { scenarioId: number; amount: bigi
 /** T9: `all` repays the whole debt (attach `min(debt × 1.001, wallet)`); the contract refunds the rest. */
 export const repay = (usdcId: string, contractId: string, tokens: bigint, p: { scenarioId: number; all: boolean; tier?: Tier }): Tx =>
   ftTransferCall(usdcId, contractId, tokens, withTier({ action: "repay" as const, scenario_id: p.scenarioId, all: p.all }, p.tier));
+
+/** Takes a posted piece back ("usdc" / "wnear" for real collateral, the token id for a world's piece), `amount` internal. */
+export const withdrawCollateral = (contractId: string, p: { scenarioId: number; piece: string; amount: bigint; tier?: Tier }): Tx =>
+  call(contractId, "withdraw_collateral", withTier({ scenario_id: p.scenarioId, piece: p.piece, amount: u128(p.amount) }, p.tier));
 
 /** T10 */
 export const supply = (usdcId: string, contractId: string, tokens: bigint, p: { scenarioId: number; tier?: Tier }): Tx =>

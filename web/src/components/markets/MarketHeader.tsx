@@ -7,7 +7,7 @@ import { Chip, InfoRows } from "@/components/ui/Bits";
 import { Dialog } from "@/components/ui/Dialog";
 import type { PriceCheck } from "@/lib/domain";
 import { humanError } from "@/lib/errors";
-import { fmtBps, fmtPct, fmtPrice, pct, relTime } from "@/lib/format";
+import { fmtPct, fmtPrice, pct, referenceOrigin, relTime } from "@/lib/format";
 import { useNowSeconds } from "@/lib/hooks/useClock";
 import { useHalted } from "@/lib/hooks/useData";
 import { useMarketCard } from "@/lib/hooks/useMarket";
@@ -176,7 +176,7 @@ function PriceCheckBody({ pc }: { pc: PriceCheck }) {
           { label: "Outside NEAR/USD", value: r ? fmtPrice(r.price) : "none yet" },
           ...(r
             ? [
-                { label: "Sources · spread", value: `${r.sourcesUsed} · ${fmtBps(r.spreadBps)}` },
+                { label: "Source", value: referenceOrigin(r) },
                 { label: "Age", value: relTime(-r.ageSec) },
               ]
             : []),

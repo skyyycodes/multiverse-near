@@ -15,7 +15,7 @@ import { SearchField } from "@/components/ui/SearchField";
 import { Block } from "@/components/ui/Surface";
 import { BRAND } from "@/lib/brand";
 import type { AppConfig } from "@/lib/domain";
-import { fmtPrice, relTime } from "@/lib/format";
+import { fmtPrice, referenceOrigin, relTime } from "@/lib/format";
 import { proposeHref } from "@/lib/links";
 import {
   CATEGORY_NAMES,
@@ -240,7 +240,7 @@ function CardGrid({ desktop, children }: { desktop: boolean; children: ReactNode
 function SortControl({ value, onChange, desktop }: { value: ListSort; onChange: (s: ListSort) => void; desktop: boolean }) {
   if (desktop) {
     return (
-      <div className="shrink-0">
+      <div className="shrink-0 [&_button]:whitespace-nowrap">
         <Segmented size="sm" value={value} onChange={onChange} demo="market-sort" options={SORTS.map((s) => ({ value: s, label: SORT_LABEL[s] }))} />
       </div>
     );
@@ -284,7 +284,7 @@ function PriceChips({ config }: { config: AppConfig }) {
       {r && (
         <span data-demo="list-reference">
           <Chip onDark className="px-3 py-1.5 text-[12px]" title="The outside NEAR/USD median the contract checks its markets against">
-            NEAR/USD {fmtPrice(r.price)} · {r.sourcesUsed} {r.sourcesUsed === 1 ? "source" : "sources"} · {relTime(-r.ageSec)}
+            NEAR/USD {fmtPrice(r.price)} · {r.sourcesUsed > 0 ? `${r.sourcesUsed} ${r.sourcesUsed === 1 ? "source" : "sources"}` : referenceOrigin(r)} · {relTime(-r.ageSec)}
           </Chip>
         </span>
       )}

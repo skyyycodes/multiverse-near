@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  referenceOrigin,
   accountLabel,
   countdown,
   fmt,
@@ -196,5 +197,14 @@ describe("v2 formats", () => {
     expect(parseUtcInput("2027-02-30T10:00")).toBeUndefined();
     expect(parseUtcInput("")).toBeUndefined();
     expect(parseUtcInput("tomorrow")).toBeUndefined();
+  });
+});
+
+describe("referenceOrigin", () => {
+  it("counts sources for an aggregated reading and names the reporter for a posted one", () => {
+    expect(referenceOrigin({ source: "outlayer", sourcesUsed: 4, spreadBps: 83 })).toBe("4 sources · spread 0.83%");
+    expect(referenceOrigin({ source: "outlayer", sourcesUsed: 1, spreadBps: 0 })).toBe("1 source · spread 0%");
+    expect(referenceOrigin({ source: "reporter", sourcesUsed: 0, spreadBps: 0 })).toBe("the reporter");
+    expect(referenceOrigin({ source: "outlayer", sourcesUsed: 0, spreadBps: 0 })).toBe("OutLayer (TEE)");
   });
 });
