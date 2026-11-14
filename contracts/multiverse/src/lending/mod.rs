@@ -154,6 +154,8 @@ pub enum LiquidationState {
     Liquidatable,
     PausedHalted,
     PausedNoPrice,
+    /// The `liquidate` flag is set or the grace after its unpause runs.
+    Paused,
 }
 
 #[near(serializers = [json])]
@@ -508,6 +510,8 @@ impl Contract {
         let (v, h) = self.health(scenario_id, &account_id);
         let (status, unpriced_world) = if risk::is_healthy(h.hf) {
             (LiquidationState::None, None)
+        } else if self.liquidations_paused() {
+            (LiquidationState::Paused, None)
         } else if self.is_halted(scenario_id) {
             (LiquidationState::PausedHalted, None)
         } else if v.unpriced != 0 {
