@@ -230,3 +230,48 @@ export function oddsPair(pair: readonly [bigint, bigint]): [string, string] {
   const first = Number((pair[0] * 200n + total) / (2n * total));
   return [`${first}%`, `${100 - first}%`];
 }
+
+const WORLD_WORDS = (n: number) => `${n} ${n === 1 ? "world" : "worlds"}`;
+
+/** The market header's status: "#5 · 4 worlds · 0 of 2 resolved", plus " · paused: resolution pending" while halted. */
+export function statusLine(sid: number, worldCount: number, events: readonly { finalized: boolean }[], halted: boolean): string {
+  const done = events.filter((e) => e.finalized).length;
+  return `#${sid} · ${WORLD_WORDS(worldCount)} · ${done} of ${events.length} resolved${halted ? " · paused: resolution pending" : ""}`;
+}
+
+/** The soonest deadline (seconds) of an event with no final result yet; undefined once every event resolved. */
+export function nextDeadline(events: readonly { finalized: boolean; deadline: bigint }[]): number | undefined {
+  const open = events.filter((e) => !e.finalized).map((e) => Number(e.deadline));
+  return open.length ? Math.min(...open) : undefined;
+}
+
+/** The market header's price-check chip: the outside check on, off, or blocking new borrowing. */
+export type CheckState = "on" | "off" | "blocked";
+export function checkState(pc: { config: { reference: boolean }; borrowBlock: string | null }): CheckState {
+  if (pc.borrowBlock) return "blocked";
+  return pc.config.reference ? "on" : "off";
+}
+export const CHECK_LABEL: Readonly<Record<CheckState, string>> = {
+  on: "Outside price check on",
+  off: "Outside price check off",
+  blocked: "New borrowing paused",
+};
+
+/** A data source that is a web address renders as a link; anything else stays text. */
+export const isWebSource = (s: string): boolean => /^https:\/\/[^\s]+$/i.test(s.trim());
+
+/** The tab of a market-scoped path ("/orders/" → "orders"); undefined off the market's screens. */
+export type MarketTab = "trade" | "sell" | "orders" | "split" | "borrow" | "lend" | "resolve";
+export function tabOf(path: string | null): MarketTab | undefined {
+  const p = (path ?? "/").replace(/\/+$/, "");
+  const map: Record<string, MarketTab> = {
+    "/market": "trade",
+    "/sell": "sell",
+    "/orders": "orders",
+    "/split": "split",
+    "/borrow": "borrow",
+    "/lend": "lend",
+    "/resolve": "resolve",
+  };
+  return map[p];
+}

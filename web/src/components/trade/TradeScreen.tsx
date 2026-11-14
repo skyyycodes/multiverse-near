@@ -2,7 +2,9 @@
 
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Landing, useLandingVisible } from "@/components/landing/Landing";
+import { MarketHeader } from "@/components/markets/MarketHeader";
+import { RelatedMarkets } from "@/components/markets/RelatedMarkets";
+import { Rules, SeedInfo } from "@/components/markets/Rules";
 import { Screen } from "@/components/shell/Screen";
 import { EmptyWalletHint } from "@/components/shell/TestTokens";
 import { Segmented } from "@/components/ui/Bits";
@@ -13,6 +15,7 @@ import { CONTRACT_ID } from "@/lib/data/client";
 import type { AppConfig, Scenario } from "@/lib/domain";
 import { useChainClock, useNowSeconds } from "@/lib/hooks/useClock";
 import { useBalances, useScenarioId, useTrade } from "@/lib/hooks/useData";
+import { useMarketCard } from "@/lib/hooks/useMarket";
 import { useIsDesktop } from "@/lib/hooks/useMedia";
 import { usePicks } from "@/lib/hooks/useScenario";
 import { useWallet } from "@/lib/near/wallet";
@@ -20,19 +23,17 @@ import { cellQuotes } from "@/lib/orders";
 import { ActionTiles, BalanceChips, FuturesList, FuturesStrip, SpotHero } from "./Home";
 import { OrderPanel } from "./OrderPanel";
 import { SellPanel } from "./SellPanel";
-import { Rules, SpotStats } from "./SpotStats";
+import { SpotStats } from "./SpotStats";
 import { ConfigGuard } from "./Guard";
 
 type Focus = "sell" | "book";
 
 /**
- * Trade. On a phone `/` is the home (spot, futures, actions, the list of possible futures); `/sell/` and `/orders/`
- * are the two forms. On a desktop all three show the grid of worlds with the Sell / Order book sheet beside it, and
- * the grid is the order form: tap the worlds you fear.
+ * A market's trade screens, inside MarketGuard. On a phone `/market/` is the home (spot, futures, actions, the list of
+ * possible futures); `/sell/` and `/orders/` are the two forms. On a desktop all three show the grid of worlds with the
+ * Sell / Order book sheet beside it, and the grid is the order form: tap the worlds you fear.
  */
 export function TradeScreen({ focus }: { focus?: Focus }) {
-  const firstVisit = useLandingVisible();
-  if (!focus && firstVisit) return <Landing embedded />;
   return <ConfigGuard>{(config) => <Trade config={config} focus={focus} />}</ConfigGuard>;
 }
 
@@ -42,6 +43,7 @@ function Trade({ config, focus }: { config: AppConfig; focus?: Focus }) {
   const params = useSearchParams();
   const sid = useScenarioId(config);
   const trade = useTrade(sid, wallet.accountId);
+  const card = useMarketCard(sid).data ?? undefined;
   const balances = useBalances(wallet.accountId, config.wnear, config.usdc);
   const wallNow = useNowSeconds();
   const clock = useChainClock(trade.data?.nowSec, trade.dataUpdatedAt);
@@ -66,11 +68,13 @@ function Trade({ config, focus }: { config: AppConfig; focus?: Focus }) {
 
   const quotes = trade.data && config.orderBook ? cellQuotes(trade.data.orders, trade.data.scenario, wallNow) : undefined;
 
-  const status = s && (
-    <span className="num text-[12px] text-white/60" data-demo="scenario-status">
-      scenario {s.scenarioId} · {s.resolutionCount} resolved
-      {s.halted ? " · paused: resolution pending" : ""}
-    </span>
+  const header = sid !== undefined && <MarketHeader sid={sid} />;
+  // The market page's foot: how it was opened, then the markets that share its events.
+  const foot = !focus && card && (
+    <>
+      <SeedInfo card={card} onDark={desktop} />
+      <RelatedMarkets card={card} />
+    </>
   );
 
   const sellPanel = (picker: boolean, heading: boolean) =>
@@ -119,10 +123,8 @@ function Trade({ config, focus }: { config: AppConfig; focus?: Focus }) {
         demo="trade"
         hero={
           <div className="flex flex-col gap-5">
-            <div className="flex items-center justify-between gap-4">
-              <BalanceChips balances={balances.data} loading={balances.isLoading} hideConnect />
-              {status}
-            </div>
+            {header}
+            <BalanceChips balances={balances.data} loading={balances.isLoading} hideConnect />
             <EmptyWalletHint balances={balances.data} />
             <SpotHero scenario={s} />
           </div>
@@ -156,6 +158,7 @@ function Trade({ config, focus }: { config: AppConfig; focus?: Focus }) {
               <SpotStats scenario={s} impact={trade.data.impact} />
             </Block>
             <Rules events={trade.data.events} onDark />
+            {foot}
           </>
         ) : (
           <Block>{wait}</Block>
@@ -169,8 +172,12 @@ function Trade({ config, focus }: { config: AppConfig; focus?: Focus }) {
     return (
       <Screen
         demo={focus === "sell" ? "sell" : "orders"}
-        back={{ href: "/", label: "Trade" }}
-        hero={<FocusTitle focus={focus} label={world?.label} scenario={s} />}
+        hero={
+          <div className="flex flex-col gap-5">
+            {sid !== undefined && <MarketHeader sid={sid} compact />}
+            <FocusTitle focus={focus} label={world?.label} scenario={s} />
+          </div>
+        }
       >
         {trade.data ? (focus === "sell" ? sellPanel(true, false) : orderPanel(true, false)) : wait}
       </Screen>
@@ -182,12 +189,12 @@ function Trade({ config, focus }: { config: AppConfig; focus?: Focus }) {
       demo="trade"
       hero={
         <div className="flex flex-col gap-6">
+          {header}
           <BalanceChips balances={balances.data} loading={balances.isLoading} />
           <EmptyWalletHint balances={balances.data} />
           <SpotHero scenario={s} />
           {s && <FuturesStrip scenario={s} />}
           {s && <ActionTiles scenario={s} sellMask={picks.sellMask} />}
-          {status}
         </div>
       }
     >
@@ -196,6 +203,7 @@ function Trade({ config, focus }: { config: AppConfig; focus?: Focus }) {
           <FuturesList scenario={s} quotes={quotes} />
           <SpotStats scenario={s} impact={trade.data.impact} />
           <Rules events={trade.data.events} />
+          {foot}
         </>
       ) : (
         wait

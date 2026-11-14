@@ -1,7 +1,7 @@
 "use client";
 
 import { StatTile } from "@/components/ui/Bits";
-import type { EventState, ImpactPoint, Scenario } from "@/lib/domain";
+import type { ImpactPoint, Scenario } from "@/lib/domain";
 import { fmtPrice } from "@/lib/format";
 import { allBacked, impactGap, impactSeries, impliedNote, sparklinePath, SPARK_H, SPARK_W } from "@/lib/spot";
 
@@ -52,23 +52,5 @@ export function Sparkline({ points }: { points: ReturnType<typeof impactSeries> 
     <svg width={SPARK_W} height={SPARK_H} viewBox={`0 0 ${SPARK_W} ${SPARK_H}`} aria-label="Impact meter history" role="img" className="shrink-0">
       <path d={path} fill="none" stroke="var(--color-cobalt)" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
     </svg>
-  );
-}
-
-/** The precise rule of each event, under the grid. */
-export function Rules({ events, onDark }: { events: readonly EventState[]; onDark?: boolean }) {
-  return (
-    <div className={`flex flex-col gap-2.5 text-[12px] leading-relaxed ${onDark ? "text-white/60" : "text-mute"}`} data-demo="rules">
-      {events.map((e) => (
-        <p key={e.id}>
-          <span className={onDark ? "text-white" : "text-ink"}>{e.question}</span> {e.rule}
-          {e.finalized
-            ? ` Resolved: ${e.outcomeNames[e.outcome]}.`
-            : e.proposalOpen
-              ? " A result is proposed and in its dispute window."
-              : ""}
-        </p>
-      ))}
-    </div>
   );
 }

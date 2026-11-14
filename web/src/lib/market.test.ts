@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { MarketCard, ProposalSummary } from "./domain";
 import {
   cardMatches,
+  checkState,
   chunks,
   digit,
   eventIdsOf,
@@ -11,7 +12,9 @@ import {
   filterProposals,
   fold,
   gridBlocks,
+  isWebSource,
   kindLabel,
+  nextDeadline,
   oddsPair,
   parseFilter,
   parseSort,
@@ -21,7 +24,9 @@ import {
   shortDate,
   sortMarkets,
   sortProposals,
+  statusLine,
   survivor,
+  tabOf,
   utcMinute,
   worldLabel,
   yoursOf,
@@ -272,5 +277,38 @@ describe("helpers", () => {
   it("splits ids into the views' chunk sizes", () => {
     expect(chunks([1, 2, 3, 4, 5], 2)).toEqual([[1, 2], [3, 4], [5]]);
     expect(chunks([], 12)).toEqual([]);
+  });
+});
+
+describe("market header", () => {
+  const ev = (finalized: boolean, deadline: number) => ({ finalized, deadline: BigInt(deadline) });
+
+  it("states the market's progress", () => {
+    expect(statusLine(5, 4, [ev(false, 0), ev(false, 0)], false)).toBe("#5 · 4 worlds · 0 of 2 resolved");
+    expect(statusLine(7, 8, [ev(true, 0), ev(false, 0), ev(false, 0)], true)).toBe("#7 · 8 worlds · 1 of 3 resolved · paused: resolution pending");
+  });
+
+  it("takes the soonest deadline of an open event", () => {
+    expect(nextDeadline([ev(true, 100), ev(false, 300), ev(false, 200)])).toBe(200);
+    expect(nextDeadline([ev(true, 100)])).toBeUndefined();
+  });
+
+  it("names the outside price check", () => {
+    expect(checkState({ config: { reference: true }, borrowBlock: null })).toBe("on");
+    expect(checkState({ config: { reference: false }, borrowBlock: null })).toBe("off");
+    expect(checkState({ config: { reference: true }, borrowBlock: "ReferenceStale" })).toBe("blocked");
+  });
+
+  it("links only https sources", () => {
+    expect(isWebSource("https://www.federalreserve.gov/")).toBe(true);
+    expect(isWebSource("http://example.com")).toBe(false);
+    expect(isWebSource("The Fed's statement")).toBe(false);
+  });
+
+  it("finds the tab of a path, slash or not", () => {
+    expect(tabOf("/market/")).toBe("trade");
+    expect(tabOf("/orders")).toBe("orders");
+    expect(tabOf("/world/")).toBeUndefined();
+    expect(tabOf("/")).toBeUndefined();
   });
 });
