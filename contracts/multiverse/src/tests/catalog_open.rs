@@ -543,3 +543,37 @@ fn held_odds_push_moves_kind_b_odds_only_within_gate() {
         &format!("ReferenceUnavailable({s}, thin_odds)"),
     );
 }
+
+#[test]
+fn kind_b_prices_ignore_a_same_block_push() {
+    let mut w = market_world();
+    let (s, fed) = (w.s2x2, w.fed);
+    let pid = propose_market(&mut w, DAVE, &[fed]).unwrap();
+    let before = w.view(|c| c.opening_preview(pid));
+    // A push inside the band on the reference's odds pool and a world pool,
+    // in the same second: the TWAP has not seen it.
+    let (odds_pool, world_pool) = w.view(|c| {
+        (
+            *c.between.get(&(s, 0x3, 0xC)).unwrap(),
+            c.world_pool(s, 0).unwrap(),
+        )
+    });
+    let spot = w.view(|c| c.world_spot_price(s, 0).unwrap());
+    w.split_ft(CAROL, s, Usdc, &[0x3, 0xC], 300 * E18).unwrap();
+    w.call(CAROL, ONE_YOCTO, |c| {
+        c.swap(odds_pool, false, U128(300 * E18), U128(0))
+    })
+    .unwrap();
+    w.split_ft(CAROL, s, Wnear, &[1, 2, 4, 8], 2_000 * E18)
+        .unwrap();
+    w.call(CAROL, ONE_YOCTO, |c| {
+        c.swap(world_pool, true, U128(2_000 * E18), U128(0))
+    })
+    .unwrap();
+    assert!(w.view(|c| c.world_spot_price(s, 0).unwrap()) < spot * 97 / 100);
+    let after = w.view(|c| c.opening_preview(pid));
+    assert_eq!(
+        (after.s_ref, after.odds.clone(), after.prices.clone()),
+        (before.s_ref, before.odds, before.prices)
+    );
+}

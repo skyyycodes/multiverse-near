@@ -226,6 +226,12 @@ fn cancel_kind_a_in_review_returns_bond() {
     assert_eq!(storage_fund(&mut w), 0);
     assert!(deposit_of(&mut w, DAVE) >= dave + p.bond + p.reserve);
     assert_eq!(logged(&w, "proposal_cancelled")[0]["forfeited"], false);
+    // What came back is withdrawable like any storage deposit.
+    let available = w.view(|c| c.storage_balance_of(acc(DAVE)).unwrap().available.0);
+    assert!(available >= p.bond + p.reserve);
+    w.call(DAVE, ONE_YOCTO, |c| c.storage_withdraw(None))
+        .unwrap();
+    assert_eq!(w.last.near_transfers(), vec![(acc(DAVE), available)]);
     // The question is free again.
     propose_event(&mut w, CAROL).unwrap();
 }
