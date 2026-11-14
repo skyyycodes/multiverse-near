@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { RateCurve } from "@/components/lending/RateCurve";
 import { TierPicker } from "@/components/lending/TierPicker";
+import { MarketHeader } from "@/components/markets/MarketHeader";
 import { HeroNumber, Screen } from "@/components/shell/Screen";
 import { ConfigGuard } from "@/components/trade/Guard";
 import { InlineButton } from "@/components/ui/Button";
@@ -93,6 +94,7 @@ function Lend({ config, sid }: { config: AppConfig; sid: number }) {
       demo="lend"
       hero={
         <div className="flex flex-col gap-5">
+          <MarketHeader sid={sid} compact />
           <TierPicker tiers={tiers.data} value={tier} onChange={pick} mode="lend" />
           <HeroNumber
             demo="hero-supply-apr"

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { TierPicker } from "@/components/lending/TierPicker";
+import { MarketHeader } from "@/components/markets/MarketHeader";
 import { HeroNumber, Screen } from "@/components/shell/Screen";
 import { ConfigGuard } from "@/components/trade/Guard";
 import { InlineButton } from "@/components/ui/Button";
@@ -76,6 +77,7 @@ function Borrow({ config, sid }: { config: AppConfig; sid: number }) {
       demo="borrow"
       hero={
         <div className="flex flex-col gap-5">
+          <MarketHeader sid={sid} compact />
           <TierPicker tiers={tiers.data} value={tier} onChange={pick} mode="borrow" />
           <HeroNumber
             demo="hero-hf"

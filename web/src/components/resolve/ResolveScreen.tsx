@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { MarketHeader } from "@/components/markets/MarketHeader";
 import { HeroNumber, Screen } from "@/components/shell/Screen";
 import { FuturesList } from "@/components/trade/Home";
 import { ConfigGuard } from "@/components/trade/Guard";
@@ -55,28 +56,24 @@ function Resolve({ config }: { config: AppConfig }) {
       demo="resolve"
       asideFirst={Boolean(s && s.resolutionCount > 0)}
       hero={
-        <HeroNumber
-          demo="hero-resolved"
-          label={pending ? "Dispute window" : "Events resolved"}
-          loading={!s}
-          value={pending ? countdown(pendingLeft ?? 0n) : s ? `${s.resolutionCount} of ${s.eventIds.length}` : "—"}
-          tone={pending ? "text-warn-dark" : undefined}
-          sub={
-            s && (
-              <span className="flex flex-col gap-1">
-                {pending && (
-                  <span>
-                    {pending.outcomeNames[pending.proposedOutcome]} proposed for “{pending.question}” Anyone can finalize when the window closes.
-                  </span>
-                )}
-                <span className="num" data-demo="scenario-status">
-                  scenario {s.scenarioId} · {s.resolutionCount} of {s.eventIds.length} resolved
-                  {s.halted ? " · paused: resolution pending" : ""}
+        <div className="flex flex-col gap-5">
+          {/* The market header carries the status line (scenario-status): resolved count and the pause. */}
+          {sid !== undefined && <MarketHeader sid={sid} compact />}
+          <HeroNumber
+            demo="hero-resolved"
+            label={pending ? "Dispute window" : "Events resolved"}
+            loading={!s}
+            value={pending ? countdown(pendingLeft ?? 0n) : s ? `${s.resolutionCount} of ${s.eventIds.length}` : "—"}
+            tone={pending ? "text-warn-dark" : undefined}
+            sub={
+              pending && (
+                <span>
+                  {pending.outcomeNames[pending.proposedOutcome]} proposed for “{pending.question}” Anyone can finalize when the window closes.
                 </span>
-              </span>
-            )
-          }
-        />
+              )
+            }
+          />
+        </div>
       }
       aside={
         s && d ? (
