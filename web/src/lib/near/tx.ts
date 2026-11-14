@@ -200,6 +200,10 @@ export const borrow = (contractId: string, p: { scenarioId: number; amount: bigi
 export const repay = (usdcId: string, contractId: string, tokens: bigint, p: { scenarioId: number; all: boolean; tier?: Tier }): Tx =>
   ftTransferCall(usdcId, contractId, tokens, withTier({ action: "repay" as const, scenario_id: p.scenarioId, all: p.all }, p.tier));
 
+/** Takes a posted piece back ("usdc" / "wnear" for real collateral, the token id for a world's piece), `amount` internal. */
+export const withdrawCollateral = (contractId: string, p: { scenarioId: number; piece: string; amount: bigint; tier?: Tier }): Tx =>
+  call(contractId, "withdraw_collateral", withTier({ scenario_id: p.scenarioId, piece: p.piece, amount: u128(p.amount) }, p.tier));
+
 /** T10 */
 export const supply = (usdcId: string, contractId: string, tokens: bigint, p: { scenarioId: number; tier?: Tier }): Tx =>
   ftTransferCall(usdcId, contractId, tokens, withTier({ action: "supply" as const, scenario_id: p.scenarioId }, p.tier));

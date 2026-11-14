@@ -19,6 +19,8 @@ export type AppAction =
   | "borrow"
   | "repay"
   | "add_collateral"
+  | "withdraw_collateral"
+  | "withdraw_collateral_debt"
   | "supply"
   | "withdraw_supply"
   | "lp_deposit"
@@ -66,6 +68,8 @@ export const ACTION_FLAGS: Record<AppAction, readonly PauseFlag[]> = {
   borrow: ["lend"],
   repay: [],
   add_collateral: [],
+  withdraw_collateral: ["exit"],
+  withdraw_collateral_debt: ["lend"],
   supply: ["lend"],
   withdraw_supply: ["exit"],
   lp_deposit: ["mint"],

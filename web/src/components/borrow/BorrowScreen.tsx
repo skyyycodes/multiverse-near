@@ -38,7 +38,7 @@ import {
   type BorrowBanner,
 } from "@/lib/lending";
 import { borrowHref } from "@/lib/links";
-import { borrow, depositCollateral, GAS_CALL, GAS_MAX, repay, requestReference } from "@/lib/near/tx";
+import { borrow, depositCollateral, GAS_CALL, GAS_MAX, repay, requestReference, withdrawCollateral } from "@/lib/near/tx";
 import { useWallet } from "@/lib/near/wallet";
 import { graceLeft } from "@/lib/pause";
 import { TIER_LABEL } from "@/lib/tiers";
@@ -325,6 +325,7 @@ function Actions(p: ActionsProps) {
       <BorrowCard {...p} />
       <RepayCard {...p} />
       <CollateralCard {...p} />
+      {p.v.collateral.length > 0 && <WithdrawCollateralCard {...p} />}
     </>
   );
 }
@@ -465,6 +466,43 @@ function CollateralCard({ config, tier, v, s, walletUsdc, walletWnear }: Actions
         }}
         onDone={() => setInput("")}
       />
+    </Sheet>
+  );
+}
+
+/**
+ * Takes posted collateral back, one piece at a time: real USDC and wNEAR to the wallet, a world's piece to the account's
+ * holdings. With a loan open the contract only lets go of what keeps the borrow side healthy, and says so if not.
+ */
+function WithdrawCollateralCard({ tier, v, s }: ActionsProps) {
+  const submit = useSubmit();
+  const owes = v.debt > 0n;
+  return (
+    <Sheet demo="withdraw-collateral-card">
+      <SheetTitle sub={owes ? "With a loan open, only what keeps your health factor healthy can come out; repay first to take everything back." : undefined}>
+        Take collateral back · {TIER_LABEL[tier]}
+      </SheetTitle>
+      <ul className="flex flex-col gap-3">
+        {v.collateral.map((c) => (
+          <li key={c.tokenId} className="flex flex-col gap-2" data-demo="withdraw-collateral-row" data-piece={c.tokenId}>
+            <div className="flex justify-between gap-3 text-[13px]">
+              <span className="truncate text-ink">{c.label}</span>
+              <span className="num text-ink">{fmtAsset(c.asset, c.amount)}</span>
+            </div>
+            <TxButton
+              demo="withdraw-collateral-confirm"
+              action={owes ? "withdraw_collateral_debt" : "withdraw_collateral"}
+              tone="secondary"
+              size="sm"
+              label={c.isReal ? "Withdraw to wallet" : "Withdraw to holdings"}
+              busyLabel="Withdrawing…"
+              gas={GAS_CALL}
+              needs={{ contract: true, tokens: c.isReal ? [c.asset] : undefined }}
+              run={() => submit(withdrawCollateral(CONTRACT_ID, { scenarioId: s.scenarioId, piece: c.tokenId, amount: c.amount, tier }))}
+            />
+          </li>
+        ))}
+      </ul>
     </Sheet>
   );
 }

@@ -43,6 +43,7 @@ import {
   topUpProposal,
   unpauseTx,
   withdrawPledge,
+  withdrawCollateral,
   withdrawSupply,
   withTier,
   writeOffBadDebt,
@@ -164,6 +165,16 @@ describe("lending transactions", () => {
       deposit: "1",
     });
     expect(one(withdrawSupply(APP, { scenarioId: 5, amount: 7n })).args).toEqual({ scenario_id: 5, amount: "7" });
+  });
+
+  it("takes a posted piece back per tier: real assets by name, world pieces by token id", () => {
+    expect(one(withdrawCollateral(APP, { scenarioId: 1, piece: "wnear", amount: 200n * 10n ** 18n, tier: "safe" }))).toMatchObject({
+      method: "withdraw_collateral",
+      args: { scenario_id: 1, piece: "wnear", amount: "200000000000000000000", tier: "safe" },
+      gas: GAS_CALL,
+      deposit: "1",
+    });
+    expect(one(withdrawCollateral(APP, { scenarioId: 1, piece: "1:usdc:2", amount: 5n })).args).toEqual({ scenario_id: 1, piece: "1:usdc:2", amount: "5" });
   });
 
   it("T15 and T16: close per tier", () => {

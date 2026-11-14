@@ -49,6 +49,8 @@ const SENDS: Record<AppAction, readonly string[]> = {
   borrow: ["borrow"],
   repay: ["repay"],
   add_collateral: ["deposit_collateral"],
+  withdraw_collateral: ["withdraw_collateral"],
+  withdraw_collateral_debt: ["withdraw_collateral_debt"],
   supply: ["supply"],
   withdraw_supply: ["withdraw_supply"],
   lp_deposit: ["lp_deposit"],
