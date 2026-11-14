@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
-  <!-- Origami butterfly, turning pose. Dark ink on light backgrounds.
+  <!-- Folded-paper butterfly, turning pose. Dark ink on light backgrounds.
        Tone variables: d is the dark face, l the light face. The far wings get lighter tones for depth. -->
   <defs>
     <g id="half">
