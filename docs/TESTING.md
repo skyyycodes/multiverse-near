@@ -1,23 +1,26 @@
 # Testing
 
-Every layer below runs from the repository root. The counts were measured on 2026-11-12 on `main`. The property
-tests draw new random cases on every run, so the statistics they print change from run to run; the pass/fail
-result should not.
+Every layer below runs from the repository root. The quick-reference counts were measured on 2026-11-14 on `main`
+(`d46de5e`), except the sandbox end to end, last run on 2026-11-12 against the first version. The per-file notes
+below were written for the first version; v2's added test files are listed under "Contract unit tests". The
+property tests draw new random cases on every run, so the statistics they print change from run to run; the
+pass/fail result should not.
 
 ## Quick reference
 
 | Layer | Command | Result measured |
 |---|---|---|
-| Rust: maths, contract, mock token | `cargo test --workspace` | 551 passed, 0 failed |
+| Rust: maths, contract, mock token | `cargo test --workspace` | 856 passed, 0 failed |
 | Formatting and lints | `cargo fmt --all --check` and `cargo clippy --workspace --all-targets -- -D warnings` | clean |
-| The six invariants, with their statistics | `cargo test -p multiverse-contract invariant_ -- --nocapture` | 7 passed (invariant 1 runs twice, once with a 24-decimal wNEAR) |
+| The six invariants, with their statistics | `cargo test -p multiverse-contract invariant_ -- --nocapture` | 9 passed (invariant 1 also runs with a 24-decimal wNEAR, invariants 3 and 4 also at eight worlds) |
 | OutLayer guest | `cd oracle/fred-guest && cargo test --locked` | 12 passed |
-| Scripts | `pnpm -C scripts test` | 105 tests: 104 passed, 1 skipped (live FRED) |
-| Scripts with live FRED | `pnpm -C scripts test:live` | the 18 FRED tests, including the live query |
-| Web unit tests | `pnpm -C web test` | 107 passed in 17 files |
-| Web typecheck and lint | `pnpm -C web typecheck` and `pnpm -C web lint` | clean |
-| End-to-end on a sandbox node | see "Sandbox end to end" below | all 13 steps ok |
-| Browser flows (Playwright) | see `web/README.md` | not re-run for this document |
+| Scripts | `pnpm -C scripts test` | 464 tests: 463 passed, 1 skipped (live FRED) |
+| Scripts with live FRED | `pnpm -C scripts test:live` | 18 passed, including the live query |
+| App unit tests | `pnpm -C ui test` | 386 passed in 37 files |
+| App typecheck and lint | `pnpm -C ui typecheck` and `pnpm -C ui lint` | clean (lint prints warnings only) |
+| Earlier interface, not deployed | `pnpm -C web test` | 304 passed in 37 files |
+| End-to-end on a sandbox node | see "Sandbox end to end" below | all 13 steps ok (first version, 2026-11-12) |
+| Browser flows (Playwright) | see `ui/INTEGRATION.md` | not re-run for this document |
 
 ## Maths crate (`crates/multiverse-math`)
 
@@ -26,15 +29,15 @@ pools, the dynamic fee, the TWAP ring, odds, shares, order maths and worst-world
 
 | Binary | Tests | What it covers |
 |---|---|---|
-| unit tests in `src/` | 64 | Each module's own cases: rounding directions, overflow panics, fee window, TWAP spacing (the 3 serde-form tests in `src/serde_impls.rs` run only with `cargo test -p multiverse-math --features serde`) |
-| `tests/reference_vectors.rs` | 2 | A differential test. `tests/vectors/reference-vectors.txt` (4,188 lines) holds reference vectors generated from the prototype's maths (tick maths, the full-width `mul_div`, price conversion, the odds tree, share, order and swap maths, and the TWAP oracle) from a fixed pseudo-random input chain. Every line must come out the same here, bit for bit |
+| unit tests in `src/` | 103 | Each module's own cases: rounding directions, overflow panics, fee window, TWAP spacing (the 3 serde-form tests in `src/serde_impls.rs` run only with `cargo test -p multiverse-math --features serde`) |
+| `tests/reference_vectors.rs` | 2 | A differential test. `tests/vectors/reference-vectors.txt` (4,188 lines) holds reference vectors computed from the prototype's maths (tick maths, the full-width `mul_div`, price conversion, the odds tree, share, order and swap maths, and the TWAP oracle) from a fixed pseudo-random input chain. Every line must come out the same here, bit for bit |
 | `tests/libraries.rs` | 10 | The TWAP oracle and the price conversions against the reference test suite, same inputs and assertions; its fuzz tests run as proptests with 512 cases |
-| `tests/pools.rs` | 23 | The pool layer: the dynamic fee and the TWAP, the spot pool's price moves, the odds, and the demo's golden numbers at NEAR scale (a few USDC per NEAR, pools 100,000 NEAR deep, DELAYED·HOLDS 40,000), on the constant-product pool |
-| `tests/properties.rs` | 14 | Proptests (512 to 1,024 cases each): integer maths agrees with wide references, pools never lose value to rounding, fees stay within base and cap, share and order maths never favour the user, odds always add up to 1, a liquidation slice covers its repayment |
+| `tests/pools.rs` | 26 | The pool layer: the dynamic fee and the TWAP, the spot pool's price moves, the odds, and the demo's golden numbers at NEAR scale (a few USDC per NEAR, pools 100,000 NEAR deep, DELAYED·HOLDS 40,000), on the constant-product pool |
+| `tests/properties.rs` | 15 | Proptests (512 to 1,024 cases each): integer maths agrees with wide references, pools never lose value to rounding, fees stay within base and cap, share and order maths never favour the user, odds always add up to 1, a liquidation slice covers its repayment |
 
 ## Contract unit tests (`contracts/multiverse/src/tests`)
 
-413 tests that run natively against near-sdk's mocked runtime, one file per area. `harness.rs` drives the contract
+675 tests that run natively against near-sdk's mocked runtime, one file per area. `harness.rs` drives the contract
 like a chain would: it runs `ft_on_transfer` the way a token contract calls it, resolves payout promises (with an
 option to fail them), moves block time, and checks conservation: for every verse token, supply equals what accounts,
 pools, order escrow, collateral and the Root LP vault hold.
@@ -57,6 +60,10 @@ pools, order escrow, collateral and the Root LP vault hold.
 | `views.rs` | The per-screen snapshot views |
 | `outlayer.rs` | 16 tests: configuration, the request, and a callback that never panics on a failed, `null` or malformed result |
 | `security.rs` | The 8 regression tests for eight of the ten findings of `docs/SECURITY.md` (STD-3's is in `scripts/lib/resolver.test.ts`, STD-4's in `contracts/mock-ft/src/lib.rs`), each first written as a failing test against the unfixed code |
+
+v2 added `tiers.rs`, `insurance.rs`, `bad_debt.rs`, `borrowers.rs`, `cash_out.rs`, `reference.rs`, `prices.rs`,
+`eight.rs` (eight-world markets), the `catalog_*.rs` files (proposals, pledges, seeding and opening markets),
+`migration.rs`, `ops.rs`, `scaffold.rs`, `layout.rs` and `profile.rs`.
 
 `golden_demo_sale` runs the demo end to end at NEAR scale: the seeded pools, Bob's supply, Ravi's bid, Alice's
 2,000 NEAR sale in the L-shape and her 3,000 USDC loan. It checks the per-world proceeds (5,865.05, 6,451.55,
@@ -104,17 +111,22 @@ deployments file, the RPC client, Polymarket odds parsing, FRED parsing and the 
 the OutLayer configuration and result checks, and the resolver (it maps an answer to an outcome by name, and writes
 nothing for an event that asks another question). `test:live` adds one query against fred.stlouisfed.org.
 
-## Web (`web/src/**/*.test.ts`)
+## App (`ui/src/**/*.test.ts`)
 
-Vitest: number formatting, units, the order book and sale planner, settlement, lending maths, spot maths,
-transaction encoding, reading a refunded `ft_transfer_call` as a failure, the RPC fallbacks, the testnet faucet
-(which mints it sends, within the cap, and when the home screen offers it), when the home screen shows an "In
-IfVerse" balance, and the design fixtures' golden numbers. `decode.live.test.ts` decodes view answers captured
-from a freshly seeded sandbox node, so a renamed field fails here instead of as a blank screen.
+Vitest over the live app's chain layer and screens: decoding the v2 views, the market board, markets, tiers,
+lending and liquidation maths, the order book, split and merge, settlement, spot maths, the testnet faucet, the
+keeper ping, proposals and governance, pause flags, the storage floor, transaction encoding and errors, the RPC
+fallbacks, number formatting and units, and the release checks (brand, navigation, links, version).
+`decode.live.test.ts` decodes view answers captured from a freshly seeded sandbox node, so a renamed field fails
+here instead of as a blank screen.
 
-Playwright (`web/e2e`) covers the browser: the acceptance flow on a phone and a desktop against design fixtures, the
-real build against testnet, the demo-wallet build signing against a stand-in RPC, and (`pnpm e2e:live`) the full
-flow against a seeded sandbox node. Commands are in `web/README.md`.
+Playwright (`ui/e2e`) covers the browser against the staging deployment, signing with the team's test keys through
+the demo-wallet bridge: the shell (read-only), the markets, trading, lending and governance tracks, and
+`staging.spec.ts`, the whole site as a first-time visitor with real transactions. Commands are in
+`ui/INTEGRATION.md`.
+
+The earlier interface keeps its own tests (`pnpm -C web test`) and its Playwright flows in `web/e2e`, described in
+`web/README.md`.
 
 ## Sandbox end to end (`scripts/e2e.ts`)
 
