@@ -493,32 +493,40 @@ async function borrowShare(sid: number, who: string, tier: Tier, shareBps: bigin
   return line;
 }
 
-/** Pledges the ideal mix (+2%) from two personas, one asset each; the second pledge reaches the goal. */
+/**
+ * Pledges the ideal mix (+2%) from two personas, one asset each; the pledge that reaches the goal
+ * schedules the opening. Short of the goal (the planner's usable value), both sides grow by 10% a round.
+ */
 async function pledgeToGoal(key: string, pid: number, wnearFrom: string, usdcFrom: string): Promise<number> {
   let p = await P.proposal(pid);
   if (!p) throw new Error(`no proposal ${pid}`);
-  if (p.opened) return p.opened.scenario_id;
-  const wantW = (u128(p.ideal_wnear) * 10_200n) / 10_000n;
-  const wantU = roundUpToStep((u128(p.ideal_usdc) * 10_200n) / 10_000n, 6);
-  for (const [who, asset, want, have] of [
-    [wnearFrom, "wnear", wantW, u128(p.pledged_wnear)],
-    [usdcFrom, "usdc", wantU, u128(p.pledged_usdc)],
-  ] as const) {
-    if (have >= want) continue;
-    await ensureFloat(who);
-    const amount = asset === "usdc" ? roundUpToStep(want - have, 6) : want - have;
-    await mintTo(who, asset, amount);
-    const r = rec(await P.pledge(who, pid, asset, amount));
-    if (r.logs.some((l) => l.includes('"market_opened"'))) console.log(`  ${key}: opened by ${who}'s pledge`);
-  }
-  p = await P.proposal(pid);
-  if (!p?.opened) {
-    console.log(`  ${key}: proposal ${pid} status ${p?.status}, blocker ${p?.blocker}; opening it`);
-    await ensureFloat(owner());
-    rec(await P.openMarket(owner(), pid));
+  let margin = 10_200n;
+  for (let round = 0; round < 4 && !p.opened; round++) {
+    const wantW = (u128(p.ideal_wnear) * margin) / 10_000n;
+    const wantU = roundUpToStep((u128(p.ideal_usdc) * margin) / 10_000n, 6);
+    for (const [who, asset, want, have] of [
+      [wnearFrom, "wnear", wantW, u128(p.pledged_wnear)],
+      [usdcFrom, "usdc", wantU, u128(p.pledged_usdc)],
+    ] as const) {
+      if (have >= want) continue;
+      await ensureFloat(who);
+      const amount = asset === "usdc" ? roundUpToStep(want - have, 6) : want - have;
+      await mintTo(who, asset, amount);
+      const r = rec(await P.pledge(who, pid, asset, amount));
+      if (r.logs.some((l) => l.includes('"market_opened"'))) console.log(`  ${key}: opened by ${who}'s pledge`);
+    }
     p = await P.proposal(pid);
+    if (!p) throw new Error(`no proposal ${pid}`);
+    if (!p.opened && p.status === "ready") {
+      await ensureFloat(owner());
+      rec(await P.openMarket(owner(), pid));
+      p = await P.proposal(pid);
+      if (!p) throw new Error(`no proposal ${pid}`);
+    }
+    if (!p.opened) console.log(`  ${key}: proposal ${pid} status ${p.status}, blocker ${p.blocker}`);
+    margin += 1_000n;
   }
-  if (!p?.opened) throw new Error(`${key}: proposal ${pid} did not open (${p?.blocker})`);
+  if (!p.opened) throw new Error(`${key}: proposal ${pid} did not open (${p.blocker})`);
   return p.opened.scenario_id;
 }
 
