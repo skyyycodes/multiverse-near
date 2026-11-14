@@ -15,7 +15,7 @@ import { SearchField } from "@/components/ui/SearchField";
 import { Block } from "@/components/ui/Surface";
 import { BRAND } from "@/lib/brand";
 import type { AppConfig } from "@/lib/domain";
-import { fmtPrice, relTime } from "@/lib/format";
+import { fmtPrice, referenceOrigin, relTime } from "@/lib/format";
 import { proposeHref } from "@/lib/links";
 import {
   CATEGORY_NAMES,
@@ -284,7 +284,7 @@ function PriceChips({ config }: { config: AppConfig }) {
       {r && (
         <span data-demo="list-reference">
           <Chip onDark className="px-3 py-1.5 text-[12px]" title="The outside NEAR/USD median the contract checks its markets against">
-            NEAR/USD {fmtPrice(r.price)} · {r.sourcesUsed} {r.sourcesUsed === 1 ? "source" : "sources"} · {relTime(-r.ageSec)}
+            NEAR/USD {fmtPrice(r.price)} · {r.sourcesUsed > 0 ? `${r.sourcesUsed} ${r.sourcesUsed === 1 ? "source" : "sources"}` : referenceOrigin(r)} · {relTime(-r.ageSec)}
           </Chip>
         </span>
       )}

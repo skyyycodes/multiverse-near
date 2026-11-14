@@ -10,7 +10,7 @@ import { TextField } from "@/components/ui/TextField";
 import { TxButton } from "@/components/ui/TxButton";
 import { CONTRACT_ID } from "@/lib/data/client";
 import type { AppConfig, MarketParams } from "@/lib/domain";
-import { fmt, fmtBps, fmtPrice, relTime, shortAccount, utcDate, utf8Bytes } from "@/lib/format";
+import { fmt, fmtBps, fmtPrice, referenceOrigin, relTime, shortAccount, utcDate, utf8Bytes } from "@/lib/format";
 import { useNowSeconds } from "@/lib/hooks/useClock";
 import { useMarketCard } from "@/lib/hooks/useMarket";
 import { useContractVersion, usePauseState } from "@/lib/hooks/useOps";
@@ -246,7 +246,7 @@ export function ReferenceBox() {
         <InfoRows
           rows={[
             { label: "Price", value: fmtPrice(r.price) },
-            { label: "Source", value: `${r.source} · ${r.sourcesUsed} exchanges · spread ${fmtBps(r.spreadBps)}` },
+            { label: "Source", value: r.sourcesUsed > 0 ? `${r.source} · ${referenceOrigin(r)}` : referenceOrigin(r) },
             { label: "Observed", value: `${utcDate(r.observedAt)} (${spanWords(r.ageSec)} old)` },
             ...(r.pending ? [{ label: "Request", value: `#${r.request} pending` }] : []),
           ]}

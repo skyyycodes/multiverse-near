@@ -114,6 +114,15 @@ export function fmtBps(bps: number): string {
 }
 
 /**
+ * Where an outside NEAR/USD reading came from: "4 sources · spread 0.83%" for an aggregated one, "the reporter" for
+ * one the reporter posted (that path records no source count, so "0 sources" would read as broken).
+ */
+export function referenceOrigin(r: { source: string; sourcesUsed: number; spreadBps: number }): string {
+  if (r.sourcesUsed > 0) return `${r.sourcesUsed} ${r.sourcesUsed === 1 ? "source" : "sources"} · spread ${fmtBps(r.spreadBps)}`;
+  return r.source === "outlayer" ? "OutLayer (TEE)" : r.source === "reporter" ? "the reporter" : r.source;
+}
+
+/**
  * Dollars in a card's tight space, truncated toward zero like `fmt`: "$950", "$999.99", "$1.0k", "$42.1k", "$999.9k",
  * "$1.00M", "$1.25M", "$2.50B".
  */
