@@ -116,6 +116,21 @@ const ACCOUNT: &[&str] = &[
     "lltv",
     "liquidation",
     "unpriced_world",
+    // v2: the tier's terms, the borrow side and the reference
+    "tier",
+    "borrow_ltv",
+    "borrow_health_factor",
+    "borrow_limit",
+    "max_borrow",
+    "liquidation_bonus",
+    "insurance",
+    "min_loan",
+    "frozen",
+    "max_repay",
+    "write_off_ready",
+    "world_status",
+    "borrow_block",
+    "liquidation_factor",
 ];
 const PIECE: &[&str] = &["token_id", "label", "asset", "mask", "is_real", "amount"];
 
@@ -262,7 +277,7 @@ fn scenario(w: &mut World, sid: u64, who: Option<&str>) -> ScenarioView {
 
 fn account(w: &mut World, sid: u64, who: Option<&str>) -> AccountView {
     let who = who.map(acc);
-    w.view(|c| c.borrow_view(sid, who)).account
+    w.view(|c| c.borrow_view(sid, who, None)).account
 }
 
 /// A third, already-decided event for the demo record to point at.
@@ -393,7 +408,7 @@ fn trade_view_json_shape() {
 fn borrow_view_json_shape() {
     let mut w = lending_world(50_000 * E18);
     let s = w.s2x2;
-    let none = json(&w.view(|c| c.borrow_view(s, None)));
+    let none = json(&w.view(|c| c.borrow_view(s, None, None)));
     assert_keys(&none, &["scenario", "account", "now_sec"]);
     assert_scenario_json(&none["scenario"]);
     assert_account_json(&none["account"]);
@@ -405,7 +420,7 @@ fn borrow_view_json_shape() {
     w.l_shape(ALICE);
     w.post_real(ALICE, s, Wnear, E18).unwrap();
     w.borrow(ALICE, s, 3_000 * E18).unwrap();
-    let v = json(&w.view(|c| c.borrow_view(s, Some(acc(ALICE)))));
+    let v = json(&w.view(|c| c.borrow_view(s, Some(acc(ALICE)), None)));
     let a = &v["account"];
     assert_account_json(a);
     assert_u128(&a["health_factor"]);
@@ -426,7 +441,7 @@ fn borrow_view_json_shape() {
 fn lend_view_json_shape() {
     let mut w = lending_world(50_000 * E18);
     let s = w.s_bin;
-    let v = json(&w.view(|c| c.lend_view(s, Some(acc(BOB)))));
+    let v = json(&w.view(|c| c.lend_view(s, Some(acc(BOB)), None)));
     assert_keys(&v, &["account", "root_lp", "worlds"]);
     assert_account_json(&v["account"]);
     // the Root LP is not wired into this snapshot yet
@@ -443,7 +458,7 @@ fn lend_view_json_shape() {
     assert_eq!(worlds[1]["label"], "DELAYED");
 
     let s = w.s2x2;
-    let v = json(&w.view(|c| c.lend_view(s, Some(acc(BOB)))));
+    let v = json(&w.view(|c| c.lend_view(s, Some(acc(BOB)), None)));
     assert_eq!(u(&v["account"]["supplied"]), 50_000 * E18);
     assert_eq!(u(&v["account"]["supply_principal"]), 50_000 * E18);
     let labels: Vec<&str> = v["worlds"]
@@ -462,7 +477,7 @@ fn lend_view_json_shape() {
 fn resolve_view_json_shape_and_past_fed_event() {
     let mut w = pool_world();
     let s = w.s2x2;
-    let v = json(&w.view(|c| c.resolve_view(s, None)));
+    let v = json(&w.view(|c| c.resolve_view(s, None, None)));
     assert_keys(
         &v,
         &["scenario", "events", "past_fed_event", "account", "now_sec"],
@@ -474,9 +489,12 @@ fn resolve_view_json_shape_and_past_fed_event() {
     let past = past_fed(&mut w);
     // a record naming an event that does not exist reads as no event
     set_demo(&mut w, r#"{"past_fed_event":99}"#);
-    assert!(w.view(|c| c.resolve_view(s, None)).past_fed_event.is_none());
+    assert!(w
+        .view(|c| c.resolve_view(s, None, None))
+        .past_fed_event
+        .is_none());
     set_demo(&mut w, &format!(r#"{{"past_fed_event":"{past}"}}"#));
-    let v = json(&w.view(|c| c.resolve_view(s, Some(acc(ALICE)))));
+    let v = json(&w.view(|c| c.resolve_view(s, Some(acc(ALICE)), None)));
     let e = &v["past_fed_event"];
     assert_event_json(e);
     assert_eq!(e["id"], past);
@@ -486,7 +504,7 @@ fn resolve_view_json_shape_and_past_fed_event() {
 
     // an open proposal shows in the events and halts the scenario
     w.report(w.fed, OUT_HOLDS).unwrap();
-    let v = json(&w.view(|c| c.resolve_view(s, None)));
+    let v = json(&w.view(|c| c.resolve_view(s, None, None)));
     let fed = &v["events"][1];
     assert_eq!(fed["proposal_open"], true);
     assert_eq!(fed["proposed_by"], "reporter");
@@ -665,7 +683,7 @@ fn account_view_liquidation_states() {
         (a.liquidation, a.unpriced_world),
         (LiquidationState::PausedNoPrice, Some(0))
     );
-    let status = w.view(|c| c.liquidation_status(s, acc(ALICE)));
+    let status = w.view(|c| c.liquidation_status(s, acc(ALICE), None));
     assert_eq!(
         (status.status, status.unpriced_world),
         (a.liquidation, a.unpriced_world)

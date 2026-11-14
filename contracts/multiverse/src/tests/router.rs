@@ -285,7 +285,7 @@ impl Router for World {
     }
 
     fn close_direct(&mut self, who: &str, sid: u64) -> Result<u128, String> {
-        let r = self.call(who, ONE_YOCTO, |c| c.close_after_resolution(sid).0)?;
+        let r = self.call(who, ONE_YOCTO, |c| c.close_after_resolution(sid, None).0)?;
         self.conserved();
         Ok(r)
     }
@@ -413,6 +413,7 @@ fn rejects_bad_requests() {
                 vec![vec![]; 4],
                 vec![U128(0); 4],
                 false,
+                None,
             )
         }),
         "ZeroAmount",
@@ -1042,7 +1043,15 @@ fn accept_ask_exact_cost() {
                 order_id: U64(ask),
                 amount: U128(1_000_000_000_000_000 + 1),
             }];
-            c.conditional_buy(s, U128(pay), DELAYED_HOLDS, plans, vec![U128(0); 4], false)
+            c.conditional_buy(
+                s,
+                U128(pay),
+                DELAYED_HOLDS,
+                plans,
+                vec![U128(0); 4],
+                false,
+                None,
+            )
         })
         .unwrap();
     w.conserved();
@@ -1471,6 +1480,7 @@ fn direct_trades_draw_on_the_internal_balance_and_pay_storage() {
                 vec![vec![]; 4],
                 vec![U128(0); 4],
                 false,
+                None,
             )
         })
     };
@@ -1499,6 +1509,7 @@ fn direct_trades_draw_on_the_internal_balance_and_pay_storage() {
                 vec![vec![]; 4],
                 vec![U128(0); 4],
                 false,
+                None,
             )
         })
         .unwrap();

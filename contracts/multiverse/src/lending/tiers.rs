@@ -7,13 +7,17 @@
 //! scenario and nothing is re-keyed. Key `0 | code << 56` holds a tier's
 //! default config (scenario 0 never exists).
 
+use multiverse_math::irm::Curve;
+use multiverse_math::mul_div_down;
 use multiverse_math::risk::CLOSE_FACTOR;
 use near_sdk::json_types::U128;
-use near_sdk::{near, AccountId};
+use near_sdk::serde::Serialize;
+use near_sdk::{assert_one_yocto, env, near};
 
-use crate::migrate::{LendingMigrateArgs, LendingUpgradeLog};
-use crate::types::WAD;
-use crate::Contract;
+use crate::errors::fail;
+use crate::events::MultiverseEvent;
+use crate::types::{Params, WAD};
+use crate::{Contract, ContractExt};
 
 /// JSON "normal" | "safe" | "bold"; missing in a msg or call argument =
 /// Normal. Never stored as Borsh.
@@ -139,11 +143,11 @@ impl Default for LendingParams {
     }
 }
 
-pub const SECONDS_PER_YEAR: u128 = 31_536_000;
+pub use multiverse_math::irm::{MAX_RATE_PER_SEC, SECONDS_PER_YEAR};
 
 /// A per-second rate from an APR in hundredths of a percent, rounded down.
 const fn per_sec(apr_bps: u128) -> u128 {
-    apr_bps * (WAD / 10_000) / SECONDS_PER_YEAR
+    multiverse_math::irm::rate_per_sec(apr_bps)
 }
 
 /// A WAD fraction from hundredths of a percent.
@@ -235,6 +239,344 @@ pub struct LendingConfigView {
     pub defaults: Vec<TierDefaultView>,
 }
 
+/// 0.10: the default gap between a tier's liquidation LTV and its borrow LTV.
+pub const BORROW_CUSHION: u128 = WAD / 10;
+
+impl TierConfig {
+    /// The rate curve, for the maths crate.
+    pub fn curve(&self) -> Curve {
+        Curve {
+            base: self.rate_base,
+            slope1: self.rate_slope1,
+            slope2: self.rate_slope2,
+            kink: self.rate_kink,
+        }
+    }
+
+    /// A legacy market that had debt at the upgrade keeps v1's economics
+    /// exactly: v1's lltv and bonus, its flat rate (no slopes), no reserve and
+    /// no utilization cap. Only the borrow side gains the 0.10 cushion.
+    pub fn v1_terms(params: &Params) -> Self {
+        Self {
+            lltv: params.lltv,
+            borrow_ltv: params.lltv.saturating_sub(BORROW_CUSHION),
+            liquidation_bonus: params.liquidation_bonus,
+            reserve_factor: 0,
+            rate_base: params.borrow_rate_per_sec,
+            rate_slope1: 0,
+            rate_slope2: 0,
+            rate_kink: pct(8_000),
+            max_utilization: WAD,
+            borrow_cap: u128::MAX,
+        }
+    }
+
+    /// Every other legacy Normal market: v1's lltv and bonus on the Normal
+    /// curve, reserve and utilization cap.
+    pub fn legacy_live(params: &Params) -> Self {
+        let normal = TierState::builtin(Tier::Normal).config;
+        Self {
+            lltv: params.lltv,
+            borrow_ltv: params.lltv.saturating_sub(BORROW_CUSHION),
+            liquidation_bonus: params.liquidation_bonus,
+            ..normal
+        }
+    }
+
+    /// The bounds every stored config meets (L-7), checked in this order.
+    pub fn validate(&self) {
+        if !(pct(3_000)..=pct(8_500)).contains(&self.lltv) {
+            fail("InvalidTierConfig(lltv)");
+        }
+        if self.borrow_ltv == 0 || self.borrow_ltv > self.lltv {
+            fail("InvalidTierConfig(borrow_ltv)");
+        }
+        let bonus = self.liquidation_bonus;
+        if !(pct(100)..=pct(1_500)).contains(&bonus)
+            || mul_div_down(self.lltv, WAD + bonus, WAD) >= pct(9_000)
+        {
+            fail!("InvalidLiquidationBonus({bonus})");
+        }
+        if self.reserve_factor > pct(5_000) {
+            fail("InvalidTierConfig(reserve_factor)");
+        }
+        let top = self
+            .rate_base
+            .checked_add(self.rate_slope1)
+            .and_then(|r| r.checked_add(self.rate_slope2));
+        if !(pct(5_000)..=pct(9_500)).contains(&self.rate_kink)
+            || top.is_none_or(|r| r > MAX_RATE_PER_SEC)
+        {
+            fail("InvalidTierConfig(rate)");
+        }
+        if !(pct(5_000)..=WAD).contains(&self.max_utilization) {
+            fail("InvalidTierConfig(max_utilization)");
+        }
+        if self.borrow_cap == 0 {
+            fail("InvalidTierConfig(borrow_cap)");
+        }
+    }
+}
+
+impl LendingParams {
+    /// v1's lending: no minimum loan, no full liquidation.
+    pub const OFF: Self = Self {
+        min_loan: 0,
+        full_liquidation_hf: 0,
+        small_loan: 0,
+    };
+
+    pub fn validate(&self) {
+        if self.min_loan > 10_000 * WAD {
+            fail("InvalidLendingParams(min_loan)");
+        }
+        let hf = self.full_liquidation_hf;
+        if hf != 0 && !(pct(9_000)..=WAD).contains(&hf) {
+            fail("InvalidLendingParams(full_liquidation_hf)");
+        }
+        if self.small_loan < self.min_loan.saturating_mul(2) {
+            fail("InvalidLendingParams(small_loan)");
+        }
+    }
+}
+
+/// A config as the owner sends it: every field required, U128 strings;
+/// `borrow_cap` null for none.
+#[near(serializers = [json])]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct TierConfigInput {
+    pub lltv: U128,
+    pub borrow_ltv: U128,
+    pub liquidation_bonus: U128,
+    pub reserve_factor: U128,
+    pub rate_base: U128,
+    pub rate_slope1: U128,
+    pub rate_slope2: U128,
+    pub rate_kink: U128,
+    pub max_utilization: U128,
+    pub borrow_cap: Option<U128>,
+}
+
+impl From<TierConfigInput> for TierConfig {
+    fn from(c: TierConfigInput) -> Self {
+        Self {
+            lltv: c.lltv.0,
+            borrow_ltv: c.borrow_ltv.0,
+            liquidation_bonus: c.liquidation_bonus.0,
+            reserve_factor: c.reserve_factor.0,
+            rate_base: c.rate_base.0,
+            rate_slope1: c.rate_slope1.0,
+            rate_slope2: c.rate_slope2.0,
+            rate_kink: c.rate_kink.0,
+            max_utilization: c.max_utilization.0,
+            borrow_cap: c.borrow_cap.map_or(u128::MAX, |cap| cap.0),
+        }
+    }
+}
+
+impl From<&TierConfig> for TierConfigInput {
+    fn from(c: &TierConfig) -> Self {
+        let v = TierConfigView::from(c);
+        Self {
+            lltv: v.lltv,
+            borrow_ltv: v.borrow_ltv,
+            liquidation_bonus: v.liquidation_bonus,
+            reserve_factor: v.reserve_factor,
+            rate_base: v.rate_base,
+            rate_slope1: v.rate_slope1,
+            rate_slope2: v.rate_slope2,
+            rate_kink: v.rate_kink,
+            max_utilization: v.max_utilization,
+            borrow_cap: v.borrow_cap,
+        }
+    }
+}
+
+#[near(serializers = [json])]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct LendingParamsInput {
+    pub min_loan: U128,
+    pub full_liquidation_hf: U128,
+    pub small_loan: U128,
+}
+
+/// Where a market's config comes from: its own record, or its tier's default
+/// until the market is first touched.
+#[near(serializers = [json])]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ConfigSource {
+    Stored,
+    Default,
+}
+
+/// `tier_config(scenario_id, tier)`.
+#[near(serializers = [json])]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TierConfigResult {
+    pub config: TierConfigView,
+    pub frozen: bool,
+    pub source: ConfigSource,
+}
+
+/// `scenario_id` 0 = a tier's default.
+#[derive(Serialize)]
+#[serde(crate = "near_sdk::serde")]
+struct TierConfigSet {
+    scenario_id: u64,
+    tier: Tier,
+    config: TierConfigView,
+}
+
+impl MultiverseEvent for TierConfigSet {
+    const NAME: &'static str = "tier_config_set";
+}
+
+#[derive(Serialize)]
+#[serde(crate = "near_sdk::serde")]
+struct MarketFrozenSet {
+    scenario_id: u64,
+    tier: Tier,
+    frozen: bool,
+}
+
+impl MultiverseEvent for MarketFrozenSet {
+    const NAME: &'static str = "market_frozen";
+}
+
+#[derive(Serialize)]
+#[serde(crate = "near_sdk::serde")]
+struct LendingParamsSet {
+    min_loan: U128,
+    full_liquidation_hf: U128,
+    small_loan: U128,
+}
+
+impl MultiverseEvent for LendingParamsSet {
+    const NAME: &'static str = "lending_params_set";
+}
+
+#[near]
+impl Contract {
+    /// The config new markets of `tier` snapshot on their first touch.
+    /// Markets already touched keep theirs.
+    #[payable]
+    #[deny_unknown_arguments]
+    pub fn set_default_tier_config(&mut self, tier: Tier, config: TierConfigInput) {
+        assert_one_yocto();
+        self.assert_owner();
+        let config = TierConfig::from(config);
+        config.validate();
+        let owner = env::predecessor_account_id();
+        let before = env::storage_usage();
+        let key = MarketId::new(0, Some(tier)).key();
+        let mut state = self.default_state(tier);
+        state.config = config;
+        TierConfigSet {
+            scenario_id: 0,
+            tier,
+            config: TierConfigView::from(&state.config),
+        }
+        .emit();
+        self.tier_states.insert(key, state);
+        self.charge_storage(&owner, before);
+    }
+
+    /// One market's config. Interest up to now accrues on the old curve
+    /// first; the liquidation LTV cannot fall while the market has debt.
+    /// Frozen, insurance and the bad-debt counters are kept.
+    #[payable]
+    #[deny_unknown_arguments]
+    pub fn set_tier_config(&mut self, scenario_id: u64, tier: Tier, config: TierConfigInput) {
+        assert_one_yocto();
+        self.assert_owner();
+        self.scenario(scenario_id);
+        let owner = env::predecessor_account_id();
+        let before = env::storage_usage();
+        let id = MarketId::new(scenario_id, Some(tier));
+        let (m, mut st) = self.accrue(id);
+        let config = TierConfig::from(config);
+        config.validate();
+        if config.lltv < st.config.lltv && m.total_borrow_shares > 0 {
+            fail!("LltvDecreaseWithDebt({}, {})", st.config.lltv, config.lltv);
+        }
+        st.config = config;
+        TierConfigSet {
+            scenario_id,
+            tier,
+            config: TierConfigView::from(&st.config),
+        }
+        .emit();
+        self.tier_states.insert(id.key(), st);
+        self.charge_storage(&owner, before);
+    }
+
+    /// A frozen market takes no new supply and no new borrowing; everything
+    /// else (repay, withdraw, collateral, liquidation) goes on.
+    #[payable]
+    #[deny_unknown_arguments]
+    pub fn set_market_frozen(&mut self, scenario_id: u64, tier: Tier, frozen: bool) {
+        assert_one_yocto();
+        self.assert_owner();
+        self.scenario(scenario_id);
+        let owner = env::predecessor_account_id();
+        let before = env::storage_usage();
+        let id = MarketId::new(scenario_id, Some(tier));
+        let (_, mut st) = self.accrue(id);
+        st.frozen = frozen;
+        self.tier_states.insert(id.key(), st);
+        MarketFrozenSet {
+            scenario_id,
+            tier,
+            frozen,
+        }
+        .emit();
+        self.charge_storage(&owner, before);
+    }
+
+    /// The global lending rules: minimum loan, full-liquidation HF and
+    /// small-loan line.
+    #[payable]
+    pub fn set_lending_params(&mut self, params: LendingParamsInput) {
+        assert_one_yocto();
+        self.assert_owner();
+        let params = LendingParams {
+            min_loan: params.min_loan.0,
+            full_liquidation_hf: params.full_liquidation_hf.0,
+            small_loan: params.small_loan.0,
+        };
+        params.validate();
+        LendingParamsSet {
+            min_loan: U128(params.min_loan),
+            full_liquidation_hf: U128(params.full_liquidation_hf),
+            small_loan: U128(params.small_loan),
+        }
+        .emit();
+        self.lending = params;
+    }
+
+    /// A market's config, frozen flag and whether it is its own record or
+    /// still its tier's default.
+    #[deny_unknown_arguments]
+    pub fn tier_config(&self, scenario_id: u64, tier: Tier) -> TierConfigResult {
+        let id = MarketId::new(scenario_id, Some(tier));
+        let stored = self.tier_states.get(&id.key());
+        let source = if stored.is_some() {
+            ConfigSource::Stored
+        } else {
+            ConfigSource::Default
+        };
+        let st = self.tier_state(id);
+        TierConfigResult {
+            config: TierConfigView::from(&st.config),
+            frozen: st.frozen,
+            source,
+        }
+    }
+}
+
 impl Contract {
     /// A tier's default: the owner-set one if stored, else the builtin.
     pub(crate) fn default_state(&self, tier: Tier) -> TierState {
@@ -245,7 +587,6 @@ impl Contract {
     }
 
     /// A market's stored state, else its tier's default. View-safe: no write.
-    #[allow(dead_code)] // read by the lending paths once they take a MarketId
     pub(crate) fn tier_state(&self, id: MarketId) -> TierState {
         self.tier_states
             .get(&id.key())
@@ -261,33 +602,6 @@ impl Contract {
                 .get(&MarketId::new(sid, Some(tier)).key())
                 .is_some_and(|m| m.total_borrow_shares > 0)
         })
-    }
-
-    /// Migrate step 9: the Normal `TierState` of every legacy scenario (v1
-    /// terms where it has debt, the legacy live terms elsewhere), frozen per
-    /// `args`, and builtin frozen Safe and Bold for each frozen scenario.
-    pub(crate) fn migrate_lending_configs(
-        &mut self,
-        _args: &LendingMigrateArgs,
-        _log: &mut LendingUpgradeLog,
-    ) {
-    }
-
-    /// Lending's part of `upgrade_account`: indexes `a` as a borrower of every
-    /// legacy market where it has borrow shares.
-    pub(crate) fn lending_upgrade_account(&mut self, _a: &AccountId) {}
-
-    /// Migrate step 11: Σ indexed borrow shares against TBS per legacy market.
-    /// Above TBS fails `BorrowerBackfillIncomplete`; below it logs the gap,
-    /// sets `legacy_backfill_open` and pauses `lend` and `liquidate`.
-    pub(crate) fn migrate_lending_proof(&mut self, _log: &mut LendingUpgradeLog) {}
-
-    /// Step 11's proof again, for `unpause` while `legacy_backfill_open`: the
-    /// first legacy market still short as `(sid, indexed, tbs)`, None when all
-    /// balance.
-    #[allow(dead_code)] // called by unpause
-    pub(crate) fn lending_backfill_proof(&self) -> Option<(u64, u128, u128)> {
-        None
     }
 
     /// `get_app_config().lending`.

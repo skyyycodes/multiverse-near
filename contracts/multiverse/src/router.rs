@@ -15,6 +15,9 @@
 //!
 //! Plans are strict: an order that was taken, cancelled,
 //! expired or went stale fails the whole trade, and the app replans.
+// The v2 `tier` argument puts the trade methods at 8 arguments, and the
+// ext methods `#[near]` generates for them sit outside any item-level allow.
+#![allow(clippy::too_many_arguments)]
 
 use multiverse_math::orders::cost;
 use near_sdk::json_types::{U128, U64};
@@ -24,7 +27,8 @@ use near_sdk::{assert_one_yocto, env, near, AccountId};
 use crate::errors::{add, fail};
 use crate::events::MultiverseEvent;
 use crate::ledger::LogScope;
-use crate::lending::{require_normal, CollateralKey};
+use crate::lending::tiers::{MarketId, Tier};
+use crate::lending::CollateralKey;
 use crate::masks;
 use crate::ops::PauseFlag;
 use crate::orders::Side;
@@ -38,8 +42,8 @@ use crate::{Contract, ContractExt};
 /// 4 x 5), and at 8 worlds, so every accepted trade fits a receipt's logs
 /// with room to spare. At the widest values (64-character ids, u64::MAX ids,
 /// u128::MAX amounts) each fill from its own maker adds 492 bytes at 8
-/// worlds: 16 fills log 15,565 bytes (`tests/eight.rs` pins it), 18 would
-/// log 16,549, over the 16,384-byte receipt limit.
+/// worlds: 16 fills log 15,622 bytes (`tests/eight.rs` pins it), 18 would
+/// log 16,606, over the 16,384-byte receipt limit.
 pub const MAX_TRADE_FILLS: usize = 20;
 pub const MAX_TRADE_FILLS_8W: usize = 16;
 
@@ -98,6 +102,8 @@ impl MultiverseEvent for ConditionalBuy<'_> {
 pub struct Closed<'a> {
     pub account_id: &'a AccountId,
     pub scenario_id: u64,
+    #[serde(skip_serializing_if = "Tier::is_normal")]
+    pub tier: Tier,
     pub repaid: U128,
     pub pieces: u32,
 }
@@ -114,6 +120,8 @@ struct Trade {
     mask: u8,
     buy: bool,
     to_lending: bool,
+    /// The market the result goes into with `to_lending`.
+    tier: Tier,
 }
 
 impl Trade {
@@ -132,6 +140,7 @@ impl Contract {
     /// `sell_mask` and keeps it in every other possible world. Returns the
     /// USDC-if-w each world paid (0 where not sold).
     #[payable]
+    #[deny_unknown_arguments]
     pub fn conditional_sell(
         &mut self,
         scenario_id: u64,
@@ -140,6 +149,7 @@ impl Contract {
         plans: Vec<Vec<PlanFill>>,
         min_out: Vec<U128>,
         to_lending: bool,
+        tier: Option<Tier>,
     ) -> Vec<U128> {
         assert_one_yocto();
         self.assert_trade_live(to_lending);
@@ -151,6 +161,7 @@ impl Contract {
             mask: sell_mask,
             buy: false,
             to_lending,
+            tier: tier.unwrap_or_default(),
         };
         let out = self.conditional_trade(&user, t, &plans, &min_out);
         self.charge_storage(&user, before);
@@ -160,6 +171,7 @@ impl Contract {
     /// Buys wNEAR-if-w with `amount` USDC (from the internal balance) in the
     /// worlds of `buy_mask`, filling asks first. Returns the wNEAR-if-w bought.
     #[payable]
+    #[deny_unknown_arguments]
     pub fn conditional_buy(
         &mut self,
         scenario_id: u64,
@@ -168,6 +180,7 @@ impl Contract {
         plans: Vec<Vec<PlanFill>>,
         min_out: Vec<U128>,
         to_lending: bool,
+        tier: Option<Tier>,
     ) -> Vec<U128> {
         assert_one_yocto();
         self.assert_trade_live(to_lending);
@@ -179,6 +192,7 @@ impl Contract {
             mask: buy_mask,
             buy: true,
             to_lending,
+            tier: tier.unwrap_or_default(),
         };
         let out = self.conditional_trade(&user, t, &plans, &min_out);
         self.charge_storage(&user, before);
@@ -190,12 +204,13 @@ impl Contract {
     /// With debt the `close_after_resolution` transfer action is the usual
     /// path, since it brings the USDC along. Returns what was repaid.
     #[payable]
-    pub fn close_after_resolution(&mut self, scenario_id: u64) -> U128 {
+    #[deny_unknown_arguments]
+    pub fn close_after_resolution(&mut self, scenario_id: u64, tier: Option<Tier>) -> U128 {
         assert_one_yocto();
         self.assert_live(PauseFlag::Exit);
         let user = env::predecessor_account_id();
         let before = env::storage_usage();
-        let repaid = self.close_for(&user, scenario_id, None);
+        let repaid = self.close_for(&user, MarketId::new(scenario_id, tier), None);
         self.charge_storage(&user, before);
         U128(repaid)
     }
@@ -219,15 +234,13 @@ impl Contract {
         msg: ConditionalSellMsg,
     ) {
         require_asset(asset, Asset::Wnear);
-        if msg.to_lending {
-            require_normal(msg.tier);
-        }
         let t = Trade {
             scenario_id: msg.scenario_id,
             amount,
             mask: msg.sell_mask,
             buy: false,
             to_lending: msg.to_lending,
+            tier: msg.tier,
         };
         self.conditional_trade(sender, t, &msg.plans, &msg.min_out);
     }
@@ -240,15 +253,13 @@ impl Contract {
         msg: ConditionalBuyMsg,
     ) {
         require_asset(asset, Asset::Usdc);
-        if msg.to_lending {
-            require_normal(msg.tier);
-        }
         let t = Trade {
             scenario_id: msg.scenario_id,
             amount,
             mask: msg.buy_mask,
             buy: true,
             to_lending: msg.to_lending,
+            tier: msg.tier,
         };
         self.conditional_trade(sender, t, &msg.plans, &msg.min_out);
     }
@@ -262,16 +273,17 @@ impl Contract {
         msg: SellAndBorrowMsg,
     ) {
         require_asset(asset, Asset::Wnear);
-        require_normal(msg.tier);
         let t = Trade {
             scenario_id: msg.scenario_id,
             amount,
             mask: msg.sell_mask,
             buy: false,
             to_lending: true,
+            tier: msg.tier,
         };
         self.conditional_trade(sender, t, &msg.plans, &msg.min_out);
-        self.borrow_for(sender, msg.scenario_id, msg.borrow_amount.0);
+        let id = MarketId::new(msg.scenario_id, Some(msg.tier));
+        self.borrow_for(sender, id, msg.borrow_amount.0);
     }
 
     /// Posts an order from real assets: USDC for a bid, wNEAR for an ask. The
@@ -323,8 +335,8 @@ impl Contract {
         msg: ScenarioMsg,
     ) {
         require_asset(asset, Asset::Usdc);
-        require_normal(msg.tier);
-        self.close_for(sender, msg.scenario_id, Some(amount));
+        let id = MarketId::new(msg.scenario_id, Some(msg.tier));
+        self.close_for(sender, id, Some(amount));
     }
 
     /// The shared pipeline of sell, buy and sell-and-borrow. Returns what
@@ -445,7 +457,8 @@ impl Contract {
                 asset,
                 mask: 1 << w,
             };
-            self.deposit_collateral_for(user, t.scenario_id, piece, amount);
+            let id = MarketId::new(t.scenario_id, Some(t.tier));
+            self.deposit_collateral_for(user, id, piece, amount);
         }
         out
     }
@@ -488,10 +501,11 @@ impl Contract {
     /// draws on the internal balance), takes back every collateral piece,
     /// redeems the collapsed verse pieces and pays every real asset out. Live
     /// and dead verse pieces stay in the ledger. Returns what was repaid.
-    fn close_for(&mut self, user: &AccountId, scenario_id: u64, budget: Option<u128>) -> u128 {
+    fn close_for(&mut self, user: &AccountId, id: MarketId, budget: Option<u128>) -> u128 {
+        let scenario_id = id.scenario_id;
         self.scenario(scenario_id);
         let _scope = LogScope::open();
-        let debt = self.debt_for(scenario_id, user);
+        let debt = self.debt_for(id, user);
         let mut repaid = 0;
         if debt != 0 {
             if let Some(budget) = budget {
@@ -499,9 +513,9 @@ impl Contract {
                     fail!("InsufficientRepayment({budget}, {debt})");
                 }
             }
-            repaid = self.repay_for(user, scenario_id, u128::MAX);
+            repaid = self.repay_for(user, id, u128::MAX);
         }
-        let pieces = self.withdraw_all_collateral_for(user, scenario_id);
+        let pieces = self.withdraw_all_collateral_for(user, id);
         let possible = self.scenario(scenario_id).possible;
         let mut pay = [0u128; 2];
         for &(piece, amount) in &pieces {
@@ -521,6 +535,7 @@ impl Contract {
         Closed {
             account_id: user,
             scenario_id,
+            tier: id.tier,
             repaid: U128(repaid),
             pieces: pieces.len() as u32,
         }

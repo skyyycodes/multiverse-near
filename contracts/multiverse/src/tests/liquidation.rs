@@ -11,10 +11,11 @@ use proptest::prelude::*;
 use super::harness::*;
 use super::lending::*;
 use crate::amm::test_hooks;
+use crate::lending::tiers::MarketId;
 use crate::lending::{check_liquidation_bonus, CollateralKey, Liquidation, LiquidationState};
 use crate::prices::WorldStatus;
 use crate::types::Asset::{Usdc, Wnear};
-use multiverse_math::risk::liquidation_target;
+use multiverse_math::risk::{full_seize_repay, liquidation_target};
 use multiverse_math::{mul_div_down, mul_div_up};
 
 const LIQ: &str = CAROL;
@@ -383,11 +384,15 @@ fn liquidate_gap_below_the_repayment_takes_everything() {
     assert_eq!(done.liq.seized, vec![1_000 * E18]);
     assert!(w.pieces(s, ALICE).is_empty());
     assert_eq!(done.slice[3], done.c_min);
-    assert!(done.c_min < done.liq.repaid, "156 vs 932");
+    // "max" on an underwater loan repays only what seizes everything (156
+    // / 1.05 rather than half of 1,864); the rest is written off at once.
+    assert_eq!(done.liq.repaid, full_seize_repay(done.c_min, BONUS));
+    assert!(done.liq.repaid < done.c_min && done.debt / 2 > done.liq.repaid);
     assert!(done.slice[0] > done.liq.repaid);
-    let left = w.debt(s, ALICE);
-    assert!(left.abs_diff(done.debt - done.liq.repaid) <= 2);
-    assert_eq!(done.hf_after, Some(0));
+    assert!(done.liq.seize_all);
+    assert!(done.liq.written_off.abs_diff(done.debt - done.liq.repaid) <= 2);
+    assert_eq!(w.debt(s, ALICE), 0);
+    assert_eq!(done.hf_after, None);
 }
 
 #[test]
@@ -403,12 +408,14 @@ fn liquidate_gap_smallest_repayment_that_caps_f_takes_everything() {
     assert_eq!(done.liq.seized, vec![1_000 * E18]);
     // DELAYED·CUTS still values the 1,000 wNEAR at 3,000 USDC
     assert!(done.slice[1] >= 2_999 * E18);
-    let left = w.debt(s, ALICE);
+    // every piece is gone, so the rest of the debt is written off
+    let left = done.liq.written_off;
     assert!(left.abs_diff(done.debt - repay) <= 2);
     assert!(
         left > 1_700 * E18 && left < 1_730 * E18,
-        "about 1,716 left: {left}"
+        "about 1,716 written off: {left}"
     );
+    assert_eq!(w.debt(s, ALICE), 0);
 }
 
 #[test]
@@ -449,7 +456,7 @@ fn liquidate_pauses_while_a_pool_is_under_the_gate() {
     assert_eq!(w.hf(sid, ALICE), (Some(0), 0));
     fails(w.borrow(ALICE, sid, 1), "Unhealthy(0, 0)");
     fails(w.liquidate(LIQ, sid, ALICE, Some(1)), "PriceUnavailable(0)");
-    let status = w.view(|c| c.liquidation_status(sid, acc(ALICE)));
+    let status = w.view(|c| c.liquidation_status(sid, acc(ALICE), None));
     assert_eq!(
         (status.status, status.unpriced_world),
         (LiquidationState::PausedNoPrice, Some(0))
@@ -505,7 +512,7 @@ fn liquidate_pauses_while_halted_then_works_after_finalize() {
         w.liquidate(LIQ, s, BOB, Some(E18)),
         &format!("ScenarioHalted({s})"),
     );
-    let status = w.view(|c| c.liquidation_status(s, acc(ALICE)));
+    let status = w.view(|c| c.liquidation_status(s, acc(ALICE), None));
     assert_eq!(status.status, LiquidationState::PausedHalted);
     w.warp(DISPUTE_WINDOW);
     w.finalize(BOB, fed).unwrap();
@@ -570,12 +577,12 @@ fn liquidate_max_repays_half_the_accrued_debt() {
     let mut w = liq_world();
     let s = w.s2x2;
     unhealthy_usdc_loan(&mut w);
-    let before = w.view(|c| c.market(s));
+    let before = w.view(|c| c.market_of(MarketId::new(s, None)));
     let debt = w.debt(s, ALICE);
     assert!(debt > before.total_borrow_assets);
     let done = liquidate_in(&mut w, s, ALICE, None);
     assert_eq!(done.liq.repaid, debt / 2);
-    let after = w.view(|c| c.market(s));
+    let after = w.view(|c| c.market_of(MarketId::new(s, None)));
     assert_eq!(after.last_update, w.now);
     let interest = debt - before.total_borrow_assets;
     assert!(
@@ -699,28 +706,30 @@ fn liquidating_a_debt_without_pieces_or_of_one_unit() {
     assert_eq!(w.hf(s, DAVE), (Some(0), 3));
     fails(w.liquidate(LIQ, s, DAVE, None), "ZeroAmount");
     fails(w.liquidate(LIQ, s, DAVE, Some(1)), "AboveCloseFactor(1, 0)");
-    // a real wNEAR loan whose only world crashes to zero is a pure repayment
-    // once its pieces are gone; it can still be "liquidated", seizing nothing
+    // a real wNEAR loan whose only world crashes to zero: "max" repays one
+    // unit, which already seizes every piece, and the rest of the debt is
+    // written off in the same call rather than left on the account
     set_price(s, 3, PRICES_2X2[3]);
     crashed_wnear_loan(&mut w);
     set_price(s, 3, 0);
-    liquidate_in(&mut w, s, ALICE, None);
-    assert!(w.pieces(s, ALICE).is_empty());
     let debt = w.debt(s, ALICE);
-    assert!(debt > 0, "bad debt stays on the account");
     let done = liquidate_in(&mut w, s, ALICE, None);
-    assert!(done.liq.pieces.is_empty());
-    assert_eq!(done.liq.repaid, debt / 2);
-    assert_eq!(w.debt(s, ALICE), debt - debt / 2);
+    assert_eq!(done.liq.repaid, 1);
+    assert!(done.liq.seize_all);
+    assert!(w.pieces(s, ALICE).is_empty());
+    assert!(done.liq.written_off.abs_diff(debt - 1) <= 1);
+    assert_eq!(w.debt(s, ALICE), 0);
     // self-liquidation is allowed
     w.fund(ALICE);
+    set_price(s, 3, PRICES_2X2[3]);
+    crashed_wnear_loan(&mut w);
     let msg = format!(
         r#"{{"action":"liquidate","scenario_id":{s},"account_id":"{ALICE}","repay_amount":"{}"}}"#,
         E18
     );
     w.ft_transfer_call(ALICE, Usdc, 1_000_000, &msg).unwrap();
     assert_eq!(
-        w.view(|c| c.liquidation_status(s, acc(ALICE))).status,
+        w.view(|c| c.liquidation_status(s, acc(ALICE), None)).status,
         LiquidationState::Liquidatable
     );
 }

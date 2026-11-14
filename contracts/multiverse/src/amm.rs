@@ -35,6 +35,7 @@ use near_sdk::{near, AccountId};
 
 use crate::errors::fail;
 use crate::events::MultiverseEvent;
+#[cfg(test)]
 use crate::prices::WorldStatus;
 use crate::types::{Asset, VerseKey};
 use crate::{now_sec, Contract};
@@ -171,9 +172,10 @@ impl ImpactRing {
 impl Contract {
     /// wNEAR price in `world` of `scenario_id` as v1 read it: the world
     /// pool's TWAP price when the world is trusted under the market's price
-    /// config, else `(0, false)`. `world_price_ok`, `PoolView.twap_ok` and
-    /// the v1 suites keep this meaning; lending's two sides read the price
+    /// config, else `(0, false)`. The v1 suites keep this meaning; lending's
+    /// two sides, `world_price_ok` and `PoolView.twap_ok` read the price
     /// snapshot.
+    #[cfg(test)]
     pub(crate) fn world_price(&self, scenario_id: u64, world: u8) -> (u128, bool) {
         let cfg = self.price_cfg(scenario_id);
         let q = self.world_quote(scenario_id, world, &cfg);
