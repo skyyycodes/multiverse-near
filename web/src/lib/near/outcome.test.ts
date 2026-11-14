@@ -1,5 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { assertSuccess, cleanError, eventsOf, failureOf, payoutFailures, successValue, usedAmount, type TxOutcome } from "./outcome";
+import {
+  assertSuccess,
+  badDebtLine,
+  cleanError,
+  createdProposalId,
+  eventItems,
+  eventsOf,
+  failureOf,
+  liquidationLine,
+  liquidationResult,
+  openedMarketId,
+  payoutFailures,
+  pledgeResult,
+  pledgeReturnedLine,
+  seedWithdrawnLine,
+  successValue,
+  usedAmount,
+  type TxOutcome,
+} from "./outcome";
 
 const CONTRACT = "app.multiverse-lending.testnet";
 const b64 = (s: string) => Buffer.from(s).toString("base64");
@@ -79,3 +97,81 @@ describe("reading a transaction's result", () => {
     expect(eventsOf(o, "multiverse")).toHaveLength(1);
   });
 });
+
+/** A transaction whose contract receipt logged these NEP-297 lines. */
+const logged = (...lines: { event: string; version?: string; data: Record<string, unknown>[] }[]): TxOutcome => ({
+  status: { SuccessValue: "" },
+  receipts_outcome: [
+    {
+      outcome: {
+        executor_id: CONTRACT,
+        status: { SuccessValue: "" },
+        logs: lines.map((l) => `EVENT_JSON:${JSON.stringify({ standard: "multiverse", version: l.version ?? "2.0.0", event: l.event, data: l.data })}`),
+      },
+    },
+  ],
+});
+const E18 = 10n ** 18n;
+
+describe("v2 outcomes (web design 5.3)", () => {
+  it("reads v1 and v2 lines, every item of every line, and nothing of another version", () => {
+    const o = logged(
+      { event: "redeemed", version: "1.0.0", data: [{ amount: "1" }] },
+      { event: "redeemed", data: [{ amount: "2" }, { amount: "3" }] },
+      { event: "redeemed", version: "3.0.0", data: [{ amount: "4" }] },
+    );
+    expect(eventItems(o, "redeemed").map((d) => d.amount)).toEqual(["1", "2", "3"]);
+  });
+
+  it("finds a new proposal, a pledge and an opening", () => {
+    expect(createdProposalId(logged({ event: "proposal_created", data: [{ proposal_id: 5, kind: "market" }] }))).toBe(5);
+    expect(createdProposalId(logged())).toBeUndefined();
+    expect(pledgeResult(logged({ event: "pledged", data: [{ proposal_id: 3 }] }, { event: "open_scheduled", data: [{ proposal_id: 3 }] }))).toEqual({
+      pledged: true,
+      openScheduled: true,
+      openDeferred: undefined,
+    });
+    expect(pledgeResult(logged({ event: "open_deferred", data: [{ proposal_id: 3, blocker: "Paused(mint)" }] }))).toEqual({
+      pledged: false,
+      openScheduled: false,
+      openDeferred: "Paused(mint)",
+    });
+    expect(openedMarketId(logged({ event: "market_opened", data: [{ proposal_id: 3, scenario_id: 7 }] }))).toBe(7);
+  });
+
+  it("words a liquidation in cash, in tokens and with bad debt", () => {
+    const cash = liquidationResult(
+      logged(
+        { event: "liquidate", data: [{ repaid: "446411128000000000000", pieces: ["1:wnear:1"], seized: ["5"], seize_all: false, written_off: "0" }] },
+        { event: "cash_out", data: [{ cash: "464980000000000000000", left_usdc: ["0", "1"], min_out: "460329761843022353409" }] },
+      ),
+    )!;
+    expect(cash.cash).toEqual({ cash: 464_980_000_000_000_000_000n, leftUsdc: [0n, 1n], minOut: 460_329_761_843_022_353_409n });
+    expect(liquidationLine(cash)).toBe("Repaid $446.41; received $464.98 in cash");
+    const tokens = liquidationResult(logged({ event: "liquidate", data: [{ repaid: "446411128000000000000", pieces: ["1:wnear:1", "1:usdc:2"], seized: ["5", "0"] }] }))!;
+    expect(liquidationLine(tokens, 413_659_000_000_000_000n)).toBe("Repaid $446.41; seized 41.37% of every piece");
+    expect(liquidationLine(tokens)).toBe("Repaid $446.41; seized 1 pieces");
+    const all = liquidationResult(
+      logged(
+        { event: "liquidate", data: [{ repaid: s(100n), seize_all: true, written_off: s(20n) }] },
+        { event: "bad_debt", data: [{ debt: s(20n), covered: s(15n), socialized: s(5n) }] },
+      ),
+    )!;
+    expect(liquidationLine(all)).toBe("Repaid $100.00; seized every piece; wrote off $20.00 (insurance covered $15.00)");
+    expect(liquidationResult(logged())).toBeUndefined();
+  });
+
+  it("words a write-off, a returned pledge and a seed withdrawal", () => {
+    expect(badDebtLine(logged({ event: "bad_debt", data: [{ debt: s(20n), covered: s(15n), socialized: s(5n) }] }))).toBe("Wrote off $20.00: insurance $15.00, lenders $5.00");
+    expect(pledgeReturnedLine(logged({ event: "pledge_returned", data: [{ usdc: s(100n), wnear: s(3n), reason: "refund" }] }))).toBe("Returned 100.00 USDC + 3.00 wNEAR");
+    expect(pledgeReturnedLine(logged({ event: "pledge_returned", data: [{ usdc: "0", wnear: "0" }] }))).toBe("Nothing was left to return");
+    expect(pledgeReturnedLine(logged())).toBeUndefined();
+    expect(seedWithdrawnLine(logged({ event: "seed_withdrawn", data: [{ usdc_out: s(250n), wnear_out: s(10n) }] }))).toBe(
+      "Received $250.00 and 10.00 wNEAR; leftover world tokens are in your holdings",
+    );
+  });
+});
+
+function s(x: bigint) {
+  return (x * E18).toString();
+}
