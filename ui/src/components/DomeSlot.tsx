@@ -1,5 +1,6 @@
 // Where the dome goes on the page. The 3D scene (Dome.tsx) loads only when this is near the screen.
 import { Component, lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
+import type { Item } from './Orbit3D'
 
 const DomeCanvas = lazy(() => import('./Dome'))
 
@@ -9,7 +10,8 @@ class SceneBoundary extends Component<{ children: ReactNode }, { failed: boolean
   render() { return this.state.failed ? null : this.props.children }
 }
 
-export function Dome() {
+/** `odds`: what the inner arch prints (the open markets' worlds and chances); it waits for them. */
+export function Dome({ odds }: { odds: Item[] }) {
   const box = useRef<HTMLDivElement>(null)
   const [near, setNear] = useState(false)
   const [webgl, setWebgl] = useState(false)
@@ -25,7 +27,7 @@ export function Dome() {
   }, [])
   return (
     <div className="dome" ref={box} aria-hidden>
-      {webgl && near && <SceneBoundary><Suspense fallback={null}><DomeCanvas /></Suspense></SceneBoundary>}
+      {webgl && near && <SceneBoundary><Suspense fallback={null}><DomeCanvas odds={odds} /></Suspense></SceneBoundary>}
     </div>
   )
 }

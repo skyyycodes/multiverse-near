@@ -6,8 +6,6 @@
 import { Canvas, useFrame } from '@react-three/fiber'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
-import { demoMarkets } from '../data/demo'
-import { weekMove } from '../lib/market'
 import { story } from '../lib/story'
 import { AZURE_GLASS, AZURE_INK, TEAL_GLASS, TEAL_INK, band, drawBar, type Item } from './Orbit3D'
 
@@ -21,12 +19,14 @@ export const RINGS_FLARE_AT = 0.3 // ...and start flaring out as it comes forwar
 const FLARE = 0.08
 
 const R = 3.7 // the gyroscope's ring radius, in scene units
-const scenario = demoMarkets[0]
+
+/** One world a ring prints: its name, and its chance once the chain has answered. */
+export type RingWorld = { name: string; chance?: number }
 
 // what each world's ring carries: its name and chance, between the marks of the two tokens
-function itemsFor(k: number): Item[] {
-  const w = scenario.worlds[k]
-  const odds: Item = { kind: 'odds', name: w.outcome, chance: w.chance, move: weekMove(w.chance, w.id) }
+function itemsFor(w: RingWorld | undefined): Item[] {
+  if (!w) return []
+  const odds: Item = { kind: 'odds', name: w.name, chance: w.chance }
   return [{ kind: 'mark', src: '/logo.svg' }, odds, { kind: 'mark', src: '/logos/near.svg' }, odds, { kind: 'mark', src: '/logos/usdc.svg' }]
 }
 
@@ -79,7 +79,7 @@ const EXTRA_FADE = 0.12 // the extra rings are gone this far into the story
 // each texture repeats TILES times around the gyroscope circle; on an oval it repeats as often as its length allows
 const TILES = Math.max(1, Math.round((2 * Math.PI * R) / 7))
 const SEG = 384
-function printed(world: number, ink: string, fill: string, w: number, bare: boolean) {
+function printed(items: Item[], ink: string, fill: string, w: number, bare: boolean) {
   const c = document.createElement('canvas')
   c.width = 4096 // a big texture keeps the lettering crisp up close
   c.height = Math.round((4096 * w) / ((2 * Math.PI * (R - w / 2)) / TILES))
@@ -87,7 +87,7 @@ function printed(world: number, ink: string, fill: string, w: number, bare: bool
   t.wrapS = THREE.RepeatWrapping
   t.colorSpace = THREE.SRGBColorSpace
   t.anisotropy = 16
-  drawBar(c, bare ? [] : itemsFor(world), ink, fill, 0.42).then(() => { t.needsUpdate = true })
+  drawBar(c, bare ? [] : items, ink, fill, 0.42).then(() => { t.needsUpdate = true })
   return t
 }
 
@@ -123,8 +123,9 @@ function shape(geo: THREE.BufferGeometry, a: number, b: number, w: number, m: nu
   geo.computeBoundingSphere()
 }
 
-function Ring({ k, centre }: { k: number; centre: THREE.Vector3 }) {
+function Ring({ k, centre, world }: { k: number; centre: THREE.Vector3; world?: RingWorld }) {
   const ring = RINGS[k]
+  const sign = world ? `${world.name}:${world.chance ?? ''}` : '' // redraw the lettering only when the world's words change
   const start = useMemo(() => new THREE.Vector3(), [])
   const place = useRef<THREE.Group>(null)
   const front = useRef<THREE.MeshBasicMaterial>(null)
@@ -135,7 +136,8 @@ function Ring({ k, centre }: { k: number; centre: THREE.Vector3 }) {
     ;(g.getAttribute('uv') as THREE.BufferAttribute).setUsage(THREE.DynamicDrawUsage)
     return g
   }, [ring.w])
-  const tex = useMemo(() => printed(ring.world, ring.ink, ring.fill, ring.w, ring.bare), [ring.world, ring.ink, ring.fill, ring.w, ring.bare])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const tex = useMemo(() => printed(itemsFor(world), ring.ink, ring.fill, ring.w, ring.bare), [sign, ring.ink, ring.fill, ring.w, ring.bare])
   useEffect(() => () => { geo.dispose(); tex.dispose() }, [geo, tex])
   const rot = useMemo(() => new THREE.Quaternion(), [])
   const flat = useMemo(() => q(LEAN, 0, 0), [])
@@ -205,7 +207,7 @@ function Ring({ k, centre }: { k: number; centre: THREE.Vector3 }) {
 
 // a long lens from far away: the same size on screen as a near camera, but with almost no perspective,
 // so the four ovals stay symmetric instead of swelling on their near sides
-export default function WorldRings() {
+export default function WorldRings({ worlds }: { worlds: RingWorld[] }) {
   // render only while the rings can be seen: from the top of the story until they have flared away
   const [live, setLive] = useState(true)
   useEffect(() => {
@@ -223,7 +225,7 @@ export default function WorldRings() {
   const centre = useMemo(() => new THREE.Vector3(0, -0.35, 0), [])
   return (
     <Canvas frameloop={live ? 'always' : 'never'} dpr={[1, 2]} camera={{ position: [0, 0, 30], fov: 16.6, near: 0.1, far: 100 }} gl={{ antialias: true, alpha: true }}>
-      {RINGS.map((_, k) => <Ring key={k} k={k} centre={centre} />)}
+      {RINGS.map((r, k) => <Ring key={k} k={k} centre={centre} world={worlds[r.world]} />)}
     </Canvas>
   )
 }

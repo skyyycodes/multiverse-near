@@ -5,9 +5,8 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
-import { demoMarkets } from '../data/demo'
-import { weekMove } from '../lib/market'
 import { story } from '../lib/story'
+import { chanceText } from '../chain/board'
 
 const still = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
@@ -23,28 +22,12 @@ export type Item =
   | { kind: 'brand'; src: string; text: string }
   | { kind: 'mark'; src: string } // a logo on its own, no text
   | { kind: 'text'; text: string; strong?: boolean }
-  | { kind: 'odds'; name: string; chance: number; move: number }
-
-const cricket = demoMarkets[0] // the demo scenario: four worlds
-const odds = (name: string, chance: number, seed: string) => ({ kind: 'odds' as const, name, chance, move: weekMove(chance, seed) })
+  // a world and its chance (left out until the chain has answered); `move`, a change in points, only when one is known
+  | { kind: 'odds'; name: string; chance?: number; move?: number }
 
 // a logo bar: ours, NEAR, the chains NEAR Intents takes deposits from, and the stablecoins
 const MARKS = ['/logo.svg', '/logos/near.svg', '/logos/btc.svg', '/logos/eth.svg', '/logos/sol.svg', '/logos/usdc.svg', '/logos/usdt.svg']
 export const PROJECT_BAR: Item[] = [...MARKS, ...MARKS].map((src) => ({ kind: 'mark', src })) // twice per repeat, so the band stays dense
-// the odds, with a logo between each
-const mark = (src: string): Item => ({ kind: 'mark', src })
-export const ODDS_BAR: Item[] = [
-  mark('/logo.svg'),
-  odds(cricket.worlds[0].outcome, cricket.worlds[0].chance, cricket.worlds[0].id),
-  mark('/logos/near.svg'),
-  odds(cricket.worlds[1].outcome, cricket.worlds[1].chance, cricket.worlds[1].id),
-  mark('/logos/usdc.svg'),
-  odds(cricket.worlds[2].outcome, cricket.worlds[2].chance, cricket.worlds[2].id),
-  mark('/logos/near.svg'),
-  odds(cricket.worlds[3].outcome, cricket.worlds[3].chance, cricket.worlds[3].id),
-  mark('/logos/usdc.svg'),
-]
-
 // ---------- drawing a ring's bar onto a canvas ----------
 export const loadImage = (src: string) =>
   new Promise<HTMLImageElement>((resolve, reject) => {
@@ -106,7 +89,10 @@ export async function drawBar(canvas: HTMLCanvasElement, items: Item[], ink: str
   let size = H * textScale
   const font = (strong?: boolean) => `${strong ? 600 : 500} ${Math.round(size)}px "DM Mono", monospace`
   const icon = () => size * 1.25
-  const oddsText = (it: Extract<Item, { kind: 'odds' }>) => [`${it.name.toUpperCase()} ${Math.round(it.chance * 100)}% `, `${it.move > 0 ? '▲' : '▼'}${Math.abs(it.move).toFixed(1)}`]
+  const oddsText = (it: Extract<Item, { kind: 'odds' }>) => [
+    `${it.name.toUpperCase()}${it.chance === undefined ? '' : ` ${chanceText(it.chance)}`}${it.move === undefined ? '' : ' '}`,
+    it.move === undefined ? '' : `${it.move > 0 ? '▲' : '▼'}${Math.abs(it.move).toFixed(1)}`,
+  ]
   const measure = () =>
     items.map((it) => {
       if (it.kind === 'logo') return icon() * 1.3
@@ -151,7 +137,7 @@ export async function drawBar(canvas: HTMLCanvasElement, items: Item[], ink: str
       const [label, mv] = oddsText(it)
       g.fillStyle = ink
       g.fillText(label, x, mid)
-      g.fillStyle = it.move > 0 ? '#6ee7a0' : '#bf888d'
+      g.fillStyle = (it.move ?? 0) > 0 ? '#6ee7a0' : '#bf888d'
       g.fillText(mv, x + g.measureText(label).width, mid)
     }
     g.fillStyle = ink
@@ -265,11 +251,11 @@ function Rig() {
 }
 
 // `fixed`: shown on its own (the landing's closing section), not driven by the scroll story
-export default function Orbit3D({ fixed = false, low = 1.45 }: { fixed?: boolean; low?: number }) {
+export default function Orbit3D({ odds = [], fixed = false, low = 1.45 }: { odds?: Item[]; fixed?: boolean; low?: number }) {
   return (
     <Canvas dpr={[1, 1.75]} camera={{ position: [0, 0, 14], fov: 35, near: 0.1, far: 100 }} gl={{ antialias: true, alpha: true }}>
       {/* the criss-cross: two equal rings leaning in mirror-opposite directions, crossing in an X at the centre */}
-      <Arc items={ODDS_BAR} ink={AZURE_INK} fill={AZURE_GLASS} radius={11} low={low} side={-1} speed={0.02} lean={0.4} fixed={fixed} />
+      <Arc items={odds} ink={AZURE_INK} fill={AZURE_GLASS} radius={11} low={low} side={-1} speed={0.02} lean={0.4} fixed={fixed} />
       <Arc items={PROJECT_BAR} ink={TEAL_INK} fill={TEAL_GLASS} radius={11} low={low} side={1} speed={0.02} lean={-0.4} fixed={fixed} />
       <Rig />
     </Canvas>
