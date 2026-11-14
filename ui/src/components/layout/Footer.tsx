@@ -16,6 +16,7 @@ export function Footer() {
         <a href={links.github} target="_blank" rel="noreferrer">GitHub</a>
         <a href={links.learn} target="_blank" rel="noreferrer">Guide from zero</a>
         <a href={links.roadmap} target="_blank" rel="noreferrer">Roadmap</a>
+        <a href={links.whitepaper} target="_blank" rel="noreferrer">Whitepaper</a>
         <a href={links.paper} target="_blank" rel="noreferrer">The paper</a>
         <a href={accountUrl(chain.contractId)} target="_blank" rel="noreferrer" title={chain.contractId}>Contract</a>
         <a href={links.near} target="_blank" rel="noreferrer">NEAR</a>

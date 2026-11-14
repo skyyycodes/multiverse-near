@@ -12,7 +12,21 @@ export const site = {
   },
 }
 
-export type NavItem = { to: string; label: string; also?: string[] }
+export const links = {
+  github: 'https://github.com/skyyycodes/multiverse-near',
+  learn: 'https://github.com/skyyycodes/multiverse-near/blob/main/docs/LEARN.md',
+  roadmap: 'https://github.com/skyyycodes/multiverse-near/blob/main/docs/ROADMAP.md',
+  paper: BRAND.credit.url,
+  /** The whitepaper, opened in a new tab from the header's How it works menu and the footer. One constant: a hosted
+   *  copy (a Drive link) can replace the file in public/ here. */
+  whitepaper: '/ifverse-whitepaper.pdf',
+  near: 'https://near.org',
+  nearDocs: 'https://docs.near.org',
+}
+
+/** One entry of a header dropdown; `external` opens in a new tab (a file such as the whitepaper). */
+export type NavSub = { href: string; label: string; note: string; external?: boolean }
+export type NavItem = { to: string; label: string; also?: string[]; menu?: NavSub[] }
 
 // The header's links, in order. `also`: other screens the link stays underlined on (a market's own pages, a proposal).
 export const nav: NavItem[] = [
@@ -23,7 +37,14 @@ export const nav: NavItem[] = [
   { to: '/orders/', label: 'Order book' },
   { to: '/propose/', label: 'Propose', also: ['/proposal/', '/proposals/'] },
   { to: '/resolve/', label: 'Resolve' },
-  { to: '/docs/', label: 'How it works' },
+  {
+    to: '/docs/',
+    label: 'How it works',
+    menu: [
+      { href: '/docs/', label: 'Docs', note: 'The complete guide, in plain words' },
+      { href: links.whitepaper, label: 'Whitepaper', note: 'The design in depth (PDF)', external: true },
+    ],
+  },
 ]
 
 const bare = (p: string) => (p.replace(/\/+$/, '') || '/')
@@ -49,14 +70,6 @@ export const footerLinks: { to: string; label: string }[] = [
   { to: '/admin/', label: 'Admin' },
 ]
 
-export const links = {
-  github: 'https://github.com/skyyycodes/multiverse-near',
-  learn: 'https://github.com/skyyycodes/multiverse-near/blob/main/docs/LEARN.md',
-  roadmap: 'https://github.com/skyyycodes/multiverse-near/blob/main/docs/ROADMAP.md',
-  paper: BRAND.credit.url,
-  near: 'https://near.org',
-  nearDocs: 'https://docs.near.org',
-}
 
 // Where the contracts live: the deployment this build was made for (deployments/<network>.json, read by
 // next.config.ts). Read chain ids from here or from ENV, never as literals.
