@@ -880,12 +880,7 @@ impl Contract {
         m.total_borrow_assets = add(m.total_borrow_assets, amount);
         self.markets.insert(scenario_id, m);
         let owed = self.borrow_shares_of(scenario_id, account);
-        Self::set_amount(
-            &mut self.borrow_shares,
-            scenario_id,
-            account,
-            add(owed, shares),
-        );
+        self.set_borrow_shares(scenario_id, account, add(owed, shares));
         self.assert_healthy(scenario_id, account);
         BorrowLog {
             scenario_id,
@@ -918,12 +913,7 @@ impl Contract {
         if assets == 0 {
             fail("ZeroAmount");
         }
-        Self::set_amount(
-            &mut self.borrow_shares,
-            scenario_id,
-            account,
-            owed_shares - shares,
-        );
+        self.set_borrow_shares(scenario_id, account, owed_shares - shares);
         m.total_borrow_shares = sub(m.total_borrow_shares, shares);
         // the last borrower's rounded-up debt can exceed the total by a unit
         m.total_borrow_assets = m.total_borrow_assets.saturating_sub(assets);
@@ -990,12 +980,7 @@ impl Contract {
 
         let shares =
             to_shares_down(repaid, m.total_borrow_assets, m.total_borrow_shares).min(owed_shares);
-        Self::set_amount(
-            &mut self.borrow_shares,
-            scenario_id,
-            account,
-            owed_shares - shares,
-        );
+        self.set_borrow_shares(scenario_id, account, owed_shares - shares);
         m.total_borrow_shares = sub(m.total_borrow_shares, shares);
         m.total_borrow_assets = m.total_borrow_assets.saturating_sub(repaid);
         self.markets.insert(scenario_id, m);
@@ -1229,6 +1214,12 @@ impl Contract {
         } else {
             self.collateral.insert(k, list);
         }
+    }
+
+    /// The only writer of `borrow_shares`: v1 data is folded first.
+    fn set_borrow_shares(&mut self, scenario_id: u64, account: &AccountId, shares: u128) {
+        self.upgrade_account(account);
+        Self::set_amount(&mut self.borrow_shares, scenario_id, account, shares);
     }
 
     pub(crate) fn supply_shares_of(&self, scenario_id: u64, account: &AccountId) -> u128 {
