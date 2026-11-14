@@ -92,6 +92,7 @@ function Trade({ config, focus }: { config: AppConfig; focus?: Focus }) {
         onClear={() => picks.setSellMask(0)}
         picker={picker}
         heading={heading}
+        lendable={card?.lendable}
       />
     );
 
