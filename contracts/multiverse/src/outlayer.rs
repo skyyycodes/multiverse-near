@@ -175,12 +175,6 @@ impl Contract {
         deposit: Option<U128>,
     ) {
         self.assert_owner();
-        if let Some(why) = wasm_url_error(&wasm_url) {
-            fail!("BadWasmUrl({why})");
-        }
-        if !is_sha256_hex(&wasm_sha256) {
-            fail("BadWasmHash");
-        }
         let config = OutLayerConfig {
             outlayer_id: outlayer_id.unwrap_or_else(|| DEFAULT_OUTLAYER_ID.parse().unwrap()),
             wasm_url,
@@ -188,33 +182,12 @@ impl Contract {
             resource_limits: resource_limits.unwrap_or_default(),
             deposit: deposit.unwrap_or(U128(DEFAULT_DEPOSIT.as_yoctonear())),
         };
-        if config.resource_limits.max_instructions == 0
-            || config.resource_limits.max_instructions > MAX_INSTRUCTIONS
-        {
-            fail!(
-                "BadLimit(max_instructions, {})",
-                config.resource_limits.max_instructions
-            );
-        }
-        if config.resource_limits.max_memory_mb == 0
-            || config.resource_limits.max_memory_mb > MAX_MEMORY_MB
-        {
-            fail!(
-                "BadLimit(max_memory_mb, {})",
-                config.resource_limits.max_memory_mb
-            );
-        }
-        if config.resource_limits.max_execution_seconds == 0
-            || config.resource_limits.max_execution_seconds > MAX_EXECUTION_SECONDS
-        {
-            fail!(
-                "BadLimit(max_execution_seconds, {})",
-                config.resource_limits.max_execution_seconds
-            );
-        }
-        if config.deposit.0 == 0 {
-            fail("BadLimit(deposit, 0)");
-        }
+        assert_guest(
+            &config.wasm_url,
+            &config.wasm_sha256,
+            &config.resource_limits,
+            config.deposit.0,
+        );
         let before = env::storage_usage();
         self.outlayer.set_config(&config);
         self.charge_storage_or_deposit(&env::predecessor_account_id(), before);
@@ -442,24 +415,74 @@ impl Contract {
 /// compiles. Secrets and params are left out.
 pub fn execution_args(config: &OutLayerConfig, dates: &FomcDates, payer: &AccountId) -> Value {
     let input = json!({ "before": dates.before, "after": dates.after }).to_string();
+    outlayer_args(
+        &config.wasm_url,
+        &config.wasm_sha256,
+        &config.resource_limits,
+        &input,
+        payer,
+    )
+}
+
+/// `request_execution`'s arguments for any pinned guest: the FRED resolver
+/// and the NEAR/USD reference build theirs here, with their own stdin.
+pub(crate) fn outlayer_args(
+    wasm_url: &str,
+    wasm_sha256: &str,
+    resource_limits: &ResourceLimits,
+    input: &str,
+    payer: &AccountId,
+) -> Value {
     json!({
         "source": {
             "WasmUrl": {
-                "url": config.wasm_url,
-                "hash": config.wasm_sha256,
+                "url": wasm_url,
+                "hash": wasm_sha256,
                 "build_target": BUILD_TARGET,
             }
         },
-        "resource_limits": config.resource_limits,
+        "resource_limits": resource_limits,
         "input_data": input,
         "response_format": "Json",
         "payer_account_id": payer,
     })
 }
 
+/// The checks every pinned guest passes, in this order: `BadWasmUrl(why)`,
+/// `BadWasmHash`, `BadLimit(field, value)` for each limit outside OutLayer's
+/// caps, `BadLimit(deposit, 0)`.
+pub(crate) fn assert_guest(
+    wasm_url: &str,
+    wasm_sha256: &str,
+    limits: &ResourceLimits,
+    deposit: u128,
+) {
+    if let Some(why) = wasm_url_error(wasm_url) {
+        fail!("BadWasmUrl({why})");
+    }
+    if !is_sha256_hex(wasm_sha256) {
+        fail("BadWasmHash");
+    }
+    if limits.max_instructions == 0 || limits.max_instructions > MAX_INSTRUCTIONS {
+        fail!("BadLimit(max_instructions, {})", limits.max_instructions);
+    }
+    if limits.max_memory_mb == 0 || limits.max_memory_mb > MAX_MEMORY_MB {
+        fail!("BadLimit(max_memory_mb, {})", limits.max_memory_mb);
+    }
+    if limits.max_execution_seconds == 0 || limits.max_execution_seconds > MAX_EXECUTION_SECONDS {
+        fail!(
+            "BadLimit(max_execution_seconds, {})",
+            limits.max_execution_seconds
+        );
+    }
+    if deposit == 0 {
+        fail("BadLimit(deposit, 0)");
+    }
+}
+
 /// OutLayer's own checks on a WASM URL, so a bad one fails here instead of
 /// in every request.
-fn wasm_url_error(url: &str) -> Option<&'static str> {
+pub(crate) fn wasm_url_error(url: &str) -> Option<&'static str> {
     if !url.starts_with("https://") || url.len() <= "https://".len() {
         Some("not https")
     } else if url.len() > MAX_WASM_URL_BYTES {
@@ -473,7 +496,7 @@ fn wasm_url_error(url: &str) -> Option<&'static str> {
     }
 }
 
-fn is_sha256_hex(s: &str) -> bool {
+pub(crate) fn is_sha256_hex(s: &str) -> bool {
     s.len() == 64 && s.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
 }
 
@@ -485,7 +508,7 @@ fn is_date(s: &str) -> bool {
         })
 }
 
-fn clip(s: &str, max: usize) -> &str {
+pub(crate) fn clip(s: &str, max: usize) -> &str {
     if s.len() <= max {
         return s;
     }
