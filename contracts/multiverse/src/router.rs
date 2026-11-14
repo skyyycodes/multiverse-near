@@ -6,9 +6,12 @@
 //! goes straight into lending.
 //!
 //! A trade runs inside a `LogScope` (one line per NEP-245 kind and per event
-//! name, its fills as one `orders_filled` line), so even the heaviest plan
-//! the app builds (four worlds, five fills each) stays inside a receipt's log
-//! limits.
+//! name, its fills as one `orders_filled` line) and plans at most
+//! `max_trade_fills(world_count)` fills: 20 up to 4 worlds, 16 at 8. With
+//! those caps every trade the contract accepts logs at most 100 lines and
+//! 16,384 bytes, whatever its ids and amounts (`tests/eight.rs` pins the
+//! worst cases byte for byte). A plan above the cap fails `TooManyFills`
+//! before any work.
 //!
 //! Plans are strict: an order that was taken, cancelled,
 //! expired or went stale fails the whole trade, and the app replans.
@@ -32,10 +35,15 @@ use crate::types::Asset;
 use crate::{Contract, ContractExt};
 
 /// Most order fills one trade may plan at up to 4 worlds (the v1 planner's
-/// 4 x 5), and at 8 worlds, so every accepted trade fits a receipt's logs.
+/// 4 x 5), and at 8 worlds, so every accepted trade fits a receipt's logs
+/// with room to spare. At the widest values (64-character ids, u64::MAX ids,
+/// u128::MAX amounts) each fill from its own maker adds 492 bytes at 8
+/// worlds: 16 fills log 15,565 bytes (`tests/eight.rs` pins it), 18 would
+/// log 16,549, over the 16,384-byte receipt limit.
 pub const MAX_TRADE_FILLS: usize = 20;
-pub const MAX_TRADE_FILLS_8W: usize = 18;
+pub const MAX_TRADE_FILLS_8W: usize = 16;
 
+/// The fill cap of a scenario with `world_count` worlds.
 pub fn max_trade_fills(world_count: u8) -> usize {
     if world_count <= 4 {
         MAX_TRADE_FILLS
@@ -373,6 +381,11 @@ impl Contract {
         let n = usize::from(world_count);
         if plans.len() != n || min_out.len() != n {
             fail("LengthMismatch");
+        }
+        let fills: usize = plans.iter().map(Vec::len).sum();
+        let max = max_trade_fills(world_count);
+        if fills > max {
+            fail!("TooManyFills({fills}, {max})");
         }
         let singles = masks::single_worlds(possible);
         self.internal_split(user, t.scenario_id, t.asset_in(), root, &singles, t.amount);
