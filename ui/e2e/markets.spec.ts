@@ -51,7 +51,7 @@ test('markets: the landing, the board, market pages and the docs read the chain'
   await expect(page.locator('.mk__book')).toContainText(/pool \$\d/)
   await page.locator('.mk__shape button', { hasText: 'Delayed' }).click()
   await expect(page.locator('.mk__shape')).toContainText('every “Delayed” world')
-  await expect(page.locator('.mk__ticket .pc__tabs button[aria-pressed="true"]')).toHaveText('Hedge')
+  await expect(page.locator('.mk__ticket .pc__tabs[aria-label="Action"] button[aria-pressed="true"]')).toHaveText('Hedge')
   await expect(page.locator('.mk__pos')).toContainText(/Safe|Normal|Bold/)
   await page.locator('.mk__lowertabs button', { hasText: 'Checks' }).click()
   await expect(page.locator('.sc__checks')).toContainText('Every world balances')
