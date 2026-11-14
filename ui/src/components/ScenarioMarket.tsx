@@ -196,15 +196,19 @@ export function ScenarioMarket({ market: m }: { market: ChainMarket }) {
   )
 }
 
-// What the account holds in one world: wallet pieces plus collateral posted in any tier.
+// What the account holds in one world: wallet pieces plus collateral posted in any tier, and where it sits.
 function Holding({ h, dead }: { h: Position['worlds'][number] | undefined; dead: boolean }) {
   if (dead) return <span className="mk__hold"><span className="muted">{h && (h.nearWad > 0n || h.usdcWad > 0n) ? 'Worth zero' : '–'}</span></span>
   if (!h || (h.nearWad === 0n && h.usdcWad === 0n)) return <span className="mk__hold"><span className="muted">–</span></span>
   const near = h.nearWad > 0n
+  const posted = near ? h.postedNearWad : h.postedUsdcWad
+  const wallet = near ? h.walletNearWad : h.walletUsdcWad
   return (
     <span className="mk__hold">
       <b className={`num ${near ? '' : 'is-usdc'}`}>{near ? `${amount(h.nearWad)} NEAR` : `${amount(h.usdcWad)} USDC`}</b>
-      {near && h.usdcWad > 0n ? <small className="num">+ {amount(h.usdcWad)} USDC</small> : h.value > 0 ? <small className="num">counts {usd(h.value)}</small> : null}
+      {near && h.usdcWad > 0n ? <small className="num">+ {amount(h.usdcWad)} USDC</small>
+        : posted > 0n ? <small>{wallet > 0n ? `${amount(posted)} posted as collateral` : 'posted as collateral'}</small>
+        : <small>in your wallet</small>}
     </span>
   )
 }
