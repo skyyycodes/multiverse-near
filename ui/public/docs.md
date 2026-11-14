@@ -38,7 +38,7 @@ This is the plain-text copy of https://multiverse-lending.vercel.app/docs/. Whit
 
 IfVerse lets you hold NEAR in the futures you like and dollars in the futures you fear, and borrow real USDC against all of it at once. You pick one to three real events, like “Will the Fed cut in December?”. Every way those events can turn out is a **world**. Your money is split into one copy per world, and you decide, world by world, what to hold. A lender then looks only at your **worst world** and lends you real USDC against it.
 
-Why this matters: in normal DeFi you can only say “sell if NEAR hits $5”. You cannot say “sell if SPICE is delayed”. Prediction markets let you bet on one event, but the money is stuck until the answer comes, and a bet that pays nothing in some future gets no credit from lenders. Here, a position that is safe in every world is worth something today, so you can borrow against it.
+Why this matters: in normal DeFi you can only say “sell if NEAR hits $5”. You cannot say “sell if SPICE is delayed”. A prediction market lets you bet on one event, but the money is stuck until the answer comes, and a bet that pays nothing in some future gets no credit from lenders. Here, a position that is safe in every world is worth something today, so you can borrow against it.
 
 IfVerse runs on NEAR testnet as one smart contract (`app.ifverse-staging.testnet`) with test tokens. Nothing on it is real money.
 
@@ -65,7 +65,7 @@ Say you hold 100 wNEAR and you worry that SPICE gets delayed. Here is what you d
 3. Now, if SPICE ships, you still have your 100 NEAR. If it is delayed, you hold dollars instead, so a NEAR crash after a delay does not hurt you.
 4. **Borrow** real USDC against this mix. The lender checks all four worlds and lends against the weakest one.
 
-On 14 November 2026 the pools priced NEAR at about $4.18 in Ships & cuts, $3.44 in Ships & holds, $3.12 in Delayed & cuts and $2.66 in Delayed & holds (the `world_prices` of `list_markets`). The market thinks NEAR is worth less if SPICE is delayed. Selling 100 NEAR in Delayed & holds at $2.66 gives you about 266 USDC that exists only in that world, before the pool fee and price impact.
+On 14 November 2026 the pools priced NEAR at about $4.18 in Ships & cuts, $3.45 in Ships & holds, $3.12 in Delayed & cuts and $2.65 in Delayed & holds (the `world_prices` of `list_markets`). The market thinks NEAR is worth less if SPICE is delayed. Selling 100 NEAR in Delayed & holds at $2.65 gives you about 265 USDC that exists only in that world, before the pool fee and price impact.
 
 The page below shows two real loans on this market, read from the chain as you open it: one backed by plain wNEAR, one hedged like the example above.
 
@@ -114,7 +114,7 @@ When the answers leave only one possible world, that world’s tokens **redeem**
 
 ### The backing rule
 
-In every possible world, for each asset, what all verse tokens pay in that world adds up to exactly what the contract holds. This is the contract’s central invariant (`assert_conservation`), and each market page shows it as a check. It means the contract can always pay every winner in full.
+In every possible world, for each asset, what all verse tokens pay in that world adds up to exactly what the contract holds. This is the contract’s central invariant. Anyone can read it per world with the `backing` view, the contract’s tests assert it after their actions (`assert_conservation`), and the **Checks** tab of a market page shows it while you hold a position there. It means the contract can always pay every winner in full.
 
 <a id="prices"></a>
 
@@ -137,11 +137,11 @@ A **pool** is an automatic market maker: it holds two tokens and quotes a price 
 
 The SPICE × Fed market has 7 pools (`pool_count`), four of them world pools. A new combination of events opens with chances that treat its events as independent (it multiplies each event’s chance); trading corrects that over time.
 
-**Fees.** Each swap pays a pool fee of 0.3% (`fee_base_pips` 3000), which rises toward 1.5% (`fee_cap_pips` 15000) when trading is one-sided.
+**Fees.** Each swap pays a pool fee of 0.3% (`fee_base_pips` 3000), which rises toward 1.5% (`fee_cap_pips` 15000) when the pool’s last 8 swaps went mostly one way.
 
 **Average prices.** Each pool keeps a time-weighted average price (TWAP) over 30 minutes (`twap_window_sec` 1800). Lending uses this average, not the last trade, so one large trade cannot fake a price.
 
-**When pools stop.** A pool stops trading while an answer to one of its events is in its dispute window, and for good once its world is dead.
+**When pools stop.** A pool stops trading from the moment an answer to one of its market’s events is proposed until that answer is finalized (see Resolution), and for good once its world is dead.
 
 (On the web page: the live TWAP window, pool fees, dispute window, minimum loan and price-check settings, read from `get_app_config` and `price_check`.)
 
@@ -151,12 +151,13 @@ The SPICE × Fed market has 7 pools (`pool_count`), four of them world pools. A 
 
 Next to the pools, each world has an **order book**: a list of standing offers from people.
 
-- A **bid** is an offer to buy NEAR-if-world at a price you set, paid in USDC. You lock the USDC when you post it.
-- An **ask** is an offer to sell NEAR-if-world at a price you set. You lock the wNEAR when you post it.
+- A **bid** is an offer to buy NEAR-if-world at a price you set, paid in USDC-if-world. You lock that USDC-if-world when you post it.
+- An **ask** is an offer to sell NEAR-if-world at a price you set. You lock that NEAR-if-world when you post it.
 - A **fill** happens when someone takes your offer, fully or in part. You receive the other token in that world.
 - **Cancel** takes back whatever part of your order has not been filled. Orders also carry an expiry time.
+- An order fills only until the next answer: once any event of the market is answered, older orders can no longer fill, and you cancel them to get your tokens back.
 
-Limits from the contract: an order must be at least 0.001 of a token (`MIN_ORDER_AMOUNT`), one account can have at most 64 open orders (`MAX_OPEN_ORDERS_PER_MAKER`), and one trade fills at most 20 orders (16 in an 8-world market; `max_trade_fills`, `max_trade_fills_8w`).
+Limits from the contract: an order must be at least 0.001 NEAR (`MIN_ORDER_AMOUNT`) and worth at least 0.0001 USDC, one account can have at most 64 open orders (`MAX_OPEN_ORDERS_PER_MAKER`), and one trade fills at most 20 orders (16 in an 8-world market; `max_trade_fills`, `max_trade_fills_8w`).
 
 ### Pool or order book?
 
@@ -176,7 +177,7 @@ The **Hedge** tab of a market does it in one transaction: it takes wNEAR from yo
 
 Example: you hold 100 wNEAR and pick Delayed & cuts and Delayed & holds. After the hedge you hold 100 NEAR-if-Ships & cuts, 100 NEAR-if-Ships & holds, and the USDC the pools paid in the two Delayed worlds. If SPICE ships, you have your NEAR. If it is delayed, you have dollars.
 
-Turn on **Keep the result as loan collateral** and the result goes straight into a loan position in the tier you choose, ready to borrow against. The UI calls this sell-and-borrow; the contract action is `conditional_sell` with `to_lending: true`.
+Turn on **Keep the result as loan collateral** and the result goes straight into a loan position in the tier you choose, ready to borrow against. The Borrow page offers the same as **Sell NEAR into collateral**; the contract action is `conditional_sell` with `to_lending: true` and a `tier`.
 
 A hedge has a cost: the pool fee, the price impact, and the upside you give up in the worlds where you sold.
 
@@ -237,7 +238,7 @@ Rates are yearly borrow rates (APR) and follow **utilization**, the share of a t
 
 ## Health factor, interest, borrow, repay
 
-The **health factor** tells you how safe a loan is: health = worst-world value × the tier’s liquidation line ÷ debt. Above 1 the loan is safe. Below 1, anyone can liquidate part of it.
+The **health factor** tells you how safe a loan is: health = worst-world value × the tier’s liquidation line ÷ debt. At 1 or above the loan is safe. Below 1, anyone can liquidate part of it.
 
 Example in the Normal tier (liquidated at 70%): your worst world is worth 1,000 USDC and you owe 500 USDC. Health = 1,000 × 0.70 ÷ 500 = 1.40. If NEAR falls and your worst world drops to 700 USDC, health = 700 × 0.70 ÷ 500 = 0.98, and the loan can be liquidated.
 
@@ -245,11 +246,11 @@ The most you can borrow is worst-world value × the borrow line (60% in Normal),
 
 **Interest** accrues every second on what you owe, at the tier’s current rate. Your debt grows slowly over time; the page shows the current rate.
 
-**Repay** any amount at any time, or choose “Repay all”, which sends slightly more than your debt (debt × 1.001, capped by your wallet) and the contract refunds the rest. Repaying is never paused.
+**Repay** any amount at any time, as long as what is left is either nothing or at least the 100 USDC minimum loan. “Repay all” sends slightly more than your debt (debt × 1.001, capped by your wallet) and the contract refunds the rest. Repaying is never paused.
 
 **Add collateral** at any time to raise your health. Adding collateral is never paused. **Take back** collateral while the loan stays healthy enough.
 
-**Closing after resolution.** Once every event of the market is answered, one transaction on the **Resolve** page repays the loan from the surviving world’s tokens and pays out the rest.
+**Closing after resolution.** Once an event of the market is answered, one transaction on the **Resolve** page (**Close … and redeem**) repays the loan with USDC from your wallet, takes back all your collateral, turns every piece that is now certain to pay into real wNEAR or USDC, and sends it to your wallet. Pieces of worlds still open stay yours as tokens.
 
 <a id="liquidation"></a>
 
@@ -260,7 +261,7 @@ The most you can borrow is worst-world value × the borrow line (60% in Normal),
 - **How much:** normally up to half of the debt per liquidation (`close_factor` 0.5). The whole loan can be repaid when health is below 0.9 (`full_liquidation_hf`) or the debt is under 200 USDC (`small_loan`).
 - **What the liquidator gets:** the same fraction of every collateral piece, plus the bonus (5%, 6% or 8% by tier). Cutting every piece by the same fraction keeps the worst world the worst.
 - **Tokens or cash:** the liquidator can receive the world tokens themselves, or ask the contract to sell them for USDC in the same transaction (“Cash (USDC)”), with a minimum they will accept.
-- **When it waits:** liquidation is held back while an answer is in its dispute window, while a world’s pool is too young or thin to price, while the `liquidate` flag is paused (and for a grace period after it is unpaused: 1,800 seconds by default), and when the pools sit more than 10% below a fresh outside NEAR price (the guard, below).
+- **When it waits:** liquidation is held back from the moment an answer is proposed until it is finalized, while a world’s pool is too young or thin to price, while the `liquidate` flag is paused (and for a grace period after it is unpaused: 1,800 seconds by default), and when a fresh outside NEAR price is more than 10% above the pools’ price (the guard, below).
 
 The **At-risk loans** page lists every loan below a health you choose and lets you liquidate from there. The keeper bot (below) also liquidates on its own.
 
@@ -268,7 +269,7 @@ The **At-risk loans** page lists every loan below a health you choose and lets y
 
 Each tier has an **insurance fund**. It fills from 10% of all interest and from donations (the **Insure** tab on the Lend page; donations cannot be taken back).
 
-**Bad debt** is debt left after a loan has no collateral left. When that happens, `write_off_bad_debt` first pays it from the tier’s insurance fund. Only what insurance cannot cover is shared by the tier’s lenders (their supply is written down). Each tier’s totals are public: `bad_debt_covered` and `bad_debt_socialized` in `lending_tiers`.
+**Bad debt** is debt left after a loan has no collateral worth anything. It is written off at once: by the liquidation that takes the last collateral, or by anyone with `write_off_bad_debt` (the **Write off** button on the At-risk page) for a loan whose collateral is worth nothing in every possible world. The tier’s insurance fund pays first. Only what insurance cannot cover is shared by the tier’s lenders (their supply is written down). Each tier’s totals are public: `bad_debt_covered` and `bad_debt_socialized` in `lending_tiers`.
 
 <a id="reference"></a>
 
@@ -276,11 +277,11 @@ Each tier has an **insurance fund**. It fills from 10% of all interest and from 
 
 The world pools could, in theory, drift away from the real NEAR price. So a lendable market compares the NEAR price its pools imply (from their 30-minute averages) with an outside **reference price**: the median of Coinbase, Kraken, Gemini and CoinGecko.
 
-The rules on staging (`get_reference_config`): at least 3 sources must agree within 2% of each other (`min_sources`, `max_spread_bps`), and the price must be posted within 300 seconds of being observed (`max_result_delay_sec`).
+The rules on staging (`get_reference_config`): the price must be posted within 300 seconds of being observed (`max_result_delay_sec`), be newer than the stored one, and lie between $0.10 and $1,000 (`min_price`, `max_price`). A price from OutLayer must also come from at least 3 sources that agree within 2% of each other (`min_sources`, `max_spread_bps`); the contract checks that itself. A price from the reporter is trusted on those two points, and the keeper that posts it applies the same rule before it sends.
 
 - **Too far apart:** if the pools’ price and the reference differ by more than 10% (`max_deviation`), new borrowing pauses for that market.
 - **Pools too high:** if the pools imply a higher price than the reference, collateral counts at the lower, outside level for new loans.
-- **Pools too low:** if the pools sit more than 10% below a reference that is at most 300 seconds old (`liquidation_max_age_sec`), liquidation waits, so nobody is liquidated on a crashed pool. Otherwise the reference can lower liquidation prices by at most 20% (`max_haircut`).
+- **Pools too low:** if a reference that is at most 300 seconds old (`liquidation_max_age_sec`) is more than 10% above the pools’ price, liquidation waits, so nobody is liquidated on a crashed pool. Otherwise the reference can lower liquidation prices by at most 20% (`max_haircut`).
 - **Stale price:** if the reference is more than 1 hour old (`borrow_max_age_sec` 3600), new borrowing pauses. Repaying, adding collateral and leaving never pause.
 - **Opening markets:** a proposal can only open with a fresh reference too (see Proposals).
 
@@ -293,10 +294,10 @@ Who posts it: the reporter account (`resolver.ifverse-staging.testnet`) with `re
 Every event has a written rule and a public source. An answer reaches the contract in one of three ways:
 
 - **The reporter** (`resolver.ifverse-staging.testnet`) proposes an outcome with its evidence (`report_outcome`).
-- **OutLayer** runs a small open program inside a secure enclave that reads public data and proposes the outcome (`request_resolution`). On staging it reads Fed decisions from FRED; the request attaches 0.005 NEAR and 240 Tgas.
+- **OutLayer** runs a small open program inside a secure enclave that reads public data and proposes the outcome (`request_resolution`). On staging it reads Fed decisions from FRED; the request needs 0.005 NEAR attached and at least 240 Tgas (the site attaches 300).
 - **The owner** resolves directly (`admin_resolve`), for emergencies.
 
-A proposed answer then sits in a **dispute window** of 10 minutes on staging (`dispute_window_sec` 600). During it, the owner can dispute it, and that market’s trading and liquidations pause. After it, anyone can **finalize** the answer (`finalize`), which makes it permanent. Then the losing worlds die.
+A proposed answer then sits in a **dispute window** of 10 minutes on staging (`dispute_window_sec` 600). During it, the owner can dispute it (cancel it, so a new answer can be proposed). After it, anyone can **finalize** the answer (`finalize`), which makes it permanent. Then the losing worlds die. From the moment an answer is proposed until it is finalized, every market on that event pauses its pool swaps, order fills, new borrowing and liquidations; repaying, adding collateral and posting or cancelling orders still work.
 
 When every event of a market is final, one world is left: its tokens **redeem** one for one into real wNEAR or USDC, and loans can be closed.
 
@@ -313,7 +314,7 @@ The transactions for both are in the live section below.
 
 Anyone can ask for a new market. There are two kinds of proposal:
 
-- **Kind A, a new event:** you write the question, two outcome names, the rule, the source, a deadline, a category and the starting odds. It needs a bond of 0.2 NEAR (`bond_new_event`) plus a 0.1 NEAR opening reserve (2 worlds). The owner reviews it within 14 days (`review_ttl_sec`) and approves (your bond comes back) or rejects it (the bond comes back unless it was spam). Once approved, it opens like a combination when its pledges reach the goal.
+- **Kind A, a new event:** you write the question, two outcome names, the rule, the source, a deadline, a category and the starting odds. It needs a bond of 0.2 NEAR (`bond_new_event`) plus a 0.1 NEAR opening reserve (2 worlds). The owner reviews it within 14 days (`review_ttl_sec`) and approves it (your bond comes back at once) or rejects it (the bond comes back unless the owner marks it as spam). A proposal nobody reviews in 14 days ends, and the bond comes back. Once approved, it opens like a combination when its pledges reach the goal.
 - **Kind B, a combination:** you pick one to three events that already exist and are open. No review. It needs a bond of 0.05 NEAR (`bond_market`) plus an opening reserve of 0.1, 0.15 or 0.25 NEAR for 2, 4 or 8 worlds (`reserve_w2`, `reserve_w4`, `reserve_w8`).
 
 The **reserve** pays for the storage the new market will use; what the opening does not spend comes back to you. The **bond** discourages spam.
@@ -322,17 +323,17 @@ The **reserve** pays for the storage the new market will use; what the opening d
 
 Each proposal has a **goal** in USDC, set by the contract when you propose. It works from a target pool depth of 15,000 USDC (`goal_depth_usdc`), rounds to the next 1,000 USDC and is never under 10,000 USDC (`min_goal_usdc`). Anyone can **pledge** wNEAR or USDC toward the goal: at least 10 USDC or 3 wNEAR per pledge (`min_pledge_usdc`, `min_pledge_wnear`). Pledges count at the current NEAR price. The pools need both assets, so a goal usually needs some wNEAR too; the proposal page says which asset helps most.
 
-**Auto-open:** the pledge that reaches the goal opens the market by itself, in the same transaction chain. Anyone can also press **Open the market** on a ready proposal. Opening needs an outside NEAR price at most 1 hour old, and the prices the new market starts from must sit within 10% of it (`max_reference_divergence_bps`).
+**Auto-open:** the pledge that reaches the goal opens the market by itself, in the same transaction chain. Anyone can also press **Open the market** on a ready proposal. Opening needs an outside NEAR price at most 1 hour old, and the NEAR price the new market starts from (read from the SPICE × Fed market) must sit within 10% of it (`max_external_divergence_bps`).
 
 **After opening:** the pledges become the market’s starting pool liquidity. Pledgers own it as seed shares, locked for 7 days (`seed_lock_sec`); after that they can withdraw. Any part of a pledge the pools did not use can be claimed back (`claim_unused`).
 
-**Refunds:** before the opening, a pledger can take back a pledge at any time. If a proposal expires (after 60 days, `proposal_ttl_sec`), is rejected or is cancelled, every pledge comes back in full (**Get my refund**).
+**Refunds:** before the opening, a pledger can take back a pledge at any time. A proposal expires after 60 days (`proposal_ttl_sec`), or sooner so the market keeps 3 days before its first event’s deadline (`min_market_life_sec`). If it expires, is rejected or ends for another reason (for example one of its events is answered first), every pledge comes back in full (**Get my refund**).
 
-**Bond outcome:** the bond comes back when the market opens, or at expiry if at least 10% of the goal was pledged (`spam_floor_bps`). Under 10% at expiry, the bond is kept as spam protection. A proposer can cancel a proposal nobody has pledged to.
+**Bond outcome for a combination:** the bond comes back when the market opens, or at expiry if at least 10% of the goal was pledged (`spam_floor_bps`). Under 10% at expiry, the bond is kept as spam protection. A proposer can cancel a proposal nobody has pledged to: the reserve comes back, but a combination’s bond is kept (a new event’s bond comes back while it is still in review). A new event’s bond already came back at approval.
 
 Limits per account: at most 4 live proposals (`max_active_per_account`) and 32 pledges (`max_pledges_per_account`).
 
-> All of these values come from `market_params` on staging. Markets 4 to 8 on the site were opened this way.
+> All of these values come from `market_params` on staging. Markets 4 to 10 on the site were opened this way.
 
 <a id="keeper"></a>
 
@@ -344,7 +345,7 @@ A **keeper** is a small program that does routine work nobody should have to do 
 2. **Keeps the lendable market near the real price** with the maker account (`maker.ifverse-staging.testnet`): if the pools imply a NEAR price more than 4% away from the reference, it trades them back in one transaction.
 3. **Liquidates unhealthy loans** with the keeper account (`keeper.ifverse-staging.testnet`): it finds loans below health 1, asks the contract for a quote and liquidates, taking cash when the sale covers the repayment, else tokens.
 
-It runs when someone has the site open (each open tab asks it at most once a minute) and on a schedule. Rounds cannot double up: each key signs with a nonce tied to the current block window, so a second round in the same window is refused by the chain.
+It runs when someone has the site open (each browser asks it at most once a minute, from a visible tab) and on a schedule. Rounds cannot double up: each key signs with a nonce tied to the current block window, so a second round in the same window is refused by the chain.
 
 Nothing depends on the keeper for safety. If it stops, the reference grows stale and new borrowing pauses; anyone can still liquidate from the At-risk page.
 
@@ -371,8 +372,8 @@ You need a NEAR **testnet** account and a little testnet NEAR. NEAR is only for 
 | What | Cost |
 |---|---|
 | Registering with the contract (once) | 0.1 NEAR, kept as your storage deposit |
-| Everyday actions (split, hedge, supply, repay, collateral) | 150 Tgas attached; about 0.15 NEAR must be free when you sign, most of it comes back |
-| Heavy actions (pledge, liquidate, propose, open, OutLayer requests) | 300 Tgas; about 0.3 NEAR must be free when you sign |
+| Everyday actions (split, hedge, supply, repay, collateral) | 150 Tgas attached; about 0.17 NEAR must be free when you sign, most of it comes back |
+| Heavy actions (pledge, liquidate, propose, open, OutLayer requests) | 300 Tgas; about 0.31 NEAR must be free when you sign |
 | Order book page trades | 20 Tgas per order filled, 30 per pool swap, 25 to post an order |
 | A new event proposal | 0.2 NEAR bond + 0.1 NEAR reserve |
 | A combination proposal | 0.05 NEAR bond + 0.1 / 0.15 / 0.25 NEAR reserve |
@@ -382,7 +383,7 @@ You need a NEAR **testnet** account and a little testnet NEAR. NEAR is only for 
 ### Getting testnet NEAR
 
 - **If you have a funded top-level `.testnet` account:** use [near-faucet.io](https://near-faucet.io) to top it up.
-- **If you have 0 NEAR:** the NEAR CLI (near-cli-rs) can create a new account funded with 10 NEAR by the faucet service. Then import its key into your wallet.
+- **If you have 0 NEAR:** the NEAR CLI (near-cli-rs) can create a new account funded with 10 NEAR by the faucet service. Then import its key into your wallet. Use `print-to-terminal` in place of `save-to-keychain` to see the key.
 
 ```
 near account create-account sponsor-by-faucet-service <name>.testnet autogenerate-new-keypair save-to-keychain network-config testnet create
@@ -410,7 +411,7 @@ The site connects through NEAR Connect. On testnet, **Meteor**, **Intear** and *
 
 1. Open [Markets](https://multiverse-lending.vercel.app/markets/) and pick a market.
 2. In the ticket on the right, the **Fund** tab splits wNEAR or USDC into every world. Enter an amount and press the **Split into …** button.
-3. To merge, open the Split page from the market and choose **Merge a full set back**.
+3. To merge, press **Merge a full set back** under the Fund ticket. It opens the Split page in merge mode; press **Merge back into …**.
 
 ### Hedge (sell NEAR in the worlds you fear)
 
@@ -422,35 +423,36 @@ The site connects through NEAR Connect. On testnet, **Meteor**, **Intear** and *
 ### Trade on the order book
 
 1. Open [Order book](https://multiverse-lending.vercel.app/orders/) and pick a market and a world.
-2. Choose buy or sell and the **Order type**: **Market** fills the best orders, then the pool; **Limit** rests at your price until filled, cancelled or expired.
-3. Enter the amount and confirm. Your open orders are listed under the book; cancel one with **Cancel**.
+2. This page trades what you already hold inside that world. If you hold nothing there, press **Add funds** (it opens the Split page) and split first.
+3. Pick the order type: **Market** fills the best orders, then the pool; **Limit** takes the orders that cross your price, then leaves the rest on the book at your price until it fills, you cancel it or it expires (**Good for**). A limit order never uses the pool.
+4. In the buy or the sell ticket, enter the NEAR amount and press **Buy NEAR** or **Sell NEAR**. Your orders are under **Open orders (…)**; cancel one with **Cancel**.
 
 ### Lend USDC
 
 1. Open [Lend](https://multiverse-lending.vercel.app/lend/) and pick a tier (Safe, Normal or Bold).
 2. In **Supply**, enter the USDC to supply and press **Supply …**.
-3. To leave, use **Withdraw all** or an amount. **Insure** donates to the tier’s insurance fund.
+3. To leave, open **Withdraw**, enter an amount or press **Max** (the button reads **Withdraw all** when the tier can pay it all now). **Insure** donates to the tier’s insurance fund.
 
 ### Borrow
 
 1. Get collateral: hedge with collateral kept, or use **Add collateral** on the [Borrow](https://multiverse-lending.vercel.app/borrow/) page to post wNEAR or USDC.
-2. Pick the **Lending tier** and switch to **Borrow**. Enter the USDC to borrow; the page shows your new health.
+2. Pick the tier (Safe, Normal or Bold) and switch to **Borrow**. Enter the USDC to borrow; the page shows your new health.
 3. Press **Borrow …** and approve. The USDC arrives in your wallet.
 
 ### Repay
 
 1. On the Borrow page, choose **Repay**.
-2. Enter the USDC to repay, or choose to repay all (the button reads **Repay all**). Approve.
+2. Enter the USDC to repay, or press **All** (the button then reads **Repay all**). Approve.
 
 ### Liquidate
 
 1. Open [At-risk loans](https://multiverse-lending.vercel.app/liquidate/) and set the health to show.
-2. Pick a loan below 1 and choose **Max** or **An amount**, and **Cash (USDC)** or **World tokens**.
-3. Press **Liquidate** and approve.
+2. Press **Liquidate** on a loan below 1 and choose **Max** or **An amount**, and **Cash (USDC)** or **World tokens**.
+3. Press **Liquidate for cash** or **Liquidate for tokens** and approve.
 
 ### Propose a market
 
-1. Open [Propose](https://multiverse-lending.vercel.app/propose/). Choose **New proposal**.
+1. Open [Propose](https://multiverse-lending.vercel.app/propose/) (the **New proposal** view). Choose **A new event** or **Combine events**.
 2. For a combination, pick one to three open events. For a new event, fill in the question, outcomes, rule, source, deadline, category and starting odds.
 3. Press **Propose · …**, which shows the NEAR it attaches (bond + reserve).
 
@@ -458,13 +460,13 @@ The site connects through NEAR Connect. On testnet, **Meteor**, **Intear** and *
 
 1. Open [Proposals](https://multiverse-lending.vercel.app/proposals/) or a proposal’s page.
 2. Choose **Pledge in** wNEAR or USDC, enter an amount and press **Pledge …**. The pledge that reaches the goal opens the market.
-3. Before the opening, **Withdraw pledge** takes it back. After an expiry or rejection, **Get my refund**.
+3. Before the opening, **Withdraw pledge** (on the list) or **Withdraw everything** (on the proposal’s page) takes it back. After an expiry or rejection, **Get my refund**. After the opening, **Claim the unused part** returns what the pools did not use.
 
 ### Resolve, finalize, redeem
 
-1. Open [Resolve](https://multiverse-lending.vercel.app/resolve/) and pick a market. Each event shows **Where this event stands**.
+1. Open [Resolve](https://multiverse-lending.vercel.app/resolve/) and pick a market. Each event shows where it stands: Open, Proposed, Dispute window, Final.
 2. For a Fed event, **Ask OutLayer to read FRED**. After the dispute window, press **Finalize**.
-3. When a market is settled, press **Redeem** to turn the surviving world’s tokens into real tokens, and close any loan.
+3. Once an answer is final, press **Redeem** to turn tokens that are now certain to pay into real tokens, and close any loan with **Close … and redeem**.
 
 ### Your positions
 
@@ -581,7 +583,7 @@ Real tokens move with `ft_transfer_call` on the token contract, `receiver_id` = 
 
 ### Errors
 
-A refused call fails with a short code, for example `Paused(trade)`, `ReferenceStale(4000, 3600)`, `ReferenceDeviation(…)` or `InsufficientStorage`. The site turns each into plain words.
+A refused call fails with a short code, for example `Paused(trade)`, `ReferenceStale(4000, 3600)`, `ReferenceDeviation(…)` or `InsufficientStorage(…)`. The site turns each into plain words.
 
 <a id="glossary"></a>
 
@@ -650,7 +652,7 @@ The rule and public source of each event. The reporter or OutLayer proposes; aft
 
 Testnet charges for the gas you attach when you sign and refunds the unused part a few blocks later.
 
-### Can an AI agent use this?
+### Can a program or a bot use this?
 
 Yes. Read [/docs.md](https://multiverse-lending.vercel.app/docs.md), then use the views and the ft_transfer_call messages in the developers section.
 
