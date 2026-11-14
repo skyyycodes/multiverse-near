@@ -5,27 +5,26 @@ stays in the repo but is no longer deployed). It covers every screen `web/` has,
 
 | Route | Screen |
 |---|---|
-| `/` | Landing: the scroll story, the four-world example, open markets, FAQ |
-| `/markets` | Market board: featured market with its chance chart, search, categories, watchlist |
-| `/market/?id=N` | One market: chance of each world over time, a row per world (hedge, trade, its order book), rules, resolution, activity, holders, and the fund / hedge / borrow / lend / liquidity ticket |
-| `/orders` | Trading screen per world: candle chart (TradingView lightweight-charts), order book with spread, limit and market orders, trades |
-| `/borrow` | Loan position, borrow capacity, liquidation price per world, collateral at risk, LTV slider |
-| `/lend` | Supply and withdraw, rate history, where the pool is lent, underwriting every world |
-| `/resolve` | Every event with its rule, sources, deadline and a proposed → dispute → final timeline |
-| `/portfolio` | The range of futures you hold (worst to best world, with a "what if NEAR moves" control), value and P&L against cost, positions, orders, trades, activity, allocation |
-| `/admin` | Owner console: resolve events, move a world's price, mint test tokens, reseed |
-| `/docs` | How it works, with the testnet run and its explorer links |
-| `/propose/` | Propose an event or a market, pledge from both sides, owner check, open already funded (`/proposal/?p=N`: one proposal) |
+| `/` | Landing: the scroll story, the four worlds of the anchor market, a 1,000 NEAR what-if at today's prices, open markets, FAQ |
+| `/markets/` | Market board: the anchor featured with its map of worlds, search, categories, watchlist, proposals collecting pledges |
+| `/market/?id=N` | One market: a row per world (chance, NEAR price, what you hold, its order book), rules, resolution, checks, your loan, and the fund / hedge / borrow / lend / liquidity ticket |
+| `/orders/?id=N&w=W` | Order book per world: pool price after each swap, depth, limit and market orders from what you hold in the world, pool trades, your orders |
 | `/split/?id=N` | Split real wNEAR or USDC into every world, or merge a full set back |
-| `/liquidate/` | At-risk loans across markets and tiers |
-| `/proposals` | Roadmap: decision markets, pass vs fail time-weighted prices against a +3% threshold, as MetaDAO decides |
+| `/borrow/?id=N&tier=T` | Loan per tier: worst world, liquidation price per world, collateral at risk (a what-if), sell NEAR into collateral, borrow and repay |
+| `/lend/?id=N&tier=T` | Supply and withdraw per tier, the tier's rate curve, who it is lent to, insurance, Root liquidity |
+| `/liquidate/` | At-risk loans across markets and tiers, with the contract's quote |
+| `/portfolio/` | The range of futures you hold (with a labelled "what if NEAR moves" control), loans and supply by tier, positions, open orders |
+| `/propose/`, `/proposals/`, `/proposal/?p=N` | Propose an event or a combination, the proposals board, one proposal and its pledges |
+| `/resolve/?id=N` | Every event with its rule, sources and the chain's proposed → dispute → final line |
+| `/admin/?id=N` | Owner console: review proposals, pause flags, resolve now, dispute, the NEAR/USD reference |
+| `/docs/` | How it works, with live tiers, two live loans and the staging transactions |
+| `/decision-markets/` | Roadmap page for decision markets, no numbers |
 
 ## Status
 
-Screens move from the in-browser model (`src/lib/scenario.ts`) to the contract on testnet through the chain adapter
-(`src/chain/adapter.ts`), one by one; the shell (wallet, balances, test tokens, search, toasts) already runs on the
-chain. [INTEGRATION.md](INTEGRATION.md) has the adapter API, the routes, the classes for new elements, who owns which
-file and the gates. Anything without real data is built for real or hidden.
+Every screen reads the contract on testnet through the chain adapter (`src/chain/adapter.ts`); the in-browser model is
+gone. Anything the chain has no data for (price history, volume, P&L, activity, holders, Intents quotes) is hidden.
+[INTEGRATION.md](INTEGRATION.md) has the adapter API, the routes, the classes for new elements and the gates.
 
 ## Run it
 
@@ -50,6 +49,4 @@ The contract, token ids and RPC come from `deployments/<network>.json` (`NEXT_PU
 - `src/views/` one file per screen
 - `src/components/` shared pieces: header, wallet menu, search (Ctrl/⌘+K), toasts, charts, market artwork
 - `src/chain/` the v2 chain layer (from `web/src/lib`) and the adapter the views read
-- `src/lib/scenario.ts` the in-browser model, until every screen is off it; `src/lib/history.ts` its seeded histories
-- `src/data/demo.ts` the demo markets, with each event's rule, deadline and sources
 - `src/styles/` the stylesheets; `public/markets/` the event artwork
