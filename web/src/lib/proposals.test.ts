@@ -75,6 +75,11 @@ describe("Kind A terms (web 7.7)", () => {
     expect(normaliseTerms(5_000, [15_000, 10_000])).toEqual([12_000, 8_000]);
   });
 
+  it("has no terms while a price field is empty, instead of throwing", () => {
+    expect(normaliseTerms(5_000, [Number.NaN, 9_000])).toEqual([0, 0]);
+    expect(termsProblem(5_000, [Number.NaN, 9_000], params)).toMatch(/Each NEAR price/);
+  });
+
   it("refuses odds outside the clamp and multipliers outside mult_a", () => {
     expect(termsProblem(50, [10_000, 10_000], params)).toMatch(/between 1% and 99%/);
     expect(termsProblem(5_000, [25_000, 10_000], params)).toMatch(/between 50% and 200%/);

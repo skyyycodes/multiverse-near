@@ -112,6 +112,8 @@ export function proposalTitle(p: Pick<ProposalSummary, "proposalId" | "kind" | "
  * imply today's price S_ref. Rounded down; 0 when k is 0.
  */
 export function normaliseTerms(odds0Bps: number, raw: readonly [number, number]): [number, number] {
+  // A field being edited (empty or not a whole percent) has no terms yet; termsProblem names the error.
+  if (!Number.isInteger(odds0Bps) || !raw.every(Number.isInteger)) return [0, 0];
   const q0 = BigInt(odds0Bps);
   const q1 = 10_000n - q0;
   const k = q0 * BigInt(raw[0]) + q1 * BigInt(raw[1]);
