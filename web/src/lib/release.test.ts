@@ -1,7 +1,7 @@
 // The release check (scripts/check-release.mjs) on hand-made build outputs: each rule must pass a good output and fail
 // the bad one it exists for. The on-chain OutLayer read is stood in for.
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -11,6 +11,9 @@ const PROD = { rpcUrl: "https://rpc", contractId: "app.multiverse-near.testnet",
 const STAGING = { rpcUrl: "https://rpc", contractId: "app.ifverse-staging.testnet", wnear: "w", usdc: "u" };
 const FRED = Buffer.from("fred guest bytes");
 const FRED_SHA = createHash("sha256").update(FRED).digest("hex");
+// A staging output must carry the committed NEAR/USD guest once oracle/nearusd-guest/dist has it (C-PRC commits it).
+const NEARUSD_DIST = join(__dirname, "..", "..", "..", "oracle", "nearusd-guest", "dist", "nearusd-guest.wasm");
+const NEARUSD = existsSync(NEARUSD_DIST) ? readFileSync(NEARUSD_DIST) : Buffer.from("nearusd");
 
 function dir(prefix: string): string {
   return mkdtempSync(join(tmpdir(), prefix));
@@ -51,7 +54,7 @@ function staging(extra: Out = {}): Out {
   return {
     "index.html": "<html><title>IfVerse</title></html>",
     "_next/static/chunks/app.js": `const e={contractId:"${STAGING.contractId}"};window.__nearDemo;`,
-    "outlayer/nearusd-guest.wasm": Buffer.from("nearusd"),
+    "outlayer/nearusd-guest.wasm": NEARUSD,
     "version.json": version("staging", STAGING.contractId),
     ...extra,
   };
