@@ -28,8 +28,11 @@ use near_sdk::{
     RuntimeFeesConfig, VMContext,
 };
 
+use near_sdk::borsh::BorshDeserialize;
+use near_sdk::IntoStorageKey;
+
 use crate::types::{Asset, AssetCfg, VerseKey};
-use crate::Contract;
+use crate::{Contract, StorageKey};
 
 pub const CONTRACT: &str = "multiverse.near";
 pub const OWNER: &str = "admin.near";
@@ -64,6 +67,10 @@ pub const SHIPS_HOLDS: u8 = 0x4;
 pub const DELAYED_HOLDS: u8 = 0x8;
 pub const L_SHAPE: u8 = 0xE;
 pub const SINGLES: [u8; 4] = [SHIPS_CUTS, DELAYED_CUTS, SHIPS_HOLDS, DELAYED_HOLDS];
+
+// 3-event scenario [spice, fed, third]: world = spice + 2·fed + 4·third.
+pub const ROOT_8: u8 = 0xFF;
+pub const SINGLES_8: [u8; 8] = [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80];
 
 // Binary scenario (SPICE only).
 pub const BIN_ROOT: u8 = 0x3;
@@ -118,7 +125,7 @@ pub fn usdc_cfg() -> AssetCfg {
     }
 }
 
-type Storage = HashMap<Vec<u8>, Vec<u8>>;
+pub type Storage = HashMap<Vec<u8>, Vec<u8>>;
 type ChainFactory = Box<dyn Fn(VMContext, Vec<PromiseResult>, Storage) -> MockedBlockchain>;
 
 thread_local! {
@@ -217,12 +224,13 @@ impl Outcome {
             .collect()
     }
 
-    /// The `data[0]` of every event with this name, in order.
+    /// Every item of every event with this name, in order: a line written by
+    /// a `LogScope` groups all the items of its name.
     pub fn data_of(&self, event: &str) -> Vec<Value> {
         self.events()
             .into_iter()
             .filter(|e| e["event"] == event)
-            .map(|e| e["data"][0].clone())
+            .flat_map(|e| e["data"].as_array().cloned().unwrap_or_default())
             .collect()
     }
 
@@ -287,6 +295,214 @@ pub struct World {
     pub s_bin: u64,
     /// The configured wNEAR and USDC.
     pub cfg: [AssetCfg; 2],
+    /// When set, every successful call's NEP-245 lines are replayed on it and
+    /// the result checked against the ledger (`track_logs`, EW-5).
+    pub replay: Option<Replay>,
+}
+
+/// The ledger an indexer rebuilds from NEP-245 lines alone: per (account,
+/// token id) balances, the contract's custody included, and supplies.
+/// Replaying a call's lines in log order must never take a balance below
+/// zero and must land exactly on the contract's `balances` and `supply`.
+#[derive(Clone, Debug, Default)]
+pub struct Replay {
+    pub balances: HashMap<(String, String), u128>,
+    pub supply: HashMap<String, u128>,
+    /// Successful calls replayed, and NEP-245 lines among them.
+    pub calls: u64,
+    pub lines: u64,
+}
+
+/// `(key, value)` of every entry of the map stored under `prefix`, decoded.
+pub fn raw_entries<K: BorshDeserialize, V: BorshDeserialize>(
+    storage: &Storage,
+    prefix: &[u8],
+) -> Vec<(K, V)> {
+    storage
+        .iter()
+        .filter(|(k, _)| k.len() > prefix.len() && k.starts_with(prefix))
+        .map(|(k, v)| {
+            let key = K::try_from_slice(&k[prefix.len()..]).expect("stored key decodes");
+            let value = V::try_from_slice(v).expect("stored value decodes");
+            (key, value)
+        })
+        .collect()
+}
+
+/// The storage prefix of a collection of the contract.
+pub fn prefix(key: StorageKey) -> Vec<u8> {
+    key.into_storage_key()
+}
+
+impl Replay {
+    /// The NEP-245 view of `storage` as it is: user balances, supplies, and
+    /// the contract's custody (supply minus what accounts hold).
+    pub fn from_storage(storage: &Storage, contract: &str) -> Self {
+        let mut r = Replay::default();
+        let (balances, supply) = Self::ledger(storage);
+        let mut custody: HashMap<String, u128> = supply.clone();
+        for ((account, token), amount) in balances {
+            *custody.get_mut(&token).expect("a held token has supply") -= amount;
+            r.balances.insert((account, token), amount);
+        }
+        for (token, amount) in custody {
+            if amount > 0 {
+                r.balances.insert((contract.to_string(), token), amount);
+            }
+        }
+        r.supply = supply;
+        r
+    }
+
+    /// Accounts' balances and supplies as stored (non-zero entries only).
+    fn ledger(storage: &Storage) -> (HashMap<(String, String), u128>, HashMap<String, u128>) {
+        let balances =
+            raw_entries::<(AccountId, VerseKey), u128>(storage, &prefix(StorageKey::Balances))
+                .into_iter()
+                .filter(|(_, a)| *a > 0)
+                .map(|((account, key), amount)| ((account.to_string(), key.token_id()), amount))
+                .collect();
+        let supply = raw_entries::<VerseKey, u128>(storage, &prefix(StorageKey::Supply))
+            .into_iter()
+            .filter(|(_, a)| *a > 0)
+            .map(|(key, amount)| (key.token_id(), amount))
+            .collect();
+        (balances, supply)
+    }
+
+    fn credit(&mut self, account: &str, token: &str, amount: u128) {
+        let b = self
+            .balances
+            .entry((account.to_string(), token.to_string()))
+            .or_default();
+        *b = b.checked_add(amount).expect("replayed balance overflows");
+    }
+
+    fn debit(
+        &mut self,
+        account: &str,
+        token: &str,
+        amount: u128,
+        line: usize,
+    ) -> Result<(), String> {
+        let k = (account.to_string(), token.to_string());
+        let held = self.balances.get(&k).copied().unwrap_or(0);
+        if held < amount {
+            return Err(format!(
+                "line {line}: {account} would go below zero in {token} ({held} < {amount})"
+            ));
+        }
+        if held == amount {
+            self.balances.remove(&k);
+        } else {
+            self.balances.insert(k, held - amount);
+        }
+        Ok(())
+    }
+
+    /// Applies one call's logs, line by line, entry by entry.
+    pub fn apply(&mut self, logs: &[String]) -> Result<(), String> {
+        self.calls += 1;
+        for (n, log) in logs.iter().enumerate() {
+            let Some(json) = log.strip_prefix("EVENT_JSON:") else {
+                continue;
+            };
+            let e: Value = serde_json::from_str(json).map_err(|err| format!("line {n}: {err}"))?;
+            if e["standard"] != "nep245" {
+                continue;
+            }
+            if e["version"] != "1.0.0" {
+                return Err(format!("line {n}: NEP-245 version {}", e["version"]));
+            }
+            self.lines += 1;
+            for item in e["data"].as_array().ok_or(format!("line {n}: no data"))? {
+                let tokens = item["token_ids"].as_array().ok_or("token_ids")?;
+                let amounts = item["amounts"].as_array().ok_or("amounts")?;
+                if tokens.len() != amounts.len() {
+                    return Err(format!("line {n}: token_ids and amounts differ in length"));
+                }
+                for (token, amount) in tokens.iter().zip(amounts) {
+                    let token = token.as_str().ok_or("token id")?;
+                    let amount: u128 = amount
+                        .as_str()
+                        .ok_or("amount")?
+                        .parse()
+                        .map_err(|_| "amount")?;
+                    match e["event"].as_str() {
+                        Some("mt_mint") => {
+                            self.credit(
+                                item["owner_id"].as_str().ok_or("owner_id")?,
+                                token,
+                                amount,
+                            );
+                            *self.supply.entry(token.to_string()).or_default() += amount;
+                        }
+                        Some("mt_burn") => {
+                            self.debit(
+                                item["owner_id"].as_str().ok_or("owner_id")?,
+                                token,
+                                amount,
+                                n,
+                            )?;
+                            let s = self.supply.entry(token.to_string()).or_default();
+                            *s = s
+                                .checked_sub(amount)
+                                .ok_or(format!("line {n}: supply of {token} below zero"))?;
+                        }
+                        Some("mt_transfer") => {
+                            self.debit(
+                                item["old_owner_id"].as_str().ok_or("old_owner_id")?,
+                                token,
+                                amount,
+                                n,
+                            )?;
+                            self.credit(
+                                item["new_owner_id"].as_str().ok_or("new_owner_id")?,
+                                token,
+                                amount,
+                            );
+                        }
+                        other => return Err(format!("line {n}: unknown NEP-245 event {other:?}")),
+                    }
+                }
+            }
+        }
+        self.supply.retain(|_, s| *s > 0);
+        Ok(())
+    }
+
+    /// The replayed ledger equals the stored one: every account's balances
+    /// and every supply. The contract's custody then equals what its modules
+    /// hold, since supply is what every owner holds.
+    pub fn verify(&self, storage: &Storage, contract: &str) -> Result<(), String> {
+        let (balances, supply) = Self::ledger(storage);
+        let replayed: HashMap<(String, String), u128> = self
+            .balances
+            .iter()
+            .filter(|((a, _), amount)| a != contract && **amount > 0)
+            .map(|(k, v)| (k.clone(), *v))
+            .collect();
+        if replayed != balances {
+            let diff: Vec<_> = balances
+                .keys()
+                .chain(replayed.keys())
+                .filter(|k| balances.get(*k) != replayed.get(*k))
+                .map(|k| {
+                    (
+                        k.clone(),
+                        balances.get(k).copied(),
+                        replayed.get(k).copied(),
+                    )
+                })
+                .take(5)
+                .collect();
+            return Err(format!("balances differ (stored, replayed): {diff:?}"));
+        }
+        if self.supply != supply {
+            return Err("supplies differ from the replay".to_string());
+        }
+        Ok(())
+    }
 }
 
 /// What each user starts with when wNEAR has more than 18 decimals: 1e31
@@ -326,6 +542,7 @@ impl World {
             s2x2: 0,
             s_bin: 0,
             cfg: [wnear_cfg_with(decimals), usdc_cfg()],
+            replay: None,
         };
         w.install(&acc(CONTRACT), NO_DEPOSIT, vec![], Storage::new());
         quietly(|| {
@@ -436,6 +653,7 @@ impl World {
                     logs: get_logs(),
                     receipts: get_created_receipts(),
                 };
+                self.check_replay();
                 Ok(r)
             }
             Err(payload) => {
@@ -444,6 +662,39 @@ impl World {
                 Err(panic_message(payload))
             }
         }
+    }
+
+    /// Runs `f` on the raw key-value storage as it stands.
+    pub fn with_raw<R>(&mut self, f: impl FnOnce(&Storage) -> R) -> R {
+        let storage: Storage = with_mocked_blockchain(|b| b.take_storage());
+        let r = f(&storage);
+        self.install(&acc(ALICE), NO_DEPOSIT, vec![], storage);
+        r
+    }
+
+    /// From now on every successful call (callbacks included) replays its
+    /// NEP-245 lines on a shadow ledger started from the current state, and
+    /// the shadow must equal the stored ledger after it (EW-5).
+    pub fn track_logs(&mut self) {
+        let replay = self.with_raw(|s| Replay::from_storage(s, CONTRACT));
+        self.replay = Some(replay);
+    }
+
+    /// The replay of the last call; panics on a negative balance or a
+    /// ledger the lines do not reproduce.
+    fn check_replay(&mut self) {
+        let Some(mut replay) = self.replay.take() else {
+            return;
+        };
+        let logs = self.last.logs.clone();
+        if let Err(e) = replay.apply(&logs) {
+            panic!("NEP-245 replay: {e}\nlogs: {logs:#?}");
+        }
+        let checked = self.with_raw(|s| replay.verify(s, CONTRACT));
+        if let Err(e) = checked {
+            panic!("NEP-245 replay: {e}\nlogs: {logs:#?}");
+        }
+        self.replay = Some(replay);
     }
 
     /// A state-changing call; payouts it schedules run right after it.
@@ -495,7 +746,18 @@ impl World {
             let Some((args, _)) = function_call(callback, "on_payout") else {
                 continue;
             };
-            let transfer = &main.receipts[callback.receipt_indices[0] as usize];
+            // `receipt_indices` name promise indices, which the mock does not
+            // number by position in the receipt list
+            let waits_for = callback.receipt_indices[0];
+            let transfer = main
+                .receipts
+                .iter()
+                .find(|r| {
+                    r.actions
+                        .iter()
+                        .any(|a| a.receipt_index() == Some(waits_for))
+                })
+                .expect("the receipt an on_payout waits for");
             let (ft_args, deposit) =
                 function_call(transfer, "ft_transfer").expect("payout without ft_transfer");
             assert_eq!(deposit, 1, "ft_transfer must attach 1 yoctoNEAR");
@@ -824,9 +1086,26 @@ impl World {
 
     /// For every verse key: supply == what `accounts` hold + what modules
     /// hold. Only accounts in the list are counted, so pass all holders.
+    /// Every scenario's per-world counters (`world_supply`) equal the full
+    /// scan of `backing` too.
     pub fn assert_conservation(&mut self, accounts: &[&str]) {
         let accounts: Vec<AccountId> = accounts.iter().map(|a| acc(a)).collect();
         self.view(|c| {
+            for sid in 1..=c.scenario_count {
+                let (ws, b) = (c.world_supply(sid), c.backing(sid));
+                let scan: Vec<(U128, U128)> = b
+                    .worlds
+                    .iter()
+                    .map(|x| (x.wnear_supply, x.usdc_supply))
+                    .collect();
+                let counters: Vec<(U128, U128)> = ws
+                    .wnear
+                    .iter()
+                    .copied()
+                    .zip(ws.usdc.iter().copied())
+                    .collect();
+                assert_eq!(counters, scan, "world_supply of scenario {sid}");
+            }
             for key in c.verse_keys() {
                 let held: u128 = accounts
                     .iter()
@@ -883,15 +1162,17 @@ pub fn next_seed(seed: u64) -> u64 {
 /// `PartitionLib.random`: a valid partition of `parent` (parts pairwise
 /// disjoint, each a live strict subset, together covering `parent &
 /// possible`, dead worlds sometimes attached), or empty if there is none.
+/// Any world count up to 8; a seed draws the same partition of a 2- or
+/// 4-world parent as before.
 pub fn random_partition(parent: u8, possible: u8, mut seed: u64) -> Vec<u8> {
     let live = parent & possible;
     let dead = parent & !possible;
     if live == 0 {
         return Vec::new();
     }
-    let mut groups = [0u8; 4];
+    let mut groups = [0u8; 8];
     let mut count = 0usize;
-    for w in 0..4 {
+    for w in 0..8 {
         if (live >> w) & 1 == 0 {
             continue;
         }
@@ -903,7 +1184,7 @@ pub fn random_partition(parent: u8, possible: u8, mut seed: u64) -> Vec<u8> {
         }
         groups[g] |= 1 << w;
     }
-    for w in 0..4 {
+    for w in 0..8 {
         if (dead >> w) & 1 == 0 {
             continue;
         }

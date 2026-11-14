@@ -18,6 +18,7 @@ use near_sdk::{env, near, serde_json, AccountId, PromiseOrValue};
 
 use crate::errors::fail;
 use crate::events::{MultiverseEvent, RealDeposit};
+use crate::ledger::LogScope;
 use crate::lending::tiers::Tier;
 use crate::lending::RepayAmount;
 use crate::ops::PauseFlag;
@@ -223,7 +224,10 @@ impl Contract {
         }
         self.assert_registered(&sender_id);
         let before = env::storage_usage();
+        // every action logs as one group of lines (ledger.rs, LogScope)
+        let scope = LogScope::open();
         let refund = self.receive(&sender_id, asset, amount.0, action);
+        drop(scope);
         self.charge_storage(&sender_id, before);
         PromiseOrValue::Value(U128(refund))
     }

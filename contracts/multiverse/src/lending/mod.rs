@@ -25,6 +25,7 @@ pub mod tiers;
 
 use crate::errors::{add, fail, mul, not_implemented, sub};
 use crate::events::MultiverseEvent;
+use crate::ledger::LogScope;
 use crate::ops::PauseFlag;
 use crate::receiver::{FundInsuranceMsg, LiquidateMsg, Receive, RepayMsg, ScenarioMsg};
 use crate::types::{Asset, VerseKey, WAD};
@@ -615,18 +616,6 @@ impl Contract {
         }
     }
 
-    /// True while `account_id` has supply, debt or collateral in any market;
-    /// it blocks `storage_unregister`.
-    pub(crate) fn has_lending_position(&self, account_id: &AccountId) -> bool {
-        (1..=self.scenario_count).any(|s| {
-            let k = (s, account_id.clone());
-            self.supply_shares.contains_key(&k)
-                || self.supply_principal.contains_key(&k)
-                || self.borrow_shares.contains_key(&k)
-                || self.collateral.contains_key(&k)
-        })
-    }
-
     /// Verse tokens of `key` held as collateral, for the conservation check
     /// in the tests.
     #[cfg(test)]
@@ -675,6 +664,7 @@ impl Contract {
             account,
             add(held, shares),
         );
+        self.note_lending(account, scenario_id, held > 0, add(held, shares) > 0);
         let principal = Self::amount_in(&self.supply_principal, scenario_id, account);
         Self::set_amount(
             &mut self.supply_principal,
@@ -726,6 +716,7 @@ impl Contract {
             account,
             user_shares - shares,
         );
+        self.note_lending(account, scenario_id, user_shares > 0, user_shares > shares);
         let principal = Self::amount_in(&self.supply_principal, scenario_id, account);
         Self::set_amount(
             &mut self.supply_principal,
@@ -946,6 +937,8 @@ impl Contract {
         repay: Option<u128>,
         budget: u128,
     ) -> Liquidation {
+        // one group of lines however many pieces it cuts (ledger.rs)
+        let _scope = LogScope::open();
         let (lltv, bonus) = (self.params.lltv, self.params.liquidation_bonus);
         check_liquidation_bonus(lltv, bonus);
         if repay == Some(0) {
@@ -1210,20 +1203,25 @@ impl Contract {
         list: Vec<(CollateralKey, u128)>,
     ) {
         self.upgrade_account(account);
-        let old = real_pieces(&self.pieces(scenario_id, account));
-        self.books_on_collateral(account, old, real_pieces(&list));
+        let held = self.pieces(scenario_id, account);
+        self.books_on_collateral(account, real_pieces(&held), real_pieces(&list));
+        let now = !list.is_empty();
         let k = (scenario_id, account.clone());
         if list.is_empty() {
             self.collateral.remove(&k);
         } else {
             self.collateral.insert(k, list);
         }
+        self.note_lending(account, scenario_id, !held.is_empty(), now);
     }
 
-    /// The only writer of `borrow_shares`: v1 data is folded first.
+    /// The only writer of `borrow_shares`: v1 data is folded first; the
+    /// account's scenario index follows.
     fn set_borrow_shares(&mut self, scenario_id: u64, account: &AccountId, shares: u128) {
         self.upgrade_account(account);
+        let had = self.borrow_shares_of(scenario_id, account) > 0;
         Self::set_amount(&mut self.borrow_shares, scenario_id, account, shares);
+        self.note_lending(account, scenario_id, had, shares > 0);
     }
 
     pub(crate) fn supply_shares_of(&self, scenario_id: u64, account: &AccountId) -> u128 {

@@ -16,8 +16,24 @@ use crate::orders::OrderView;
 use crate::types::{Asset, EventView, VerseKey};
 use crate::{now_sec, Contract, ContractExt};
 
-/// Best bids and best asks per world in a trade snapshot.
-pub const SNAPSHOT_ORDERS_PER_SIDE: u32 = 25;
+/// Best bids and best asks per world in a trade snapshot: 25 up to 4 worlds,
+/// 12 at 8, so a snapshot carries at most 200 book orders.
+pub fn orders_per_side(world_count: u8) -> u32 {
+    25u32.min(100 / u32::from(world_count.max(1)))
+}
+
+/// Per-world supply of both assets against the reserves (invariant 1 per
+/// world, from the counters): one entry per world.
+#[near(serializers = [json])]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WorldSupplyView {
+    pub scenario_id: u64,
+    pub possible: u8,
+    pub wnear_reserves: U128,
+    pub usdc_reserves: U128,
+    pub wnear: Vec<U128>,
+    pub usdc: Vec<U128>,
+}
 
 #[near(serializers = [json])]
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -237,6 +253,34 @@ impl Contract {
             now_sec: now_sec(),
         }
     }
+
+    /// The supply of every token paying in each world, per asset, with the
+    /// reserves it must equal in every possible world: two reads, where
+    /// `backing` reads every mask.
+    pub fn world_supply(&self, scenario_id: u64) -> WorldSupplyView {
+        let s = self.scenario(scenario_id);
+        let counts = |asset: Asset| -> Vec<U128> {
+            self.world_supply_of(scenario_id, asset, s.world_count)
+                .into_iter()
+                .map(U128)
+                .collect()
+        };
+        WorldSupplyView {
+            scenario_id,
+            possible: s.possible,
+            wnear_reserves: U128(self.reserve(scenario_id, Asset::Wnear)),
+            usdc_reserves: U128(self.reserve(scenario_id, Asset::Usdc)),
+            wnear: counts(Asset::Wnear),
+            usdc: counts(Asset::Usdc),
+        }
+    }
+
+    /// The scenarios where the account holds anything (a verse balance, a
+    /// pool position, a lending entry of any tier, Root LP shares),
+    /// ascending: the legacy scan, then the account's scenario index.
+    pub fn markets_of(&self, account_id: AccountId) -> Vec<u64> {
+        self.scenarios_held_by(&account_id)
+    }
 }
 
 impl Contract {
@@ -247,9 +291,10 @@ impl Contract {
     /// orders cannot push live ones out.
     fn snapshot_orders(&self, scenario_id: u64, viewer: Option<&AccountId>) -> Vec<OrderView> {
         let world_count = self.scenario(scenario_id).world_count;
+        let per_side = orders_per_side(world_count);
         let mut orders = Vec::new();
         for w in 0..world_count {
-            let book = self.orders_for_world(scenario_id, w, Some(SNAPSHOT_ORDERS_PER_SIDE));
+            let book = self.orders_for_world(scenario_id, w, Some(per_side));
             orders.extend(book.bids);
             orders.extend(book.asks);
         }
@@ -270,7 +315,15 @@ impl Contract {
     ) -> ScenarioView {
         let s = self.scenario(scenario_id);
         let (q, odds_known) = self.odds_of(scenario_id);
-        let backing = self.backing(scenario_id);
+        // invariant 1 per world from the counters (two reads, not 2^W per world)
+        let reserves = [
+            self.reserve(scenario_id, Asset::Wnear),
+            self.reserve(scenario_id, Asset::Usdc),
+        ];
+        let supplies = [
+            self.world_supply_of(scenario_id, Asset::Wnear, s.world_count),
+            self.world_supply_of(scenario_id, Asset::Usdc, s.world_count),
+        ];
         let pieces = account
             .map(|a| self.pieces(scenario_id, a))
             .unwrap_or_default();
@@ -294,15 +347,18 @@ impl Contract {
                         .map(|(_, amount)| *amount)
                         .sum()
                 };
-                let b = &backing.worlds[usize::from(w)];
+                let possible = masks::contains(s.possible, w);
+                let i = usize::from(w);
+                let backed =
+                    !possible || (supplies[0][i] == reserves[0] && supplies[1][i] == reserves[1]);
                 WorldView {
                     index: w,
                     mask,
                     label: self.verse_label(scenario_id, mask),
-                    possible: masks::contains(s.possible, w),
+                    possible,
                     pool_initialized: price.is_some(),
                     wnear_price: U128(price.unwrap_or(0)),
-                    backed: b.wnear_backed && b.usdc_backed,
+                    backed,
                     wnear_token_id: wnear_key.token_id(),
                     usdc_token_id: usdc_key.token_id(),
                     user_wnear: U128(held(&wnear_key)),

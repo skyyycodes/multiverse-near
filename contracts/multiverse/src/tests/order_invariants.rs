@@ -8,6 +8,10 @@
 //! Funds are minted to the actor's wallet right before they are needed, then
 //! split into `[mask, other possible singles]`. Calls that fail are rolled
 //! back and counted when the model says they should have worked.
+//!
+//! Every call's NEP-245 lines are replayed on a shadow ledger (EW-5); the
+//! 8-world runner plays the same book on the 3-event scenario and the 2x2
+//! and also checks EW-1..EW-4 after every action.
 
 use std::cell::RefCell;
 use std::collections::BTreeMap;
@@ -16,6 +20,7 @@ use multiverse_math::orders::{cost, proceeds};
 use proptest::prelude::*;
 use proptest::test_runner::{Config, TestRunner};
 
+use super::eight::{check_eight_worlds, THIRD_QUESTION, THIRD_RULE};
 use super::harness::*;
 use super::orders::{cancel, fill, post, RAVI};
 use crate::masks::single_worlds;
@@ -27,6 +32,7 @@ const MAX_AMOUNT: u128 = 1_000_000_000_000_000_000_000_000_000_000; // 1e30
 const MAX_PRICE: u128 = 1_000_000_000_000_000_000_000_000; // 1e24
 const ACTORS: [&str; 4] = [ALICE, BOB, CAROL, RAVI];
 const CASES: u32 = 256;
+const CASES_8: u32 = 40;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Op {
@@ -82,20 +88,32 @@ struct Counters {
 struct Campaign {
     w: World,
     scenarios: [u64; 2],
-    events: [u64; 2],
+    events: Vec<u64>,
     ghost: BTreeMap<u64, u128>,
     n: Counters,
 }
 
 impl Campaign {
-    fn new() -> Self {
+    /// The 2x2 and the binary scenario, or with `eight` the 3-event scenario
+    /// and the 2x2.
+    fn new(eight: bool) -> Self {
         let mut w = World::new();
         w.register(RAVI, near_sdk::NearToken::from_near(1));
         let (spice, fed, s2x2, s_bin) = (w.spice, w.fed, w.s2x2, w.s_bin);
+        let (scenarios, events) = if eight {
+            let third = w
+                .create_event(THIRD_QUESTION, &["YES", "NO"], THIRD_RULE, T0 + 50 * DAY)
+                .unwrap();
+            let s8 = w.create_scenario(&[spice, fed, third]).unwrap();
+            ([s8, s2x2], vec![spice, fed, third])
+        } else {
+            ([s2x2, s_bin], vec![spice, fed])
+        };
+        w.track_logs();
         Campaign {
             w,
-            scenarios: [s2x2, s_bin],
-            events: [spice, fed],
+            scenarios,
+            events,
             ghost: BTreeMap::new(),
             n: Counters::default(),
         }
@@ -285,7 +303,7 @@ impl Campaign {
         if seed % 20 != 0 {
             return;
         }
-        let event = self.events[((seed >> 8) % 2) as usize];
+        let event = self.events[((seed >> 8) % self.events.len() as u64) as usize];
         if self.w.view(|c| c.get_event(event).finalized) {
             return;
         }
@@ -364,19 +382,27 @@ impl Campaign {
         prop_assert_eq!(self.n.unexpected_fails, 0);
         Ok(())
     }
+
+    /// Invariants 5 and 6 with EW-1..EW-4 (EW-5 runs inside every call).
+    fn check_eight(&mut self) -> Result<(), TestCaseError> {
+        self.check_escrow()?;
+        self.check_no_fill_after_resolution()?;
+        check_eight_worlds(&mut self.w).map_err(TestCaseError::fail)
+    }
 }
 
-fn campaign(title: &str, check: fn(&mut Campaign) -> Result<(), TestCaseError>) {
+fn campaign(title: &str, eight: bool, check: fn(&mut Campaign) -> Result<(), TestCaseError>) {
+    let cases = if eight { CASES_8 } else { CASES };
     let stats = RefCell::new(Stats::default());
     let config = Config {
-        cases: CASES,
+        cases,
         failure_persistence: None,
         max_shrink_iters: 256,
         ..Config::default()
     };
     let mut runner = TestRunner::new(config);
     let result = runner.run(&actions(), |actions| {
-        let mut c = Campaign::new();
+        let mut c = Campaign::new(eight);
         let mut s = stats.borrow_mut();
         s.cases += 1;
         check(&mut c)?;
@@ -398,21 +424,36 @@ fn campaign(title: &str, check: fn(&mut Campaign) -> Result<(), TestCaseError>) 
         panic!("{title}: {e}");
     }
     // the campaign must reach the states the invariants are about
-    assert!(s.fills > u64::from(CASES));
-    assert!(s.cancels > u64::from(CASES));
+    assert!(s.fills > u64::from(cases));
+    assert!(s.cancels > u64::from(cases));
     assert!(s.stale_fill_attempts > 0);
     assert!(s.resolutions > 0);
 }
 
 #[test]
 fn invariant_5_order_book_escrow() {
-    campaign("invariant_5_order_book_escrow", Campaign::check_escrow);
+    campaign(
+        "invariant_5_order_book_escrow",
+        false,
+        Campaign::check_escrow,
+    );
 }
 
 #[test]
 fn invariant_6_no_fill_after_resolution() {
     campaign(
         "invariant_6_no_fill_after_resolution",
+        false,
         Campaign::check_no_fill_after_resolution,
+    );
+}
+
+/// Invariants 5 and 6 and EW-1..EW-5 with a book on 8 worlds.
+#[test]
+fn order_invariants_at_eight_worlds() {
+    campaign(
+        "order_invariants_at_eight_worlds",
+        true,
+        Campaign::check_eight,
     );
 }

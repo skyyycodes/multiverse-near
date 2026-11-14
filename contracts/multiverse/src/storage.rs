@@ -13,12 +13,14 @@
 //! (`upgrade_account`) and moves the NEAR books by the record's change.
 
 use std::cmp::Ordering;
+use std::ops::RangeInclusive;
 
 use near_sdk::json_types::U128;
 use near_sdk::{assert_one_yocto, env, near, AccountId, NearToken, Promise};
 
 use crate::errors::fail;
 use crate::events::{DustSwept, MultiverseEvent};
+use crate::lending::tiers::{MarketId, Tier};
 use crate::ops::PauseFlag;
 use crate::types::{Asset, VerseKey};
 use crate::{Contract, ContractExt};
@@ -427,19 +429,68 @@ impl Contract {
     }
 
     /// Whether `account_id` still has anything in the contract, which blocks
-    /// `storage_unregister`. Real balances below one token unit do not count:
-    /// no payout could ever send them.
+    /// `storage_unregister`: a real balance of at least one token unit (dust
+    /// below it does not count: no payout could ever send it), an open order,
+    /// anything in a scenario created after the upgrade (its scenario index,
+    /// one read), a pledge, seed claim or live proposal (one read), a spot
+    /// pool position, or anything in a legacy scenario (a fixed scan of
+    /// scenarios `1..=legacy_scenario_count`). Its cost does not grow with
+    /// the number of markets.
     pub(crate) fn holds_anything(&self, account_id: &AccountId) -> bool {
         Asset::ALL
             .into_iter()
             .any(|a| self.real_balance(account_id, a) >= self.asset_cfg(a).min_payable())
-            || self
-                .verse_keys()
-                .any(|k| self.verse_balance(account_id, &k) > 0)
-            || self.has_pool_positions(account_id)
             || self.has_open_orders(account_id)
-            || self.has_lending_position(account_id)
-            || self.has_lp_shares(account_id)
+            || self.footprints.contains_key(account_id)
+            || self.catalog.account_busy(account_id)
+            || self.has_spot_position(account_id)
+            || self.legacy_holds(account_id)
+    }
+
+    /// The spot pool belongs to no scenario, so the index never covers it.
+    fn has_spot_position(&self, account_id: &AccountId) -> bool {
+        self.spot_pool
+            .is_some_and(|id| self.positions.contains_key(&(id, account_id.clone())))
+    }
+
+    /// v1-era holdings, which the index never covers: anything in a scenario
+    /// up to `legacy_scenario_count` (about 190 reads on production, forever;
+    /// none on a deployment made with `new`).
+    fn legacy_holds(&self, account_id: &AccountId) -> bool {
+        (1..=self.legacy_scenario_count).any(|sid| self.legacy_holds_in(account_id, sid))
+    }
+
+    /// Whether `account_id` holds anything in legacy scenario `sid`: a verse
+    /// balance, a position in one of its pools, a lending entry of any tier
+    /// (Normal also counts a supply principal, as v1 did) or Root LP shares.
+    pub(crate) fn legacy_holds_in(&self, account_id: &AccountId, sid: u64) -> bool {
+        let Some(s) = self.scenarios.get(&sid) else {
+            return false;
+        };
+        let a = account_id.clone();
+        self.verse_keys_in(sid..=sid)
+            .any(|k| self.verse_balance(account_id, &k) > 0)
+            || s.pool_ids
+                .iter()
+                .any(|id| self.positions.contains_key(&(*id, a.clone())))
+            || Tier::ALL.into_iter().any(|tier| {
+                let k = (MarketId::new(sid, Some(tier)).key(), a.clone());
+                self.supply_shares.contains_key(&k)
+                    || self.borrow_shares.contains_key(&k)
+                    || self.collateral.contains_key(&k)
+                    || (tier.is_normal() && self.supply_principal.contains_key(&k))
+            })
+            || self.lp_shares.contains_key(&(sid, a))
+    }
+
+    /// The scenarios where `account_id` holds anything, ascending: the legacy
+    /// scan, then the scenario index.
+    pub(crate) fn scenarios_held_by(&self, account_id: &AccountId) -> Vec<u64> {
+        let mut out: Vec<u64> = (1..=self.legacy_scenario_count)
+            .filter(|sid| self.legacy_holds_in(account_id, *sid))
+            .collect();
+        out.extend(self.indexed_scenarios(account_id));
+        out
     }
 
     /// Keeps the books whole: the dust stays backed by tokens the contract
@@ -462,14 +513,36 @@ impl Contract {
         }
     }
 
-    /// Every verse key that can exist, in a fixed order: scenario, then asset,
-    /// then mask. Root is skipped; it is never a token.
-    pub(crate) fn verse_keys(&self) -> impl Iterator<Item = VerseKey> + '_ {
-        (1..=self.scenario_count).flat_map(move |sid| {
+    /// Every verse key that can exist in the scenarios `sids`, in a fixed
+    /// order: scenario, then asset, then mask. Root is skipped; it is never a
+    /// token.
+    pub(crate) fn verse_keys_in(
+        &self,
+        sids: RangeInclusive<u64>,
+    ) -> impl Iterator<Item = VerseKey> + '_ {
+        sids.flat_map(move |sid| {
             let root = self.scenarios.get(&sid).map_or(0, |s| s.root());
             Asset::ALL
                 .into_iter()
                 .flat_map(move |asset| (1..root).map(move |mask| VerseKey::new(sid, asset, mask)))
+        })
+    }
+
+    /// Every verse key that can exist, in every scenario: the full scan the
+    /// tests check the counters and the index against.
+    #[cfg(test)]
+    pub(crate) fn verse_keys(&self) -> impl Iterator<Item = VerseKey> + '_ {
+        self.verse_keys_in(1..=self.scenario_count)
+    }
+
+    /// Every token that exists, in (scenario, asset, mask) order: one
+    /// `created_masks` read per scenario.
+    pub(crate) fn created_keys(&self) -> impl Iterator<Item = VerseKey> + '_ {
+        (1..=self.scenario_count).flat_map(move |sid| {
+            let set = self.created_masks.get(&sid).copied().unwrap_or_default();
+            set.iter()
+                .map(move |(asset, mask)| VerseKey::new(sid, asset, mask))
+                .collect::<Vec<_>>()
         })
     }
 }

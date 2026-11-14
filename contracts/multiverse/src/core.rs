@@ -227,18 +227,24 @@ impl Contract {
         self.halted(self.scenario(scenario_id))
     }
 
-    /// `"ANY"` for root, outcome names joined by `·` for a single world, the
-    /// outcome name for a mask equal to one outcome of one event, otherwise
-    /// the bits from the highest world down, e.g. `"0b1110"`.
+    /// `"ANY"` for root, outcome names joined by `·` for a single world; a
+    /// cylinder (the worlds where a proper subset of the events have fixed
+    /// outcomes, the others free) gets those outcome names joined by `·`, in
+    /// event order, e.g. `"SHIPS"` or, at 3 events, `"SHIPS·YES"`; anything
+    /// else the bits from the highest world down, e.g. `"0b1110"`. Up to 2
+    /// events this is v1's rule. Candidates are tried smallest subsets first,
+    /// subsets in ascending bit order, outcomes lexicographic: at most 18
+    /// masks at 3 events, with no read beyond the event records.
     pub fn verse_label(&self, scenario_id: u64, mask: u8) -> String {
         let s = self.scenario(scenario_id);
         masks::check_mask(mask, s.root());
         if mask == s.root() {
             return "ANY".to_string();
         }
+        let n = s.event_ids.len();
         if masks::is_single_world(mask) {
             let w = masks::lowest_world(mask);
-            return (0..s.event_ids.len())
+            return (0..n)
                 .map(|k| {
                     let o = masks::digit(w, s.stride(k), s.outcome_counts[k]);
                     self.outcome_name(s.event_ids[k], o)
@@ -246,10 +252,34 @@ impl Contract {
                 .collect::<Vec<_>>()
                 .join("·");
         }
-        for k in 0..s.event_ids.len() {
-            for o in 0..s.outcome_counts[k] {
-                if mask == s.worlds_with(k, o) {
-                    return self.outcome_name(s.event_ids[k], o);
+        for size in 1..n {
+            for subset in (1u32..1 << n).filter(|b| b.count_ones() as usize == size) {
+                let events: Vec<usize> = (0..n).filter(|k| subset >> k & 1 == 1).collect();
+                let combos: usize = events
+                    .iter()
+                    .map(|k| usize::from(s.outcome_counts[*k]))
+                    .product();
+                for combo in 0..combos {
+                    // the combo's digits, the last event of the subset fastest
+                    let mut outcomes = vec![0u8; events.len()];
+                    let mut rest = combo;
+                    for (slot, k) in events.iter().enumerate().rev() {
+                        let count = usize::from(s.outcome_counts[*k]);
+                        outcomes[slot] = (rest % count) as u8;
+                        rest /= count;
+                    }
+                    let cylinder = events
+                        .iter()
+                        .zip(&outcomes)
+                        .fold(s.root(), |m, (k, o)| m & s.worlds_with(*k, *o));
+                    if cylinder == mask {
+                        return events
+                            .iter()
+                            .zip(&outcomes)
+                            .map(|(k, o)| self.outcome_name(s.event_ids[*k], *o))
+                            .collect::<Vec<_>>()
+                            .join("·");
+                    }
                 }
             }
         }
@@ -285,7 +315,9 @@ impl Contract {
 
     /// Invariant 1 per world and asset: the supply of every verse token
     /// covering the world, against the scenario's reserves. The supply counts
-    /// tokens held by pools, escrow, collateral and the Root LP too.
+    /// tokens held by pools, escrow, collateral and the Root LP too. This is
+    /// the audit view: it reads every mask (508 keys at 8 worlds); the
+    /// screens and `world_supply` read the per-world counters instead.
     pub fn backing(&self, scenario_id: u64) -> BackingView {
         let s = self.scenario(scenario_id);
         let wnear_reserves = self.reserve(scenario_id, Asset::Wnear);

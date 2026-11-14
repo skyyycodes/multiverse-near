@@ -632,7 +632,7 @@ fn app_config_reports_the_v2_values() {
     assert_eq!(c.state_version, 2);
     assert!(c.paused.is_empty() && c.guardian_id.is_none() && c.pending_owner_id.is_none());
     assert_eq!((c.max_worlds, c.max_events), (8, 3));
-    assert_eq!((c.max_trade_fills, c.max_trade_fills_8w), (20, 18));
+    assert_eq!((c.max_trade_fills, c.max_trade_fills_8w), (20, 16));
     assert!(!c.reference_configured);
     assert_eq!(c.proposal_count, 0);
     assert_eq!(c.lending.min_loan, U128(100 * WAD));

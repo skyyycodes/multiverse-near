@@ -21,6 +21,12 @@
 //! Choices come from bit ranges of one seed per action; actions that would
 //! be pointless are skipped, and calls that fail are rolled back and the run
 //! goes on.
+//!
+//! Every call's NEP-245 lines are replayed on a shadow ledger (EW-5). The
+//! 8-world runner does the same on the 3-event scenario `[spice, fed,
+//! third]` (two thirds of the actions), the 2x2 and the binary scenario,
+//! and also checks the per-world counters, the per-account index and both
+//! definitions of `holds_anything` after every action (EW-1..EW-4).
 
 use std::cell::RefCell;
 use std::collections::BTreeMap;
@@ -28,6 +34,7 @@ use std::collections::BTreeMap;
 use proptest::prelude::*;
 use proptest::test_runner::{Config, TestRunner};
 
+use super::eight::{check_eight_worlds, THIRD_QUESTION, THIRD_RULE};
 use super::harness::*;
 use crate::masks::single_worlds;
 use crate::types::Asset::{self, Usdc, Wnear};
@@ -37,6 +44,17 @@ const MAX_AMOUNT: u128 = 1_000_000_000_000_000_000_000_000_000_000; // 1e30
 const ACTORS: [&str; 3] = [ALICE, BOB, CAROL];
 const ASSETS: [Asset; 2] = [Wnear, Usdc];
 const CASES: u32 = 256;
+const CASES_8: u32 = 40;
+
+/// Which fixture a campaign runs on.
+#[derive(Clone, Copy)]
+enum Fixture {
+    /// The 2x2, the binary SPICE and the binary Fed scenario, with a wNEAR
+    /// of this many decimals.
+    Base(u8),
+    /// The 3-event scenario, the 2x2 and the binary SPICE scenario.
+    Eight,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Op {
@@ -104,7 +122,7 @@ struct Stats {
 struct Campaign {
     w: World,
     scenarios: [u64; 3],
-    events: [u64; 2],
+    events: Vec<u64>,
     last_split: BTreeMap<&'static str, (u64, Asset, u8, Vec<u8>)>,
     dead_ops_succeeded: u64,
     /// Every created token whose verse died, with its supply at that moment.
@@ -112,20 +130,54 @@ struct Campaign {
 }
 
 impl Campaign {
-    fn new(wnear_decimals: u8) -> Self {
-        let mut w = World::new_with_wnear_decimals(wnear_decimals);
+    fn new(fixture: Fixture) -> Self {
+        let decimals = match fixture {
+            Fixture::Base(d) => d,
+            Fixture::Eight => 18,
+        };
+        let mut w = World::new_with_wnear_decimals(decimals);
         w.fund(CAROL);
         w.ft_unregistered.insert(acc(CAROL));
-        let s_fed = w.create_scenario(&[w.fed]).unwrap();
         let (spice, fed, s2x2, s_bin) = (w.spice, w.fed, w.s2x2, w.s_bin);
+        let (scenarios, events) = match fixture {
+            Fixture::Base(_) => {
+                let s_fed = w.create_scenario(&[fed]).unwrap();
+                ([s2x2, s_bin, s_fed], vec![spice, fed])
+            }
+            Fixture::Eight => {
+                let third = w
+                    .create_event(THIRD_QUESTION, &["YES", "NO"], THIRD_RULE, T0 + 50 * DAY)
+                    .unwrap();
+                let s8 = w.create_scenario(&[spice, fed, third]).unwrap();
+                ([s8, s2x2, s_bin], vec![spice, fed, third])
+            }
+        };
+        w.track_logs();
         Campaign {
             w,
-            scenarios: [s2x2, s_bin, s_fed],
-            events: [spice, fed],
+            scenarios,
+            events,
             last_split: BTreeMap::new(),
             dead_ops_succeeded: 0,
             dead: Vec::new(),
         }
+    }
+
+    fn event(&self, seed: u64) -> u64 {
+        self.events[((seed >> 8) % self.events.len() as u64) as usize]
+    }
+
+    /// `(mask, created, actor's balance)` of every non-root mask, in one read.
+    fn holdings(&mut self, p: &Pick) -> Vec<(u8, bool, u128)> {
+        let (sid, asset, root, actor) = (p.sid, p.asset, p.root, acc(p.actor));
+        self.w.view(|c| {
+            (1..root)
+                .map(|m| {
+                    let key = VerseKey::new(sid, asset, m);
+                    (m, c.is_created(&key), c.verse_balance(&actor, &key))
+                })
+                .collect()
+        })
     }
 
     /// Two thirds of the actions go to the 2x2 scenario.
@@ -151,15 +203,16 @@ impl Campaign {
     /// holds, scanning from a random start.
     fn held_mask(&mut self, p: &Pick, start: u64, collapsed_only: bool) -> Option<(u8, u128)> {
         let n = u64::from(p.root - 1);
+        let held = self.holdings(p);
         for i in 0..n {
             let m = 1 + ((start + i) % n) as u8;
             if m & p.possible == 0 || (collapsed_only && m & p.possible != p.possible) {
                 continue;
             }
-            if !self.w.created(p.sid, p.asset, m) {
+            let (_, created, bal) = held[usize::from(m) - 1];
+            if !created {
                 continue;
             }
-            let bal = self.w.bal(p.actor, p.sid, p.asset, m);
             if bal > 0 {
                 return Some((m, bal));
             }
@@ -289,16 +342,17 @@ impl Campaign {
         let p = self.pick(seed);
         let want = 2 + ((seed >> 24) % 3) as usize;
         let n = u64::from(p.root - 1);
+        let held = self.holdings(&p);
         let (mut parts, mut used, mut min_bal) = (Vec::new(), 0u8, u128::MAX);
         for i in 0..n {
             if parts.len() >= want {
                 break;
             }
             let m = 1 + (((seed >> 32) + i) % n) as u8;
-            if m & p.possible == 0 || m & used != 0 || !self.w.created(p.sid, p.asset, m) {
+            let (_, created, bal) = held[usize::from(m) - 1];
+            if m & p.possible == 0 || m & used != 0 || !created {
                 continue;
             }
-            let bal = self.w.bal(p.actor, p.sid, p.asset, m);
             if bal == 0 {
                 continue;
             }
@@ -331,12 +385,13 @@ impl Campaign {
     fn transfer(&mut self, seed: u64, amount: u128) -> bool {
         let p = self.pick(seed);
         let n = u64::from(p.root - 1);
+        let held = self.holdings(&p);
         for i in 0..n {
             let m = 1 + (((seed >> 24) + i) % n) as u8;
-            if !self.w.created(p.sid, p.asset, m) {
+            let (_, created, bal) = held[usize::from(m) - 1];
+            if !created {
                 continue;
             }
-            let bal = self.w.bal(p.actor, p.sid, p.asset, m);
             if bal == 0 {
                 continue;
             }
@@ -363,13 +418,15 @@ impl Campaign {
     fn attempt_dead_ops(&mut self, seed: u64) -> bool {
         let p = self.pick(seed);
         let n = u64::from(p.root - 1);
+        let held = self.holdings(&p);
         let mut dead = 0u8;
         for i in 0..n {
             let m = 1 + (((seed >> 24) + i) % n) as u8;
-            if m & p.possible != 0 || !self.w.created(p.sid, p.asset, m) {
+            let (_, created, bal) = held[usize::from(m) - 1];
+            if m & p.possible != 0 || !created {
                 continue;
             }
-            if self.w.bal(p.actor, p.sid, p.asset, m) > 0 {
+            if bal > 0 {
                 dead = m;
                 break;
             }
@@ -426,7 +483,7 @@ impl Campaign {
         if seed % 3 != 0 {
             return false;
         }
-        let event = self.events[((seed >> 8) % 2) as usize];
+        let event = self.event(seed);
         if self.event_state(event).0 {
             return false;
         }
@@ -438,7 +495,7 @@ impl Campaign {
     }
 
     fn propose(&mut self, seed: u64) -> bool {
-        let event = self.events[((seed >> 8) % 2) as usize];
+        let event = self.event(seed);
         let (finalized, open, _) = self.event_state(event);
         if finalized || open {
             return false;
@@ -450,7 +507,7 @@ impl Campaign {
     }
 
     fn dispute(&mut self, seed: u64) -> bool {
-        let event = self.events[((seed >> 8) % 2) as usize];
+        let event = self.event(seed);
         let (_, open, at) = self.event_state(event);
         if !open || self.w.now >= at {
             return false;
@@ -460,7 +517,7 @@ impl Campaign {
     }
 
     fn finalize(&mut self, seed: u64) -> bool {
-        let event = self.events[((seed >> 8) % 2) as usize];
+        let event = self.event(seed);
         let (_, open, at) = self.event_state(event);
         if !open || self.w.now < at {
             return false;
@@ -557,7 +614,7 @@ impl Campaign {
                     let s = c.get_scenario(sid);
                     let reserves = c.reserve(sid, asset);
                     total_reserves += reserves;
-                    let supply: Vec<u128> = (0..16u8)
+                    let supply: Vec<u128> = (0..=255u8)
                         .map(|m| {
                             if (1..s.root).contains(&m) {
                                 c.verse_supply(&VerseKey::new(sid, asset, m))
@@ -640,6 +697,15 @@ impl Campaign {
         );
         Ok(())
     }
+
+    /// Invariants 1 and 2 with EW-1..EW-4: the per-world counters, the
+    /// created sets, the per-account index and both definitions of
+    /// `holds_anything` (EW-5 runs inside every call).
+    fn check_eight(&mut self) -> Result<(), TestCaseError> {
+        self.check_backing()?;
+        self.check_dead_stays_dead()?;
+        check_eight_worlds(&mut self.w).map_err(TestCaseError::fail)
+    }
 }
 
 fn name(op: Op) -> &'static str {
@@ -665,21 +731,22 @@ fn check_books(c: &mut Campaign) -> Result<(), TestCaseError> {
     super::ops::books_hold(&mut c.w, &[ALICE, BOB, CAROL, OWNER]).map_err(TestCaseError::fail)
 }
 
-fn campaign(
-    title: &str,
-    wnear_decimals: u8,
-    check: fn(&mut Campaign) -> Result<(), TestCaseError>,
-) {
+fn campaign(title: &str, fixture: Fixture, check: fn(&mut Campaign) -> Result<(), TestCaseError>) {
+    let cases = match fixture {
+        Fixture::Base(_) => CASES,
+        Fixture::Eight => CASES_8,
+    };
     let stats = RefCell::new(Stats::default());
     let config = Config {
-        cases: CASES,
+        cases,
         failure_persistence: None,
         max_shrink_iters: 256,
         ..Config::default()
     };
+    let replayed = RefCell::new((0u64, 0u64));
     let mut runner = TestRunner::new(config);
     let result = runner.run(&actions(), |actions| {
-        let mut c = Campaign::new(wnear_decimals);
+        let mut c = Campaign::new(fixture);
         let mut s = stats.borrow_mut();
         s.cases += 1;
         check(&mut c)?;
@@ -690,27 +757,37 @@ fn campaign(
             check(&mut c)?;
             check_books(&mut c)?;
         }
+        let r = c.w.replay.as_ref().expect("replayed");
+        let mut total = replayed.borrow_mut();
+        total.0 += r.calls;
+        total.1 += r.lines;
         Ok(())
     });
     let s = stats.into_inner();
+    let (calls, lines) = replayed.into_inner();
     println!(
         "{title}: {} cases, {} actions; successful calls {:?}; dead-op rounds {}, resolutions {}, failed payouts \
-         re-credited {}, most dead tokens tracked in one run {}",
+         re-credited {}, most dead tokens tracked in one run {}; NEP-245 replay of {calls} calls, {lines} lines",
         s.cases, s.actions, s.calls, s.dead_ops_attempted, s.resolutions, s.failed_payouts, s.max_dead_tracked
     );
     if let Err(e) = result {
         panic!("{title}: {e}");
     }
     // the campaign must actually reach the states the invariants are about
-    assert!(s.calls.get("split").copied().unwrap_or(0) > 1_000);
-    assert!(s.resolutions > u64::from(CASES));
+    assert!(s.calls.get("split").copied().unwrap_or(0) > 4 * u64::from(cases));
+    assert!(s.resolutions > u64::from(cases));
     assert!(s.dead_ops_attempted > 0);
     assert!(s.failed_payouts > 0);
+    assert!(calls > s.actions / 2 && lines > 4 * u64::from(cases));
 }
 
 #[test]
 fn invariant_1_backing() {
-    campaign("invariant_1_backing", 18, Campaign::check_backing);
+    campaign(
+        "invariant_1_backing",
+        Fixture::Base(18),
+        Campaign::check_backing,
+    );
 }
 
 /// The backing invariant with the testnet wNEAR's 24 decimals: the contract
@@ -720,8 +797,18 @@ fn invariant_1_backing() {
 fn invariant_1_backing_with_24_decimal_wnear() {
     campaign(
         "invariant_1_backing_with_24_decimal_wnear",
-        24,
+        Fixture::Base(24),
         Campaign::check_backing,
+    );
+}
+
+/// Invariants 1 and 2 and EW-1..EW-5 at 8 worlds.
+#[test]
+fn invariants_at_eight_worlds() {
+    campaign(
+        "invariants_at_eight_worlds",
+        Fixture::Eight,
+        Campaign::check_eight,
     );
 }
 
@@ -729,7 +816,7 @@ fn invariant_1_backing_with_24_decimal_wnear() {
 fn invariant_2_dead_stays_dead() {
     campaign(
         "invariant_2_dead_stays_dead",
-        18,
+        Fixture::Base(18),
         Campaign::check_dead_stays_dead,
     );
 }
