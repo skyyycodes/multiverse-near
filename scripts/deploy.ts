@@ -2,7 +2,7 @@
 // the chain first.
 //
 //   pnpm deploy:contract [--wasm ../target/deploy/multiverse_contract.wasm]
-//                        [--dispute-window 30]
+//                        [--dispute-window 30] [--headroom 2]
 //
 // 1. top up app.<root> so it can stake storage for its code;
 // 2. deploy + new() in one transaction signed by the contract account (new() only accepts itself
@@ -11,7 +11,11 @@
 // 4. make resolver.<root> the reporter and set the dispute window (both owner calls, only when
 //    the contract differs);
 // 5. give resolver.<root> a function-call key that can only call report_outcome and finalize
-//    on the contract, saved as .keys/testnet/resolver.<root>.report.json.
+//    on the contract, saved as .keys/<network>/resolver.<root>.report.json, and one that can only
+//    call report_reference (the NEAR/USD reporter), saved as resolver.<root>.reference.json.
+//
+// `--headroom` is the NEAR app.<root> keeps free beyond its code: the contract never pays for user
+// growth (NEP-145 deposits do), so staging runs with 0.6.
 
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
@@ -47,8 +51,8 @@ const EMPTY_CODE_HASH = "11111111111111111111111111111111";
 const REPORT_KEY = "report";
 const REPORT_METHODS = ["report_outcome", "finalize"];
 const REPORT_KEY_ALLOWANCE = parseNear("0.5");
-// Free balance the contract keeps beyond its code, for its own state before deposits come in.
-const STATE_HEADROOM = parseNear("2");
+const REFERENCE_KEY = "reference";
+const REFERENCE_METHODS = ["report_reference"];
 
 const { values: opts } = parseArgs({
   options: {
@@ -58,6 +62,8 @@ const { values: opts } = parseArgs({
         process.env.MULTIVERSE_WASM || join(REPO_ROOT, "target", "deploy", "multiverse_contract.wasm"),
     },
     "dispute-window": { type: "string", default: process.env.DISPUTE_WINDOW_SEC || "30" },
+    // Free balance the contract keeps beyond its code, for its own state before deposits come in.
+    headroom: { type: "string", default: "2" },
   },
 });
 
@@ -97,7 +103,7 @@ async function fundForCode(d: Deployments, wasmBytes: number): Promise<void> {
     b.codeHash === EMPTY_CODE_HASH
       ? 0
       : (await provider.viewContractCode({ contractId: d.contractId, blockQuery: { finality: "final" } })).code.length;
-  const need = BigInt(b.storageUsage - oldCode + wasmBytes) * STORAGE_BYTE_COST + STATE_HEADROOM;
+  const need = BigInt(b.storageUsage - oldCode + wasmBytes) * STORAGE_BYTE_COST + parseNear(opts.headroom);
   if (b.total >= need) return;
   await sendTransaction(d.root, d.contractId, [actions.transfer(need - b.total)], {
     label: `top up ${d.contractId} by ${formatNear(need - b.total)} NEAR for ${wasmBytes} bytes of code`,
@@ -181,24 +187,29 @@ function sameMethods(a: readonly string[], b: readonly string[]): boolean {
 }
 
 async function ensureReportKey(d: Deployments): Promise<string> {
-  const keyPair = findKeyFile(d.reporter, REPORT_KEY) ? await loadKeyPair(d.reporter, REPORT_KEY) : newKeyPair();
+  return ensureScopedKey(d, REPORT_KEY, REPORT_METHODS);
+}
+
+/** A function-call key of the reporter that can only call `methods` on the contract. */
+async function ensureScopedKey(d: Deployments, variant: string, methods: string[]): Promise<string> {
+  const keyPair = findKeyFile(d.reporter, variant) ? await loadKeyPair(d.reporter, variant) : newKeyPair();
   const publicKey = keyPair.getPublicKey().toString();
-  const path = await saveKeyFile(d.reporter, keyPair, REPORT_KEY);
+  const path = await saveKeyFile(d.reporter, keyPair, variant);
   const onChain = await accessKey(d.reporter, publicKey);
   if (onChain) {
     const p = onChain.permission;
     const scoped =
       typeof p === "object" && "FunctionCall" in p && p.FunctionCall.receiver_id === d.contractId &&
-      sameMethods(p.FunctionCall.method_names, REPORT_METHODS);
+      sameMethods(p.FunctionCall.method_names, methods);
     if (!scoped) throw new Error(`${publicKey} is on ${d.reporter} with a different permission: ${JSON.stringify(p)}`);
-    console.log(`  report key ${publicKey} already on ${d.reporter}`);
+    console.log(`  ${variant} key ${publicKey} already on ${d.reporter}`);
     return path;
   }
   await sendTransaction(
     d.reporter,
     d.reporter,
-    [actions.addFunctionCallAccessKey(keyPair.getPublicKey(), d.contractId, REPORT_METHODS, REPORT_KEY_ALLOWANCE)],
-    { label: `add a ${REPORT_METHODS.join("/")} key on ${d.contractId} to ${d.reporter}` },
+    [actions.addFunctionCallAccessKey(keyPair.getPublicKey(), d.contractId, methods, REPORT_KEY_ALLOWANCE)],
+    { label: `add a ${methods.join("/")} key on ${d.contractId} to ${d.reporter}` },
   );
   return path;
 }
@@ -227,20 +238,25 @@ async function main(): Promise<void> {
   console.log("settings");
   await ensureSettings(d, disputeWindowSec);
   const keyPath = await ensureReportKey(d);
+  const referenceKeyPath = await ensureScopedKey(d, REFERENCE_KEY, REFERENCE_METHODS);
 
   const previous = d.contract;
+  const version = await view<{ code_version: string; state_version: number }>(d.contractId, "contract_version").catch(() => null);
   await writeDeployments({
     ...d,
     contract: {
+      ...(previous ?? {}),
       accountId: d.contractId,
       codeHash,
       deployedAt: previous?.codeHash === codeHash ? previous.deployedAt : new Date().toISOString(),
       disputeWindowSec,
+      ...(version ? { version: version.code_version, stateVersion: version.state_version } : {}),
     },
   });
   const b = await nearBalance(d.contractId);
   console.log(`done: ${d.contractId} holds ${formatNear(b.total)} NEAR (${b.storageUsage} bytes stored)`);
   console.log(`report key: ${keyPath}`);
+  console.log(`reference key: ${referenceKeyPath}`);
   console.log(`explorer: ${explorerAccount(d.contractId)}`);
 }
 

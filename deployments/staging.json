@@ -1,0 +1,56 @@
+{
+  "network": "staging",
+  "rpcUrl": "https://test.rpc.fastnear.com",
+  "explorer": "https://testnet.nearblocks.io",
+  "root": "ifverse-staging.testnet",
+  "contractId": "app.ifverse-staging.testnet",
+  "wnear": "wnear.ifverse-staging.testnet",
+  "usdc": "usdc.ifverse-staging.testnet",
+  "reporter": "resolver.ifverse-staging.testnet",
+  "personas": {
+    "alice": "alice.ifverse-staging.testnet",
+    "bob": "bob.ifverse-staging.testnet",
+    "ravi": "ravi.ifverse-staging.testnet",
+    "sam": "sam.ifverse-staging.testnet",
+    "uma": "uma.ifverse-staging.testnet",
+    "carl": "carl.ifverse-staging.testnet",
+    "leo": "leo.ifverse-staging.testnet",
+    "resolver": "resolver.ifverse-staging.testnet"
+  },
+  "tokens": {
+    "wnear": {
+      "accountId": "wnear.ifverse-staging.testnet",
+      "name": "Mock Wrapped NEAR",
+      "symbol": "wNEAR",
+      "decimals": 24,
+      "maxMintPerCall": "1000000000000000000000000000000",
+      "codeHash": "8afCVgFKDom2fYt5BZatMXPLXMiJ1vWHBiUTpN6AyggY"
+    },
+    "usdc": {
+      "accountId": "usdc.ifverse-staging.testnet",
+      "name": "Mock USD Coin",
+      "symbol": "USDC",
+      "decimals": 6,
+      "maxMintPerCall": "10000000000000",
+      "codeHash": "8afCVgFKDom2fYt5BZatMXPLXMiJ1vWHBiUTpN6AyggY"
+    }
+  },
+  "contract": {
+    "accountId": "app.ifverse-staging.testnet",
+    "codeHash": "9K62NFX7gQiGajRuLTFcPy7F9n5nADSrFgESttUSFcRR",
+    "deployedAt": "2026-11-14T04:22:33.202Z",
+    "disputeWindowSec": 600,
+    "version": "2.0.0",
+    "stateVersion": 2
+  },
+  "ops": {
+    "keeper": "keeper.ifverse-staging.testnet",
+    "maker": "maker.ifverse-staging.testnet"
+  },
+  "updatedAt": "2026-11-14T05:45:24.473Z",
+  "resolutionHold": [
+    3,
+    4
+  ],
+  "goLiveAt": "2026-11-14T05:45:24.473Z"
+}

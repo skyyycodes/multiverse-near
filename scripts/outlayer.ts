@@ -3,9 +3,9 @@
 // run until the contract proposes its answer or drops it, waits out the dispute window and
 // finalizes (anyone may). OutLayer exists only on testnet.
 //
-//   NEAR_NETWORK=testnet pnpm outlayer configure --url <https url> --sha256 <hex>
+//   NEAR_NETWORK=testnet|staging pnpm outlayer configure --url <https url> --sha256 <hex>
 //                                                [--event <id>] [--before <date>] [--after <date>]
-//   NEAR_NETWORK=testnet pnpm outlayer request [--event <id>] [--as <account>]
+//   NEAR_NETWORK=testnet|staging pnpm outlayer request [--event <id>] [--as <account>]
 //
 // --event defaults to the demo record's past Fed event, the dates (YYYY-MM-DD) to the first day of
 // its October 27-28, 2026 meeting and the day after it, and --as to Leo. configure downloads --url
@@ -17,7 +17,7 @@ import { parseArgs } from "node:util";
 
 import { chainNowSec, waitForChainTime } from "./lib/chain.ts";
 import { requireDeployments, type Deployments } from "./lib/deployments.ts";
-import { actions, call, explorerTx, NETWORK, RPC_URL, sendIncluded, transactionStatus, type TxOutcome } from "./lib/near.ts";
+import { actions, call, CHAIN, explorerTx, NETWORK, RPC_URL, sendIncluded, transactionStatus, type TxOutcome } from "./lib/near.ts";
 import {
   configMatches,
   datesMatch,
@@ -244,7 +244,7 @@ async function main(): Promise<void> {
   if (rest.length > 0 || (command !== "configure" && command !== "request")) {
     throw new Error("usage: pnpm outlayer configure|request [options]; see the top of outlayer.ts");
   }
-  if (NETWORK !== "testnet") throw new Error("OutLayer runs only on testnet; set NEAR_NETWORK=testnet");
+  if (CHAIN !== "testnet") throw new Error("OutLayer runs only on the testnet chain; set NEAR_NETWORK=testnet or staging");
   const d = await requireDeployments();
   const p = new Protocol(d);
   console.log(`${NETWORK} via ${RPC_URL}; contract ${d.contractId}`);

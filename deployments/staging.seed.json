@@ -1,0 +1,304 @@
+{
+  "events": {
+    "spice": 1,
+    "fed": 2,
+    "fedOct": 3,
+    "nearPast": 4,
+    "near": 5
+  },
+  "markets": {
+    "spice-fed": {
+      "sid": 1,
+      "prices": [
+        "4051775075515358973",
+        "3285223034201642410",
+        "3613745337621806651",
+        "2737685861834702008"
+      ],
+      "poolsAt": 1794630986,
+      "orders": [
+        "1",
+        "2",
+        "3"
+      ]
+    },
+    "fed-oct": {
+      "sid": 2,
+      "prices": [
+        "3819745381927109335",
+        "3321517723414877683"
+      ],
+      "poolsAt": 1794631060
+    },
+    "near-nov1": {
+      "sid": 3,
+      "prices": [
+        "3327158843335313923",
+        "3261274509803921568"
+      ],
+      "poolsAt": 1794631121
+    },
+    "fed-dec": {
+      "pid": 1,
+      "sid": 4,
+      "openedAt": 1794633079
+    },
+    "spice": {
+      "pid": 2,
+      "sid": 5,
+      "openedAt": 1794633113
+    },
+    "near-dec31": {
+      "pid": 3,
+      "sid": 6,
+      "openedAt": 1794633173
+    },
+    "spice-near": {
+      "pid": 4,
+      "sid": 7,
+      "openedAt": 1794635048
+    },
+    "three": {
+      "pid": 5,
+      "sid": 8,
+      "openedAt": 1794635083
+    }
+  },
+  "steps": {
+    "price": {
+      "at": "2026-11-14T04:32:52.418Z",
+      "txs": []
+    },
+    "storage": {
+      "at": "2026-11-14T04:33:47.459Z",
+      "txs": []
+    },
+    "reference": {
+      "at": "2026-11-14T04:33:59.314Z",
+      "txs": [
+        "CmDHk6eSJqyd8TuMmBfQkWRtL4kwcwXgvZpiBnfA8tqJ",
+        "EqJjuYFd6AoYwpLLmtqpi1mM334z2wfuveJbW1hNRDsx"
+      ]
+    },
+    "price-defaults": {
+      "at": "2026-11-14T04:34:03.772Z",
+      "txs": [
+        "8tm3ckzNEiU5J8e4Dqk2aPGmJZhzWVXE388tV8PrSLN1"
+      ]
+    },
+    "params": {
+      "at": "2026-11-14T04:34:08.684Z",
+      "txs": [
+        "5nDGzPhsdtYPFyHcPtwFqwWr54GCNvQ2jD8jupCikY7R"
+      ]
+    },
+    "events": {
+      "at": "2026-11-14T04:34:51.982Z",
+      "txs": [
+        "6eAdYdZXrVMn7DiDptXF17iKTjbBS78JVs5eeTLF315n",
+        "FghfJEX9FZJP6AzmyoLmjFoMikRJYqAtdhLMD4KHmuRA",
+        "4rrnDuCSyGmsfZyJdrwUvj9UhnDKJvjuTrX9erYBEeCz",
+        "4S77pqyEY5za8kRMRtXyKSXdhS4Bzrn4Su2Hh4JoGjQ1",
+        "5Bx7QoCtsrPmjACSNTRuFey2VZw7wEkdC5fJbzBoi52B",
+        "Dt9Y3cVLP1V48p4BkiPAqAZGWHiDvZLuHUhxBr2jrgXs",
+        "4EVRnLG8mJCZ8YPC2jhQCuaD1Mvw7rbg5byHTM5F3GEM",
+        "5i96V4kaK6szqZ29BwABNi9asyhTYLQfxz3vQ5FGy1cV"
+      ]
+    },
+    "spice-fed": {
+      "at": "2026-11-14T04:36:50.573Z",
+      "txs": [
+        "GYAGQqGccp2JCRM6BChEBkLxLAHSZ9pqA373EFPJVDHo",
+        "4vqWZSvhJAEsoXo3y9dWzRctpCNqPYm6ceSp7hLRhn1L",
+        "4568Fub5hbnqgiUcqejCpQWHm9ihnrN2FzAXYY1k9G6o",
+        "2ZnBmKnPuyqKTn7wdLc2VqXPWnSfcYiou8rSuqMbu98p",
+        "46GVLNuxrFoEwMQoJ83hfABJ3v9iDECK8S3JY4QQuoUV",
+        "PjGcC7M1C92HKH5nwRYZW9Efd9RAPMHkpjrvFVi46ML",
+        "G4BH4srYHuZXj2bZhwEG5f5wtgcAUa31tMXBBZNoet9p",
+        "5WgjWRp3iuNStm34xqR9BQFAprWYUpwTQapBVNtUoTJN",
+        "C2gqBLedTuRxuB9n6weJZsnVvG4ftNRNzi1gGU98Nw35"
+      ]
+    },
+    "fed-oct": {
+      "at": "2026-11-14T04:37:49.960Z",
+      "txs": [
+        "EcuydctSLxtHUMz1SuFZrK7WXE3xdj8MLwN77xHLUcvW",
+        "HkqK2XhYDBS2hPuXGjKY63NjUgA6QuGg5kUezfXcSGfL",
+        "7SyELR1q7FLbDyPL6EUqwHRByCSmEDVPXTgFS6dThbcZ",
+        "HZ3Q2eeCHT3qqiRM2zw3AYFMuhX1CRX2THSPCzU1xpFS"
+      ]
+    },
+    "near-nov1": {
+      "at": "2026-11-14T04:38:49.995Z",
+      "txs": [
+        "7wU8LAZsqkWVbT8fvaBjPsV6ZJALS1czGULg9kGpDiRP",
+        "FijwZU28dyBHVBMXjFMeHDFQFuMNVGhsn4ubv3rjedMf",
+        "FtMH4DNyD7XjbTjMf1LvfNymEWNmxxyj22STFBJJvRQa",
+        "ByL6XPhVTWZQxEe5kH5EGhdrnhwQ5mQmQxYhS2iR8YYJ"
+      ]
+    },
+    "lenders": {
+      "at": "2026-11-14T04:39:37.903Z",
+      "txs": [
+        "ESkF1TTjb7BgDV4i2niTeANnmDpwEwzRyvgyqEhvNLzc",
+        "5sDQjQNa4Yzx84cSALPGBgSVNiKk5rBTJZFSieu8Wv37",
+        "DzQFz6V7JQANNVtUsAKzQmbJuz7sp2oAwodM6ocNfF9L",
+        "FogZcEKTMT9qi59R9pWPbTcefHTnSyZQUYpBzkEBHjac"
+      ]
+    },
+    "orders": {
+      "at": "2026-11-14T04:40:26.389Z",
+      "txs": [
+        "Y2RqqhhiLQzyNJcRoWZ3jn1NQRwuiSqSZyfVp8P2cAv",
+        "D6QNZuxGBod1LUHzN6AzpSi7ttdGBswvaCA26KRG2zJQ",
+        "337TKPbGKXVWNKZdMP31Mdidx7xc1V7Qjp6XF3gxYmL9"
+      ],
+      "note": "ravi orders: DH bid 1 at 2.6829; SC ask 2 at 4.1328, bid 3 at 3.9707"
+    },
+    "alice-fed-oct": {
+      "at": "2026-11-14T04:40:37.770Z",
+      "txs": [
+        "5sKx7sTmpKU6qxuzZxgXwL66vDbTMSQFfwKjEN778qR1"
+      ]
+    },
+    "borrowers": {
+      "at": "2026-11-14T05:10:44.794Z",
+      "txs": [
+        "EX1169Zn6UmNtB6ZB1JH9AEn5wNS69EjyAVpF1cLstR4",
+        "BjfijxMqRsjtmTv4rZdPx9SAg2eRNm9ocdzn3LaT7JGu",
+        "BNVu4XiQpPJrbrVRxwtDLUcL46ZEyHoKMLfHSWNnF4JM",
+        "125gnuFiCHTN9JffirG1exak4DfcWjq1y5A6EznAfZi6",
+        "DyvCbGmVJM3gd1iUxJXpA4XBoM8aD99c2YfgPLk3kRks",
+        "2tPK42NtxhTFGs5XX9kTTAPat6goe9hkHZVhWk6eeUPb",
+        "2dK6iiPZbV6jotfpMVC315MA932xEdHEH5rknP1gJRH3",
+        "CQkgyzEqvLoXE44VfS9DaXGAfrS5Fa3jRCqD6DjKnbvD",
+        "6Bj9gbnVLg2YXvq1B6ijCRzPo8iZtkrgUsKVEMvsGdqD"
+      ],
+      "note": "alice normal: borrowed 2536.01 of max 3170.01, HF 1.458; sam safe: borrowed 320.55 of max 641.10, HF 2.559; carl bold: borrowed 1615.57 of max 1795.08, HF 1.353; leo bold: borrowed 1777.13 of max 1795.08, HF 1.229"
+    },
+    "reference-b": {
+      "at": "2026-11-14T05:10:51.128Z",
+      "txs": [
+        "ocQKJRvaeH1mhUSNBdQkJn1zL5g7DoyJ9jY7mW3PpBa"
+      ]
+    },
+    "fed-dec": {
+      "at": "2026-11-14T05:11:21.602Z",
+      "txs": [
+        "F69pf735E5XLuRnzUJ8hggD5S6bG7AtMQ5b228qXPwZX",
+        "AvoHkE9X7rrv5veZYD7Jf4PNH6xCny2UKay6soyUAJiC",
+        "5vFZLCzAniB96gvVsudAY9WuMcKqk42ddxh8NXqAViAR"
+      ],
+      "note": "fed-dec: proposal 1 opened scenario 4"
+    },
+    "spice": {
+      "at": "2026-11-14T05:11:56.010Z",
+      "txs": [
+        "6wFdiduKbeAeWafh1AnqwrhTDxvu3xYQxj7qh7v7VkU2",
+        "FPPLdgnJZcJwaP79TijBGNNnbyrsK2tbC9yrWGBMXTxT",
+        "8G3QVCGErHWGdAwTfRkdCMGeyFiCa7GNsF95WcxxgkHy",
+        "4kuuX65qeX6L299b8TV8bwWCsTn8gADCNgUW3np8Db5Z"
+      ],
+      "note": "spice: proposal 2 opened scenario 5"
+    },
+    "near-dec31": {
+      "at": "2026-11-14T05:12:56.638Z",
+      "txs": [
+        "3JKK8zspqCF65jXBuD62RKE5nN6iRS6EoqvM9h1xvQqq",
+        "39Eu1oWYGZHmj9pMJRsJhVuNenVjzeRLp1QUFXWfZVnz",
+        "7etK5dUxeD6hRCi2n9j1RhLDunZ9PUcKdx6xrdeSYkGp",
+        "42bXcSQt3GFqYGfzGRu5RPEuBDY31Mnb35ynZK4xNYyg",
+        "7ADWA8b3BjFrCTdbCazZ2kJ2wdNQu3J7dqxX9C69v23a",
+        "Ca1kcUabw31m25T3965gLMqawra6GZsZWJbLd8ei3adn",
+        "6t3o9X26cjSarqHrtidBrtXZGRhdZyUifEq8B4JzRxnK"
+      ],
+      "note": "near-dec31: proposal 3 opened scenario 6, event 5"
+    },
+    "deepen": {
+      "at": "2026-11-14T05:43:29.135Z",
+      "txs": [
+        "Hk9yYfyaSBhG3hdTmCoby3FYeEvWpAt4UssMzoUgn3V",
+        "DUuTBzQ72BvoXHaugPXXU7PNfXHzC6SrbPbmbBc6S2by"
+      ],
+      "note": "odds pool 22: 4660./4660. -> 20153./20153."
+    },
+    "reference-c": {
+      "at": "2026-11-14T05:43:37.237Z",
+      "txs": [
+        "8Lq1wL7sj7NTWe1eh9zTNR2wanUS19y3VqFr3tG6GiPN"
+      ]
+    },
+    "spice-near": {
+      "at": "2026-11-14T05:44:11.975Z",
+      "txs": [
+        "A3UxmUoVRMVWE4V1fum2g2uZueocVqScVbgMUdUT9FSQ",
+        "ChJhkWJ13pmVc7x9qVqKGNR8g55GSBFEaLNA6amEBqGH",
+        "6J9jS6KNazYGxBE6BMfqWfy9q4tqnVi4uw9JwJr9DcB2",
+        "36NY43ffyko9KRUKuAY6qrxmHa7cWWtR4n9TbSomn9Nq"
+      ],
+      "note": "spice-near: proposal 4 opened scenario 7"
+    },
+    "three": {
+      "at": "2026-11-14T05:44:46.161Z",
+      "txs": [
+        "FZwwnCUuo1vKSEPYSF6XqRVwAiPwRWbE6QYSwViPvM76",
+        "9kgB1L1UB8JUG1iypxHmzRscvyhKgpxUQ84mfxnF3FGt",
+        "E5GdyGAkuTq3V9xxozjyE84sfYHPbSjoMNtKJxiXfyU3",
+        "CR46kKKB7A552Xv9fVhQys5c7HdVPATTCYFVxF9rpE77"
+      ],
+      "note": "three: proposal 5 opened scenario 8"
+    },
+    "maker": {
+      "at": "2026-11-14T05:45:18.287Z",
+      "txs": [
+        "9UuXwF4SSrnpEuynWHxPWnx6FUqfQ1ywXkKuGnvyKQVH"
+      ],
+      "note": "spice-fed: implied 3.1762 -> 3.3371 (reference 3.3391), 4 swaps"
+    },
+    "record": {
+      "at": "2026-11-14T05:45:24.476Z",
+      "txs": [
+        "CBFzNNZdZJUeZiNakXErw2zRe4bBq6qDHLdLV1pxudAf"
+      ]
+    },
+    "checks": {
+      "at": "2026-11-14T05:45:29.118Z",
+      "txs": [],
+      "note": "1 W4 owner events [1,2] lendable true implied 3.3371 ref true borrow_block null\n2 W2 owner events [3] lendable false implied 3.1991 ref true borrow_block ImpliedSpotUnknown(2)\n3 W2 owner events [4] lendable false implied 3.3265 ref true borrow_block ImpliedSpotUnknown(3)\n4 W2 pledged p1 events [2] lendable false implied 3.3178 ref true borrow_block ImpliedSpotUnknown(4)\n5 W2 pledged p2 events [1] lendable false implied 3.3147 ref true borrow_block ImpliedSpotUnknown(5)\n6 W2 pledged p3 events [5] lendable false implied 3.3097 ref true borrow_block ImpliedSpotUnknown(6)\n7 W4 pledged p4 events [1,5] lendable false implied 3.1761 ref true borrow_block ImpliedSpotUnknown(7)\n8 W8 pledged p5 events [1,2,5] lendable false implied 3.1761 ref true borrow_block ImpliedSpotUnknown(8)\nmarket_check([fed, near]) blocker null, goal 54000."
+    }
+  },
+  "price": {
+    "s": "3326500000000000000",
+    "observedAt": 1794630720,
+    "spreadBps": 83,
+    "sources": [
+      {
+        "source": "coinbase",
+        "price": "3.3204",
+        "at": 1794630760
+      },
+      {
+        "source": "kraken",
+        "price": "3.32300",
+        "at": 1794630760
+      },
+      {
+        "source": "coingecko",
+        "price": "3.33",
+        "at": 1794630734
+      },
+      {
+        "source": "gemini",
+        "price": "3.3477",
+        "at": 1794630720
+      }
+    ],
+    "log": "/Users/akashchakraborty/Projects/multiverse-near-notes/v2/logs/seed-prices-2026-11-14T043241899Z.json",
+    "k": "3250000000000000000"
+  },
+  "odds": {
+    "shipsBps": 6667,
+    "cutsBps": 100,
+    "source": "SPICE: no market exists, 66.67% assumed; Fed: Polymarket fed-decision-in-december-20260729232808632 as read on 2026-11-06 (offline fallback)"
+  }
+}
