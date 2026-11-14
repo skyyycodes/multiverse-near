@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
+import { MarketHeader } from "@/components/markets/MarketHeader";
 import { Screen } from "@/components/shell/Screen";
 import { Segmented } from "@/components/ui/Bits";
 import { AmountField } from "@/components/ui/Field";
@@ -14,7 +15,7 @@ import type { AppConfig, Scenario } from "@/lib/domain";
 import { fmt, fmtNear, inputText, parseAmount } from "@/lib/format";
 import { useBalances, useScenarioId, useTrade } from "@/lib/hooks/useData";
 import { useSubmit } from "@/lib/hooks/useTx";
-import { marketHref, resolveHref, splitHref } from "@/lib/links";
+import { resolveHref, splitHref } from "@/lib/links";
 import { GAS_CALL, merge, split } from "@/lib/near/tx";
 import { useWallet } from "@/lib/near/wallet";
 import { canSplit, mergeMax, rootMask, singleWorldMasks } from "@/lib/split";
@@ -37,10 +38,9 @@ function SplitPage({ config }: { config: AppConfig }) {
   return (
     <Screen
       demo="split"
-      back={sid !== undefined ? { href: marketHref(sid), label: "Market" } : undefined}
       hero={
         <div className="flex flex-col gap-3">
-          <span className="label text-white/65">Market #{sid}</span>
+          {sid !== undefined && <MarketHeader sid={sid} compact />}
           <h1 className="font-display text-[34px] leading-[1.05] font-medium tracking-[-0.015em]">Split and merge</h1>
           <p className="max-w-xl text-[14px] leading-relaxed text-white/75">
             1 NEAR becomes 1 NEAR in every possible world. Together the pieces are worth exactly your NEAR; merge them back any time.
