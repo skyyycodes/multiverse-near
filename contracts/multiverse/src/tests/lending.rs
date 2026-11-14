@@ -894,3 +894,99 @@ fn events_are_compact_and_complete() {
         LiquidationState::None
     );
 }
+
+/// Writes the NEAR/USD reference (`price`, observed now) and its config, and
+/// switches the reference check on for `sid`, as the owner and the reporter
+/// would.
+pub fn set_reference(w: &mut World, sid: u64, price: u128) {
+    use near_sdk::borsh;
+    use near_sdk::IntoStorageKey;
+    let now = w.now;
+    w.call(OWNER, NO_DEPOSIT, |c| {
+        let config = crate::reference::ReferenceConfig {
+            enabled: true,
+            guest: None,
+            reporter_id: Some(acc(REPORTER)),
+            min_sources: 3,
+            max_spread_bps: 200,
+            max_result_delay_sec: 120,
+            borrow_max_age_sec: 3_600,
+            liquidation_max_age_sec: 300,
+            min_price: U128(E18 / 100),
+            max_price: U128(10_000 * E18),
+        };
+        let state = crate::reference::ReferenceState {
+            price,
+            observed_at: now,
+            stored_at: now,
+            source: 2,
+            ..Default::default()
+        };
+        near_sdk::env::storage_write(
+            &crate::StorageKey::ReferenceConfig.into_storage_key(),
+            &borsh::to_vec(&config).unwrap(),
+        );
+        near_sdk::env::storage_write(
+            &crate::StorageKey::ReferenceState.into_storage_key(),
+            &borsh::to_vec(&state).unwrap(),
+        );
+        let mut cfg = c.price_cfg(sid);
+        cfg.reference = true;
+        c.prices.configs.insert(sid, cfg);
+    })
+    .unwrap();
+}
+
+/// V-3 with the outside reference: a resolution lowers the liquidation-side
+/// HF by at most the change in the reference factor. Odds 0.5 / 0.5, TWAPs
+/// 3.40 / 3.60, reference 3.50: the implied spot is 3.50 and `f_l` 1. The
+/// collateral is 1,200 USDC-if-A and 300 wNEAR-if-B, so B (1,080) is the
+/// worst world. A dies: the implied spot becomes 3.60, `f_l` 3.50 / 3.60 =
+/// 0.97222, B is valued at 1,050 and HF falls by exactly that factor. With
+/// the factor off (the reference check of the scaffold's price bodies) both
+/// factors are 1 and HF does not move: v1's rule.
+#[test]
+fn reference_resolution_lowers_hf_by_at_most_the_factor() {
+    let mut w = lending_world(50_000 * E18);
+    let b = w.s_bin;
+    w.lend(BOB, b, 50_000 * E18).unwrap();
+    set_price(b, 0, 3_400 * E15);
+    set_price(b, 1, 3_600 * E15);
+    test_hooks::set_odds(b, vec![E18 / 2, E18 / 2]);
+    set_reference(&mut w, b, 3_500 * E15);
+    w.split_ft(ALICE, b, Usdc, &[BIN_SHIPS, BIN_DELAYED], 1_200 * E18)
+        .unwrap();
+    w.post(ALICE, b, &token_id(b, Usdc, BIN_SHIPS), 1_200 * E18)
+        .unwrap();
+    w.split_ft(ALICE, b, Wnear, &[BIN_SHIPS, BIN_DELAYED], 300 * E18)
+        .unwrap();
+    w.post(ALICE, b, &token_id(b, Wnear, BIN_DELAYED), 300 * E18)
+        .unwrap();
+    w.borrow(ALICE, b, 500 * E18).unwrap();
+    let read = |w: &mut World| {
+        let a = w.view(|c| c.borrow_view(b, Some(acc(ALICE)), None)).account;
+        (
+            a.health_factor.unwrap().0,
+            a.liquidation_factor.0,
+            a.collateral_values[1].0,
+        )
+    };
+    let (hf0, f0, b0) = read(&mut w);
+    assert_eq!(f0, E18);
+    assert_eq!(b0, 1_080 * E18);
+    assert_eq!(w.hf(b, ALICE), (Some(hf0), 1));
+    let spice = w.spice;
+    w.admin_resolve(spice, OUT_DELAYED).unwrap();
+    test_hooks::set_odds(b, vec![0, E18]);
+    let (hf1, f1, b1) = read(&mut w);
+    // V-3, and the fall is exactly the factor (within rounding).
+    let bound = multiverse_math::mul_div_down(hf0, f1.min(f0), f0);
+    assert!(hf1 + 2 >= bound, "{hf1} < {bound}");
+    assert!(hf1.abs_diff(bound) <= 2, "{hf1} vs {bound}");
+    if f1 != E18 {
+        assert_eq!(f1, 972_222_222_222_222_222);
+        assert_eq!(b1 / E18, 1_049);
+    } else {
+        assert_eq!((hf1, b1), (hf0, b0));
+    }
+}

@@ -926,7 +926,7 @@ fn views_show_what_the_next_accrual_writes() {
         20_000 * E18
     );
     // A touch writes exactly what the views showed.
-    w.lend_in(NORMAL, CAROL, s, 1 * E18).unwrap();
+    w.lend_in(NORMAL, CAROL, s, E18).unwrap();
     let m = w.market_in(NORMAL, s);
     assert_eq!(m.total_borrow_assets, view.total_borrow.0);
     assert_eq!(m.total_supply_assets, view.total_supply.0 + E18);
