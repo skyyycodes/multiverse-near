@@ -9,6 +9,7 @@ import {
   decodeEventMeta,
   decodeEvents,
   decodeFomcDates,
+  decodeHoldings,
   decodeListMarkets,
   decodeMarketCheck,
   decodeMarketParams,
@@ -33,6 +34,7 @@ import type {
   ListProposalsJson,
   MarketCheckJson,
   MarketParamsViewJson,
+  MtTokenJson,
   OutLayerConfigJson,
   PledgePreviewJson,
   PledgeViewJson,
@@ -246,6 +248,31 @@ export function useReferenceConfig() {
     queryKey: ["referenceConfig", CONTRACT_ID],
     queryFn: async () => decodeReferenceConfig(await view<ReferenceConfigJson | null>("get_reference_config")),
     staleTime: 300_000,
+    retry: 1,
+  });
+}
+
+/** The account's verse tokens with a balance (`mt_tokens_for_owner` + `mt_batch_balance_of`), first 200. */
+export function useHoldings(account: string | null) {
+  return useQuery({
+    queryKey: ["holdings", CONTRACT_ID, account ?? ""],
+    enabled: Boolean(account),
+    queryFn: async () => {
+      const tokens = await view<MtTokenJson[]>("mt_tokens_for_owner", { account_id: account, from_index: null, limit: 200 });
+      const ids = tokens.map((t) => t.token_id);
+      const balances = ids.length ? await view<string[]>("mt_batch_balance_of", { account_id: account, token_ids: ids }) : [];
+      return decodeHoldings(tokens, balances);
+    },
+    refetchInterval: 15_000,
+  });
+}
+
+/** `verse_label(scenario, mask)`: "SHIPS", "SHIPS·YES" or "0b0110"; never changes for a market. */
+export function useVerseLabel(scenarioId: number, mask: number) {
+  return useQuery({
+    queryKey: ["verseLabel", CONTRACT_ID, String(scenarioId), String(mask)],
+    queryFn: async () => view<string>("verse_label", { scenario_id: scenarioId, mask }),
+    staleTime: Infinity,
     retry: 1,
   });
 }
