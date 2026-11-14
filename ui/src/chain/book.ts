@@ -22,10 +22,15 @@ export const MAX_TAKES = 5;
 /** Pool fees are in pips: 1e6 = 100% (multiverse-math cpmm). */
 const FEE_DENOMINATOR = 1_000_000n;
 
-/** Gas per action of a world trade: a fill, the pool swap, a new order (unused gas is refunded). */
-export const GAS_FILL = 40_000_000_000_000n;
-export const GAS_SWAP = 60_000_000_000_000n;
-export const GAS_POST = 50_000_000_000_000n;
+/**
+ * Gas per action of a world trade: a fill, the pool swap, a new order. None of them schedules a promise (orders.rs,
+ * amm/trade.rs); on staging a fill burns about 4.5 Tgas, a swap 6.4 and a post 4.9 (receipt gas). Testnet buys the
+ * prepaid gas up front (0.001 NEAR per Tgas) and refunds the rest, so five takes, the pool and a post (155 Tgas) need
+ * about 0.17 NEAR free.
+ */
+export const GAS_FILL = 20_000_000_000_000n;
+export const GAS_SWAP = 30_000_000_000_000n;
+export const GAS_POST = 25_000_000_000_000n;
 
 const ceilDiv = (a: bigint, b: bigint) => (a === 0n ? 0n : (a - 1n) / b + 1n);
 

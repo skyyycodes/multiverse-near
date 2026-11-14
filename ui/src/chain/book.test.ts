@@ -212,6 +212,10 @@ describe("the transaction", () => {
     expect(tradeGas(t)).toBe(GAS_FILL + GAS_POST);
   });
 
+  it("the largest trade (five takes, the pool, a resting order) needs at most 155 Tgas: 0.17 NEAR free on testnet", () => {
+    expect(BigInt(MAX_TAKES) * GAS_FILL + GAS_SWAP + GAS_POST).toBe(155_000_000_000_000n);
+  });
+
   it("refuses a pool leg without a pool and an empty trade", () => {
     const sale = marketTrade("sell", wad("1"), [], STAGING)!;
     expect(() => worldTradeTx("c", sale, { sid: 1, mask: 1, poolId: null, limit: null, expirySec: 0 })).toThrow(/no pool/);
