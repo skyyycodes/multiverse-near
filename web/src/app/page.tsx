@@ -1,10 +1,10 @@
 import { Suspense } from "react";
-import { HomeRoute } from "@/components/shell/HomeRoute";
+import { MarketsScreen } from "@/components/markets/MarketsScreen";
 
 export default function Page() {
   return (
     <Suspense>
-      <HomeRoute />
+      <MarketsScreen />
     </Suspense>
   );
 }
