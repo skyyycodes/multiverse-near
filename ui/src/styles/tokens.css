@@ -1,0 +1,58 @@
+/* Design tokens. The look of the whole site is set here.
+   Accent color and fonts are placeholders (see DECISIONS.md). */
+
+:root {
+  /* surfaces */
+  --bg: #030304; /* charcoal */
+  --surface: rgba(191, 136, 140, 0.035);
+  --surface-hover: rgba(191, 136, 140, 0.065);
+  --line: rgba(191, 136, 140, 0.09);
+  --line-strong: rgba(191, 136, 140, 0.18);
+  --grid: rgba(191, 136, 140, 0.26); /* the cutting-mat grid */
+
+  /* text */
+  --text: #eceef3;
+  --text-muted: #8a8fa0;
+  --text-faint: #4d5163;
+
+  /* the one accent: cobalt */
+  --accent: #bf888b; /* electric blue */
+  --accent-2: #bf888b; /* light blue partner for gradients */
+  --accent-strong: #9a0c16;
+  --accent-soft: rgba(191, 136, 139, 0.16);
+
+  /* paper: each world is a folded sheet. Dark sheets by default, the picked world is white paper. */
+  --paper: #0e0707;
+  --paper-fold: #150809;
+  --paper-flap: #200e0f;
+  --paper-edge: rgba(191, 136, 139, 0.16);
+  --sheet: #bf888c;
+  --sheet-fold: #bf888c;
+  --sheet-flap: #bf888c;
+  --sheet-ink: #180708;
+  --sheet-muted: #442b2d;
+
+  /* wireframe: thin cobalt lines, like a technical drawing on glass */
+  --wire: rgba(191, 136, 139, 0.45);
+  --wire-soft: rgba(191, 136, 139, 0.18);
+  --glass: rgba(191, 136, 139, 0.04);
+  --tab: #2f0e10;
+  --hatch: rgba(191, 136, 139, 0.04);
+
+  /* trading: price moves and loan health */
+  --up: #3ee08f; /* green for gains */
+  --down: #bf888d;
+  --watch: #f5c35b;
+  --up-soft: rgba(62, 224, 143, 0.12);
+  --down-soft: rgba(191, 136, 141, 0.12);
+
+  /* type */
+  --font-display: 'General Sans', system-ui, sans-serif;
+  --font-sans: 'General Sans', system-ui, sans-serif;
+  --font-mono: 'DM Mono', ui-monospace, monospace; /* numbers only */
+
+  /* shape and motion */
+  --radius: 4px; /* index cards, not bubbles */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --slow: 600ms;
+}

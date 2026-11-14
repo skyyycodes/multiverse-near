@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <!-- Origami butterfly, turning pose. White paper for dark backgrounds.
+       Tone variables: d is the main face, l the shaded face. The far wings are dimmer for depth. -->
+  <defs>
+    <g id="half">
+      <polygon style="fill: var(--d)" points="100,96 158,22 188,60" />
+      <polygon style="fill: var(--l)" points="100,96 188,60 160,102" />
+      <polygon style="fill: var(--l)" points="100,106 162,110 150,172" />
+      <polygon style="fill: var(--d)" points="100,106 150,172 118,150" />
+    </g>
+  </defs>
+  <g style="--d: #eeede9; --l: #8f8d88" transform="translate(100 100) scale(.92) translate(-100 -100) translate(-18.8 11.9) rotate(-14 100 100)">
+    <g style="--d: #9c9a95; --l: #5d5c58" transform="translate(0 -8) translate(100 0) scale(.52 1) translate(-100 0) translate(200 0) scale(-1 1)"><use href="#half" /></g>
+    <use href="#half" />
+    <polygon fill="#eeede9" points="100,68 104.5,100 100,138 95.5,100" />
+  </g>
+</svg>

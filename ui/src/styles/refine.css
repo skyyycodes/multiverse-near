@@ -1,0 +1,106 @@
+/* The refinement pass: watchlist stars, ending badges, expandable world books, holders, activity feeds, the
+   lending allocation, all in the desk style. */
+.star { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid var(--u-line); border-radius: 50%; background: rgba(0, 0, 0, 0.35); color: var(--u-muted); font-size: 15px; line-height: 1; cursor: pointer; transition: color 150ms ease, border-color 150ms ease; }
+.star:hover { color: var(--u-ink); border-color: var(--u-line-2); }
+.star.is-on { color: var(--watch); border-color: rgba(240, 192, 90, 0.4); }
+.mk-cardwrap { position: relative; display: flex; }
+.mk-cardwrap > .mk-card { flex: 1; }
+.mk-cardwrap > .star { position: absolute; top: 12px; right: 12px; z-index: 1; }
+.mk-cardwrap .mk-card__head { padding-right: 34px; }
+.mk-card__ends { align-self: flex-start; padding: 2px 8px; border-radius: 999px; background: rgba(240, 192, 90, 0.12); color: var(--watch); font: 500 11px var(--font-mono); }
+.mk-card__world b small { margin-left: 4px; font-size: 10px; font-weight: 500; }
+.desk .is-up { color: var(--buy); }
+.desk .is-down { color: var(--sell); }
+
+/* market page header actions and expandable world rows */
+.mk__headacts { display: flex; align-items: center; gap: 8px; }
+.mk__headacts .mk__btn { min-width: 0; }
+.mk__chev { width: 30px; border: 1px solid var(--u-line-2); border-radius: var(--radius); background: transparent; color: var(--u-soft); cursor: pointer; transition: transform 200ms ease; }
+.mk__chev.is-open { transform: rotate(180deg); color: var(--u-ink); }
+.mk__row { grid-template-columns: minmax(0, 2.4fr) 0.9fr 0.8fr 1fr minmax(190px, auto); }
+.mk__rowhead { grid-template-columns: minmax(0, 2.4fr) 0.9fr 0.8fr 1fr minmax(190px, auto); }
+.mk__book { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(200px, 0.6fr); gap: 16px; margin-top: 10px; padding: 12px; border: 1px solid var(--u-line); border-radius: var(--radius); background: rgba(0, 0, 0, 0.25); }
+.mk__bookcol { display: flex; flex-direction: column; gap: 2px; }
+.mk__lvl { position: relative; display: grid; grid-template-columns: 70px 1fr auto; gap: 10px; padding: 3px 6px; font-size: 12px; color: var(--u-soft); }
+.mk__lvl i { position: absolute; top: 1px; bottom: 1px; right: 0; border-radius: 2px; }
+.mk__lvl.is-ask i { background: var(--sell-bg); }
+.mk__lvl.is-bid i { background: var(--buy-bg); }
+.mk__lvl > * { position: relative; }
+.mk__lvl.is-ask b { color: var(--sell); }
+.mk__lvl.is-bid b { color: var(--buy); }
+.mk__lvl small { color: var(--u-muted); }
+.mk__lvlmid { padding: 5px 6px; margin: 2px 0; border-top: 1px solid var(--u-line); border-bottom: 1px solid var(--u-line); font-size: 12px; color: var(--u-ink); }
+.mk__bookacts { display: flex; flex-direction: column; gap: 8px; justify-content: center; }
+@media (max-width: 760px) { .mk__book { grid-template-columns: 1fr; } }
+
+/* activity feeds with times */
+.feed { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.feed__item { display: grid; grid-template-columns: 82px 1fr; gap: 12px; padding: 8px 4px 8px 12px; border-bottom: 1px solid var(--u-line); font-size: 12px; line-height: 1.5; color: var(--u-soft); box-shadow: inset 2px 0 0 var(--u-line-2); }
+.feed__item time { color: var(--u-muted); font-size: 11px; }
+.feed__item--trade { box-shadow: inset 2px 0 0 var(--buy); }
+.feed__item--loan { box-shadow: inset 2px 0 0 var(--sell); }
+.feed__item--resolve { box-shadow: inset 2px 0 0 var(--watch); }
+.feed__item--lend { box-shadow: inset 2px 0 0 #6fb7e8; }
+.feed--compact .feed__item { grid-template-columns: 64px 1fr; }
+
+/* holders */
+.hold__av { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--u-raise); color: var(--u-soft); font: 600 11px var(--font-sans); flex: none; }
+.hold__av.is-you { background: linear-gradient(135deg, #9a0c16, #bf888b); color: #fff; }
+
+/* lending allocation */
+.alloc { display: flex; flex-direction: column; margin-top: 8px; }
+.alloc__row { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(100px, 1fr) auto 52px; gap: 12px; align-items: center; padding: 8px 4px; border-bottom: 1px solid var(--u-line); font-size: 13px; color: var(--u-soft); }
+.alloc__row b { color: var(--u-ink); font-weight: 600; }
+.alloc__row small { color: var(--u-muted); text-align: right; }
+.alloc__bar { height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.05); overflow: hidden; }
+.alloc__bar i { display: block; height: 100%; border-radius: 4px; background: var(--buy); }
+.alloc__bar i.is-idle { background: rgba(255, 255, 255, 0.25); }
+.alloc__sw { width: 24px; height: 24px; border-radius: 6px; flex: none; background: var(--u-raise); }
+.alloc__sw--1 { background: rgba(125, 201, 165, 0.25); }
+.alloc__sw--2 { background: rgba(255, 255, 255, 0.12); }
+
+/* propose and proposals: same panels and width as the desk pages */
+.page.create, .page.proposals { max-width: 1480px; padding-left: 16px; padding-right: 16px; }
+.create__layout { gap: 8px; }
+.create__form { padding: 16px; border: 1px solid var(--u-line); border-radius: var(--radius); background: var(--u-surface); gap: 16px; }
+.create__preview { top: 80px; border-radius: var(--radius); }
+.create .create__field input, .create .create__field textarea { background: var(--u-raise); border-color: var(--u-line-2); border-radius: var(--radius); }
+.create .create__question { border-color: var(--u-line); border-radius: var(--radius); background: rgba(0, 0, 0, 0.2); }
+.proposals .branch { border-radius: var(--radius); border-color: var(--u-line); background: var(--u-surface); }
+.proposals .proposals__rule { border-radius: var(--radius); }
+
+/* short pages keep the footer at the bottom of the screen */
+main { min-height: calc(100vh - 120px); }
+
+/* portfolio, signed out */
+.pf-gate { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 48px 24px; text-align: center; }
+.pf-gate__art { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; width: 120px; margin-bottom: 6px; }
+.pf-gate__art span { display: grid; place-items: center; height: 44px; border-radius: 5px; background: rgba(233, 227, 216, 0.12); color: var(--u-ink); font: 600 11px var(--font-mono); }
+.pf-gate__art span.is-usdc { background: rgba(125, 201, 165, 0.18); color: var(--buy); }
+.pf-gate .tr__means { max-width: 52ch; }
+.pf-gate__acts { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 4px; }
+.pf-gate__acts .tk { min-width: 220px; }
+.pf-gate__acts .mk__btn { padding: 10px 16px; }
+.pf-gate.pf-gate { max-width: none; margin: 0; min-height: 420px; justify-content: center; }
+
+/* links inside How it works: the accent colour, readable on the dark page */
+.docs__article a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.docs__article a:hover { color: #f2e6e7; }
+.docs__article a code, .docs__article p code { color: inherit; font-size: 0.92em; }
+.docs__article p code { padding: 1px 5px; border-radius: 3px; background: var(--u-raise); color: var(--u-ink); }
+
+/* portfolio signed out: a plain status instead of empty numbers, and what the page will show */
+.pf-off { align-self: center; margin-left: auto; padding: 4px 10px; border: 1px solid var(--u-line-2); border-radius: 999px; font: 500 12px var(--font-sans); color: var(--u-muted); }
+.pf-what ul { display: flex; flex-direction: column; gap: 10px; margin: 10px 0 0; padding: 0; list-style: none; }
+.pf-what li { display: flex; flex-direction: column; gap: 2px; padding-left: 12px; border-left: 2px solid var(--u-line-2); }
+.pf-what li b { font-size: 13px; color: var(--u-ink); }
+.pf-what li span { font-size: 12px; color: var(--u-muted); }
+.pf-what .tr__means { margin: 8px 0; }
+
+/* signed-out portfolio: both columns end together, the side panels share the height evenly */
+.pf-gated { align-items: stretch; }
+.pf-gated .mk__main, .pf-gated .mk__side { position: static; }
+.pf-gated .mk__main > .pf-gate { flex: 1; }
+.pf-gated .mk__side > .pf-what { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+.pf-gated .pf-what ul { gap: 14px; }
+.pf-what .tr__link { margin-left: 0; align-self: flex-start; }

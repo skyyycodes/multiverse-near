@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="SPICE: NEAR's consensus and execution split">
+  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3a0d12"/><stop offset="1" stop-color="#120405"/></linearGradient></defs>
+  <rect width="96" height="96" rx="14" fill="url(#g)"/>
+  <rect x="24" y="24" width="48" height="48" rx="6" fill="none" stroke="#bf888b" stroke-width="2.5"/>
+  <path d="M48 24v48" stroke="#bf888b" stroke-width="2.5" stroke-dasharray="4 4"/>
+  <g stroke="#bf888b" stroke-width="2.5" stroke-linecap="round"><path d="M32 16v8M44 16v8M56 16v8M64 16v8M32 72v8M44 72v8M56 72v8M64 72v8M16 34h8M16 48h8M16 62h8M72 34h8M72 48h8M72 62h8"/></g>
+  <circle cx="36" cy="48" r="5" fill="#f2e6e7"/><path d="M56 42l8 6-8 6z" fill="#f2e6e7"/>
+</svg>

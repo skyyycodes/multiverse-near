@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="The Fed: a central bank building">
+  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2a2a33"/><stop offset="1" stop-color="#0b0b0f"/></linearGradient></defs>
+  <rect width="96" height="96" rx="14" fill="url(#g)"/>
+  <path d="M18 38L48 20l30 18z" fill="#e9e3d8"/>
+  <rect x="20" y="40" width="56" height="4" fill="#e9e3d8"/>
+  <g fill="#e9e3d8"><rect x="24" y="47" width="6" height="22"/><rect x="36" y="47" width="6" height="22"/><rect x="54" y="47" width="6" height="22"/><rect x="66" y="47" width="6" height="22"/></g>
+  <rect x="18" y="70" width="60" height="5" fill="#e9e3d8"/>
+  <path d="M46 52h4l-2 4z" fill="#bf888b"/><path d="M48 60v10" stroke="#bf888b" stroke-width="2"/>
+</svg>
