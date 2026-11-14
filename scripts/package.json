@@ -37,7 +37,8 @@
     "soak": "tsx soak.ts",
     "measure": "tsx measure.ts",
     "accept": "tsx accept.ts",
-    "staging:accounts": "tsx staging-accounts.ts"
+    "staging:accounts": "tsx staging-accounts.ts",
+    "seed:staging": "tsx seed-staging.ts"
   },
   "dependencies": {
     "near-api-js": "7.4.0"
