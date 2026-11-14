@@ -9,7 +9,7 @@ use near_sdk::borsh::{self, BorshDeserialize};
 use near_sdk::{env, near, IntoStorageKey};
 
 use crate::errors::fail;
-use crate::{now_sec, StorageKey};
+use crate::{events, now_sec, Contract, ContractExt, StorageKey};
 
 /// +1 on any Borsh layout change of STATE or of a stored value type; each bump
 /// needs a `migrate` step from the version before.
@@ -49,7 +49,6 @@ pub(crate) fn stored_state_version() -> u32 {
 }
 
 /// The whole record, if there is one that decodes.
-#[allow(dead_code)] // read by the contract_version view
 pub(crate) fn version_record() -> Option<VersionRecord> {
     env::storage_read(&record_key()).and_then(|bytes| VersionRecord::try_from_slice(&bytes).ok())
 }
@@ -65,4 +64,44 @@ pub(crate) fn write_version_record(upgraded_from: &str) {
     };
     let bytes = borsh::to_vec(&record).unwrap_or_else(|_| env::abort());
     env::storage_write(&record_key(), &bytes);
+}
+
+/// `contract_version()`: the code's versions, the stored record and the
+/// legacy boundary. On a v1 deployment the method does not exist, which
+/// clients read as state version 1.
+#[near(serializers = [json])]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct VersionView {
+    /// The running code's version (also its NEP-330 `version`).
+    pub code_version: String,
+    /// The stored state version (the record's first four bytes).
+    pub state_version: u32,
+    /// The code version that last wrote the record; differs from
+    /// `code_version` after a deploy that skipped `migrate`/`post_upgrade`.
+    pub recorded_code_version: String,
+    pub upgraded_at_sec: u64,
+    /// The code version before the last upgrade; "" after `new`.
+    pub upgraded_from: String,
+    /// The NEP-297 `multiverse` event version.
+    pub event_version: String,
+    pub legacy_scenario_count: u64,
+}
+
+#[near]
+impl Contract {
+    pub fn contract_version(&self) -> VersionView {
+        let record = version_record();
+        let field = |f: fn(&VersionRecord) -> String| record.as_ref().map(f).unwrap_or_default();
+        VersionView {
+            code_version: CODE_VERSION.to_string(),
+            state_version: record
+                .as_ref()
+                .map_or(V1_STATE_VERSION, |r| r.state_version),
+            recorded_code_version: field(|r| r.code_version.clone()),
+            upgraded_at_sec: record.as_ref().map_or(0, |r| r.upgraded_at_sec),
+            upgraded_from: field(|r| r.upgraded_from.clone()),
+            event_version: events::VERSION.to_string(),
+            legacy_scenario_count: self.legacy_scenario_count,
+        }
+    }
 }

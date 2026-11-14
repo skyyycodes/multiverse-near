@@ -13,6 +13,11 @@
 //! where deposits carry a random remainder below one internal unit that must
 //! come straight back as unused and never reach the books.
 //!
+//! Every campaign also checks the books after every action (OPS-1, M-13):
+//! the `books` view equals the token balances exactly, its running totals
+//! equal their enumeration, and the contract's own NEAR is never negative
+//! (`ops::books_hold`).
+//!
 //! Choices come from bit ranges of one seed per action; actions that would
 //! be pointless are skipped, and calls that fail are rolled back and the run
 //! goes on.
@@ -655,6 +660,11 @@ fn name(op: Op) -> &'static str {
     }
 }
 
+/// OPS-1 and M-13 after every action of every campaign.
+fn check_books(c: &mut Campaign) -> Result<(), TestCaseError> {
+    super::ops::books_hold(&mut c.w, &[ALICE, BOB, CAROL, OWNER]).map_err(TestCaseError::fail)
+}
+
 fn campaign(
     title: &str,
     wnear_decimals: u8,
@@ -673,10 +683,12 @@ fn campaign(
         let mut s = stats.borrow_mut();
         s.cases += 1;
         check(&mut c)?;
+        check_books(&mut c)?;
         for (op, seed, amount) in actions {
             c.run(op, seed, amount, &mut s);
             s.actions += 1;
             check(&mut c)?;
+            check_books(&mut c)?;
         }
         Ok(())
     });

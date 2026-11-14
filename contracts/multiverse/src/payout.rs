@@ -65,7 +65,7 @@ impl Contract {
                 let balance = self
                     .real_balance(&account_id, asset)
                     .saturating_add(credited);
-                self.real.insert((account_id.clone(), asset), balance);
+                self.set_real_in_callback(&account_id, asset, balance);
                 PayoutFailed {
                     account_id: &account_id,
                     asset,
@@ -85,6 +85,26 @@ impl Contract {
 }
 
 impl Contract {
+    /// `set_real` for callbacks, which must never panic: the account's v1 data
+    /// is folded first and the books follow the change (both saturate), so a
+    /// re-credit is counted like any other internal balance.
+    pub(crate) fn set_real_in_callback(
+        &mut self,
+        account_id: &AccountId,
+        asset: Asset,
+        value: u128,
+    ) {
+        self.upgrade_account(account_id);
+        let old = self.real_balance(account_id, asset);
+        self.books_on_real(account_id, asset, old, value);
+        let k = (account_id.clone(), asset);
+        if value == 0 {
+            self.real.remove(&k);
+        } else {
+            self.real.insert(k, value);
+        }
+    }
+
     /// Sends `internal_amount` of `asset` to `account`: whole token units by
     /// `ft_transfer` (1 yoctoNEAR attached, as NEP-141 requires), the
     /// remainder below one token unit back to the internal balance at once.

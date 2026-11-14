@@ -7,6 +7,10 @@
 //! removes it gets the credit. Callbacks charge the account they write for
 //! without checking its deposit, so the contract never pays for user growth;
 //! it only absorbs callback writes for accounts that are not registered.
+//!
+//! Every write of a NEP-145 record goes through one funnel,
+//! `put_storage_account`: it folds the account's v1 data first
+//! (`upgrade_account`) and moves the NEAR books by the record's change.
 
 use std::cmp::Ordering;
 
@@ -86,7 +90,7 @@ impl Contract {
                     (account, attached)
                 } else {
                     account.deposit = account.deposit.saturating_add(attached);
-                    self.storage.insert(account_id.clone(), account.clone());
+                    self.put_storage_account(&account_id, Some(account.clone()));
                     (account, NearToken::from_yoctonear(0))
                 }
             }
@@ -105,23 +109,24 @@ impl Contract {
                 };
                 self.flush_state();
                 let before = env::storage_usage();
-                self.storage.insert(
-                    account_id.clone(),
-                    StorageAccount {
+                self.put_storage_account(
+                    &account_id,
+                    Some(StorageAccount {
                         deposit,
                         used_bytes: 0,
                         open_orders: 0,
-                    },
+                    }),
                 );
-                self.storage.flush();
-                // The record pays for itself. Rewriting it with the measured
-                // size keeps the same byte length.
+                self.flush_state();
+                // The record pays for itself and for the account's upgrade
+                // marker. Rewriting it with the measured size keeps the same
+                // byte length.
                 let account = StorageAccount {
                     deposit,
                     used_bytes: env::storage_usage() - before,
                     open_orders: 0,
                 };
-                self.storage.insert(account_id, account.clone());
+                self.put_storage_account(&account_id, Some(account.clone()));
                 (account, attached.saturating_sub(deposit))
             }
         };
@@ -149,7 +154,7 @@ impl Contract {
             );
         }
         account.deposit = account.deposit.saturating_sub(amount);
-        self.storage.insert(account_id.clone(), account.clone());
+        self.put_storage_account(&account_id, Some(account.clone()));
         if !amount.is_zero() {
             Promise::new(account_id).transfer(amount);
         }
@@ -159,7 +164,9 @@ impl Contract {
     /// Closes the caller's registration and refunds the deposit. Only an
     /// account that holds nothing here may leave, apart from internal balances
     /// below one token unit, which are swept to the contract; `force` is not
-    /// supported. Returns false if the caller was not registered.
+    /// supported. The account's upgrade marker goes with the record (an
+    /// account that comes back has nothing left to fold). Returns false if the
+    /// caller was not registered.
     #[payable]
     pub fn storage_unregister(&mut self, force: Option<bool>) -> bool {
         assert_one_yocto();
@@ -177,7 +184,8 @@ impl Contract {
         self.flush_state();
         let before = env::storage_usage();
         self.sweep_dust(&account_id);
-        self.storage.remove(&account_id);
+        self.put_storage_account(&account_id, None);
+        self.account_version.remove(&account_id);
         self.flush_state();
         let freed = before.saturating_sub(env::storage_usage());
         // Entries this account paid for that still exist (another account's
@@ -263,11 +271,41 @@ impl Contract {
         self.borrower_pos.flush();
     }
 
+    /// The StorageAccount funnel, the only writer of `storage`: folds the
+    /// account's v1 data first, then moves the NEAR books from the stored
+    /// record to `record` (`None` removes it).
+    pub(crate) fn put_storage_account(
+        &mut self,
+        account_id: &AccountId,
+        record: Option<StorageAccount>,
+    ) {
+        self.upgrade_account(account_id);
+        let old = self.storage.get(account_id).cloned();
+        self.books_on_storage(old.as_ref(), record.as_ref());
+        match record {
+            Some(record) => {
+                self.storage.insert(account_id.clone(), record);
+            }
+            None => {
+                self.storage.remove(account_id);
+            }
+        }
+    }
+
+    /// Folds a registered account before a charge is measured, so its
+    /// upgrade marker counts as growth of the call that wrote it.
+    fn fold_payer(&mut self, account_id: &AccountId) {
+        if self.storage.contains_key(account_id) {
+            self.upgrade_account(account_id);
+        }
+    }
+
     /// Charges what the call grew storage by (since `before`) to `payer`'s
     /// deposit, or credits what it freed. Growth needs a registered payer
     /// with enough available deposit, else the call fails (and an
     /// `ft_on_transfer` refunds).
     pub(crate) fn charge_storage(&mut self, payer: &AccountId, before: u64) {
+        self.fold_payer(payer);
         self.flush_state();
         let after = env::storage_usage();
         if after == before {
@@ -296,7 +334,7 @@ impl Contract {
         } else {
             account.used_bytes = account.used_bytes.saturating_sub(before - after);
         }
-        self.storage.insert(payer.clone(), account);
+        self.put_storage_account(payer, Some(account));
     }
 
     /// Credits `yocto` to `account`'s NEP-145 deposit: a bond, a reserve or an
@@ -308,10 +346,12 @@ impl Contract {
         if yocto == 0 {
             return;
         }
-        self.upgrade_account(account);
         let amount = NearToken::from_yoctonear(yocto);
-        match self.storage.get_mut(account) {
-            Some(record) => record.deposit = record.deposit.saturating_add(amount),
+        match self.storage.get(account).cloned() {
+            Some(mut record) => {
+                record.deposit = record.deposit.saturating_add(amount);
+                self.put_storage_account(account, Some(record));
+            }
             None => {
                 Promise::new(account.clone()).transfer(amount);
             }
@@ -326,7 +366,7 @@ impl Contract {
 
     /// Makers are always registered: posting charges them storage.
     pub(crate) fn count_open_order(&mut self, maker: &AccountId, opened: bool) {
-        let Some(account) = self.storage.get_mut(maker) else {
+        let Some(mut account) = self.storage.get(maker).cloned() else {
             fail!("NotRegistered({maker})");
         };
         account.open_orders = if opened {
@@ -334,6 +374,7 @@ impl Contract {
         } else {
             account.open_orders.saturating_sub(1)
         };
+        self.put_storage_account(maker, Some(account));
     }
 
     /// `charge_storage` for callbacks, which must never panic: growth is
@@ -343,6 +384,7 @@ impl Contract {
     /// account again when it is next removed. Unregistered accounts' growth
     /// stays with the contract.
     pub(crate) fn charge_storage_in_callback(&mut self, account_id: &AccountId, before: u64) {
+        self.fold_payer(account_id);
         self.flush_state();
         let after = env::storage_usage();
         let Some(mut account) = self.storage.get(account_id).cloned() else {
@@ -353,7 +395,7 @@ impl Contract {
             Ordering::Less => account.used_bytes.saturating_sub(before - after),
             Ordering::Equal => return,
         };
-        self.storage.insert(account_id.clone(), account);
+        self.put_storage_account(account_id, Some(account));
     }
 
     /// For owner methods marked S. They move the owner's balances, so a
