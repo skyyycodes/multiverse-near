@@ -9,7 +9,8 @@ import { assertSuccess, type TxOutcome } from "../near/outcome";
 import { storageDeposit, type Tx } from "../near/tx";
 import { useWallet } from "../near/wallet";
 import type { Asset, StorageBalance, StorageBounds } from "../types";
-import { nearToYocto } from "../units";
+import { TOP_UP, needsTopUp } from "../storage-floor";
+import { fmtYocto, nearToYocto } from "../units";
 
 /** What an action needs before it can run: a NEP-145 balance on Multiverse, and accounts on the payout tokens. */
 export type Needs = { contract?: boolean; tokens?: Asset[] };
@@ -65,6 +66,10 @@ export function useEnsureRegistered(config: AppConfig | undefined) {
           const bounds = await src.view<StorageBounds>(CONTRACT_ID, "storage_balance_bounds");
           step(`Registering with ${BRAND.name}…`);
           await submit(registerTx(bounds));
+        } else if (needsTopUp(bal)) {
+          // the free part of the storage deposit is nearly gone: the action itself would fail InsufficientStorage
+          step(`Adding ${fmtYocto(TOP_UP)} NEAR to your ${BRAND.name} storage…`);
+          await submit(topUpTx());
         }
       }
       for (const asset of needs.tokens ?? []) {
@@ -81,6 +86,6 @@ export function useEnsureRegistered(config: AppConfig | undefined) {
   );
 }
 
-/** Top up the Multiverse storage balance after an InsufficientStorage refusal. */
-export const TOP_UP = nearToYocto("0.1");
+/** Top up the Multiverse storage balance (low before an action, or after an InsufficientStorage refusal). */
+export { TOP_UP };
 export const topUpTx = () => storageDeposit(CONTRACT_ID, TOP_UP, false);

@@ -85,9 +85,21 @@ describe("contract errors", () => {
   });
 
   it("passes anything unknown through, raw", () => {
-    expect(humanError("StaleOrder(1, 0, 1)")).toBe("StaleOrder(1, 0, 1)");
+    expect(humanError("SeedCoverage")).toBe("SeedCoverage");
     expect(humanError("The contract used only part of the transfer; the rest was refunded.")).toBe("The contract used only part of the transfer; the rest was refunded.");
-    expect(errorLine("StaleOrder(1, 0, 1)")).toBe("StaleOrder(1, 0, 1)");
+    expect(errorLine("LengthMismatch")).toBe("LengthMismatch");
+  });
+
+  it("words the order book's, the pools' and storage's refusals", () => {
+    expect(humanError("StaleOrder(1, 0, 1)")).toBe("Order #1 went stale after a resolution");
+    expect(errorLine("OrderNotOpen(7)")).toBe("Order #7 was filled or cancelled a moment ago; the book has been refreshed (OrderNotOpen(7))");
+    expect(humanError(`OrderTooSmall(1, ${10n ** 15n})`)).toBe("An order needs at least 0.001 NEAR");
+    expect(humanError("TooManyOpenOrders(64)")).toBe("You have 64 open orders, the most allowed; cancel one first");
+    expect(humanError(`TooLittleReceived(${99n * E18}, ${100n * E18})`)).toBe("The pool would pay 99.0000, under your minimum of 100.0000: the price moved, so nothing happened");
+    expect(humanError("InsufficientOutput(2, 5, 6)", { worldLabel: (w) => ["A", "B", "C"][w] })).toBe("World C would pay less than the 0.5% the quote allows: the price moved, so nothing happened");
+    expect(humanError("InsufficientStorage(3000000000000000000000, 1000000000000000000000)")).toBe("Your storage deposit with IfVerse is 0.002 NEAR short for this; the next try adds to it first");
+    expect(humanError("InsufficientBalance(uma.testnet, 1, 2)")).toBe("You hold less than that in this world now; refresh and try a smaller amount");
+    expect(humanError("ScenarioHalted(1)")).toBe("Trading in this market pauses while a result is in its dispute window");
   });
 
   it("keeps the contract's exact text after the words", () => {
