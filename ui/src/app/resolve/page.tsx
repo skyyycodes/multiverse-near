@@ -2,7 +2,7 @@
 import { RoutePage } from '../../components/layout/RoutePage'
 import View from '../../views/Resolve'
 
-// under Suspense, so the view may read its query string (?id=N, ?tier=…, ?w=…)
+// /resolve/?id=N: every market's events, or one market's (under Suspense: the view reads its query string)
 export default function Page() {
-  return <RoutePage render={() => <View />} />
+  return <RoutePage render={(q) => <View id={q.get('id') ?? undefined} />} />
 }
