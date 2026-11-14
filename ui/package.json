@@ -15,6 +15,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "oxlint",
     "test": "vitest run",
+    "docs:md": "WRITE_DOCS=1 vitest run src/docs/docs-md.test.ts",
     "e2e:staging": "STAGING=1 playwright test"
   },
   "packageManager": "pnpm@10.28.0",

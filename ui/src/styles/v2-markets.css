@@ -97,3 +97,39 @@ a.xgrid__cell:focus-visible { outline: 2px solid var(--accent); outline-offset: 
   .topbar__nav.is-open .navm__panel a { padding: 10px 0 10px 4px; border-bottom: 0; font-size: 16px; }
 }
 
+/* ---------- docs: the complete guide ---------- */
+.docs__toc { max-height: calc(100vh - 128px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.docs__alt { margin-top: 14px; font-size: 14px; color: var(--u-muted); }
+.docs__alt a { color: var(--u-ink); }
+.docs__section h3.docs__h3 { margin: 26px 0 8px; font: 500 17px var(--font-sans); letter-spacing: -0.01em; color: var(--u-ink); }
+.docs__list { max-width: 64ch; margin: 12px 0; padding-left: 22px; font-size: 16px; line-height: 1.7; color: #b4bbc9; }
+.docs__list li + li { margin-top: 6px; }
+.docs__list b { color: #ffffff; font-weight: 500; }
+.docs__list a, .docs__section p a, .docs__terms dd a { color: var(--u-ink); }
+.docs__section code { font: 0.9em var(--font-mono); color: var(--u-ink); overflow-wrap: anywhere; }
+.docs__scroll { max-width: 100%; overflow-x: auto; margin: 18px 0; }
+.docs__scroll .docs__table { margin: 0; }
+.docs__grid-table { width: 100%; border-collapse: collapse; font-size: 14px; color: #d6dbe6; border: 1px solid var(--u-line); border-radius: var(--u-r); }
+.docs__grid-table th { padding: 10px 12px; text-align: left; font-weight: 400; font-size: 12px; color: #8e96a8; background: rgba(255, 255, 255, 0.03); }
+.docs__grid-table td { padding: 10px 12px; border-top: 1px solid var(--u-line); vertical-align: top; line-height: 1.5; }
+.docs__grid-table b { color: #ffffff; font-weight: 500; }
+.docs__code { max-width: 100%; margin: 14px 0; padding: 14px 16px; overflow-x: auto; border: 1px solid var(--u-line); border-radius: var(--u-r); background: var(--u-surface); font: 13px/1.6 var(--font-mono); color: var(--u-ink); }
+.docs__code code { white-space: pre; overflow-wrap: normal; }
+.docs__livebox { margin: 20px 0; padding: 14px 16px 4px; border: 1px solid var(--u-line); border-radius: var(--u-r); }
+.docs__livebox .docs__compare { margin: 12px 0; }
+.docs__live { display: inline-flex; align-items: center; gap: 6px; font: 12px var(--font-mono); color: var(--accent); }
+.docs__live::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--buy); }
+.docs__mtoc { display: none; }
+@media (max-width: 900px) {
+  .docs__mtoc { display: block; margin: 0 0 24px; border: 1px solid var(--u-line); border-radius: var(--u-r); }
+  .docs__mtoc summary { padding: 12px 14px; font-size: 14px; color: var(--u-ink); cursor: pointer; }
+  .docs__mtoc nav { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; padding: 0 14px 12px; }
+  .docs__mtoc a { padding: 6px 0; font-size: 14px; color: var(--u-soft); text-decoration: none; }
+}
+@media (max-width: 560px) {
+  .docs__list { font-size: 15px; padding-left: 20px; }
+  .docs__grid-table { font-size: 13px; }
+  .docs__mtoc nav { grid-template-columns: 1fr; }
+}
+/* the two live loans keep their room while they load, so a jump from the contents does not slide away */
+@media (min-width: 861px) { .docs__livebox .docs__compare figure { min-height: 340px; } }

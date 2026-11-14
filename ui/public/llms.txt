@@ -1,0 +1,14 @@
+# IfVerse
+
+> Hold NEAR in the futures you like and dollars in the ones you fear. Conditional "verse" tokens for every possible world of one to three real events, world pools and an order book, worst-world lending in three tiers, proposals that open markets from pledges, and resolution from public sources. Runs on NEAR testnet with test tokens.
+
+## Docs
+
+- [The complete guide](https://multiverse-lending.vercel.app/docs.md): every concept, number, screen, view and call, in plain Markdown
+- [Whitepaper](https://multiverse-lending.vercel.app/ifverse-whitepaper.pdf): the design in depth (PDF)
+- [README](https://github.com/skyyycodes/multiverse-near/blob/main/README.md): accounts, setup, tests and deployment
+
+## App
+
+- [Live site](https://multiverse-lending.vercel.app/): markets, hedging, lending, proposals, resolution
+- [How it works](https://multiverse-lending.vercel.app/docs/): the same guide as a web page, with live numbers
