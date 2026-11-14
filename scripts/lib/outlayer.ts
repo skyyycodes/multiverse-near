@@ -5,6 +5,7 @@
 
 import { createHash } from "node:crypto";
 
+import { multiverseEvents } from "./events.ts";
 import type { EventView } from "./protocol.ts";
 
 /** `get_outlayer_config`, as the contract serializes it. */
@@ -90,22 +91,8 @@ export const configMatches = (current: OutLayerConfig | null, url: string, sha25
 export const datesMatch = (current: FomcDates | null, before: string, after: string): boolean =>
   current !== null && current.before === before && current.after === after;
 
-/** The `data` entries of every NEP-297 "multiverse" event named `name` in `logs`. */
-export function multiverseEvents(logs: readonly string[], name: string): unknown[] {
-  const out: unknown[] = [];
-  for (const line of logs) {
-    if (!line.startsWith("EVENT_JSON:")) continue;
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(line.slice("EVENT_JSON:".length));
-    } catch {
-      continue;
-    }
-    const e = parsed as { standard?: unknown; event?: unknown; data?: unknown };
-    if (e.standard === "multiverse" && e.event === name && Array.isArray(e.data)) out.push(...(e.data as unknown[]));
-  }
-  return out;
-}
+/** The `data` entries of every NEP-297 "multiverse" event named `name` in `logs` (events.ts, versions 1.0.0 and 2.0.0). */
+export { multiverseEvents };
 
 /** The `outlayer_result` of one run, if the logs hold it. */
 export function outlayerResult(logs: readonly string[], eventId: number, request: number): OutLayerResultLog | undefined {
