@@ -15,6 +15,7 @@ mod profile;
 mod amm;
 mod amm_lens;
 mod bad_debt;
+mod borrowers;
 mod cash_out;
 mod core;
 mod eight;
