@@ -46,9 +46,11 @@ impl Rng {
 fn proposals(w: &mut World) -> Vec<(u64, crate::catalog::Proposal)> {
     w.view(|c| {
         (1..=c.catalog.proposal_count)
-            .filter_map(|pid| match c.catalog.proposals.get(&pid) {
-                Some(VProposal::V1(p)) => Some((pid, p.clone())),
-                None => None,
+            .filter_map(|pid| {
+                c.catalog
+                    .proposals
+                    .get(&pid)
+                    .map(|VProposal::V1(p)| (pid, p.clone()))
             })
             .collect()
     })
@@ -234,7 +236,7 @@ fn step(w: &mut World, rng: &mut Rng, events: &[u64], cov: &mut Coverage) {
                 .collect();
             let pool = if ended.is_empty() { records } else { ended };
             if let Some(&(pid, who, _)) = pool.get(rng.below(pool.len() as u64) as usize) {
-                let wnear = (rng.below(3) > 0).then(|| U128(0));
+                let wnear = (rng.below(3) > 0).then_some(U128(0));
                 let terminal = !w.view(|c| c.proposal_is_live(pid));
                 if let Ok(r) =
                     call_paying(w, who, ONE_YOCTO, |c| c.withdraw_pledge(pid, wnear, None))
@@ -271,7 +273,7 @@ fn step(w: &mut World, rng: &mut Rng, events: &[u64], cov: &mut Coverage) {
                     .iter()
                     .find(|(id, _)| *id == pid)
                     .map_or(2, |(_, p)| p.world_count as usize);
-                let shares = (rng.below(2) == 0).then(|| U128(1_000 * E18));
+                let shares = (rng.below(2) == 0).then_some(U128(1_000 * E18));
                 let mins = vec![U128(0); n];
                 if call_paying(w, who, ONE_YOCTO, |c| {
                     c.seed_withdraw(pid, shares, mins.clone(), mins)
