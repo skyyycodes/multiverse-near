@@ -19,10 +19,12 @@ import { useSubmit } from "@/lib/hooks/useTx";
 import { eventsOf } from "@/lib/near/outcome";
 import { call, ftTransferCall } from "@/lib/near/tx";
 import { useWallet } from "@/lib/near/wallet";
+import { spanWords } from "@/lib/proposals";
 import { fateText, planClose, summarizeClose, walletRedeemable, type CloseSummary } from "@/lib/settlement";
 import type { Asset } from "@/lib/types";
 import { toTokenCeil } from "@/lib/units";
 import { EventCard } from "./EventCard";
+import { EventOracle } from "./EventOracle";
 
 /** Resolve and collapse: where each event stands, dead worlds fading, then one "Close and redeem". */
 export function ResolveScreen() {
@@ -45,6 +47,7 @@ function Resolve({ config }: { config: AppConfig }) {
 
   const card = (e: EventState, kicker: string, inGrid = true) => (
     <EventCard key={e.id} event={e} kicker={kicker} now={clock.now} windowSec={config.disputeWindowSec} inGrid={inGrid}>
+      <EventOracle event={e} />
       <FinalizeButton event={e} now={clock.now} blockTime={clock.blockTime} />
     </EventCard>
   );
@@ -96,7 +99,7 @@ function Resolve({ config }: { config: AppConfig }) {
           )}
           <Block demo="resolve-events">
             <Survivors scenario={s} />
-            <ResolverNote events={s.eventIds.length} pastFed={Boolean(d.pastFedEvent)} />
+            <ResolverNote windowSec={config.disputeWindowSec} />
             {d.events.map((e, i) => card(e, `Event ${String.fromCharCode(65 + i)}`))}
           </Block>
           {d.pastFedEvent && (
@@ -144,16 +147,12 @@ function Survivors({ scenario }: { scenario: Scenario }) {
   );
 }
 
-/** Who resolves the grid's events during the hackathon, said plainly. */
-function ResolverNote({ events, pastFed }: { events: number; pastFed: boolean }) {
-  const what =
-    events > 1
-      ? "both grid events from an outcomes file the team controls (the December Fed meeting comes after the hackathon)"
-      : "the grid's event from an outcomes file the team controls";
+/** Who resolves the events, said plainly: the data source in each rule decides, and anyone may dispute or finalize. */
+function ResolverNote({ windowSec }: { windowSec: number }) {
   return (
     <p className="text-[13px] leading-relaxed text-mute" data-demo="resolver-note">
-      During the hackathon a resolver script resolves {what}. Each result waits out a dispute window, then anyone can
-      finalize it.{pastFed ? " Real data resolves the past Fed decision below." : ""}
+      Each event resolves from the data source in its rule: OutLayer (TEE) for FRED questions, the reporter for the others.
+      Anyone may dispute a proposed result within {spanWords(windowSec)}; after that anyone may finalize.
     </p>
   );
 }
