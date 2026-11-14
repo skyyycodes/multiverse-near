@@ -1,32 +1,28 @@
 // The dome over the Markets section: two thin glass rings seen as arches, a smaller one and a bigger one
-// a little higher, like the top of a half-sphere. The inner ring carries every open market's odds; the
-// outer one carries the chains and coins IfVerse speaks and what the protocol does. Both turn slowly,
-// in opposite directions. The section heading sits underneath, in the middle of the dome.
+// a little higher, like the top of a half-sphere. The inner ring carries the open markets' likeliest worlds and their
+// chances, read from the contract by the landing; the outer one carries the tokens and what the protocol does. Both
+// turn slowly, in opposite directions. The section heading sits underneath, in the middle of the dome.
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
-import { demoMarkets } from '../data/demo'
 import { band, drawBar, type Item } from './Orbit3D'
 
 const still = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
 // ---------- what's printed on the rings ----------
-const mark = (src: string): Item => ({ kind: 'mark', src })
-const ODDS: Item[] = demoMarkets
-  .filter((m) => !m.settled)
-  .flatMap((m) => m.worlds.flatMap((w): Item[] => [{ kind: 'text', text: `${w.outcome}  ${Math.round(w.chance * 100)}%` }, mark('/logo.svg')]))
 // what the testnet contract actually does: it takes only wNEAR and USDC (no other chains or tokens)
 const PROTOCOL: Item[] = [
   { kind: 'brand', src: '/logos/near.svg', text: 'NEAR' },
   { kind: 'text', text: 'One token per world (NEP-245)' },
   { kind: 'brand', src: '/logos/usdc.svg', text: 'USDC' },
   { kind: 'text', text: 'Health measured in your worst world' },
-  { kind: 'text', text: 'Live on NEAR testnet' },
+  { kind: 'text', text: 'Up to eight worlds per market' },
   { kind: 'text', text: 'Fed decision settled from FRED by OutLayer' },
   { kind: 'brand', src: '/logos/near.svg', text: 'NEAR' },
-  { kind: 'text', text: 'Answers only remove worlds: health can only rise' },
+  { kind: 'text', text: 'Three lending tiers: Safe, Normal, Bold' },
+  { kind: 'text', text: 'Anyone can propose a market' },
   { kind: 'brand', src: '/logos/usdc.svg', text: 'USDC' },
-  { kind: 'text', text: 'Every world balances: all backed' },
+  { kind: 'text', text: 'Answers only remove worlds: health can only rise' },
 ]
 
 // ---------- one arch ----------
@@ -73,7 +69,7 @@ function Arch({ items, ink, fill, radius, width, y, lean, speed, text }: {
 
 // ---------- the dome: sized to the frame so the bigger arch nearly spans it ----------
 const DIST = 40, FOV = 18
-function Scene() {
+function Scene({ odds }: { odds: Item[] }) {
   const { camera, size } = useThree()
   const group = useRef<THREE.Group>(null)
   useFrame(() => {
@@ -88,16 +84,16 @@ function Scene() {
   return (
     <group ref={group}>
       <Arch items={PROTOCOL} ink="#ffffff" fill="rgba(255, 255, 255, 0.06)" radius={19} width={1.2} y={-14.7} lean={-0.18} speed={-0.012} text={0.4} />
-      <Arch items={ODDS} ink="#bf888c" fill="rgba(191, 136, 139, 0.14)" radius={14.5} width={1.1} y={-13.1} lean={-0.18} speed={0.016} text={0.4} />
+      {odds.length > 0 && <Arch items={odds} ink="#bf888c" fill="rgba(191, 136, 139, 0.14)" radius={14.5} width={1.1} y={-13.1} lean={-0.18} speed={0.016} text={0.4} />}
     </group>
   )
 }
 
 // the canvas itself; loaded lazily by DomeSlot so three.js only downloads near the section
-export default function DomeCanvas() {
+export default function DomeCanvas({ odds }: { odds: Item[] }) {
   return (
     <Canvas dpr={[1, 1.25]} camera={{ position: [0, 0, DIST], fov: FOV, near: 0.1, far: 200 }} gl={{ antialias: true, alpha: true }}>
-      <Scene />
+      <Scene odds={odds} />
     </Canvas>
   )
 }

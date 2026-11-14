@@ -3,19 +3,23 @@
 // each wing's own shape grows into a full panel. The four panels tile the page, split by a
 // diagonal gap, with the butterfly's body left where the gaps meet.
 import { useEffect, useRef, type CSSProperties } from 'react'
-import { demoMarkets } from '../data/demo'
-import { pct } from '../lib/format'
 import { story } from '../lib/story'
 import { site } from '../config'
+import { chanceText, priceText } from '../chain/board'
 import dynamic from 'next/dynamic'
 
 // the rings are WebGL: loaded in the browser only
 const WorldRings = dynamic(() => import('./WorldRings'), { ssr: false })
 
-const scenario = demoMarkets[0] // the doc's 2x2 scenario: ships/delayed x cuts/holds
-// the two questions behind the four worlds: rows are the first event (top: first outcome), columns the second
-// (left: first outcome), so world i is row i >> 1, column i & 1
-const [ROWS, COLS] = scenario.events
+/** The four worlds the story opens into: the anchor market's (SPICE × Fed), read from the contract by the landing. */
+export type HeroStory = {
+  /** The two questions' outcomes: rows are the first (top: first outcome), columns the second (left: first outcome). */
+  rows: string[]
+  cols: string[]
+  /** In story order: world i sits at row i >> 1, column i & 1 (top left, top right, bottom left, bottom right). Chance and
+   *  price are left out until the chain has answered. */
+  worlds: { name: string; chance?: number; price?: number }[]
+}
 
 // ---------- the butterfly, built from the logo's triangles, cut into four wings ----------
 // each wing is one quad (its two triangles together); points in the logo's 200×200 space
@@ -228,7 +232,8 @@ const PULL = 0.22
 const DOCK_AT = 0.76 // the re-formed butterfly flies up beside the wordmark,
 const DOCK = 0.24 // landing exactly as the story section ends
 
-export function Hero() {
+export function Hero({ worlds: story4 }: { worlds: HeroStory }) {
+  const [ROWS, COLS] = [story4.rows, story4.cols]
   const root = useRef<HTMLElement>(null)
   const stage = useRef<HTMLDivElement>(null)
   const panelEls = useRef<Partial<Record<Key, HTMLDivElement | null>>>({})
@@ -474,15 +479,15 @@ export function Hero() {
       <div className="story__stage" ref={stage}>
         {/* the four wings open into the scenario's four worlds: short, the same layout in each corner */}
         {(['tl', 'tr', 'bl', 'br'] as Key[]).map((k, i) => {
-          const w = scenario.worlds[i]
+          const w = story4.worlds[i]
           return (
             <div key={k} className={`pane pane--${k}`} ref={panel(k)}>
               <div className="pane__in">
                 {/* which world: its row and its column, the same words as the axes along the creases */}
-                <h3 className="pane__tag"><span>{ROWS.outcomes[i >> 1]}</span><i aria-hidden>×</i><span>{COLS.outcomes[i & 1]}</span></h3>
-                <p className="pane__big" aria-label={`${pct(w.chance)} chance`}>{pct(w.chance)}</p>
-                <p className="pane__near">NEAR here <b>${w.nearPrice.toFixed(2)}</b></p>
-                <span className="pane__odds" style={{ '--p': w.chance } as CSSProperties} aria-hidden><i /></span>
+                <h3 className="pane__tag"><span>{ROWS[i >> 1]}</span><i aria-hidden>×</i><span>{COLS[i & 1]}</span></h3>
+                <p className="pane__big" aria-label={w.chance === undefined ? 'Chance not read yet' : `${chanceText(w.chance)} chance`}>{w.chance === undefined ? '–' : chanceText(w.chance)}</p>
+                <p className="pane__near">NEAR here <b>{w.price === undefined ? '–' : priceText(w.price)}</b></p>
+                <span className="pane__odds" style={{ '--p': w.chance ?? 0 } as CSSProperties} aria-hidden><i /></span>
               </div>
             </div>
           )
@@ -490,15 +495,15 @@ export function Hero() {
 
         {/* the creases between the four worlds light up once the wings are fully open */}
         {/* the four worlds as glass rings, locking around the butterfly on the first scroll */}
-        <div className="story__rings" aria-hidden><WorldRings /></div>
+        <div className="story__rings" aria-hidden><WorldRings worlds={story4.worlds} /></div>
         {/* the four worlds named around the formation, in the corners their panels will open into */}
         <ul className="ring-worlds" aria-label="The four worlds">
           {(['tl', 'tr', 'bl', 'br'] as Key[]).map((k, i) => {
-            const w = scenario.worlds[i]
+            const w = story4.worlds[i]
             return (
               <li key={k} className={`ring-tag ring-tag--${k}`}>
-                <b>{w.outcome}</b>
-                <span>{Math.round(w.chance * 100)}% chance, NEAR at ${w.nearPrice.toFixed(2)}</span>
+                <b>{w.name}</b>
+                <span>{w.chance === undefined || w.price === undefined ? 'Reading the chain…' : `${chanceText(w.chance)} chance, NEAR at ${priceText(w.price)}`}</span>
               </li>
             )
           })}

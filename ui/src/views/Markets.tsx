@@ -1,46 +1,40 @@
-// The market board, in the trading screen's style: a header with totals, the featured market (most volume) with its
-// chance chart and worlds, then search, category filters and a sort over one card per market, each with its artwork
-// and every world's chance. Settled markets sit at the end with what happened.
-import { useState } from 'react'
+// The market board, in the trading screen's style: a header with totals, the featured market (the anchor) with each
+// world's chance and NEAR price laid out as its grid, then search, category filters and a sort over one card per
+// market, each with its artwork and its worlds' chances. Proposed markets still collecting pledges follow; settled
+// markets sit at the end with what happened. Everything here is read from the contract.
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { MarketArt, OddsChart, WORLD_COLORS, WorldIcon } from '../components/Grand'
-import { pct } from '../lib/format'
-import { oddsHistory } from '../lib/history'
-import { bitsOf, count, has, liveOdds, spotPrice, useStore } from '../lib/scenario'
-import { daysLeft, toggleWatch, useWatch } from '../lib/watch'
+import { MarketArt, WORLD_COLORS, WorldIcon, WorldTable } from '../components/Grand'
+import { toNum, useMarkets, type ChainMarket } from '../chain/adapter'
+import { BOARD_SORTS, boardCategories, byChance, chanceText, compactUsd, daysUntil, inFilter, matches, priceText, sortBoard, type BoardSort } from '../chain/board'
+import { errorLine } from '../chain/errors'
+import { useNowSeconds } from '../chain/hooks/useClock'
+import { useReference } from '../chain/hooks/useLending'
+import { useEventTexts, useLiveProposals } from '../chain/hooks/useMarkets'
+import { proposalHref, proposeHref } from '../chain/links'
+import { shortDate } from '../chain/market'
+import { STATUS_LABEL, progressPct, proposalTitle } from '../chain/proposals'
+import { chain } from '../config'
+import { toggleWatch, useWatch } from '../lib/watch'
 
-type Sort = 'volume' | 'soon' | 'deep' | 'new'
-const SORTS: { id: Sort; label: string }[] = [
-  { id: 'volume', label: 'Most traded' },
-  { id: 'soon', label: 'Resolving soon' },
-  { id: 'deep', label: 'Deepest pools' },
-  { id: 'new', label: 'Newest' },
-]
-const when = (d: string) => { const t = Date.parse(d); return Number.isNaN(t) ? Infinity : t }
-const compact = (n: number) => (n >= 1e6 ? `$${(n / 1e6).toFixed(2)}M` : n >= 1e3 ? `$${(n / 1e3).toFixed(1)}K` : `$${Math.round(n)}`)
+const SHOWN = 4 // worlds a card lists; an eight-world market says how many more it has
 
 export default function Markets() {
-  const { markets, sc } = useStore()
+  const { markets, isLoading, error } = useMarkets()
   const [filter, setFilter] = useState('All')
   const [query, setQuery] = useState('')
-  const [sort, setSort] = useState<Sort>('volume')
+  const [sort, setSort] = useState<BoardSort>('pool')
   const watch = useWatch()
-  const categories = ['All', ...(watch.length ? ['Watchlist'] : []), ...new Set(markets.map((m) => m.category))]
-  const depth = (id: string) => { const s = sc[id]; return bitsOf(s.possible, s.price.length).reduce((t, w) => t + s.poolUsdc[w], 0) }
-  const isSettled = (id: string) => count(sc[id].possible) === 1
-  const open = markets.filter((m) => !isSettled(m.id))
-  const volume = markets.reduce((t, m) => t + (m.volume ?? 0), 0)
-  const pools = open.reduce((t, m) => t + depth(m.id), 0)
-  const featured = [...open].sort((a, b) => (b.volume ?? 0) - (a.volume ?? 0))[0]
-  const fs = featured && sc[featured.id]
-  const fodds = featured ? liveOdds(featured, fs) : []
+  const now = Number(useNowSeconds())
+  const ref = useReference().data
 
-  const q = query.trim().toLowerCase()
-  const shown = markets
-    .map((m, i) => ({ m, i, settled: isSettled(m.id) }))
-    .filter(({ m }) => (filter === 'All' || (filter === 'Watchlist' ? watch.includes(m.id) : m.category === filter)) && (!q || `${m.question} ${m.events.map((e) => e.name).join(' ')} ${(m.tags ?? []).join(' ')}`.toLowerCase().includes(q)))
-    .sort((a, b) => Number(a.settled) - Number(b.settled)
-      || (sort === 'volume' ? (b.m.volume ?? 0) - (a.m.volume ?? 0) : sort === 'soon' ? when(a.m.resolves) - when(b.m.resolves) : sort === 'deep' ? depth(b.m.id) - depth(a.m.id) : b.i - a.i))
+  const all = useMemo(() => markets ?? [], [markets])
+  const open = all.filter((m) => !m.settled)
+  const categories = ['All', ...(watch.length ? ['Watchlist'] : []), ...boardCategories(all)]
+  const tab = categories.includes(filter) ? filter : 'All'
+  const featured = open.find((m) => m.sid === chain.anchorMarket) ?? sortBoard(open, 'pool')[0]
+  const shown = sortBoard(all.filter((m) => inFilter(m, tab, watch) && matches(m, query)), sort)
+  const stat = (v: string) => (markets ? v : '–')
 
   return (
     <div className="page tr desk">
@@ -50,103 +44,160 @@ export default function Markets() {
           <p className="tr__means">Each market splits into worlds, one for every way it can turn out. Open one to hedge, borrow or lend.</p>
         </div>
         <dl className="tr__stats">
-          <div><dt>Open markets</dt><dd className="num">{open.length}</dd></div>
-          <div><dt>Volume</dt><dd className="num">{compact(volume)}</dd></div>
-          <div><dt>World pools</dt><dd className="num">{compact(pools)}</dd></div>
-          <div><dt>Settled</dt><dd className="num">{markets.length - open.length}</dd></div>
+          <div><dt>Open markets</dt><dd className="num">{stat(String(open.length))}</dd></div>
+          <div><dt>In world pools</dt><dd className="num">{stat(compactUsd(open.reduce((t, m) => t + m.liquidity, 0)))}</dd></div>
+          <div><dt>Borrowing open</dt><dd className="num">{stat(String(open.filter((m) => m.lendable).length))}</dd></div>
+          {ref && (
+            <div title={`The outside NEAR/USD median the contract checks its markets against, ${Math.max(0, Math.round(ref.ageSec / 60))} min old`}>
+              <dt>NEAR/USD</dt><dd className="num">{priceText(toNum(ref.price))}</dd>
+            </div>
+          )}
+          <div><dt>Settled</dt><dd className="num">{stat(String(all.length - open.length))}</dd></div>
         </dl>
-        <Link href="/propose/" className="mk__btn mk__btn--buy">Propose a market</Link>
+        <Link href={proposeHref()} className="mk__btn mk__btn--buy">Propose a market</Link>
       </header>
 
-      {/* ---------- featured: the most traded open market ---------- */}
-      {featured && (
-        <section className="tr__panel feat">
-          <div className="feat__info">
-            <p className="mk__crumb"><span className="mk__tag">Featured</span>{featured.category}{featured.tags?.map((t) => <span key={t} className="mk__tag">{t}</span>)}</p>
-            <div className="feat__title">
-              <MarketArt m={featured} size={56} />
-              <Link href={`/market/?id=${featured.id}`} className="feat__q">{featured.question}</Link>
-            </div>
-            {featured.description && <p className="tr__means">{featured.description}</p>}
-            <div className="feat__worlds">
-              {bitsOf(fs.possible, featured.worlds.length).sort((a, b) => fodds[b] - fodds[a]).map((b) => (
-                <Link key={b} href={`/market/?id=${featured.id}`} className="feat__world">
-                  <WorldIcon m={featured} w={b} size={24} />
-                  <span>{featured.worlds[b].outcome}</span>
-                  <b className="num" style={{ color: WORLD_COLORS[b % WORLD_COLORS.length] }}>{pct(fodds[b])}</b>
-                </Link>
-              ))}
-            </div>
-            <p className="pc__note">Volume {compact(featured.volume ?? 0)} · pools {compact(depth(featured.id))} · NEAR ${spotPrice(featured, fs).toFixed(2)} · resolves {featured.resolves}</p>
-            <Link href={`/market/?id=${featured.id}`} className="mk__btn mk__btn--buy feat__cta">Open the market</Link>
-          </div>
-          <div className="feat__chart"><OddsChart m={featured} odds={fodds} possible={fs.possible} /></div>
-        </section>
-      )}
+      {/* ---------- featured: the anchor market ---------- */}
+      {featured && <Featured m={featured} />}
 
       {/* ---------- search, filters, sort ---------- */}
       <div className="tr__panel mk-bar desk__bar">
         <input className="tr__find" type="search" placeholder="Search markets" aria-label="Search markets" value={query} onChange={(e) => setQuery(e.target.value)} />
         <div className="pc__tabs" role="group" aria-label="Filter by category">
-          {categories.map((c) => <button key={c} type="button" aria-pressed={c === filter} onClick={() => setFilter(c)}>{c}</button>)}
+          {categories.map((c) => <button key={c} type="button" aria-pressed={c === tab} onClick={() => setFilter(c)}>{c}</button>)}
         </div>
         <label className="obx__ctl mk-sort"><span>Sort</span>
-          <select value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
-            {SORTS.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
+          <select value={sort} onChange={(e) => setSort(e.target.value as BoardSort)}>
+            {BOARD_SORTS.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
           </select>
         </label>
       </div>
 
       <div className="mk-grid">
-        {shown.map(({ m, settled }) => {
-          const s = sc[m.id]
-          const odds = liveOdds(m, s)
-          const winner = m.worlds.findIndex((_, b) => has(s.possible, b))
-          const order = m.worlds.map((_, b) => b).sort((a, b) => odds[b] - odds[a])
-          const hist = settled ? null : oddsHistory(m.id, odds)
-          const dayAgo = hist ? hist[Math.max(0, hist.length - 9)].p : null
-          const left = settled ? null : daysLeft(m.resolves)
-          const starred = watch.includes(m.id)
-          return (
-            <div key={m.id} className="mk-cardwrap">
-            <button type="button" className={`star${starred ? ' is-on' : ''}`} aria-pressed={starred} aria-label={starred ? `Remove ${m.question} from watchlist` : `Add ${m.question} to watchlist`} onClick={() => toggleWatch(m.id)}>{starred ? '★' : '☆'}</button>
-            <Link href={`/market/?id=${m.id}`} className={`mk-card desk__mcard${settled ? ' is-settled' : ''}`}>
-              <span className="mk-card__head">
-                <MarketArt m={m} size={44} />
-                <span className="mk-card__q">{m.question}</span>
-              </span>
-              {left !== null && left <= 45 && <span className="mk-card__ends">Ends in {left} day{left === 1 ? '' : 's'}</span>}
-              {settled ? (
-                <span className="mk-card__result"><span className="rs__state rs__state--final">Settled</span> {m.worlds[winner].outcome} <small>happened. The other world{m.worlds.length > 2 ? 's' : ''} closed at zero.</small></span>
-              ) : (
-                <span className="mk-card__worlds">
-                  {order.map((b) => (
-                    <span key={b} className="mk-card__world">
-                      <span className="mk-card__name"><WorldIcon m={m} w={b} size={16} />{m.worlds[b].outcome}</span>
-                      <span className="mk-card__track"><i style={{ width: pct(odds[b]), background: WORLD_COLORS[b % WORLD_COLORS.length] }} /></span>
-                      <b className="num">{pct(odds[b])}{dayAgo && <small className={odds[b] - dayAgo[b] >= 0 ? 'is-up' : 'is-down'}>{odds[b] - dayAgo[b] >= 0 ? '▲' : '▼'}{Math.abs((odds[b] - dayAgo[b]) * 100).toFixed(1)}</small>}</b>
-                    </span>
-                  ))}
-                </span>
-              )}
-              <span className="mk-card__foot">
-                <span>{m.category}</span>
-                <span>Vol <b className="num">{compact(m.volume ?? 0)}</b></span>
-                {!settled && <span>Pools <b className="num">{compact(depth(m.id))}</b></span>}
-                <span>{settled ? 'Settled' : m.resolves}</span>
-              </span>
-            </Link>
-            </div>
-          )
-        })}
-        {shown.length === 0 && (
+        {!markets ? (
+          <div className="tr__panel desk__empty mk-empty" role="status" aria-live="polite">
+            {error && !isLoading ? <p><b>Couldn’t read the markets.</b> {errorLine(error.message)}</p> : <p>Reading the markets…</p>}
+          </div>
+        ) : all.length === 0 ? (
+          <div className="tr__panel desk__empty mk-empty">
+            <p><b>No markets yet.</b> Propose the first one; it opens once its pledges reach the goal.</p>
+            <Link href={proposeHref()} className="mk__btn mk__btn--buy">Propose a market</Link>
+          </div>
+        ) : shown.length === 0 ? (
           <div className="tr__panel desk__empty mk-empty">
             <p><b>No markets match.</b> Try another word or category, or propose the market you’re looking for.</p>
-            <Link href="/propose/" className="mk__btn mk__btn--buy">Propose a market</Link>
+            <Link href={proposeHref()} className="mk__btn mk__btn--buy">Propose a market</Link>
           </div>
+        ) : (
+          shown.map((m) => <Card key={m.id} m={m} now={now} starred={watch.includes(m.id)} />)
         )}
       </div>
-      <p className="pc__note desk__foot">Testnet demo data with mock tokens. Today only the owner account opens markets.</p>
+
+      <Pledging />
+
+      <p className="pc__note desk__foot">Live on NEAR testnet with test tokens. Anyone can propose a market; it opens once its pledges reach the goal.</p>
     </div>
+  )
+}
+
+// The anchor market, larger: its worlds by chance on the left, and its grid of worlds (chance and NEAR's price in each)
+// on the right, where the redesign drew a chart. The contract keeps no history of odds, so there is no line over time.
+function Featured({ m }: { m: ChainMarket }) {
+  return (
+    <section className="tr__panel feat">
+      <div className="feat__info">
+        <p className="mk__crumb">
+          <span className="mk__tag">Featured</span>
+          {m.categories.join(' · ')}
+          <span className="mk__tag">{m.kind}</span>
+          {m.lendable && <span className="mk__tag">Borrowing open</span>}
+        </p>
+        <div className="feat__title">
+          <MarketArt m={m} size={56} />
+          <Link href={m.href} className="feat__q">{m.question}</Link>
+        </div>
+        <div className="feat__worlds">
+          {byChance(m).map((w) => (
+            <Link key={w.index} href={m.href} className="feat__world">
+              <WorldIcon m={m} w={w.index} size={24} />
+              <span>{w.outcome}</span>
+              <b className="num" style={{ color: WORLD_COLORS[w.index % WORLD_COLORS.length] }}>{chanceText(w.chance)}</b>
+            </Link>
+          ))}
+        </div>
+        <p className="pc__note">Pools {compactUsd(m.liquidity)} · implied NEAR {priceText(m.impliedSpot)} · resolves {m.resolves}</p>
+        <Link href={m.href} className="mk__btn mk__btn--buy feat__cta">Open the market</Link>
+      </div>
+      <WorldTable m={m} />
+    </section>
+  )
+}
+
+function Card({ m, now, starred }: { m: ChainMarket; now: number; starred: boolean }) {
+  const worlds = byChance(m)
+  const winner = m.winner === undefined ? undefined : m.worlds[m.winner]
+  const left = m.settled ? null : daysUntil(m.deadlineSec, now)
+  return (
+    <div className="mk-cardwrap">
+      <button type="button" className={`star${starred ? ' is-on' : ''}`} aria-pressed={starred} aria-label={starred ? `Remove ${m.question} from watchlist` : `Add ${m.question} to watchlist`} onClick={() => toggleWatch(m.id)}>{starred ? '★' : '☆'}</button>
+      <Link href={m.href} className={`mk-card desk__mcard${m.settled ? ' is-settled' : ''}`}>
+        <span className="mk-card__head">
+          <MarketArt m={m} size={44} />
+          <span className="mk-card__q">{m.question}</span>
+        </span>
+        {left !== null && left > 0 && left <= 45 && <span className="mk-card__ends">Ends in {left} day{left === 1 ? '' : 's'}</span>}
+        {m.settled && winner ? (
+          <span className="mk-card__result"><span className="rs__state rs__state--final">Settled</span> {winner.outcome} <small>happened. The other world{m.worldCount > 2 ? 's' : ''} closed at zero.</small></span>
+        ) : !m.oddsKnown ? (
+          <span className="mk-card__worlds"><span className="pc__note">Odds not known yet</span></span>
+        ) : (
+          <span className="mk-card__worlds">
+            {worlds.slice(0, SHOWN).map((w) => (
+              <span key={w.index} className="mk-card__world">
+                <span className="mk-card__name"><WorldIcon m={m} w={w.index} size={16} />{w.outcome}</span>
+                <span className="mk-card__track"><i style={{ width: `${Math.max(0, Math.min(100, w.chance * 100))}%`, background: WORLD_COLORS[w.index % WORLD_COLORS.length] }} /></span>
+                <b className="num">{chanceText(w.chance)}</b>
+              </span>
+            ))}
+            {worlds.length > SHOWN && <span className="mk-card__more">and {worlds.length - SHOWN} more worlds</span>}
+          </span>
+        )}
+        <span className="mk-card__foot">
+          <span>{m.category}</span>
+          <span>Pools <b className="num">{compactUsd(m.liquidity)}</b></span>
+          <span>{m.resolves}</span>
+          {!m.settled && <span>{m.lendable ? 'Borrowing open' : 'Trading only'}</span>}
+        </span>
+      </Link>
+    </div>
+  )
+}
+
+// Proposed markets still collecting pledges (or waiting for the owner's review): each opens by itself at its goal, and
+// its pledges become the first liquidity. Hidden when there are none.
+function Pledging() {
+  const live = useLiveProposals().data
+  const rows = (live ?? []).filter((p) => p.status === 'pledging' || p.status === 'review')
+  const texts = useEventTexts(rows.flatMap((p) => p.eventIds)).data
+  if (rows.length === 0) return null
+  return (
+    <section className="tr__panel mk-pledging" aria-label="Collecting pledges">
+      <div className="desk__head">
+        <h2 className="obx__boxtitle">Collecting pledges</h2>
+        <Link className="tr__link" href={proposeHref()}>Propose a market</Link>
+      </div>
+      <p className="tr__means">A proposed market opens by itself once its pledges reach the goal; the pledges become its first liquidity, and come back in full if it never opens.</p>
+      <div className="desk__table">
+        <div className="desk__tr desk__tr--head"><span>Proposal</span><span>Status</span><span>Pledged</span><span>Ends</span></div>
+        {rows.map((p) => (
+          <Link key={p.proposalId} href={proposalHref(p.proposalId)} className="desk__tr">
+            <span className="desk__mk">{proposalTitle(p, (id) => texts?.get(id)?.question)}</span>
+            <span>{STATUS_LABEL[p.status]}</span>
+            <span className="num">{progressPct(p.progressBps)} of the goal</span>
+            <span>{p.expiresAtSec > 0 ? shortDate(p.expiresAtSec) : '–'}</span>
+          </Link>
+        ))}
+      </div>
+    </section>
   )
 }
