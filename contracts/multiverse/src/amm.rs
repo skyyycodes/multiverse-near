@@ -406,7 +406,7 @@ impl Contract {
     }
 
     /// Appends every world's current price to the scenario's Impact Meter.
-    fn record_impact(&mut self, scenario_id: u64) {
+    pub(crate) fn record_impact(&mut self, scenario_id: u64) {
         let world_count = self.scenario(scenario_id).world_count;
         let prices = (0..world_count)
             .map(|w| self.world_spot_price(scenario_id, w).unwrap_or(0))
