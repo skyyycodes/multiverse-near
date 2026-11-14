@@ -37,7 +37,7 @@ in another order; don't carry its helpers (`gridOf`, `outcomeIn`, `bitsOf` over 
 | `useEventMetas(ids)` | `event_meta` per event (source, category) | 5 min |
 | `marketId(x)` | a positive integer id from a string or number, else `undefined` | |
 
-`ChainMarket`: `sid`, `id` (string), `href` (`/market/?id=N`), `question` (questions joined by " × "), `events`,
+`ChainMarket`: `sid`, `id` (string), `href` (`/market/?id=N`), `question` / `title` (questions joined by " × "), `events`,
 `worlds`, `grid` (rows = event A, columns = the other events, cells = world indices), `category`, `categories`, `kind`
 ("Combination · 4 worlds"), `resolves` ("9 Dec 2026" or "Settled"), `deadlineSec`, `createdAtSec`, `status`,
 `statusLabel`, `settled`, `winner`, `possible` (mask), `worldCount`, `liquidity` (USDC in its pools), `minWorldDepth`,

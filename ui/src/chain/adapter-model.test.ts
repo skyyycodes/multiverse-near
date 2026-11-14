@@ -116,6 +116,7 @@ describe("a market from its card and its events", () => {
     const m = chainMarket(card(), texts, metas)!;
     expect(m).toMatchObject({ sid: 1, id: "1", href: "/market/?id=1", category: "NEAR ecosystem", categories: ["NEAR ecosystem", "Macro"], kind: "Combination · 4 worlds" });
     expect(m.question).toBe(`${SPICE.question} × ${FED.question}`);
+    expect(m.title).toBe(m.question);
     expect(m.resolves).toBe("9 Dec 2026");
     expect(m.lendable).toBe(true);
     expect(m.tiers).toEqual(["safe", "normal", "bold"]);

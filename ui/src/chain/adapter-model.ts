@@ -93,8 +93,10 @@ export type ChainMarket = {
   id: string;
   /** "/market/?id=N". */
   href: string;
-  /** The events' questions, event A first, joined by " × ". */
+  /** The events' questions, event A first, joined by " × " (the redesign's `question`). */
   question: string;
+  /** The same, as a title. */
+  title: string;
   events: ChainEvent[];
   worlds: ChainWorld[];
   grid: WorldGrid;
@@ -224,6 +226,7 @@ export function chainMarket(card: MarketCard, texts: ReadonlyMap<number, EventSt
     id: String(card.scenarioId),
     href: marketHref(card.scenarioId),
     question: events.map((e) => e.question).join(" × "),
+    title: events.map((e) => e.question).join(" × "),
     events,
     worlds,
     grid: worldGrid(events),
