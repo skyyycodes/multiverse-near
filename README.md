@@ -22,14 +22,14 @@ A multiverse for the real world. Hold NEAR in the futures you like and dollars i
 **[Live app](https://multiverse-lending.vercel.app)** ·
 **[Docs](https://multiverse-lending.vercel.app/docs/)** ·
 **[Whitepaper](https://multiverse-lending.vercel.app/origami-verse-whitepaper.pdf)** ·
-**[Demo video](#demo-video)**
+**[Demo video](https://x.com/SkyyCodes/status/2121726270098825401)**
 
 </div>
 
 Origami Verse was formerly IfVerse / Multiverse Lending. The testnet accounts (`*.ifverse-staging.testnet`), the web address and the repository keep earlier working names.
 
 <a name="demo-video"></a>
-Demo video: (link)
+Demo video: [https://x.com/SkyyCodes/status/2121726270098825401](https://x.com/SkyyCodes/status/2121726270098825401) (4:56, narrated, every transaction real on NEAR testnet)
 
 <p align="center">
   <a href="https://multiverse-lending.vercel.app"><img src="docs/images/landing.jpg" alt="The Origami Verse landing page: Lend inside every future, with rings of worlds and their chances" width="100%"></a>
@@ -1184,16 +1184,6 @@ They are earlier working names. The testnet accounts, the web address and the re
 was renamed Origami Verse.
 </details>
 
-## History and disclosure
-
-The market design of Origami Verse (then called Multiverse Lending) first existed as a hackathon prototype on an EVM chain
-(6-7 Nov 2026); that repository is private. This repository is the NEAR implementation, written from scratch during NEAR HACKATHON: the
-Rust contract, the NEAR integration, a new web app and the scripts. The market design and the demo story come from
-the prototype.
-
-The idea of splitting an asset into verses, one per possible outcome, and moving tokens down into a verse or back up
-comes from Paradigm's essay [Multiverse Finance](https://www.paradigm.xyz/2025/05/multiverse-finance) (Dave White,
-May 2025).
 
 ## Built with
 
