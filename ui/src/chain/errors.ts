@@ -4,6 +4,7 @@
 import { fmt, fmtHf, fmtNear, fmtPrice, fmtUsd, pct, utcDate } from "./format";
 import { marketHref, proposalHref } from "./links";
 import { FLAG_LABEL, type PauseFlag } from "./pause";
+import { BRAND } from "./brand";
 import type { Asset } from "./types";
 
 const WAD = 10n ** 18n;
@@ -175,6 +176,49 @@ export function humanError(raw: string, ctx: ErrorContext = {}): string {
       return `Still has collateral worth ${usd(a)}: liquidate instead`;
     case "TooManyFills":
       return `Too many orders in one trade (${a}, limit ${b}); the app re-plans with fewer`;
+    // trading: the order book, the pools and the account's storage (UI-C)
+    case "InsufficientBalance":
+      return "You hold less than that in this world now; refresh and try a smaller amount";
+    case "InsufficientStorage": {
+      const need = int(a);
+      const have = int(b);
+      const short = need !== undefined && have !== undefined && need > have ? ` ${yoctoNear(need - have)} NEAR` : "";
+      return `Your storage deposit with ${BRAND.name} is${short} short for this; the next try adds to it first`;
+    }
+    case "NotRegistered":
+      return `Your account is not registered with ${BRAND.name} yet; the next action registers it`;
+    case "OrderTooSmall":
+      return "An order needs at least 0.001 NEAR";
+    case "OrderValueTooSmall":
+      return "An order must be worth at least 0.0001 USDC";
+    case "TooManyOpenOrders":
+      return `You have ${a} open orders, the most allowed; cancel one first`;
+    case "ExpiryInPast":
+      return "That expiry has already passed; pick a later one";
+    case "OrderNotOpen":
+      return `Order #${a} was filled or cancelled a moment ago; the book has been refreshed`;
+    case "OrderExpired":
+      return `Order #${a} expired before your trade landed`;
+    case "StaleOrder":
+      return `Order #${a} went stale after a resolution`;
+    case "AmountExceedsRemaining":
+      return `Order #${a} has less left than that now; the book has been refreshed`;
+    case "PriceBeyondLimit":
+      return `Order #${a} no longer has the price you saw`;
+    case "PlanOrderMismatch":
+      return `Order #${b} is no longer in that world's book; the app re-plans`;
+    case "TooLittleReceived":
+      return `The pool would pay ${a === undefined ? "less" : fmt(int(a) ?? 0n, 4)}, under your minimum of ${b === undefined ? "the quote" : fmt(int(b) ?? 0n, 4)}: the price moved, so nothing happened`;
+    case "InsufficientOutput":
+      return `World ${world(a, ctx)} would pay less than the 0.5% the quote allows: the price moved, so nothing happened`;
+    case "ScenarioHalted":
+      return "Trading in this market pauses while a result is in its dispute window";
+    case "DeadVerse":
+      return "That world can no longer happen, so it does not trade";
+    case "PoolNotInitialized":
+      return `World ${world(a, ctx)} has no pool yet`;
+    case "NotMaker":
+      return `Order #${a} is not yours`;
     case "ProposalExists":
       return `Already proposed: proposal #${a}`;
     case "MarketExists":
