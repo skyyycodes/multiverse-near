@@ -217,7 +217,7 @@ export type LoanSummary = {
 
 /**
  * The account's lending at a glance (the wallet menu): `lending_tiers` of each market it holds anything in, every
- * 15 s. Undefined while loading or disconnected. Pass `enabled: false` to read nothing (a closed menu).
+ * 30 s. Undefined while loading or disconnected. Pass `enabled: false` to read nothing (a closed menu).
  */
 export function useLoanSummary(enabled = true): LoanSummary | undefined {
   const { accountId } = useWallet();
@@ -226,7 +226,7 @@ export function useLoanSummary(enabled = true): LoanSummary | undefined {
     queries: (enabled && accountId ? (mine ?? []) : []).map((sid) => ({
       queryKey: ["tiers", CONTRACT_ID, String(sid), accountId ?? ""],
       queryFn: () => fetchLendingTiers(sid, accountId),
-      refetchInterval: 15_000,
+      refetchInterval: 30_000,
       retry: 1,
     })),
   });

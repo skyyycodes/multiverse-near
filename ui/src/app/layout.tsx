@@ -24,6 +24,11 @@ import '../styles/refine.css'
 import '../styles/pages-research.css'
 import '../styles/portfolio.css'
 import '../styles/portfolio-v3.css'
+// v2: one file per screen track, then the chain shell's own rules (ui/INTEGRATION.md)
+import '../styles/v2-markets.css'
+import '../styles/v2-lending.css'
+import '../styles/v2-trade.css'
+import '../styles/v2-governance.css'
 import '../styles/chain.css'
 
 export const metadata: Metadata = {
