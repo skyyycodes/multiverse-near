@@ -18,3 +18,4 @@ web/out-staging/
 web/out-rehearsal/
 web/public/outlayer/
 web/.out-kept-*/
+.deploy/

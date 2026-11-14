@@ -1,0 +1,8 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "trailingSlash": true,
+  "functions": {
+    "api/keeper.js": { "maxDuration": 60 }
+  },
+  "crons": [{ "path": "/api/keeper/", "schedule": "* * * * *" }]
+}
