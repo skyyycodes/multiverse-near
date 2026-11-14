@@ -25,6 +25,7 @@ use near_sdk::{
 use near_sdk::json_types::U128;
 
 use super::harness::{fails, panic_message, quietly};
+use crate::lending::tiers::MarketId;
 use crate::lending::{CollateralKey, LiquidationState};
 use crate::migrate::v1::ContractV1;
 use crate::migrate::{CatalogMigrateArgs, EventMetaArg, LendingMigrateArgs};
@@ -358,6 +359,13 @@ fn migrate_changes_only_state_and_adds_keys_under_new_prefixes() {
     // PRC, step 8: one price config per legacy scenario (tests/prices.rs,
     // module `migration`, checks the values)
     assert_eq!(under(0x2e), 6);
+    // LEND (SPEC-C 6.3): 14 tier states (6 Normal, Safe and Bold of the 4
+    // frozen scenarios) and Carl's entry in market 1's borrower index.
+    assert_eq!(
+        [0x31, 0x32, 0x33, 0x34].map(under),
+        [14, 1, 1, 1],
+        "lending's new keys"
+    );
     let marker_prefix = StorageKey::AccountVersion.into_storage_key();
     for a in prod_accounts() {
         let mut key = marker_prefix.clone();
@@ -477,7 +485,7 @@ fn migrate_keeps_every_v1_scalar() {
     assert_eq!((config.event_count, config.scenario_count), (9, 6));
     assert_eq!(p.view(|c| c.get_scenario(5)).event_ids, vec![7, 8]);
     let carl = prod_account("carl");
-    assert!(p.view(|c| c.debt_of(1, carl).0) > 0);
+    assert!(p.view(|c| c.debt_of(1, carl, None).0) > 0);
 }
 
 #[test]
@@ -781,13 +789,15 @@ fn r7_storage_balances_equal_the_v1_records() {
 fn r9_health_unchanged_and_statuses_paused_until_liquidate_is_unpaused() {
     let mut p = migrated_prod();
     let carl = prod_account("carl");
-    let values = p.view(|c| c.collateral_values(1, carl.clone())).values;
+    let values = p
+        .view(|c| c.collateral_values(1, carl.clone(), None))
+        .values;
     let c_min = values[3].0;
     assert_eq!(c_min / 1_000_000_000_000, 1_133_134_240);
-    let debt = p.view(|c| c.debt_of(1, carl.clone())).0;
+    let debt = p.view(|c| c.debt_of(1, carl.clone(), None)).0;
     assert_eq!(debt / 1_000_000_000_000, 892_818_832);
     let hf = p
-        .view(|c| c.health_factor(1, carl.clone()))
+        .view(|c| c.health_factor(1, carl.clone(), None))
         .health_factor
         .unwrap()
         .0;
@@ -798,7 +808,7 @@ fn r9_health_unchanged_and_statuses_paused_until_liquidate_is_unpaused() {
         let mut out = Vec::new();
         for a in prod_accounts() {
             for sid in 1..=6u64 {
-                let s = p.view(|c| c.liquidation_status(sid, a.clone()).status);
+                let s = p.view(|c| c.liquidation_status(sid, a.clone(), None).status);
                 if s != LiquidationState::None {
                     out.push((a.to_string(), sid, s));
                 }
@@ -821,7 +831,7 @@ fn r9_health_unchanged_and_statuses_paused_until_liquidate_is_unpaused() {
         vec![(carl_name, 1, LiquidationState::Liquidatable)]
     );
     assert_eq!(
-        p.view(|c| c.health_factor(1, carl.clone()))
+        p.view(|c| c.health_factor(1, carl.clone(), None))
             .health_factor
             .unwrap()
             .0,
@@ -989,7 +999,7 @@ fn r17_never_paused_paths_work_on_the_migrated_state() {
     assert!(matches!(unused, near_sdk::PromiseOrValue::Value(U128(0))));
     assert_eq!(p.data_of("real_deposit").len(), 1);
     // Carl repays 1 USDC
-    let debt = p.view(|c| c.debt_of(1, carl.clone())).0;
+    let debt = p.view(|c| c.debt_of(1, carl.clone(), None)).0;
     let cc = carl.clone();
     p.call(&usdc, NearToken::from_yoctonear(0), |c| {
         c.ft_on_transfer(
@@ -1001,7 +1011,7 @@ fn r17_never_paused_paths_work_on_the_migrated_state() {
     .unwrap();
     assert_eq!(p.data_of("repay").len(), 1);
     assert_eq!(
-        p.view(|c| c.debt_of(1, carl.clone())).0,
+        p.view(|c| c.debt_of(1, carl.clone(), None)).0,
         debt - 1_000_000_000_000_000_000
     );
     // Leo withdraws 1 wNEAR of his internal balance
@@ -1203,13 +1213,13 @@ fn touches() -> Vec<(&'static str, &'static str, Touch)> {
         }),
         ("carl", "set_borrow_shares (repay from balance)", |p| {
             p.call(&prod_account("carl"), ONE_YOCTO, |c| {
-                c.repay_from_balance(1, Some(U128(1)))
+                c.repay_from_balance(1, Some(U128(1)), None)
             })
             .map(|_| ())
         }),
         ("carl", "set_pieces (collateral from balance)", |p| {
             p.call(&prod_account("carl"), ONE_YOCTO, |c| {
-                c.deposit_collateral(1, "usdc".to_string(), U128(1))
+                c.deposit_collateral(1, "usdc".to_string(), U128(1), None)
             })
         }),
         ("alice", "charge_storage (a transfer)", |p| {
@@ -1239,7 +1249,7 @@ fn stragglers_are_folded_exactly_once_whichever_funnel_touches_them_first() {
                 c.real_balance(&a, Asset::Wnear),
                 c.real_balance(&a, Asset::Usdc),
             ];
-            let pieces = crate::books::real_amounts(&c.pieces(1, &a));
+            let pieces = crate::books::real_amounts(&c.pieces(MarketId::new(1, None), &a));
             let record = c.storage.get(&a).cloned().unwrap();
             (real, pieces, record)
         });

@@ -8,6 +8,7 @@ use near_sdk::{NearToken, PromiseResult};
 use super::amm::pool_world;
 use super::harness::*;
 use crate::core::MAX_SCENARIOS_PER_EVENT;
+use crate::lending::tiers::MarketId;
 use crate::types::Asset::{Usdc, Wnear};
 
 /// RT-1: with nothing attached, an owner function-call key could move the
@@ -323,11 +324,11 @@ fn pumping_every_world_for_a_minute_does_not_unlock_borrowing() {
     }
     w.warp(61);
     post_wnear(&mut w, CAROL, s, 24_000 * E18);
-    let borrowed = w.call(CAROL, ONE_YOCTO, |c| c.borrow(s, U128(100_000 * E18)));
+    let borrowed = w.call(CAROL, ONE_YOCTO, |c| c.borrow(s, U128(100_000 * E18), None));
     assert!(borrowed.is_err(), "{borrowed:?}");
     // While the pools sit this far from their TWAP the worlds are unpriced,
     // so nothing borrows against wNEAR there.
-    w.call(CAROL, ONE_YOCTO, |c| c.borrow(s, U128(10_000 * E18)))
+    w.call(CAROL, ONE_YOCTO, |c| c.borrow(s, U128(10_000 * E18), None))
         .unwrap_err();
     for i in 0..2 {
         assert!(!w.view(|c| c.world_price(s, i)).1);
@@ -340,7 +341,7 @@ fn pumping_every_world_for_a_minute_does_not_unlock_borrowing() {
 fn dumping_one_world_for_a_minute_does_not_liquidate_a_healthy_borrower() {
     let (mut w, s, pools) = lending_world();
     post_wnear(&mut w, ALICE, s, 10_000 * E18);
-    w.call(ALICE, ONE_YOCTO, |c| c.borrow(s, U128(18_000 * E18)))
+    w.call(ALICE, ONE_YOCTO, |c| c.borrow(s, U128(18_000 * E18), None))
         .unwrap();
     w.split_ft(CAROL, s, Wnear, &[1, 2], 19_000 * E18).unwrap();
     w.call(CAROL, ONE_YOCTO, |c| {
@@ -355,7 +356,7 @@ fn dumping_one_world_for_a_minute_does_not_liquidate_a_healthy_borrower() {
     // Under the v1 gates the pool is younger than a window, so its mean runs
     // over the dump too: the out-of-band world pauses liquidation.
     fails(liquidated, "PriceUnavailable(1)");
-    let status = w.view(|c| c.liquidation_status(s, acc(ALICE)));
+    let status = w.view(|c| c.liquidation_status(s, acc(ALICE), None));
     assert_eq!(
         (status.status, status.unpriced_world),
         (crate::lending::LiquidationState::PausedNoPrice, Some(1))
@@ -394,7 +395,7 @@ fn liquidation_hf(w: &mut World, s: u64, who: &str, lltv: u128) -> u128 {
         let root = c.scenario(s).root();
         let possible = c.scenario(s).possible;
         let mut values = vec![0u128; px.prices.len()];
-        for (piece, amount) in c.pieces(s, &who) {
+        for (piece, amount) in c.pieces(MarketId::new(s, None), &who) {
             let mask = piece.mask(root) & possible;
             for (w, value) in values.iter_mut().enumerate() {
                 if mask & (1 << w) == 0 {
@@ -412,7 +413,8 @@ fn liquidation_hf(w: &mut World, s: u64, who: &str, lltv: u128) -> u128 {
             .map(|w| values[w])
             .min()
             .unwrap();
-        multiverse_math::risk::health_factor(lowest, c.debt_for(s, &who), lltv).unwrap()
+        multiverse_math::risk::health_factor(lowest, c.debt_for(MarketId::new(s, None), &who), lltv)
+            .unwrap()
     })
 }
 
@@ -438,7 +440,7 @@ fn to_move_price(reserve0: u128, factor_pct: u128) -> u128 {
 fn econ2_full_window_dump_does_not_liquidate() {
     let (mut w, s, pools) = v2_lending_world();
     post_wnear(&mut w, ALICE, s, 10_000 * E18);
-    w.call(ALICE, ONE_YOCTO, |c| c.borrow(s, U128(16_000 * E18)))
+    w.call(ALICE, ONE_YOCTO, |c| c.borrow(s, U128(16_000 * E18), None))
         .unwrap();
     w.split_ft(CAROL, s, Wnear, &[1, 2], 19_000 * E18).unwrap();
     w.call(CAROL, ONE_YOCTO, |c| {
@@ -484,7 +486,7 @@ fn econ2_lp_pull_pauses_and_switches_the_haircut_off() {
     assert_eq!(Some(check.liquidation_factor), check.ratio);
     assert!(check.liquidation_factor.0.abs_diff(950 * E15) <= 1);
     post_wnear(&mut w, ALICE, s, 10_000 * E18);
-    w.call(ALICE, ONE_YOCTO, |c| c.borrow(s, U128(15_000 * E18)))
+    w.call(ALICE, ONE_YOCTO, |c| c.borrow(s, U128(15_000 * E18), None))
         .unwrap();
     // The owner pulls 90% of world 1's liquidity: 28,000 USDC-if-1 left.
     let owner = w.view(|c| c.position_of(pools[1], acc(OWNER)).unwrap());
@@ -641,7 +643,7 @@ fn econ2_low_odds_world_held_down_a_window_is_the_documented_residual() {
     super::reference::set_cfg(&mut w, s, cfg).unwrap();
     super::reference::report(&mut w, honest).unwrap();
     post_wnear(&mut w, ALICE, s, 10_000 * E18);
-    w.call(ALICE, ONE_YOCTO, |c| c.borrow(s, U128(15_000 * E18)))
+    w.call(ALICE, ONE_YOCTO, |c| c.borrow(s, U128(15_000 * E18), None))
         .unwrap();
     super::amm::give_world_tokens(&mut w, CAROL, s, 30_000 * E18, 0);
     super::amm::sell(&mut w, CAROL, pools[1], to_move_price(100_000 * E18, 70));
@@ -731,7 +733,7 @@ fn young_pool_pump_cannot_borrow_under_v2_defaults() {
         .all(|r| r.status == crate::prices::WorldStatus::Young && r.borrow_price.0 == 0));
     post_wnear(&mut w, CAROL, s, 24_000 * E18);
     let err = w
-        .call(CAROL, ONE_YOCTO, |c| c.borrow(s, U128(10_000 * E18)))
+        .call(CAROL, ONE_YOCTO, |c| c.borrow(s, U128(10_000 * E18), None))
         .unwrap_err();
     assert!(err.starts_with("Unhealthy("), "{err}");
 }

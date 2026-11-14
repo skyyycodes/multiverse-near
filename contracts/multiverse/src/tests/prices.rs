@@ -1002,7 +1002,7 @@ mod migration {
         // Carl, the one borrower: HF 0.951869, liquidatable already under v1.
         let carl = prod_account("carl");
         let hf = p
-            .view(|c| c.health_factor(1, carl.clone()))
+            .view(|c| c.health_factor(1, carl.clone(), None))
             .health_factor
             .unwrap()
             .0;
@@ -1011,7 +1011,8 @@ mod migration {
             "{hf}"
         );
         let status =
-            near_sdk::serde_json::to_value(p.view(|c| c.liquidation_status(1, carl))).unwrap();
+            near_sdk::serde_json::to_value(p.view(|c| c.liquidation_status(1, carl, None)))
+                .unwrap();
         assert_eq!(status["status"], "liquidatable");
     }
 

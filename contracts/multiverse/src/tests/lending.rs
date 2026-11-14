@@ -14,6 +14,7 @@ use near_sdk::NearToken;
 
 use super::harness::*;
 use crate::amm::test_hooks;
+use crate::lending::tiers::MarketId;
 use crate::lending::{CollateralKey, Liquidation, LiquidationState};
 use crate::types::Asset::{self, Usdc, Wnear};
 
@@ -115,14 +116,14 @@ impl Lend for World {
 
     fn withdraw_lent(&mut self, who: &str, sid: u64, amount: Option<u128>) -> Result<u128, String> {
         self.call(who, ONE_YOCTO, |c| {
-            c.withdraw_supply(sid, amount.map(U128)).0
+            c.withdraw_supply(sid, amount.map(U128), None).0
         })
     }
 
     fn post(&mut self, who: &str, sid: u64, piece: &str, amount: u128) -> Result<(), String> {
         let piece = piece.to_string();
         self.call(who, ONE_YOCTO, |c| {
-            c.deposit_collateral(sid, piece, U128(amount))
+            c.deposit_collateral(sid, piece, U128(amount), None)
         })
     }
 
@@ -141,12 +142,12 @@ impl Lend for World {
     fn unpost(&mut self, who: &str, sid: u64, piece: &str, amount: u128) -> Result<(), String> {
         let piece = piece.to_string();
         self.call(who, ONE_YOCTO, |c| {
-            c.withdraw_collateral(sid, piece, U128(amount))
+            c.withdraw_collateral(sid, piece, U128(amount), None)
         })
     }
 
     fn borrow(&mut self, who: &str, sid: u64, amount: u128) -> Result<(), String> {
-        self.call(who, ONE_YOCTO, |c| c.borrow(sid, U128(amount)))
+        self.call(who, ONE_YOCTO, |c| c.borrow(sid, U128(amount), None))
     }
 
     /// `repay` action with `attached` (internal, rounded up to whole
@@ -195,23 +196,25 @@ impl Lend for World {
             shares: u(&log["shares"]),
             pieces,
             seized: log["seized"].as_array().unwrap().iter().map(u).collect(),
+            seize_all: log["seize_all"].as_bool().unwrap(),
+            written_off: u(&log["written_off"]),
         })
     }
 
     fn debt(&mut self, sid: u64, who: &str) -> u128 {
         let who = acc(who);
-        self.view(|c| c.debt_of(sid, who).0)
+        self.view(|c| c.debt_of(sid, who, None).0)
     }
 
     fn hf(&mut self, sid: u64, who: &str) -> (Option<u128>, u8) {
         let who = acc(who);
-        let h = self.view(|c| c.health_factor(sid, who));
+        let h = self.view(|c| c.health_factor(sid, who, None));
         (h.health_factor.map(|v| v.0), h.worst_world.unwrap())
     }
 
     fn values(&mut self, sid: u64, who: &str) -> Vec<u128> {
         let who = acc(who);
-        self.view(|c| c.collateral_values(sid, who))
+        self.view(|c| c.collateral_values(sid, who, None))
             .values
             .iter()
             .map(|v| v.0)
@@ -220,7 +223,7 @@ impl Lend for World {
 
     fn pieces(&mut self, sid: u64, who: &str) -> Vec<(String, u128)> {
         let who = acc(who);
-        self.view(|c| c.collateral_of(sid, who))
+        self.view(|c| c.collateral_of(sid, who, None))
             .into_iter()
             .map(|p| (p.piece, p.amount.0))
             .collect()
@@ -235,7 +238,7 @@ impl Lend for World {
 
     fn lent(&mut self, sid: u64, who: &str) -> u128 {
         let who = acc(who);
-        self.view(|c| c.supply_balance_of(sid, who).0)
+        self.view(|c| c.supply_balance_of(sid, who, None).0)
     }
 
     fn lowest(&mut self, sid: u64, who: &str) -> u128 {
@@ -302,19 +305,22 @@ fn supply_and_withdraw() {
     let s = w.s2x2;
     assert_eq!(w.lent(s, BOB), 50_000 * E18);
     assert_eq!(
-        w.view(|c| c.supply_principal_of(s, acc(BOB)).0),
+        w.view(|c| c.supply_principal_of(s, acc(BOB), None).0),
         50_000 * E18
     );
     w.withdraw_lent(BOB, s, Some(20_000 * E18)).unwrap();
     assert_eq!(w.wallet(BOB, Usdc), FUND - 30_000 * E18);
     assert_eq!(
-        w.view(|c| c.supply_principal_of(s, acc(BOB)).0),
+        w.view(|c| c.supply_principal_of(s, acc(BOB), None).0),
         30_000 * E18
     );
     w.withdraw_lent(BOB, s, None).unwrap();
     assert_eq!(w.wallet(BOB, Usdc), FUND);
-    assert_eq!(w.view(|c| c.supply_shares_of(s, &acc(BOB))), 0);
-    assert_eq!(w.view(|c| c.supply_principal_of(s, acc(BOB)).0), 0);
+    assert_eq!(
+        w.view(|c| c.supply_shares_of(MarketId::new(s, None), &acc(BOB))),
+        0
+    );
+    assert_eq!(w.view(|c| c.supply_principal_of(s, acc(BOB), None).0), 0);
 }
 
 #[test]
@@ -335,7 +341,7 @@ fn lenders_earn_the_borrow_rate() {
         balance.abs_diff(50_000 * E18 + interest) <= 1_000_000,
         "balance {balance}"
     );
-    let m = w.view(|c| c.market_state(s));
+    let m = w.view(|c| c.market_state(s, None));
     assert!(m.utilization.0 > 0);
     assert_eq!(
         m.supply_rate_per_sec.0,
@@ -365,7 +371,7 @@ fn alice_borrows_worst_world_is_delayed_holds() {
     let mut w = lending_world(50_000 * E18);
     let s = w.s2x2;
     let proceeds = w.l_shape(ALICE);
-    let v = w.view(|c| c.collateral_values(s, acc(ALICE)));
+    let v = w.view(|c| c.collateral_values(s, acc(ALICE), None));
     assert_eq!(v.possible, ROOT);
     assert_eq!(v.values[0].0, 7_400 * E18);
     for (value, paid) in v.values.iter().zip(proceeds).skip(1) {
@@ -518,7 +524,7 @@ fn resolution_never_lowers_health_factor() {
 fn interest_accrues_over_time() {
     let mut w = lending_world(50_000 * E18);
     let s = w.s2x2;
-    let first = w.view(|c| c.market_state(s));
+    let first = w.view(|c| c.market_state(s, None));
     // the first touch only stamps the time
     assert_eq!(first.last_update_sec, w.now);
     assert!(w.last.data_of("accrue").is_empty());
@@ -528,15 +534,19 @@ fn interest_accrues_over_time() {
     w.warp(DAY);
     let expected = 3_000 * E18 * (RATE * u128::from(DAY)) / E18;
     assert_eq!(w.debt(s, ALICE), 3_000 * E18 + expected);
-    let m = w.view(|c| c.market_state(s));
+    let m = w.view(|c| c.market_state(s, None));
     assert_eq!(m.total_borrow.0, 3_000 * E18 + expected);
     assert_eq!(m.total_supply.0, 50_000 * E18 + expected);
-    assert_eq!(w.view(|c| c.market(s)).total_borrow_assets, 3_000 * E18);
+    assert_eq!(
+        w.view(|c| c.market_of(MarketId::new(s, None)))
+            .total_borrow_assets,
+        3_000 * E18
+    );
     // a touch writes it to both sides and logs it
     w.lend(CAROL, s, 1_000 * E18).unwrap();
     let accrued = w.last.data_of("accrue");
     assert_eq!(accrued[0]["interest"], expected.to_string());
-    let stored = w.view(|c| c.market(s));
+    let stored = w.view(|c| c.market_of(MarketId::new(s, None)));
     assert_eq!(stored.total_borrow_assets, 3_000 * E18 + expected);
     assert_eq!(stored.total_supply_assets, 51_000 * E18 + expected);
     assert_eq!(stored.last_update, w.now);
@@ -606,39 +616,42 @@ fn repay_from_balance_and_one_yocto() {
     w.l_shape(ALICE);
     w.borrow(ALICE, s, 3_000 * E18).unwrap();
     let yocto = "Requires attached deposit of exactly 1 yoctoNEAR";
-    fails(w.call(ALICE, NO_DEPOSIT, |c| c.borrow(s, U128(E18))), yocto);
     fails(
-        w.call(ALICE, NO_DEPOSIT, |c| c.withdraw_supply(s, None)),
+        w.call(ALICE, NO_DEPOSIT, |c| c.borrow(s, U128(E18), None)),
+        yocto,
+    );
+    fails(
+        w.call(ALICE, NO_DEPOSIT, |c| c.withdraw_supply(s, None, None)),
         yocto,
     );
     fails(
         w.call(ALICE, NO_DEPOSIT, |c| {
-            c.deposit_collateral(s, "wnear".into(), U128(1))
+            c.deposit_collateral(s, "wnear".into(), U128(1), None)
         }),
         yocto,
     );
     fails(
         w.call(ALICE, NO_DEPOSIT, |c| {
-            c.withdraw_collateral(s, "wnear".into(), U128(1))
+            c.withdraw_collateral(s, "wnear".into(), U128(1), None)
         }),
         yocto,
     );
     fails(
-        w.call(ALICE, NO_DEPOSIT, |c| c.repay_from_balance(s, None)),
+        w.call(ALICE, NO_DEPOSIT, |c| c.repay_from_balance(s, None, None)),
         yocto,
     );
     let real = w.real(ALICE, Usdc);
     w.deposit(ALICE, Usdc, 1_000 * E18).unwrap();
     let repaid = w
         .call(ALICE, ONE_YOCTO, |c| {
-            c.repay_from_balance(s, Some(U128(400 * E18)))
+            c.repay_from_balance(s, Some(U128(400 * E18)), None)
         })
         .unwrap();
     assert_eq!(repaid.0, 400 * E18);
     assert_eq!(w.real(ALICE, Usdc), real + 600 * E18);
     let (real, debt) = (w.real(ALICE, Usdc), w.debt(s, ALICE));
     fails(
-        w.call(ALICE, ONE_YOCTO, |c| c.repay_from_balance(s, None)),
+        w.call(ALICE, ONE_YOCTO, |c| c.repay_from_balance(s, None, None)),
         &format!("InsufficientBalance({ALICE}, {real}, {debt})"),
     );
 }
@@ -688,7 +701,7 @@ fn piece_list_is_capped_and_swap_popped() {
     let mut ids = vec!["wnear".to_string(), "usdc".to_string()];
     for asset in [Wnear, Usdc] {
         for mask in 1..ROOT {
-            if ids.len() == 16 {
+            if ids.len() == 20 {
                 break;
             }
             w.split(ALICE, s, asset, ROOT, &[mask, ROOT ^ mask], E18)
@@ -699,9 +712,9 @@ fn piece_list_is_capped_and_swap_popped() {
     for id in &ids {
         w.post(ALICE, s, id, E18).unwrap();
     }
-    w.split(ALICE, s, Usdc, ROOT, &[3, 12], E18).unwrap();
+    w.split(ALICE, s, Usdc, ROOT, &[5, 10], E18).unwrap();
     fails(
-        w.post(ALICE, s, &token_id(s, Usdc, 3), E18),
+        w.post(ALICE, s, &token_id(s, Usdc, 5), E18),
         "TooManyCollateralTokens",
     );
     // topping up an existing piece is fine
@@ -709,8 +722,8 @@ fn piece_list_is_capped_and_swap_popped() {
     // removing the second piece moves the last one into its place
     w.unpost(ALICE, s, "usdc", E18).unwrap();
     let list: Vec<String> = w.pieces(s, ALICE).into_iter().map(|(p, _)| p).collect();
-    assert_eq!(list[1], ids[15]);
-    assert_eq!(list.len(), 15);
+    assert_eq!(list[1], ids[19]);
+    assert_eq!(list.len(), 19);
 }
 
 #[test]
@@ -724,20 +737,28 @@ fn router_api() {
         .unwrap();
     let a = alice.clone();
     w.call(ALICE, ONE_YOCTO, |c| {
-        c.deposit_collateral_for(&a, s, CollateralKey::Real(Wnear), 2_000 * E18);
         c.deposit_collateral_for(
             &a,
-            s,
+            MarketId::new(s, None),
+            CollateralKey::Real(Wnear),
+            2_000 * E18,
+        );
+        c.deposit_collateral_for(
+            &a,
+            MarketId::new(s, None),
             CollateralKey::Verse {
                 asset: Usdc,
                 mask: HOLDS,
             },
             1_000 * E18,
         );
-        c.borrow_for(&a, s, 2_000 * E18);
+        c.borrow_for(&a, MarketId::new(s, None), 2_000 * E18);
     })
     .unwrap();
-    assert_eq!(w.view(|c| c.debt_for(s, &alice)), 2_000 * E18);
+    assert_eq!(
+        w.view(|c| c.debt_for(MarketId::new(s, None), &alice)),
+        2_000 * E18
+    );
     // the borrowed USDC went to the wallet
     assert_eq!(
         w.wallet(ALICE, Usdc),
@@ -746,27 +767,35 @@ fn router_api() {
     w.warp(DAY);
     let a = alice.clone();
     let repaid = w
-        .call(ALICE, ONE_YOCTO, |c| c.repay_for(&a, s, 300 * E18))
+        .call(ALICE, ONE_YOCTO, |c| {
+            c.repay_for(&a, MarketId::new(s, None), 300 * E18)
+        })
         .unwrap();
     assert_eq!(repaid, 300 * E18);
     // still in debt: taking everything back fails
     let a = alice.clone();
     let err = w
-        .call(ALICE, ONE_YOCTO, |c| c.withdraw_all_collateral_for(&a, s))
+        .call(ALICE, ONE_YOCTO, |c| {
+            c.withdraw_all_collateral_for(&a, MarketId::new(s, None))
+        })
         .unwrap_err();
     assert!(err.starts_with("Unhealthy(0, "), "{err}");
     w.deposit(ALICE, Usdc, 2_000 * E18).unwrap();
     let a = alice.clone();
-    let debt = w.view(|c| c.debt_for(s, &a));
+    let debt = w.view(|c| c.debt_for(MarketId::new(s, None), &a));
     let real_before = w.real(ALICE, Usdc);
     let a = alice.clone();
     let repaid = w
-        .call(ALICE, ONE_YOCTO, |c| c.repay_for(&a, s, u128::MAX))
+        .call(ALICE, ONE_YOCTO, |c| {
+            c.repay_for(&a, MarketId::new(s, None), u128::MAX)
+        })
         .unwrap();
     assert_eq!(repaid, debt);
     let a = alice.clone();
     let back = w
-        .call(ALICE, ONE_YOCTO, |c| c.withdraw_all_collateral_for(&a, s))
+        .call(ALICE, ONE_YOCTO, |c| {
+            c.withdraw_all_collateral_for(&a, MarketId::new(s, None))
+        })
         .unwrap();
     assert_eq!(
         back,
@@ -787,12 +816,15 @@ fn router_api() {
     // nothing posted: nothing to do
     let a = alice.clone();
     assert!(w
-        .call(ALICE, ONE_YOCTO, |c| c.withdraw_all_collateral_for(&a, s))
+        .call(ALICE, ONE_YOCTO, |c| c
+            .withdraw_all_collateral_for(&a, MarketId::new(s, None)))
         .unwrap()
         .is_empty());
     let a = alice.clone();
     fails(
-        w.call(ALICE, ONE_YOCTO, |c| c.repay_for(&a, s, u128::MAX)),
+        w.call(ALICE, ONE_YOCTO, |c| {
+            c.repay_for(&a, MarketId::new(s, None), u128::MAX)
+        }),
         "ZeroAmount",
     );
 }
@@ -858,7 +890,7 @@ fn events_are_compact_and_complete() {
     w.unpost(ALICE, s, "usdc", E18).unwrap();
     assert_eq!(w.last.data_of("withdraw_collateral")[0]["piece"], "usdc");
     assert_eq!(
-        w.view(|c| c.liquidation_status(s, acc(ALICE))).status,
+        w.view(|c| c.liquidation_status(s, acc(ALICE), None)).status,
         LiquidationState::None
     );
 }

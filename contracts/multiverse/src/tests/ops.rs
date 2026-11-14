@@ -330,6 +330,7 @@ fn rows() -> Vec<Row> {
                         vec![vec![]; 4],
                         vec![U128(0); 4],
                         false,
+                        None,
                     )
                 }))
             },
@@ -347,6 +348,7 @@ fn rows() -> Vec<Row> {
                         vec![vec![]; 4],
                         vec![U128(0); 4],
                         true,
+                        None,
                     )
                 }))
             },
@@ -364,6 +366,7 @@ fn rows() -> Vec<Row> {
                         vec![vec![]; 4],
                         vec![U128(0); 4],
                         false,
+                        None,
                     )
                 }))
             },
@@ -381,6 +384,7 @@ fn rows() -> Vec<Row> {
                         vec![vec![]; 4],
                         vec![U128(0); 4],
                         true,
+                        None,
                     )
                 }))
             },
@@ -708,7 +712,9 @@ fn rows() -> Vec<Row> {
             flags: EXIT,
             run: |w, i| {
                 let s = i.s;
-                dbg(w.call(BOB, ONE_YOCTO, |c| c.withdraw_supply(s, Some(U128(E18)))))
+                dbg(w.call(BOB, ONE_YOCTO, |c| {
+                    c.withdraw_supply(s, Some(U128(E18)), None)
+                }))
             },
         },
         Row {
@@ -739,7 +745,7 @@ fn rows() -> Vec<Row> {
             flags: EXIT,
             run: |w, i| {
                 let s = i.s;
-                dbg(w.call(ALICE, ONE_YOCTO, |c| c.close_after_resolution(s)))
+                dbg(w.call(ALICE, ONE_YOCTO, |c| c.close_after_resolution(s, None)))
             },
         },
         Row {
@@ -848,7 +854,7 @@ fn rows() -> Vec<Row> {
             run: |w, i| {
                 let s = i.s;
                 dbg(w.call(ALICE, ONE_YOCTO, |c| {
-                    c.repay_from_balance(s, Some(U128(E18)))
+                    c.repay_from_balance(s, Some(U128(E18)), None)
                 }))
             },
         },
@@ -1017,7 +1023,7 @@ fn rows() -> Vec<Row> {
                 let s = i.s;
                 Ok(format!(
                     "{:?}",
-                    w.view(|c| c.borrow_view(s, Some(acc(ALICE))))
+                    w.view(|c| c.borrow_view(s, Some(acc(ALICE)), None))
                 ))
             },
         },
@@ -1325,7 +1331,7 @@ fn liquidation_status_reads_paused_while_the_flag_or_the_grace_holds() {
     w.deposit(ALICE, Usdc, 1_000 * E18).unwrap();
     w.post(ALICE, s, "usdc", 1_000 * E18).unwrap();
     w.borrow(ALICE, s, 700 * E18).unwrap();
-    let status = |w: &mut World| w.view(|c| c.liquidation_status(s, acc(ALICE)).status);
+    let status = |w: &mut World| w.view(|c| c.liquidation_status(s, acc(ALICE), None).status);
     assert_eq!(status(&mut w), LiquidationState::None);
     // a year of interest makes the loan unhealthy
     w.warp(4 * 365 * DAY);
@@ -1334,7 +1340,7 @@ fn liquidation_status_reads_paused_while_the_flag_or_the_grace_holds() {
     assert_eq!(status(&mut w), LiquidationState::Paused);
     unpause(&mut w, &[PauseFlag::Liquidate], None).unwrap();
     assert_eq!(status(&mut w), LiquidationState::Paused);
-    let view = w.view(|c| c.borrow_view(s, Some(acc(ALICE))));
+    let view = w.view(|c| c.borrow_view(s, Some(acc(ALICE)), None));
     assert_eq!(
         serde_json::to_value(view.account.liquidation).unwrap(),
         json!("paused")
@@ -1344,7 +1350,7 @@ fn liquidation_status_reads_paused_while_the_flag_or_the_grace_holds() {
     // a healthy account reads none whatever the flags
     pause(&mut w, OWNER, &[PauseFlag::Liquidate]).unwrap();
     assert_eq!(
-        w.view(|c| c.liquidation_status(s, acc(BOB)).status),
+        w.view(|c| c.liquidation_status(s, acc(BOB), None).status),
         LiquidationState::None
     );
 }
@@ -1592,7 +1598,7 @@ fn books_buckets_through_lending_spot_pool_and_failed_payouts() {
     // interest moves debt and supply together: cash stays
     w.warp(30 * DAY);
     w.call(ALICE, ONE_YOCTO, |c| {
-        c.repay_from_balance(ids.s, Some(U128(10 * E18)))
+        c.repay_from_balance(ids.s, Some(U128(10 * E18)), None)
     })
     .unwrap();
     books_hold(&mut w, &holders).unwrap();
@@ -1628,7 +1634,7 @@ fn books_buckets_through_lending_spot_pool_and_failed_payouts() {
     books_hold(&mut w, &holders).unwrap();
     // bob takes his supply out, the order and the pool position close
     w.call(BOB, ONE_YOCTO, |c| {
-        c.withdraw_supply(ids.s, Some(U128(1_000 * E18)))
+        c.withdraw_supply(ids.s, Some(U128(1_000 * E18)), None)
     })
     .unwrap();
     w.call(BOB, ONE_YOCTO, |c| c.cancel_order(U64(ids.order)))

@@ -28,10 +28,11 @@ use super::harness::*;
 use super::lending::*;
 use super::liquidation::slice_value;
 use crate::amm::test_hooks;
+use crate::lending::tiers::MarketId;
 use crate::lending::{CollateralKey, MAX_COLLATERAL_PIECES};
 use crate::masks::single_worlds;
 use crate::types::Asset::{Usdc, Wnear};
-use multiverse_math::risk::{dust_allowance, liquidation_target};
+use multiverse_math::risk::{dust_allowance, full_seize_repay, liquidation_target};
 use multiverse_math::{mul_div_down, U256};
 
 const CASES: u32 = 256;
@@ -640,7 +641,8 @@ impl Campaign {
             return;
         }
         let repay = match mode {
-            0 => max_repay,
+            // "max" on an underwater loan repays only what seizes everything
+            0 => max_repay.min(full_seize_repay(c_min, BONUS)),
             1 => (bound(r, 1, max_repay) >> ((r >> 100) % 64)).max(1),
             _ => bound(r, 1, max_repay),
         };
@@ -743,10 +745,16 @@ impl Campaign {
             let ids: Vec<_> = everyone.iter().map(|a| acc(a)).collect();
             let (m, supply_sum, borrow_sum, lists) = self.w.view(|c| {
                 (
-                    c.market(s),
-                    ids.iter().map(|a| c.supply_shares_of(s, a)).sum::<u128>(),
-                    ids.iter().map(|a| c.borrow_shares_of(s, a)).sum::<u128>(),
-                    ids.iter().map(|a| c.pieces(s, a)).collect::<Vec<_>>(),
+                    c.market_of(MarketId::new(s, None)),
+                    ids.iter()
+                        .map(|a| c.supply_shares_of(MarketId::new(s, None), a))
+                        .sum::<u128>(),
+                    ids.iter()
+                        .map(|a| c.borrow_shares_of(MarketId::new(s, None), a))
+                        .sum::<u128>(),
+                    ids.iter()
+                        .map(|a| c.pieces(MarketId::new(s, None), a))
+                        .collect::<Vec<_>>(),
                 )
             });
             prop_assert_eq!(supply_sum, m.total_supply_shares);

@@ -52,13 +52,13 @@ fn trade_stops_swaps_orders_and_trades_first() {
     );
     fails(
         w.call(ALICE, ONE_YOCTO, |c| {
-            c.conditional_sell(999, U128(0), 1, vec![], vec![], false)
+            c.conditional_sell(999, U128(0), 1, vec![], vec![], false, None)
         }),
         &err,
     );
     fails(
         w.call(ALICE, ONE_YOCTO, |c| {
-            c.conditional_buy(999, U128(0), 1, vec![], vec![], true)
+            c.conditional_buy(999, U128(0), 1, vec![], vec![], true, None)
         }),
         &err,
     );
@@ -132,13 +132,13 @@ fn transfer_lend_and_oracle_stop_their_methods() {
     // A trade into lending needs `lend` as well as `trade`.
     fails(
         w.call(ALICE, ONE_YOCTO, |c| {
-            c.conditional_sell(999, U128(0), 1, vec![], vec![], true)
+            c.conditional_sell(999, U128(0), 1, vec![], vec![], true, None)
         }),
         &paused(PauseFlag::Lend),
     );
     fails(
         w.call(ALICE, ONE_YOCTO, |c| {
-            c.conditional_sell(999, U128(0), 1, vec![], vec![], false)
+            c.conditional_sell(999, U128(0), 1, vec![], vec![], false, None)
         }),
         "ZeroAmount",
     );
@@ -168,17 +168,17 @@ fn exit_stops_every_way_out_and_nothing_else() {
     fails(w.redeem(ALICE, 1, Wnear, 1, 1), &err);
     fails(w.call(ALICE, ONE_YOCTO, |c| c.cancel_order(U64(999))), &err);
     fails(
-        w.call(ALICE, ONE_YOCTO, |c| c.close_after_resolution(999)),
+        w.call(ALICE, ONE_YOCTO, |c| c.close_after_resolution(999, None)),
         &err,
     );
     fails(
-        w.call(ALICE, ONE_YOCTO, |c| c.withdraw_supply(999, None)),
+        w.call(ALICE, ONE_YOCTO, |c| c.withdraw_supply(999, None, None)),
         &err,
     );
     // Without debt, taking collateral back is an exit.
     fails(
         w.call(ALICE, ONE_YOCTO, |c| {
-            c.withdraw_collateral(1, "usdc".to_string(), U128(1))
+            c.withdraw_collateral(1, "usdc".to_string(), U128(1), None)
         }),
         &err,
     );
@@ -340,22 +340,20 @@ fn unknown_fields_and_tiers_are_still_refused() {
 }
 
 #[test]
-fn only_the_normal_tier_acts_until_the_tiers_are_built() {
+fn every_tier_acts_through_its_msgs() {
     let mut w = lending_world(1_000 * E18);
     let s = w.s2x2;
-    let wallet = w.wallet_raw(BOB, Usdc);
-    for msg in [
-        format!(r#"{{"action":"supply","scenario_id":{s},"tier":"bold"}}"#),
-        format!(r#"{{"action":"deposit_collateral","scenario_id":{s},"tier":"safe"}}"#),
-        format!(r#"{{"action":"repay","scenario_id":{s},"all":false,"tier":"safe"}}"#),
-        format!(r#"{{"action":"close_after_resolution","scenario_id":{s},"tier":"bold"}}"#),
-    ] {
-        fails(
-            w.ft_transfer_call(BOB, Usdc, 1_000_000, &msg),
-            "NotImplemented(tier)",
-        );
-        assert_eq!(w.wallet_raw(BOB, Usdc), wallet);
-    }
+    let msg = format!(r#"{{"action":"supply","scenario_id":{s},"tier":"bold"}}"#);
+    assert_eq!(w.ft_transfer_call(BOB, Usdc, 1_000_000, &msg), Ok(0));
+    let bold = MarketId::new(s, Some(Tier::Bold));
+    assert_eq!(w.view(|c| c.market_of(bold)).total_supply_assets, E18);
+    let msg = format!(r#"{{"action":"deposit_collateral","scenario_id":{s},"tier":"safe"}}"#);
+    assert_eq!(w.ft_transfer_call(BOB, Usdc, 1_000_000, &msg), Ok(0));
+    let safe = MarketId::new(s, Some(Tier::Safe));
+    assert_eq!(
+        w.view(|c| c.pieces(safe, &acc(BOB))),
+        vec![(crate::lending::CollateralKey::Real(Usdc), E18)]
+    );
     // Normal, named or not, acts as v1 did.
     let msg = format!(r#"{{"action":"supply","scenario_id":{s},"tier":"normal"}}"#);
     assert_eq!(w.ft_transfer_call(BOB, Usdc, 1_000_000, &msg), Ok(0));
@@ -375,6 +373,7 @@ fn liquidation_msg_checks_its_cash_fields() {
         w.ft_transfer_call(ALICE, Usdc, 1, &format!(r#"{{{base},"min_out":"1"}}"#)),
         "MinOutWithoutCash",
     );
+    // Both fields right: the liquidation itself runs (bob owes nothing).
     fails(
         w.ft_transfer_call(
             ALICE,
@@ -382,7 +381,7 @@ fn liquidation_msg_checks_its_cash_fields() {
             1,
             &format!(r#"{{{base},"receive":"cash","min_out":"1"}}"#),
         ),
-        "NotImplemented(cash_out)",
+        &format!("NotLiquidatable({})", u128::MAX),
     );
     fails(
         w.ft_transfer_call(ALICE, Wnear, 1, &format!(r#"{{{base},"receive":"cash"}}"#)),
@@ -391,16 +390,13 @@ fn liquidation_msg_checks_its_cash_fields() {
 }
 
 #[test]
-fn new_actions_are_stubs_and_refund() {
+fn fund_insurance_acts_and_pledge_is_a_stub() {
     let mut w = World::new();
-    fails(
-        w.ft_transfer_call(
-            ALICE,
-            Usdc,
-            1_000_000,
-            r#"{"action":"fund_insurance","scenario_id":1}"#,
-        ),
-        "NotImplemented(fund_insurance)",
+    let msg = r#"{"action":"fund_insurance","scenario_id":1}"#;
+    assert_eq!(w.ft_transfer_call(ALICE, Usdc, 1_000_000, msg), Ok(0));
+    assert_eq!(
+        w.view(|c| c.tier_state(MarketId::new(1, None))).insurance,
+        E18
     );
     fails(
         w.ft_transfer_call(ALICE, Wnear, 1, r#"{"action":"pledge","proposal_id":1}"#),
@@ -408,14 +404,10 @@ fn new_actions_are_stubs_and_refund() {
     );
     // fund_insurance is never paused.
     pause(&mut w, &PauseFlag::ALL);
-    fails(
-        w.ft_transfer_call(
-            ALICE,
-            Usdc,
-            1_000_000,
-            r#"{"action":"fund_insurance","scenario_id":1}"#,
-        ),
-        "NotImplemented(fund_insurance)",
+    assert_eq!(w.ft_transfer_call(ALICE, Usdc, 1_000_000, msg), Ok(0));
+    assert_eq!(
+        w.view(|c| c.tier_state(MarketId::new(1, None))).insurance,
+        2 * E18
     );
 }
 
@@ -619,15 +611,17 @@ fn has_debt_reads_every_tier_of_the_scenario() {
     w.borrow(ALICE, s, 100 * E18).unwrap();
     assert!(w.view(|c| c.has_debt(s)));
     assert!(!w.view(|c| c.has_debt(b)));
+    // The touched market snapshot its tier's default (the v1 profile's here).
     let normal = w.view(|c| c.tier_state(MarketId::new(s, None)));
-    assert_eq!(normal, TierState::builtin(Tier::Normal));
+    assert_eq!(normal, w.view(|c| c.default_state(Tier::Normal)));
+    assert_eq!(normal.config.lltv, LLTV);
 }
 
 // ---- App config ----
 
 #[test]
 fn app_config_reports_the_v2_values() {
-    let mut w = World::new();
+    let mut w = World::new_v2();
     let c = w.view(|c| c.get_app_config());
     assert_eq!(c.code_version, crate::version::CODE_VERSION);
     assert_eq!(c.state_version, 2);

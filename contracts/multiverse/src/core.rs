@@ -361,7 +361,7 @@ impl Contract {
             .unwrap_or(0)
     }
 
-    fn set_reserve(&mut self, scenario_id: u64, asset: Asset, value: u128) {
+    pub(crate) fn set_reserve(&mut self, scenario_id: u64, asset: Asset, value: u128) {
         self.reserves.insert((scenario_id, asset), value);
     }
 

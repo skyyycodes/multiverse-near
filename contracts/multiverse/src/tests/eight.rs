@@ -848,7 +848,7 @@ fn attempt_sale(w: &mut World, s: u64, mask: u8, plans: Plans) -> (String, u64, 
             .collect();
         let before = env::used_gas().as_gas();
         let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            c.conditional_sell(s, U128(E18), mask, plans, vec![U128(0); n], false)
+            c.conditional_sell(s, U128(E18), mask, plans, vec![U128(0); n], false, None)
         }));
         let gas = env::used_gas().as_gas() - before;
         let err = panic_message(r.expect_err("the sale must fail"));
@@ -897,7 +897,15 @@ fn too_many_fills_fails_before_any_work() {
                         .collect()
                 })
                 .collect();
-            c.conditional_sell(sid, U128(amount), mask, plans, vec![U128(0); n], false)
+            c.conditional_sell(
+                sid,
+                U128(amount),
+                mask,
+                plans,
+                vec![U128(0); n],
+                false,
+                None,
+            )
         })
     };
     fails(
@@ -1139,8 +1147,9 @@ fn heaviest_eight_world_trade(fills: usize) -> (World, Vec<String>) {
 
 /// Each fill from its own maker costs 492 bytes at the widest values at 8
 /// worlds (its tuple in `orders_filled` and its maker's `mt_transfer`
-/// entry), so 18 fills (16,549 bytes) would break the 16,384-byte receipt
-/// limit even before C-LEND's fields; 16 leave more than 500 bytes with them.
+/// entry), so 18 fills (16,606 bytes) would break the 16,384-byte receipt
+/// limit even in the Normal tier; 16 leave more than 500 bytes in the Bold
+/// tier.
 #[test]
 fn eight_world_trade_bytes_per_fill() {
     let bytes: Vec<usize> = [14, 15, 16]
@@ -1157,7 +1166,7 @@ fn eight_world_trade_bytes_per_fill() {
     let per_fill = bytes[2] - bytes[1];
     assert_eq!(per_fill, 492);
     assert_eq!(bytes[1] - bytes[0], per_fill);
-    assert_eq!(bytes[2] + 2 * per_fill, 16_549, "18 fills");
+    assert_eq!(bytes[2] + 2 * per_fill, 16_606, "18 fills");
     assert!(
         bytes[2] + 2 * per_fill > 16_384,
         "18 fills would not fit a receipt"
@@ -1169,15 +1178,16 @@ fn eight_world_trade_bytes_per_fill() {
     assert_eq!(err, "TooManyFills(17, 16)");
 }
 
-/// What C-LEND's v2 event fields add to the heaviest trade at the widest
-/// values (SPEC-C 3.10): `,"tier":"bold"` (14 bytes) on each collateral
-/// item and on `borrow`, and on `accrue` the tier plus
-/// `,"to_insurance":"<39 digits>"` (57 bytes). The pins hold with them.
-const LEND_FIELDS_8W_TRADE: usize = 8 * 14 + 14 + 14 + 57;
-const LEND_FIELDS_4W_TRADE: usize = 4 * 14 + 14 + 14 + 57;
+/// What the Bold tier adds to the heaviest trade at the widest values
+/// (SPEC-C 3.10): `,"tier":"bold"` (14 bytes) on each collateral item, on
+/// `borrow` and on `accrue` (the Normal tier logs no `tier`). The
+/// `accrue` line's `,"to_insurance":"<39 digits>"` (57 bytes) is in the
+/// measured bytes. The pins hold with them.
+const LEND_FIELDS_8W_TRADE: usize = 8 * 14 + 14 + 14;
+const LEND_FIELDS_4W_TRADE: usize = 4 * 14 + 14 + 14;
 
-/// The heaviest trade at 8 worlds, at the cap: 9 lines, 15,565 bytes at the
-/// widest values (15,762 with C-LEND's fields), within the 15,872-byte pin.
+/// The heaviest trade at 8 worlds, at the cap: 9 lines, 15,622 bytes at the
+/// widest values (15,762 in the Bold tier), within the 15,872-byte pin.
 #[test]
 fn log_pin_eight_world_sell_and_borrow_at_the_cap() {
     let (w, ids) = heaviest_eight_world_trade(MAX_TRADE_FILLS_8W);
@@ -1186,7 +1196,7 @@ fn log_pin_eight_world_sell_and_borrow_at_the_cap() {
         &w,
         &ids,
         15_872 - LEND_FIELDS_8W_TRADE,
-        15_565,
+        15_622,
         "8-world sell_and_borrow, 16 fills",
     );
 }
@@ -1227,7 +1237,7 @@ fn log_pin_four_world_trade_20_fills() {
         &w,
         &ids,
         16_384 - 500 - LEND_FIELDS_4W_TRADE,
-        14_637,
+        14_694,
         "4-world sell_and_borrow, 20 fills",
     );
 }
@@ -1329,7 +1339,7 @@ fn log_pin_liquidation_of_every_piece() {
         &w,
         &[&who, &liquidator],
         16_384,
-        3_300,
+        3_906,
         "liquidation, every piece",
     );
     clear_prices();
@@ -1358,7 +1368,7 @@ fn log_pin_close_after_resolution_with_every_piece() {
         &w,
         &[&who],
         16_384,
-        6_263,
+        7_198,
         "close_after_resolution, every piece",
     );
     clear_prices();
