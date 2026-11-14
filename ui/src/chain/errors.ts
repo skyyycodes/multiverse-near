@@ -1,10 +1,11 @@
 // Contract errors in plain words (web design 5.5, 6.9; SPEC.md K3). The contract's own text always stays visible after
 // the plain words ("{text} ({raw})"), for support and for the recorder; anything this table does not know passes
 // through unchanged.
+import { BRAND } from "./brand";
 import { fmt, fmtHf, fmtNear, fmtPrice, fmtUsd, pct, utcDate } from "./format";
 import { marketHref, proposalHref } from "./links";
 import { FLAG_LABEL, type PauseFlag } from "./pause";
-import { BRAND } from "./brand";
+import { STORAGE_FLOOR, TOP_UP } from "./storage-floor";
 import type { Asset } from "./types";
 
 const WAD = 10n ** 18n;
@@ -180,10 +181,14 @@ export function humanError(raw: string, ctx: ErrorContext = {}): string {
     case "InsufficientBalance":
       return "You hold less than that in this world now; refresh and try a smaller amount";
     case "InsufficientStorage": {
+      // (needed, free part of the deposit or the attached NEAR). A writing action adds TOP_UP first while the free
+      // part is under STORAGE_FLOOR (hooks/useTx.ts), so a small gap closes on the next try by itself.
       const need = int(a);
       const have = int(b);
-      const short = need !== undefined && have !== undefined && need > have ? ` ${yoctoNear(need - have)} NEAR` : "";
-      return `Your storage deposit with ${BRAND.name} is${short} short for this; the next try adds to it first`;
+      if (need === undefined || have === undefined) break;
+      const gap = need > have ? need - have : 0n;
+      const short = `Your storage deposit with ${BRAND.name} is ${yoctoNear(gap)} NEAR short for this`;
+      return have < STORAGE_FLOOR && gap <= TOP_UP ? `${short}; the next try adds to it first` : `${short}: add a little NEAR to it and try again`;
     }
     case "NotRegistered":
       return `Your account is not registered with ${BRAND.name} yet; the next action registers it`;

@@ -21,7 +21,7 @@ export const nav: NavItem[] = [
   { to: '/borrow/', label: 'Borrow' },
   { to: '/lend/', label: 'Lend' },
   { to: '/orders/', label: 'Order book' },
-  { to: '/propose/', label: 'Propose', also: ['/proposal/'] },
+  { to: '/propose/', label: 'Propose', also: ['/proposal/', '/proposals/'] },
   { to: '/resolve/', label: 'Resolve' },
   { to: '/docs/', label: 'How it works' },
 ]
@@ -43,7 +43,8 @@ export const footerLinks: { to: string; label: string }[] = [
   { to: '/portfolio/', label: 'Portfolio' },
   { to: '/liquidate/', label: 'At-risk loans' },
   { to: '/propose/', label: 'Propose a market' },
-  { to: '/proposals/', label: 'Decision markets' },
+  { to: '/proposals/', label: 'Proposals' },
+  { to: '/decision-markets/', label: 'Decision markets' },
   { to: '/docs/', label: 'How it works' },
   { to: '/admin/', label: 'Admin' },
 ]
