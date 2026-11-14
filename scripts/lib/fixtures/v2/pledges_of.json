@@ -1,0 +1,16 @@
+[
+  {
+    "proposal_id": 13,
+    "account_id": "leo.ifverse-staging.testnet",
+    "wnear": "1000000000000000000000",
+    "usdc": "5000000000000000000000",
+    "state": "seed",
+    "shares": "8037000000000000000000",
+    "withdrawn_shares": "0",
+    "unused_wnear": "0",
+    "unused_usdc": "120000000000000000000",
+    "unused_paid": false,
+    "unlock_at_sec": 1795304800,
+    "max_withdrawable_shares": "8037000000000000000000"
+  }
+]

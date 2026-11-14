@@ -1,0 +1,16 @@
+{
+  "config": {
+    "lltv": "600000000000000000",
+    "borrow_ltv": "500000000000000000",
+    "liquidation_bonus": "50000000000000000",
+    "reserve_factor": "100000000000000000",
+    "rate_base": "317097919",
+    "rate_slope1": "1268391679",
+    "rate_slope2": "14269406392",
+    "rate_kink": "800000000000000000",
+    "max_utilization": "900000000000000000",
+    "borrow_cap": null
+  },
+  "frozen": false,
+  "source": "default"
+}

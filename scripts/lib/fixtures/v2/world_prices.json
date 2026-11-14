@@ -1,0 +1,46 @@
+[
+  {
+    "world": 0,
+    "status": "trusted",
+    "twap": "3750000000000000000",
+    "spot": "3760000000000000000",
+    "borrow_price": "3750000000000000000",
+    "liquidation_price": "3750000000000000000",
+    "depth": "75000000000000000000000",
+    "age_sec": 86400,
+    "full_window": true
+  },
+  {
+    "world": 1,
+    "status": "out_of_band",
+    "twap": "3500000000000000000",
+    "spot": "3900000000000000000",
+    "borrow_price": "0",
+    "liquidation_price": "3500000000000000000",
+    "depth": "70000000000000000000000",
+    "age_sec": 86400,
+    "full_window": true
+  },
+  {
+    "world": 2,
+    "status": "young",
+    "twap": "2900000000000000000",
+    "spot": "2900000000000000000",
+    "borrow_price": "0",
+    "liquidation_price": "0",
+    "depth": "60000000000000000000000",
+    "age_sec": 600,
+    "full_window": false
+  },
+  {
+    "world": 3,
+    "status": "no_pool",
+    "twap": "0",
+    "spot": "0",
+    "borrow_price": "0",
+    "liquidation_price": "0",
+    "depth": "0",
+    "age_sec": 0,
+    "full_window": false
+  }
+]

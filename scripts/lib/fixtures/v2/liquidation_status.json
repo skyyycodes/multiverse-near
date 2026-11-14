@@ -1,0 +1,8 @@
+{
+  "status": "liquidatable",
+  "unpriced_world": null,
+  "tier": "normal",
+  "max_repay": "446411128000000000000",
+  "full_seize_repay": "1079175467000000000000",
+  "write_off_ready": false
+}

@@ -1,8 +1,8 @@
 {
-  "name": "multiverse-near-scripts",
+  "name": "ifverse-scripts",
   "version": "0.1.0",
   "private": true,
-  "description": "Testnet accounts, deployment and resolver tooling for Multiverse Lending on NEAR",
+  "description": "IfVerse on NEAR: accounts, deployment, upgrade and rehearsal, seeding, resolution, bots, soak and end-to-end tooling",
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -22,7 +22,21 @@
     "reset": "tsx reset.ts",
     "resolver": "tsx resolver.ts",
     "e2e": "tsx e2e.ts",
-    "outlayer": "tsx outlayer.ts"
+    "outlayer": "tsx outlayer.ts",
+    "upgrade": "tsx upgrade.ts",
+    "rehearse": "tsx rehearse.ts",
+    "release": "tsx release.ts",
+    "reclaim": "tsx reclaim.ts",
+    "ops": "tsx ops.ts",
+    "watch": "tsx watch.ts",
+    "reference": "tsx reference.ts",
+    "seed:v2": "tsx seed-v2.ts",
+    "maker": "tsx maker.ts",
+    "market": "tsx market.ts",
+    "liquidator": "tsx liquidator.ts",
+    "soak": "tsx soak.ts",
+    "measure": "tsx measure.ts",
+    "accept": "tsx accept.ts"
   },
   "dependencies": {
     "near-api-js": "7.4.0"

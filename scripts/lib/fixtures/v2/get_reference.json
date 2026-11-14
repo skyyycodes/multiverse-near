@@ -1,0 +1,11 @@
+{
+  "price": "3510550000000000000",
+  "observed_at": 1794620000,
+  "stored_at": 1794620030,
+  "age_sec": 120,
+  "source": "outlayer",
+  "sources_used": 4,
+  "spread_bps": 88,
+  "request": 3,
+  "pending": false
+}

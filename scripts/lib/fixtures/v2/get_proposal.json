@@ -1,0 +1,111 @@
+{
+  "proposal_id": 12,
+  "kind": "new_event",
+  "proposer": "sam.ifverse-staging.testnet",
+  "void_reason": null,
+  "blocker": "GoalNotReached(41000000000000000000000, 47000000000000000000000)",
+  "event_ids": [],
+  "world_count": 2,
+  "category": 3,
+  "deadline_sec": 1798761600,
+  "created_at_sec": 1794600000,
+  "approved_at_sec": 1794603600,
+  "expires_at_sec": 1795812000,
+  "open_not_before_sec": 0,
+  "goal": "47000000000000000000000",
+  "ideal_wnear": "4600000000000000000000",
+  "ideal_usdc": "33000000000000000000000",
+  "s_hint": "3037693300000000000",
+  "pledged_wnear": "4100000000000000000000",
+  "pledged_usdc": "25800000000000000000000",
+  "pledgers": 7,
+  "progress_bps": 7346,
+  "bond": "200000000000000000000000",
+  "reserve": "100000000000000000000000",
+  "seed_lock_sec": 604800,
+  "opened": null,
+  "status": "waiting",
+  "new_event": {
+    "question": "Will NEAR close above $4 on 31 Dec 2026?",
+    "outcome_names": [
+      "YES",
+      "NO"
+    ],
+    "rule": "YES if the Coinbase Exchange NEAR-USD daily candle for 2026-12-31 (UTC) closes strictly above 4 USD, otherwise NO. [ifverse:price_close:NEAR-USD:2026-12-31:4]",
+    "source": "https://www.coinbase.com/price/near-protocol",
+    "deadline_sec": 1798761600,
+    "category": 3,
+    "terms": {
+      "odds0_bps": 6000,
+      "mult_bps": [
+        10000,
+        10000
+      ]
+    }
+  },
+  "preview": {
+    "can_open": false,
+    "blocker": "GoalNotReached(41000000000000000000000, 47000000000000000000000)",
+    "s_ref": "3037693300000000000",
+    "anchors": [
+      {
+        "scenario_id": 5,
+        "implied": "3037693300000000000"
+      }
+    ],
+    "references": [
+      {
+        "event_id": 7,
+        "scenario_id": 9,
+        "odds0": "600000000000000000",
+        "ratio0": "1050000000000000000",
+        "ratio1": "925000000000000000",
+        "implied": "3051000000000000000"
+      }
+    ],
+    "odds": [
+      "600000000000000000",
+      "400000000000000000"
+    ],
+    "prices": [
+      "3189577965000000000",
+      "2809866302500000000"
+    ],
+    "usable_value": "41000000000000000000000",
+    "used_wnear": "4100000000000000000000",
+    "used_usdc": "25800000000000000000000",
+    "unused_wnear": "0",
+    "unused_usdc": "300000000000000000000",
+    "world_pools": [
+      {
+        "world": 0,
+        "wnear": "2050000000000000000000",
+        "usdc": "6538000000000000000000"
+      },
+      {
+        "world": 1,
+        "wnear": "2050000000000000000000",
+        "usdc": "5760000000000000000000"
+      }
+    ],
+    "odds_pools": [
+      {
+        "mask0": 1,
+        "mask1": 2,
+        "amount0": "4000000000000000000000",
+        "amount1": "6000000000000000000000"
+      }
+    ],
+    "idle": [
+      {
+        "token_id": "12:usdc:1",
+        "amount": "1000000000000"
+      }
+    ],
+    "idle_value": "1000000000000",
+    "thinnest_world_usdc": "5760000000000000000000",
+    "needs": "usdc",
+    "storage_estimate": "90000000000000000000000",
+    "reserve_available": "100000000000000000000000"
+  }
+}

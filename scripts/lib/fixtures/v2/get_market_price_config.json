@@ -1,0 +1,7 @@
+{
+  "min_age_sec": 60,
+  "min_depth": "10000000000000000000000",
+  "reference": false,
+  "max_deviation": "100000000000000000",
+  "max_haircut": "0"
+}

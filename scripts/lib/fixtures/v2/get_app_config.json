@@ -1,0 +1,106 @@
+{
+  "owner_id": "ifverse-staging.testnet",
+  "reporter_id": "resolver.ifverse-staging.testnet",
+  "wnear": {
+    "token_id": "wnear.ifverse-staging.testnet",
+    "symbol": "wNEAR",
+    "decimals": 24
+  },
+  "usdc": {
+    "token_id": "usdc.ifverse-staging.testnet",
+    "symbol": "USDC",
+    "decimals": 6
+  },
+  "lltv": "750000000000000000",
+  "liquidation_bonus": "50000000000000000",
+  "borrow_rate_per_sec": "1585489599",
+  "dispute_window_sec": 120,
+  "twap_window_sec": 1800,
+  "twap_min_age_sec": 60,
+  "min_pool_depth": "10000000000000000000000",
+  "fee_base_pips": 3000,
+  "fee_cap_pips": 10000,
+  "order_book": true,
+  "root_lp": true,
+  "spot_pool_id": 3,
+  "event_count": 9,
+  "scenario_count": 21,
+  "demo": {
+    "spice_event": 1,
+    "fed_event": 2,
+    "past_fed_event": 3,
+    "scenario_2x2": 5,
+    "scenario_binary": 6,
+    "implied_spot": "3037693300000000000",
+    "odds_ships_bps": 6667,
+    "odds_cuts_bps": 3000,
+    "odds_source": "Polymarket, read 2026-11-06",
+    "seeded_at_sec": 1794600000,
+    "spot_from": "2x2"
+  },
+  "code_version": "2.0.0",
+  "state_version": 2,
+  "paused": [],
+  "guardian_id": "guardian.ifverse-staging.testnet",
+  "pending_owner_id": null,
+  "max_worlds": 8,
+  "max_events": 3,
+  "max_trade_fills": 20,
+  "max_trade_fills_8w": 18,
+  "reference_configured": true,
+  "proposal_count": 19,
+  "lending": {
+    "min_loan": "100000000000000000000",
+    "full_liquidation_hf": "900000000000000000",
+    "small_loan": "200000000000000000000",
+    "close_factor": "500000000000000000",
+    "max_collateral_pieces": 20,
+    "defaults": [
+      {
+        "tier": "safe",
+        "config": {
+          "lltv": "600000000000000000",
+          "borrow_ltv": "500000000000000000",
+          "liquidation_bonus": "50000000000000000",
+          "reserve_factor": "100000000000000000",
+          "rate_base": "317097919",
+          "rate_slope1": "1268391679",
+          "rate_slope2": "14269406392",
+          "rate_kink": "800000000000000000",
+          "max_utilization": "900000000000000000",
+          "borrow_cap": null
+        }
+      },
+      {
+        "tier": "normal",
+        "config": {
+          "lltv": "700000000000000000",
+          "borrow_ltv": "600000000000000000",
+          "liquidation_bonus": "60000000000000000",
+          "reserve_factor": "100000000000000000",
+          "rate_base": "634195839",
+          "rate_slope1": "1902587519",
+          "rate_slope2": "16489091831",
+          "rate_kink": "800000000000000000",
+          "max_utilization": "900000000000000000",
+          "borrow_cap": null
+        }
+      },
+      {
+        "tier": "bold",
+        "config": {
+          "lltv": "800000000000000000",
+          "borrow_ltv": "700000000000000000",
+          "liquidation_bonus": "80000000000000000",
+          "reserve_factor": "100000000000000000",
+          "rate_base": "951293759",
+          "rate_slope1": "2853881278",
+          "rate_slope2": "19977168949",
+          "rate_kink": "800000000000000000",
+          "max_utilization": "900000000000000000",
+          "borrow_cap": null
+        }
+      }
+    ]
+  }
+}

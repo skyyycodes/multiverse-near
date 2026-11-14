@@ -4,7 +4,22 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 
-import { accountIds, DEPLOYMENTS_PATH, readDeployments, requireDeployments, writeDeployments, type Deployments } from "./deployments.ts";
+import { existsSync } from "node:fs";
+
+import {
+  accountIds,
+  appendHistory,
+  DEPLOYMENTS_PATH,
+  deploymentsPath,
+  goneLive,
+  heldEvents,
+  optionalFieldsError,
+  ownerOf,
+  readDeployments,
+  requireDeployments,
+  writeDeployments,
+  type Deployments,
+} from "./deployments.ts";
 
 const token = (accountId: string, symbol: string, decimals: number): Deployments["tokens"]["wnear"] => ({
   accountId,
@@ -71,5 +86,87 @@ describe("deployments file", () => {
     assert.equal(d.tokens.wnear.accountId, "wnear.multiverse-near.testnet");
     assert.equal(BigInt(d.tokens.wnear.maxMintPerCall), 10n ** 30n);
     assert.doesNotMatch(readFileSync(DEPLOYMENTS_PATH, "utf8"), /private_key|secret|ed25519:/);
+  });
+});
+
+describe("v2 fields", () => {
+  const dir = mkdtempSync(join(tmpdir(), "mv-deployments-v2-"));
+  const contract = { accountId: "app.example.testnet", codeHash: "G6GtUs6AqHfxRb8YCdBx5dv1bgiQ3c1gDhPE9ygQTkEt", deployedAt: "2026-11-01T00:00:00.000Z", disputeWindowSec: 120 };
+
+  it("loads a file with every optional field", async () => {
+    const path = join(dir, "full.json");
+    const d: Deployments = {
+      ...sample(),
+      contract: { ...contract, version: "1.0.0", stateVersion: 1, history: [{ version: "1.0.0", codeHash: contract.codeHash, at: contract.deployedAt }] },
+      owner: "owner.example.testnet",
+      ops: { guardian: "guardian.example.testnet", keeper: "keeper.example.testnet", maker: "maker.example.testnet" },
+      release: "releases/v2.0.0/manifest.json",
+      goLiveAt: "2026-11-20T12:00:00.000Z",
+      resolutionHold: [7, 9],
+    };
+    await writeDeployments(d, path);
+    const back = await requireDeployments(path);
+    assert.deepEqual(back.ops, d.ops);
+    assert.deepEqual(back.resolutionHold, [7, 9]);
+    assert.equal(back.contract?.history?.length, 1);
+  });
+
+  it("refuses malformed optional fields with the field named", async () => {
+    const path = join(dir, "bad.json");
+    const cases: [Record<string, unknown>, RegExp][] = [
+      [{ resolutionHold: ["7"] }, /resolutionHold is not a list of event ids/],
+      [{ resolutionHold: [0] }, /resolutionHold/],
+      [{ goLiveAt: "soon" }, /goLiveAt is not an ISO time/],
+      [{ ops: { guardian: 1 } }, /ops\.guardian is not a string/],
+      [{ ops: { bot: "x" } }, /ops\.bot is not an ops account/],
+      [{ contract: { ...contract, stateVersion: "2" } }, /contract\.stateVersion/],
+      [{ contract: { ...contract, history: [{ version: "2.0.0" }] } }, /contract\.history\[0\] needs version, codeHash and at/],
+    ];
+    for (const [extra, pattern] of cases) {
+      writeFileSync(path, JSON.stringify({ ...sample(), ...extra }));
+      await assert.rejects(readDeployments(path), pattern);
+    }
+    assert.equal(optionalFieldsError(sample()), null);
+  });
+
+  it("appends a deploy or upgrade to the history and names the new code", () => {
+    const d: Deployments = { ...sample(), contract: { ...contract, version: "1.0.0" } };
+    const up = appendHistory(d, { version: "2.0.0", codeHash: "NewHash111", tx: "Tx1", at: "2026-11-21T00:00:00.000Z" }, 2);
+    assert.equal(up.contract?.codeHash, "NewHash111");
+    assert.equal(up.contract?.version, "2.0.0");
+    assert.equal(up.contract?.stateVersion, 2);
+    assert.deepEqual(up.contract?.history, [{ version: "2.0.0", codeHash: "NewHash111", tx: "Tx1", at: "2026-11-21T00:00:00.000Z", previousCodeHash: contract.codeHash }]);
+    assert.equal(d.contract?.history, undefined, "the input is not changed");
+    assert.throws(() => appendHistory(sample(), { version: "2.0.0", codeHash: "x", at: "" }), /no contract record/);
+  });
+
+  it("knows go-live, the resolution hold and the owner", () => {
+    const d: Deployments = { ...sample(), goLiveAt: "2026-11-20T12:00:00.000Z", resolutionHold: [7, 9] };
+    assert.equal(goneLive(d, Date.parse("2026-11-20T11:59:59Z")), false);
+    assert.equal(goneLive(d, Date.parse("2026-11-20T12:00:00Z")), true);
+    assert.equal(goneLive(sample()), false);
+    assert.deepEqual([...heldEvents(d)], [7, 9]);
+    assert.deepEqual([...heldEvents(d, [9])], [7], "an explicit --events id is not held");
+    assert.equal(ownerOf(d), "example.testnet");
+    assert.equal(ownerOf({ ...d, owner: "new-owner.testnet" }), "new-owner.testnet");
+  });
+
+  it("reads the file of the network it is asked for", async () => {
+    const path = join(dir, "staging.json");
+    writeFileSync(path, JSON.stringify({ ...sample(), network: "staging" }));
+    await assert.rejects(readDeployments(path), /does not look like a testnet deployments file/);
+    assert.equal((await readDeployments(path, "staging"))?.network, "staging");
+    assert.match(deploymentsPath("rehearsal"), /deployments\/rehearsal\.json$/);
+  });
+
+  it("deployments/staging.json, when present, is valid and holds no keys", async (t) => {
+    const path = deploymentsPath("staging");
+    if (!existsSync(path)) {
+      t.skip("deployments/staging.json is written by accounts.ts on staging");
+      return;
+    }
+    const d = await requireDeployments(path, "staging");
+    assert.equal(d.root, "ifverse-staging.testnet");
+    assert.doesNotMatch(readFileSync(path, "utf8"), /private_key|secret|ed25519:/);
   });
 });

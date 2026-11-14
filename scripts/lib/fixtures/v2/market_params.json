@@ -1,0 +1,51 @@
+{
+  "params": {
+    "bond_new_event": "200000000000000000000000",
+    "bond_market": "50000000000000000000000",
+    "reserve_base": "50000000000000000000000",
+    "reserve_per_world": "25000000000000000000000",
+    "proposal_ttl_sec": 1209600,
+    "review_ttl_sec": 1209600,
+    "min_pledge_window_sec": 86400,
+    "min_market_life_sec": 259200,
+    "notice_sec": 3600,
+    "seed_lock_sec": 604800,
+    "evict_min_age_sec": 259200,
+    "spam_floor_bps": 1000,
+    "goal_depth_usdc": "15000000000000000000000",
+    "min_open_depth_usdc": "10000000000000000000000",
+    "min_goal_usdc": "10000000000000000000000",
+    "goal_round_usdc": "1000000000000000000000",
+    "beta_bps": 2500,
+    "odds_clamp_bps": 100,
+    "mult_a_bps": [
+      5000,
+      20000
+    ],
+    "mult_b_bps": [
+      2000,
+      50000
+    ],
+    "anchors": [
+      0,
+      0,
+      0
+    ],
+    "max_anchor_divergence_bps": 300,
+    "max_reference_divergence_bps": 1000,
+    "min_reference_depth_usdc": "10000000000000000000000",
+    "min_reference_odds_depth_usdc": "1000000000000000000000",
+    "require_external": false,
+    "max_external_divergence_bps": 1000,
+    "min_pledge_usdc": "10000000000000000000",
+    "min_pledge_wnear": "3000000000000000000",
+    "max_pledges_per_account": 32,
+    "max_active_per_account": 4,
+    "max_live_per_event": 16,
+    "seed_depth_floor": true
+  },
+  "reserve_w2": "100000000000000000000000",
+  "reserve_w4": "150000000000000000000000",
+  "reserve_w8": "250000000000000000000000",
+  "storage_fund": "0"
+}
