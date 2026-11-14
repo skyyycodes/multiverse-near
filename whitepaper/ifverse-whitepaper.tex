@@ -71,7 +71,7 @@ Lending values a borrower's position in every world that is still possible and s
 \emph{worst} of them, so the collateral covers the debt whichever world happens. The protocol adds three lending
 tiers (Safe, Normal, Bold), liquidation that pays in tokens or in cash, an insurance reserve, markets that anyone
 can propose and fund with pledges, resolution from public sources with a dispute window and an optional run inside
-a trusted execution environment, and an outside NEAR/USD check taken from four exchanges. Everything runs in one
+a trusted execution environment, and an outside NEAR/USD check taken from four public price sources. Everything runs in one
 Rust contract on NEAR testnet. This paper explains the model, the maths and the implementation in plain words, with
 the real parameters read from the contract and real transactions from the testnet deployment.
 \end{abstract}
@@ -192,17 +192,17 @@ real tokens out of the reserves.
 \begin{tikzpicture}[
   font=\small,
   real/.style={draw=ifv,fill=ifvlight,very thick,rounded corners,minimum width=2.6cm,minimum height=1cm,align=center},
-  verse/.style={draw=ifv,fill=white,thick,rounded corners,text width=3.9cm,minimum height=0.95cm,align=center,font=\footnotesize},
+  verse/.style={draw=ifv,fill=white,thick,rounded corners,text width=4.5cm,minimum height=0.95cm,align=center,font=\footnotesize},
   >={Stealth[length=2.5mm]}]
   \node[real] (root) at (0,0.6) {1 wNEAR\\\scriptsize(real token, root mask 15)};
   \node[verse] (w0) at (6.3, 1.45) {1 wNEAR-if-\wSC\\\scriptsize mask 1, id \code{1:wnear:1}};
-  \node[verse] (w1) at (10.75,1.45) {1 wNEAR-if-\wDC\\\scriptsize mask 2, id \code{1:wnear:2}};
+  \node[verse] (w1) at (11.25,1.45) {1 wNEAR-if-\wDC\\\scriptsize mask 2, id \code{1:wnear:2}};
   \node[verse] (w2) at (6.3,-0.25) {1 wNEAR-if-\wSH\\\scriptsize mask 4, id \code{1:wnear:4}};
-  \node[verse] (w3) at (10.75,-0.25) {1 wNEAR-if-\wDH\\\scriptsize mask 8, id \code{1:wnear:8}};
+  \node[verse] (w3) at (11.25,-0.25) {1 wNEAR-if-\wDH\\\scriptsize mask 8, id \code{1:wnear:8}};
   \node[font=\scriptsize\bfseries] at (6.3,2.3) {\textsf{SHIPS}};
-  \node[font=\scriptsize\bfseries] at (10.75,2.3) {\textsf{DELAYED}};
-  \node[font=\scriptsize\bfseries,rotate=-90] at (13.25,1.45) {\textsf{CUTS}};
-  \node[font=\scriptsize\bfseries,rotate=-90] at (13.25,-0.25) {\textsf{HOLDS}};
+  \node[font=\scriptsize\bfseries] at (11.25,2.3) {\textsf{DELAYED}};
+  \node[font=\scriptsize\bfseries,rotate=-90] at (13.8,1.45) {\textsf{CUTS}};
+  \node[font=\scriptsize\bfseries,rotate=-90] at (13.8,-0.25) {\textsf{HOLDS}};
   \node[draw=gray,dashed,rounded corners,fit=(w0)(w1)(w2)(w3),inner sep=6pt] (grid) {};
   \draw[->,very thick,good] (root.north east) to[bend left=18] node[above,sloped,font=\scriptsize]{split from root} ($(grid.west)+(0,0.5)$);
   \draw[->,very thick,bad] ($(grid.west)+(0,-0.6)$) to[bend left=18] node[below,sloped,font=\scriptsize]{merge to root} (root.south east);
@@ -501,11 +501,11 @@ hedge you buy for the future you fear directly raises how much you can borrow an
   \draw[->] (0,0) -- (0,4700) node[above,font=\scriptsize]{USDC};
   \foreach \v in {1000,2000,3000,4000} { \draw (-0.08,\v) -- (0.08,\v) node[left=3pt,font=\scriptsize]{\v}; }
   % bars
-  \foreach \i/\x/\v/\lab in {0/1.2/4180.94/\wSC,1/3.4/3118.21/\wDC,2/5.6/3444.95/\wSH,3/7.8/2663.49/\wDH}{
+  \foreach \i/\x/\v/\la/\lb in {0/1.2/4180.94/SHIPS/CUTS,1/3.4/3118.21/DELAYED/CUTS,2/5.6/3444.95/SHIPS/HOLDS,3/7.8/2663.49/DELAYED/HOLDS}{
     \fill[ifv!35] (\x-0.7,0) rectangle (\x+0.7,\v);
     \draw[ifv] (\x-0.7,0) rectangle (\x+0.7,\v);
     \node[above,font=\scriptsize] at (\x,\v) {\v};
-    \node[below,font=\scriptsize] at (\x,0) {\lab};
+    \node[below,font=\scriptsize,align=center] at (\x,0) {\textsf{\la}$\cdot$\\\textsf{\lb}};
   }
   \fill[bad!45] (7.1,0) rectangle (8.5,2663.49); \draw[bad,thick] (7.1,0) rectangle (8.5,2663.49);
   \draw[dashed,thick,bad] (0,2663.49) -- (9.4,2663.49) node[right,font=\scriptsize,align=left,yshift=7pt]{$C_{\min}$ 2,663.49};
@@ -541,7 +541,7 @@ receive the rest, so the supply rate is
 \inwords{When few people borrow, money is cheap. As the pool fills up, the rate rises slowly; past 80\% it rises
 steeply, which pulls in new lenders and pushes borrowers to repay. Borrowing stops at 90\% utilization so lenders can
 always withdraw some cash.}
-Live example: on 14 November 2026 the Safe tier of market 1 had 105,050 USDC supplied and 1,330.56 USDC borrowed, a
+Live example: at 16:39 UTC on 14 November 2026 the Safe tier of market 1 had 105,050 USDC supplied and 1,330.56 USDC borrowed, a
 utilization of 1.27\%. Equation~\eqref{eq:rate} gives $1\% + 4\% \times 0.0127/0.80 \approx 1.063\%$ a year, which is
 exactly the 337,179,725 per second the contract reported.
 
@@ -741,8 +741,8 @@ them, so no timer is required on chain.}
 An event's outcome becomes final in one of three ways:
 \begin{enumerate}
 \item \textbf{Reporter.} A dedicated reporter account proposes the outcome with \code{report\_outcome}, together with
-up to 512 bytes of evidence, which is logged on chain. The reporter key is a NEAR \emph{function-call key}: it can call
-only a few methods of the contract and cannot move funds.
+up to 512 bytes of evidence, which is logged on chain. The reporter's tools sign with a NEAR \emph{function-call key}:
+it can call only \code{report\_outcome} and \code{finalize} on the contract and cannot move funds.
 \item \textbf{OutLayer.} Anyone can call \code{request\_resolution} and pay OutLayer's fee. OutLayer \cite{outlayer}
 runs a small pinned program inside a trusted execution environment (an Intel TDX worker) and hands the answer back to
 the contract through NEP-519 yield/resume \cite{nep519}. The program's download URL and its SHA-256 hash are pinned on
@@ -789,8 +789,8 @@ or USDC. Borrowers can close their loan and redeem in a single call (\code{close
 
 \begin{itemize}
 \item Event 3, ``Did the Fed cut at its October 27--28, 2026 meeting?'', was resolved through OutLayer. The pinned
-program reads the FRED series DFEDTARU and DFEDTARL \cite{fred}: both limits were 4.00\% and 3.75\% before and after
-the meeting, so the answer is \textsf{HOLDS}. The chain shows the event final with outcome \textsf{HOLDS} and
+program reads the FRED series DFEDTARU and DFEDTARL \cite{fred}: the upper and lower limits were 4.00\% and 3.75\%
+both before and after the meeting, so the answer is \textsf{HOLDS}. The chain shows the event final with outcome \textsf{HOLDS} and
 \code{proposed\_by: "outlayer"}. On the first deployment the same program ran in 1,655 ms and OutLayer charged
 0.0011655 NEAR of the 0.005 NEAR deposit, refunding the rest.
 \item Event 4, ``Did NEAR close above \$4.00 on Nov 1, 2026?'', was reported by the reporter from the Coinbase daily
@@ -809,10 +809,12 @@ nobody trades them on testnet), loans could be sized on stale prices. IfVerse th
 \subsection{How the reference is formed}
 
 The reference is the \emph{median} of NEAR/USD from four public sources: Coinbase, Kraken, Gemini and CoinGecko. It
-can be written by a pinned OutLayer program (\code{oracle/nearusd-guest}) or by the reporter key. The contract accepts
-a new value only if it comes from at least 3 sources, the sources agree within 2\% (200 bps), the observation is at
-most 300 seconds old when it arrives and no more than 60 seconds in the future, and the price lies between 0.1 and
-1,000 USDC.
+can be written by a pinned OutLayer program (\code{oracle/nearusd-guest}) or by the reporter key. Every new value,
+from either path, must have been observed at most 300 seconds before it arrives and no more than 60 seconds in the
+future, must be newer than the stored one, and must lie between 0.1 and 1,000 USDC. For a value from the OutLayer
+program the contract also checks that at least 3 sources answered and that they agree within 2\% (200 bps). The
+reporter path sends only the price and its time, so the keeper applies the same 3-source, 200 bps rule off chain
+before it posts.
 
 Example: the seed price of the live markets was the median of Coinbase 3.3204, Kraken 3.3230, CoinGecko 3.33 and
 Gemini 3.3477 at 04:32 UTC on 14 November 2026. With four sources the median is the mean of the middle two:
@@ -903,7 +905,8 @@ action needs about 0.17 NEAR free while signing but costs about 0.001 NEAR. A re
 
 Every action logs a NEP-297 event \cite{nep297} under the standard \code{multiverse}, and every balance change logs
 NEP-245 \code{mt\_mint}, \code{mt\_burn} or \code{mt\_transfer}. Views are designed one per screen, because NEAR RPC has
-no batching. The reporter signs with function-call keys limited to the reporting and reference methods.
+no batching. The reporter signs with function-call keys limited to \code{report\_outcome}, \code{finalize} and
+\code{report\_reference}.
 
 \subsection{Upgrades and pausing}
 
@@ -940,17 +943,18 @@ slice is worth at least the repayment in every possible world.
 remains.
 \item \textbf{No fill after resolution or expiry}, and only the maker can cancel.
 \end{itemize}
-Each is a stateful property test: random sequences of 50 to 200 actions (256 cases each, and 40 cases on eight-world
-markets), with the invariant checked after every step. Market-creation invariants (pledges, refunds, openings) have
+Each is a stateful property test: random sequences of 50 to 200 actions (256 cases each, and 24 to 40 cases on
+eight-world markets), with the invariant checked after every step. Market-creation invariants (pledges, refunds, openings) have
 their own randomised tests. The full Rust suite had 856 passing tests at the last recorded integration run.
 
 \subsection{Internal review}
 
 Before version 2, the team reviewed the first version and recorded ten findings (two high, four medium, four low),
 each first reproduced by a failing test and kept as a regression test. The two high findings were about lending
-prices coming from the protocol's own pools: holding one pool at a false price for one short TWAP window could unlock
-too much borrowing or liquidate a healthy borrower. The fixes are the 30-minute TWAP, the price states of
-Section~\ref{sec:prices}, the borrow/liquidation split and, in version 2, the outside reference. The version 2
+prices coming from the protocol's own pools, which then used a 60-second TWAP: pumping every world pool for one
+window could unlock too much borrowing, and dumping one world pool for one window could liquidate a healthy borrower.
+Both are mitigated, not removed: the 30-minute TWAP, the price states of Section~\ref{sec:prices}, the
+borrow/liquidation split and, in version 2, the outside reference. The version 2
 specification went through an adversarial review of its economics, runtime limits, migration and completeness before
 it was implemented.
 
@@ -985,7 +989,7 @@ to its full record on \url{https://testnet.nearblocks.io}.
 \begin{table}[t]
 \centering
 \small
-\begin{tabularx}{\linewidth}{@{}cXcllr@{}}
+\begin{tabularx}{\linewidth}{@{}c>{\raggedright\arraybackslash}Xcllr@{}}
 \toprule
 \textbf{Id} & \textbf{Events} & \textbf{Worlds} & \textbf{Origin} & \textbf{Status} & \textbf{Goal} \\
 \midrule
@@ -1002,12 +1006,13 @@ to its full record on \url{https://testnet.nearblocks.io}.
 \bottomrule
 \end{tabularx}
 \caption{Markets on \code{app.ifverse-staging.testnet} (\code{list\_markets}, 14 Nov 2026). Goals are in USDC. Seven of
-the ten markets were opened by proposals and pledges, not by the team. Twenty proposals had been made in total.}
+the ten markets were opened by proposals and pledges, not by the team. By 16:40 UTC on 14 November, 21 proposals
+had been made.}
 \label{tab:markets}
 \end{table}
 
 Table~\ref{tab:markets} lists the ten markets. Market 1 is the lending market: each of its tiers was supplied with
-about 100,000 USDC, and on 14 November 2026 each tier had two borrowers (Safe 1,330.56, Normal 2,641.09 and Bold
+about 100,000 USDC, and at 16:39 UTC on 14 November 2026 each tier had two borrowers (Safe 1,330.56, Normal 2,641.09 and Bold
 2,504.25 USDC borrowed). Pledged markets have world pools of roughly 15,000--20,000 USDC each, below the 50,000 USDC
 depth lending requires, so they are trading-only until they deepen.
 
@@ -1043,8 +1048,8 @@ then bought back.
 
 In testing, two keeper rounds raced in the same 100-block window: one landed
 (\tx{FPmqoG6kh4mcRr8gn3b5xZ7ixQK4HreTRKuYSDw63XPt}{FPmqoG6kh4}) and the other was rejected for its nonce without reaching
-the chain, as designed. After the market maker step, market 1 sat within a few basis points of the reference and
-borrowing was open.
+the chain, as designed. In two later recorded rounds the market maker step found market 1 within its 4\% band
+(42 and 10 basis points from the reference), so it sent nothing, and borrowing stayed open.
 
 %=====================================================================
 \section{Limitations and future work}
@@ -1062,8 +1067,8 @@ feed would make implied prices more meaningful.
 limits and liquidations over up to 30 minutes.
 \item \textbf{Events.} A market combines at most three binary events (eight worlds). Events with more than two outcomes
 are not supported.
-\item \textbf{Reference path.} The NEAR/USD reference is written by the reporter on testnet; switching it to the pinned
-TEE program is configured but not active.
+\item \textbf{Reference path.} The NEAR/USD reference is written by the reporter on testnet; the pinned TEE program for
+it is built but not yet configured on the live contract.
 \item \textbf{Audit.} An external security audit is required before any real value is involved.
 \end{itemize}
 
@@ -1079,7 +1084,8 @@ its code and views.
 
 %=====================================================================
 \begin{thebibliography}{99}
-\small
+\footnotesize\raggedright
+\setlength{\itemsep}{0pt}
 \bibitem{white2025} D.~White. \emph{Multiverse Finance}. Paradigm, May 2025.
 \url{https://www.paradigm.xyz/2025/05/multiverse-finance}
 
@@ -1097,7 +1103,8 @@ its code and views.
 
 \bibitem{nep519} NEP-519: Yield Execution. \url{https://github.com/near/NEPs/blob/master/neps/nep-0519.md}
 
-\bibitem{outlayer} OutLayer: verifiable off-chain execution for NEAR. \url{https://outlayer.ai}
+\bibitem{outlayer} OutLayer: verifiable off-chain execution for NEAR (contract \code{outlayer.testnet}).
+\url{https://app.outlayer.ai}
 
 \bibitem{uniswapv3} H.~Adams, N.~Zinsmeister, M.~Salem, R.~Keefer, D.~Robinson. \emph{Uniswap v3 Core}. 2021.
 \url{https://uniswap.org/whitepaper-v3.pdf}
@@ -1107,7 +1114,6 @@ its code and views.
 \bibitem{fred} Federal Reserve Bank of St.\ Louis, FRED series DFEDTARU and DFEDTARL.
 \url{https://fred.stlouisfed.org/series/DFEDTARU}
 
-\bibitem{repo} IfVerse source code. \url{https://github.com/skyyycodes/multiverse-near}
 \end{thebibliography}
 
 \end{document}
