@@ -2,12 +2,12 @@
  * Every user-facing brand string, and the only place they live (WI-7; `brand.test.ts` fails on a stray one). Code names
  * are not brand and stay as they are: the wallet id `multiverse-demo`, the storage keys `multiverse.welcomed` and
  * `ifverse.*`, the NEP-297 standard `multiverse`, the rule tags `[ifverse:…]`, crate names, every account id
- * (`*.ifverse-staging.testnet`) and the site address.
+ * (`*.ifverse-staging.testnet`) and the site address. The earlier names (IfVerse, Multiverse Lending) are not shown,
+ * so none is kept here: whatever is in this object ships in the bundle.
  */
 export const BRAND = {
   name: "Origami Verse",
   slug: "origami-verse",
-  formerly: "formerly IfVerse / Multiverse Lending",
   headline: "What if your what-ifs became worlds?",
   subline: "A multiverse for the real world.",
   explainer: "Hold NEAR in the futures you like and dollars in the ones you fear.",

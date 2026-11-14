@@ -5,7 +5,6 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { FORMERLY } from "../../scripts/check-release.mjs";
 import { BRAND } from "./brand";
 
 const SRC = fileURLToPath(new URL("..", import.meta.url));
@@ -40,8 +39,8 @@ describe("the brand", () => {
     expect(BRAND.name).toBe("Origami Verse");
     expect(BRAND.innerBalance).toBe("In Origami Verse");
     expect(BRAND.short).toBe("Every what-if gets its own world.");
-    // the one place the earlier names may show, and the release check allows exactly this string
-    expect(BRAND.formerly).toBe(FORMERLY);
+    // the constant ships in the bundle whole, so it carries no earlier name either
+    expect(JSON.stringify(BRAND)).not.toMatch(OLD);
   });
 
   it("finds the sources it scans", () => {
