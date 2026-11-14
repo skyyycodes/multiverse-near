@@ -14,8 +14,8 @@ import { useWallet } from "@/lib/near/wallet";
 import type { Asset, StorageBalance, StorageBounds } from "@/lib/types";
 import { toInternal } from "@/lib/units";
 
-/** The open mint exists on the testnet mock tokens only; design data signs nothing. */
-export const FAUCET_ON = ENV.network === "testnet" && process.env.NEXT_PUBLIC_FIXTURES !== "1";
+/** The open, capped mint exists on the mock tokens on the testnet chain (production and staging); design data signs nothing. */
+export const FAUCET_ON = ENV.chain === "testnet" && process.env.NEXT_PUBLIC_FIXTURES !== "1";
 
 /** True for a connected wallet that holds no wNEAR and no USDC at all. */
 export const walletEmpty = (b: Balances | undefined): boolean => Boolean(b && b.wnear === 0n && b.usdc === 0n);

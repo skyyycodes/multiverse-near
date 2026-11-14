@@ -68,7 +68,7 @@ function Admin({ config }: { config: AppConfig }) {
       aside={
         <>
           {s && <PricePush key={pickKey} config={config} s={s} mask={picked} isOwner={isOwner} onPick={toggle} picker={!desktop} events={d.events} />}
-          <ResetCommand />
+          {ENV.resetCommand && <ResetCommand />}
         </>
       }
     >
